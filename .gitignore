@@ -1,0 +1,42 @@
+node_modules/
+out/
+dist/
+release/
+release-new/
+release-new-*/
+release-*/
+.DS_Store
+*.log
+.env
+.env.local
+NUL
+nul
+.claude/
+.claire/
+*.tsbuildinfo
+
+# AI 工具本地配置（不入库）
+AGENTS.md
+GEMINI.md
+
+# ClaudeOps auto-generated files
+.claudeops-worktrees/
+
+# 内部开发文档（不对外公开）
+claudeOps技术方案指导.md
+his-overview.html
+docs/智能化升级方案.md
+docs/抖音推广/
+docs/memory-system-development-plan.md
+
+# 本地运行时目录
+logs/
+backups/
+config/
+
+# SpectrAI worktree isolation
+.spectrai-worktrees/
+
+# AI 生成的临时分析文件
+*_SUMMARY.txt
+*_ANALYSIS.txt
