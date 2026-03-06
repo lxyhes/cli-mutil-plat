@@ -1,16 +1,13 @@
 /**
- * Git / Worktree / Planner IPC 处理器
+ * Git / Worktree IPC 处理器
  */
 import { ipcMain } from 'electron'
 import { IPC } from '../../shared/constants'
 import { GitWorktreeService } from '../git/GitWorktreeService'
 import type { IpcDependencies } from './index'
-import { sendToRenderer } from './shared'
 import type { FileChangeTracker } from '../tracker/FileChangeTracker'
 
 export function registerGitHandlers(deps: IpcDependencies, fileChangeTracker?: FileChangeTracker): void {
-  const { planner } = deps
-
   // ==================== Git / Worktree ====================
 
   const gitService = new GitWorktreeService()
@@ -275,49 +272,4 @@ export function registerGitHandlers(deps: IpcDependencies, fileChangeTracker?: F
     }
   })
 
-  // ==================== 自主规划 ====================
-
-  ipcMain.handle(IPC.PLANNER_START, async (_event, goal: string, workDir: string) => {
-    try {
-      if (!planner) return { success: false, error: 'Planner not initialized' }
-      const planId = await planner.planAndExecute(goal, workDir)
-      return { success: true, planId }
-    } catch (error: any) {
-      return { success: false, error: error.message }
-    }
-  })
-
-  ipcMain.handle(IPC.PLANNER_CANCEL, async (_event, planId: string) => {
-    try {
-      if (!planner) return { success: false }
-      return { success: planner.cancelPlan(planId) }
-    } catch (error: any) {
-      return { success: false, error: error.message }
-    }
-  })
-
-  ipcMain.handle(IPC.PLANNER_GET_EXECUTION, async (_event, planId: string) => {
-    try {
-      return planner?.getExecution(planId) || null
-    } catch { return null }
-  })
-
-  ipcMain.handle(IPC.PLANNER_GET_ACTIVE, async () => {
-    try {
-      return planner?.getActivePlans() || []
-    } catch { return [] }
-  })
-
-  // 规划事件转发到渲染进程
-  if (planner) {
-    planner.on('plan:progress', (planId: string, progress: any) => {
-      sendToRenderer(IPC.PLANNER_PROGRESS, planId, progress)
-    })
-    planner.on('plan:completed', (planId: string, summary: string) => {
-      sendToRenderer(IPC.PLANNER_COMPLETED, planId, summary)
-    })
-    planner.on('plan:failed', (planId: string, error: string) => {
-      sendToRenderer(IPC.PLANNER_FAILED, planId, error)
-    })
-  }
 }

@@ -158,6 +158,5 @@ export function migrateFromLegacyUserData(): { migrated: boolean; details: strin
  * @param database 已初始化的 DatabaseManager
  */
 export function migrateApiKeyEncryption(_database: DatabaseManager): void {
-  // Telegram/Feishu CryptoUtil has been removed (Pro feature).
   // API key re-encryption migration is no longer needed in community edition.
 }

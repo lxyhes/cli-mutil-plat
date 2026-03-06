@@ -189,108 +189,6 @@ export const MIGRATIONS: Migration[] = [
     },
   },
 
-  // ── v10: Telegram 相关表 ──
-  {
-    version: 10,
-    description: 'create Telegram tables',
-    up(db) {
-      if (!tableExists(db, 'telegram_config')) {
-        db.exec(`
-          CREATE TABLE telegram_config (
-            key TEXT PRIMARY KEY,
-            value TEXT NOT NULL,
-            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-          )
-        `)
-      }
-      if (!tableExists(db, 'telegram_ai_providers')) {
-        db.exec(`
-          CREATE TABLE telegram_ai_providers (
-            id TEXT PRIMARY KEY,
-            provider_type TEXT NOT NULL,
-            name TEXT NOT NULL,
-            api_key TEXT NOT NULL,
-            api_base TEXT,
-            model TEXT NOT NULL,
-            max_tokens INTEGER DEFAULT 4096,
-            temperature REAL DEFAULT 0.7,
-            system_prompt TEXT,
-            is_default INTEGER NOT NULL DEFAULT 0,
-            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-            updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
-          )
-        `)
-      }
-      if (!tableExists(db, 'telegram_conversations')) {
-        db.exec(`
-          CREATE TABLE telegram_conversations (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            chat_id TEXT NOT NULL,
-            role TEXT NOT NULL,
-            content TEXT NOT NULL,
-            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-          );
-          CREATE INDEX IF NOT EXISTS idx_telegram_conversations_chat
-            ON telegram_conversations(chat_id, created_at);
-        `)
-      }
-      if (!tableExists(db, 'telegram_allowed_users')) {
-        db.exec(`
-          CREATE TABLE telegram_allowed_users (
-            user_id TEXT PRIMARY KEY,
-            username TEXT,
-            remark TEXT,
-            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-          )
-        `)
-      }
-      if (!tableExists(db, 'telegram_api_logs')) {
-        db.exec(`
-          CREATE TABLE telegram_api_logs (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            chat_id TEXT NOT NULL,
-            provider_type TEXT NOT NULL,
-            model TEXT,
-            input_tokens INTEGER,
-            output_tokens INTEGER,
-            duration_ms INTEGER,
-            error TEXT,
-            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-          );
-          CREATE INDEX IF NOT EXISTS idx_telegram_api_logs_chat
-            ON telegram_api_logs(chat_id, created_at);
-        `)
-      }
-    },
-  },
-
-  // ── v11: Feishu 相关表 ──
-  {
-    version: 11,
-    description: 'create Feishu tables',
-    up(db) {
-      if (!tableExists(db, 'feishu_config')) {
-        db.exec(`
-          CREATE TABLE feishu_config (
-            key TEXT PRIMARY KEY,
-            value TEXT NOT NULL,
-            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-          )
-        `)
-      }
-      if (!tableExists(db, 'feishu_allowed_users')) {
-        db.exec(`
-          CREATE TABLE feishu_allowed_users (
-            open_id TEXT PRIMARY KEY,
-            name TEXT,
-            remark TEXT,
-            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-          )
-        `)
-      }
-    },
-  },
-
   // ── v12: session_summaries 表 ──
   {
     version: 12,
@@ -539,17 +437,6 @@ export const MIGRATIONS: Migration[] = [
     },
   },
 
-  // ── v22: team_tasks.type 列 ──
-  {
-    version: 22,
-    description: 'add type column to team_tasks',
-    up(db) {
-      if (tableExists(db, 'team_tasks')) {
-        addColumnIfNotExists(db, 'team_tasks', 'type', "TEXT NOT NULL DEFAULT 'task'")
-      }
-    },
-  },
-
   // ── v23: skills 表 ──
   {
     version: 23,
@@ -569,7 +456,6 @@ export const MIGRATIONS: Migration[] = [
             system_prompt_addition TEXT,
             input_variables TEXT,
             native_config TEXT,
-            orchestration_config TEXT,
             required_mcps TEXT,
             is_installed INTEGER NOT NULL DEFAULT 1,
             is_enabled INTEGER NOT NULL DEFAULT 1,
@@ -584,126 +470,6 @@ export const MIGRATIONS: Migration[] = [
       } catch (err) {
         console.error('[Database] Failed to create skills table:', err)
       }
-    },
-  },
-
-  // ── v24: team_messages.task_id 列 ──
-  {
-    version: 24,
-    description: 'add task_id column to team_messages',
-    up(db) {
-      if (tableExists(db, 'team_messages')) {
-        addColumnIfNotExists(db, 'team_messages', 'task_id', 'TEXT')
-      }
-    },
-  },
-
-  // ── v25: 团队记忆表 ──
-  {
-    version: 25,
-    description: 'create team memory tables (goal_summaries, member_sessions, knowledge, idle_states, shutdown_requests)',
-    up(db) {
-      try {
-        db.exec(`
-          CREATE TABLE IF NOT EXISTS team_goal_summaries (
-            id TEXT PRIMARY KEY,
-            instance_id TEXT NOT NULL,
-            goal_round INTEGER NOT NULL DEFAULT 1,
-            goal_text TEXT NOT NULL,
-            summary TEXT NOT NULL,
-            findings TEXT,
-            next_suggestions TEXT,
-            created_at TEXT NOT NULL,
-            FOREIGN KEY (instance_id) REFERENCES team_instances(id) ON DELETE CASCADE
-          );
-          CREATE INDEX IF NOT EXISTS idx_team_goal_summaries_instance ON team_goal_summaries(instance_id, goal_round);
-
-          CREATE TABLE IF NOT EXISTS team_member_sessions (
-            id TEXT PRIMARY KEY,
-            instance_id TEXT NOT NULL,
-            role_name TEXT NOT NULL,
-            display_name TEXT NOT NULL,
-            goal_round INTEGER NOT NULL DEFAULT 1,
-            child_session_id TEXT NOT NULL,
-            agent_id TEXT,
-            started_at TEXT NOT NULL,
-            ended_at TEXT,
-            FOREIGN KEY (instance_id) REFERENCES team_instances(id) ON DELETE CASCADE
-          );
-          CREATE INDEX IF NOT EXISTS idx_team_member_sessions_instance ON team_member_sessions(instance_id, role_name, goal_round);
-
-          CREATE TABLE IF NOT EXISTS team_knowledge (
-            id TEXT PRIMARY KEY,
-            instance_id TEXT NOT NULL,
-            goal_round INTEGER NOT NULL DEFAULT 1,
-            knowledge_type TEXT NOT NULL DEFAULT 'finding',
-            content TEXT NOT NULL,
-            created_at TEXT NOT NULL,
-            FOREIGN KEY (instance_id) REFERENCES team_instances(id) ON DELETE CASCADE
-          );
-          CREATE INDEX IF NOT EXISTS idx_team_knowledge_instance ON team_knowledge(instance_id, goal_round);
-
-          CREATE TABLE IF NOT EXISTS team_member_idle_states (
-            id TEXT PRIMARY KEY,
-            instance_id TEXT NOT NULL,
-            role_name TEXT NOT NULL,
-            display_name TEXT NOT NULL,
-            summary TEXT NOT NULL,
-            since TEXT NOT NULL,
-            UNIQUE(instance_id, role_name),
-            FOREIGN KEY (instance_id) REFERENCES team_instances(id) ON DELETE CASCADE
-          );
-
-          CREATE TABLE IF NOT EXISTS team_shutdown_requests (
-            id TEXT PRIMARY KEY,
-            instance_id TEXT NOT NULL,
-            target_role_name TEXT NOT NULL,
-            requested_at TEXT NOT NULL,
-            status TEXT NOT NULL DEFAULT 'pending',
-            reject_reason TEXT,
-            FOREIGN KEY (instance_id) REFERENCES team_instances(id) ON DELETE CASCADE
-          );
-          CREATE INDEX IF NOT EXISTS idx_team_shutdown_requests_instance ON team_shutdown_requests(instance_id, status);
-        `)
-      } catch (err) {
-        console.warn('[Database] Failed to create team memory tables:', err)
-      }
-    },
-  },
-
-  // ── v26: team_instances.goal_round 列 ──
-  {
-    version: 26,
-    description: 'add goal_round column to team_instances',
-    up(db) {
-      if (tableExists(db, 'team_instances')) {
-        addColumnIfNotExists(db, 'team_instances', 'goal_round', 'INTEGER NOT NULL DEFAULT 1')
-      }
-    },
-  },
-
-  // ── v27: 重复创建 team_member_sessions（兼容性保留，使用 IF NOT EXISTS） ──
-  {
-    version: 27,
-    description: 'ensure team_member_sessions table exists (compat)',
-    up(db) {
-      try {
-        db.exec(`
-          CREATE TABLE IF NOT EXISTS team_member_sessions (
-            id TEXT PRIMARY KEY,
-            instance_id TEXT NOT NULL,
-            role_name TEXT NOT NULL,
-            display_name TEXT NOT NULL,
-            goal_round INTEGER NOT NULL DEFAULT 1,
-            child_session_id TEXT NOT NULL,
-            agent_id TEXT,
-            started_at TEXT NOT NULL,
-            ended_at TEXT,
-            FOREIGN KEY (instance_id) REFERENCES team_instances(id) ON DELETE CASCADE
-          );
-          CREATE INDEX IF NOT EXISTS idx_team_member_sessions_instance ON team_member_sessions(instance_id, role_name, goal_round);
-        `)
-      } catch { /* already exists */ }
     },
   },
 

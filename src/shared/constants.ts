@@ -14,8 +14,6 @@ export const IPC = {
   SESSION_STATUS_CHANGE: 'session:status-change',
   SESSION_ACTIVITY: 'session:activity',
   SESSION_INTERVENTION: 'session:intervention',
-  WORKFLOW_STEP_COMPLETED: 'workflow:step-completed',
-  WORKFLOW_REVIEW_NEEDED: 'workflow:review-needed',
 
   // 渲染进程 → 主进程 (invoke)
   SESSION_CREATE: 'session:create',
@@ -56,8 +54,6 @@ export const IPC = {
   TASK_STATUS_CHANGE: 'task:status-change',
   TASK_START_SESSION: 'task:start-session',
 
-  WORKFLOW_START: 'workflow:start',
-  WORKFLOW_APPROVE_STEP: 'workflow:approve-step',
 
   SEARCH_LOGS: 'search:logs',
   USAGE_GET_SUMMARY: 'usage:get-summary',
@@ -86,14 +82,6 @@ export const IPC = {
   // 主题
   THEME_UPDATE_TITLE_BAR: 'theme:update-title-bar',
 
-  // 自主规划
-  PLANNER_START: 'planner:start',
-  PLANNER_CANCEL: 'planner:cancel',
-  PLANNER_GET_EXECUTION: 'planner:get-execution',
-  PLANNER_GET_ACTIVE: 'planner:get-active',
-  PLANNER_PROGRESS: 'planner:progress',
-  PLANNER_COMPLETED: 'planner:completed',
-  PLANNER_FAILED: 'planner:failed',
 
   // 文件系统
   FS_SAVE_IMAGE_TO_TEMP: 'fs:save-image-to-temp',

@@ -6,11 +6,11 @@
 import { useState, useEffect, useCallback } from 'react'
 import {
   Activity, Zap, Clock, Monitor, CheckCircle, AlertCircle,
-  PlayCircle, PauseCircle, Terminal, AlertTriangle, Sparkles, RefreshCw
+  PlayCircle, PauseCircle, Terminal
 } from 'lucide-react'
 import { useSessionStore } from '../../stores/sessionStore'
 import { STATUS_COLORS } from '../../../shared/constants'
-import type { Session, SessionStatus, ActivityEvent, BriefingItem } from '../../../shared/types'
+import type { Session, SessionStatus, ActivityEvent } from '../../../shared/types'
 import UsageDashboard from '../usage/UsageDashboard'
 
 const STATUS_LABELS: Record<SessionStatus, string> = {
@@ -32,79 +32,6 @@ function formatDuration(startedAt: string): string {
   if (hours > 0) return `${hours}h ${minutes}m`
   if (minutes > 0) return `${minutes}m`
   return `${seconds}s`
-}
-
-/** AI 简报组件 */
-function AIBriefingPanel() {
-  const { briefing, briefingLoading, generateBriefing, selectSession } = useSessionStore()
-
-  useEffect(() => {
-    // 首次进入时自动生成一次简报（如果有活跃会话）
-    if (briefing.length === 0) {
-      generateBriefing()
-    }
-  }, [])
-
-  if (!briefingLoading && briefing.length === 0) return null
-
-  return (
-    <div className="card p-4 bg-gradient-to-br from-bg-secondary to-bg-tertiary border-accent-blue/20">
-      <div className="flex items-center justify-between mb-3">
-        <div className="flex items-center gap-2">
-          <div className="p-1.5 rounded-lg bg-accent-blue/10">
-            <Sparkles className="w-4 h-4 text-accent-blue" />
-          </div>
-          <h3 className="text-sm font-semibold text-text-primary">AI 智能简报</h3>
-          <span className="text-[10px] text-text-muted bg-bg-hover px-1.5 py-0.5 rounded">Beta</span>
-        </div>
-        <button
-          onClick={() => generateBriefing()}
-          disabled={briefingLoading}
-          className="p-1.5 rounded hover:bg-bg-hover btn-transition text-text-muted hover:text-text-primary disabled:opacity-50"
-          title="刷新简报"
-        >
-          <RefreshCw className={`w-3.5 h-3.5 ${briefingLoading ? 'animate-spin' : ''}`} />
-        </button>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-        {briefingLoading && briefing.length === 0 ? (
-          Array.from({ length: 3 }).map((_, i) => (
-            <div key={i} className="h-16 rounded bg-bg-hover animate-pulse" />
-          ))
-        ) : (
-          briefing.map((item: BriefingItem) => (
-            <div
-              key={item.sessionId}
-              onClick={() => selectSession(item.sessionId)}
-              className={`p-3 rounded border cursor-pointer btn-transition ${
-                item.priority === 'high'
-                  ? 'bg-accent-red/5 border-accent-red/20 hover:border-accent-red/40'
-                  : 'bg-bg-hover border-border hover:border-accent-blue/30'
-              }`}
-            >
-              <div className="flex items-center gap-2 mb-1.5">
-                <span className="text-[10px] font-bold text-text-muted truncate flex-1 uppercase tracking-wider">
-                  {item.sessionName}
-                </span>
-                {item.priority === 'high' && (
-                  <AlertTriangle className="w-3 h-3 text-accent-red" />
-                )}
-              </div>
-              <p className="text-xs text-text-primary font-medium leading-snug mb-1">
-                {item.summary}
-              </p>
-              {item.nextStep && (
-                <p className="text-[10px] text-text-muted truncate">
-                  <span className="text-accent-blue opacity-80">下一步:</span> {item.nextStep}
-                </p>
-              )}
-            </div>
-          ))
-        )}
-      </div>
-    </div>
-  )
 }
 
 /** 会话卡片 */
@@ -195,9 +122,6 @@ export default function DashboardView() {
 
   return (
     <div className="h-full overflow-y-auto p-4 space-y-4">
-      {/* AI 智能简报 */}
-      <AIBriefingPanel />
-
       {/* 顶部统计卡片 */}
       <div className="grid grid-cols-5 gap-3">
         <StatCard

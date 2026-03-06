@@ -70,7 +70,6 @@ export interface SpectrAIAPI {
     onActivity: (callback: (sessionId: string, activity: any) => void) => () => void
     onIntervention: (callback: (sessionId: string, intervention: any) => void) => () => void
     onNameChange: (callback: (sessionId: string, name: string) => void) => () => void
-    onRefresh: (callback: () => void) => () => void
 
     // SDK V2 扩展方法
     sendMessage?: (sessionId: string, text: string) => Promise<{
@@ -105,28 +104,6 @@ export interface SpectrAIAPI {
     onStatusChange: (callback: (taskId: string, updates: any) => void) => () => void
   }
 
-  workflow: {
-    start: (workflowConfig: any) => Promise<{ success: boolean; workflowId?: string }>
-    approveStep: (
-      workflowId: string,
-      stepId: string,
-      approved: boolean
-    ) => Promise<{ success: boolean }>
-  }
-
-  orchestrator: {
-    startWorkflow: (workflow: any, variables?: Record<string, string>) => Promise<{ success: boolean; executionId?: string; error?: string }>
-    cancelWorkflow: (executionId: string) => Promise<{ success: boolean }>
-    approveStep: (executionId: string, stepId: string, approved: boolean) => Promise<{ success: boolean }>
-    getExecution: (executionId: string) => Promise<{ success: boolean; execution?: any; error?: string }>
-    getActiveExecutions: () => Promise<any[]>
-    onWorkflowStarted: (callback: (executionId: string) => void) => () => void
-    onWorkflowCompleted: (callback: (executionId: string) => void) => () => void
-    onWorkflowFailed: (callback: (executionId: string, error: string) => void) => () => void
-    onStepStarted: (callback: (executionId: string, stepId: string, sessionId: string) => void) => () => void
-    onStepCompleted: (callback: (executionId: string, stepId: string) => void) => () => void
-    onStepReviewNeeded: (callback: (executionId: string, stepId: string, message: string) => void) => () => void
-  }
 
   provider: {
     getAll: () => Promise<any[]>
@@ -216,23 +193,6 @@ export interface SpectrAIAPI {
     getLatest: (sessionId: string) => Promise<any>
     getAll: (sessionId: string, limit?: number) => Promise<any[]>
     getAllSessions: () => Promise<any[]>
-    generateBriefing: () => Promise<any[]>
-  }
-
-  suggestion: {
-    getActive: () => Promise<any>
-    dismiss: (suggestionId: string) => Promise<{ success: boolean; error?: string }>
-    onNew: (callback: (suggestion: any) => void) => () => void
-  }
-
-  planner: {
-    start: (goal: string, workDir: string) => Promise<{ success: boolean; planId?: string; error?: string }>
-    cancel: (planId: string) => Promise<{ success: boolean; error?: string }>
-    getExecution: (planId: string) => Promise<{ success: boolean; execution?: any; error?: string }>
-    getActive: () => Promise<any[]>
-    onProgress: (callback: (planId: string, progress: { completed: number; total: number; currentSubtask: string }) => void) => () => void
-    onCompleted: (callback: (planId: string, summary: string) => void) => () => void
-    onFailed: (callback: (planId: string, error: string) => void) => () => void
   }
 
   git: {
@@ -278,31 +238,6 @@ export interface SpectrAIAPI {
     importVscode: (filePath: string) => Promise<{ success: boolean; repos?: Array<{ repoPath: string; name: string }>; error?: string }>
   }
 
-  telegram: {
-    getConfig: () => Promise<Record<string, string>>
-    updateConfig: (key: string, value: string) => Promise<{ success: boolean; error?: string }>
-    getStatus: () => Promise<string>
-    restart: () => Promise<{ success: boolean; error?: string }>
-    getAIProviders: () => Promise<any[]>
-    addAIProvider: (provider: any) => Promise<{ success: boolean; error?: string }>
-    updateAIProvider: (id: string, updates: any) => Promise<{ success: boolean; error?: string }>
-    deleteAIProvider: (id: string) => Promise<{ success: boolean; error?: string }>
-    testAIProvider: (provider: any) => Promise<{ success: boolean; error?: string }>
-    getAllowedUsers: () => Promise<any[]>
-    addAllowedUser: (userId: number, username?: string, displayName?: string, role?: string) => Promise<{ success: boolean; error?: string }>
-    removeAllowedUser: (userId: number) => Promise<{ success: boolean; error?: string }>
-    getAPILogs: (limit?: number) => Promise<any[]>
-  }
-
-  feishu: {
-    getConfig: () => Promise<Record<string, string>>
-    updateConfig: (key: string, value: string) => Promise<{ success: boolean; error?: string }>
-    getStatus: () => Promise<string>
-    restart: () => Promise<{ success: boolean; error?: string }>
-    getAllowedUsers: () => Promise<any[]>
-    addAllowedUser: (openId: string, displayName?: string, role?: string) => Promise<{ success: boolean; error?: string }>
-    removeAllowedUser: (openId: string) => Promise<{ success: boolean; error?: string }>
-  }
 
   shortcut: {
     onViewMode: (callback: (mode: string) => void) => () => void
@@ -332,29 +267,6 @@ export interface SpectrAIAPI {
     showInFolder: (filePath: string) => Promise<{ success: boolean; error?: string }>
   }
 
-  team: {
-    listDefinitions: () => Promise<any[]>
-    createDefinition: (params: any) => Promise<any>
-    deleteDefinition: (teamId: string) => Promise<void>
-    updateDefinition: (params: any) => Promise<any>
-    listInstances: () => Promise<any[]>
-    start: (params: any) => Promise<any>
-    stop: (instanceId: string) => Promise<void>
-    getInstance: (instanceId: string) => Promise<any>
-    deleteInstance: (instanceId: string) => Promise<void>
-    resume: (instanceId: string) => Promise<any>
-    getTasks: (instanceId: string) => Promise<any[]>
-    createTask: (params: any) => Promise<any>
-    claimTask: (params: { taskId: string; roleName: string }) => Promise<{ success: boolean }>
-    completeTask: (params: { taskId: string; summary: string }) => Promise<void>
-    getMessages: (instanceId: string, limit?: number) => Promise<any[]>
-    sendToRole: (params: any) => Promise<any>
-    broadcast: (params: any) => Promise<any>
-    getStats: (instanceId: string) => Promise<any>
-    aiGenerate: (params: { type: 'name' | 'description' | 'systemPrompt'; context: string }) => Promise<{ success: boolean; content?: string; error?: string }>
-    aiGenerateTeam: (params: { description: string }) => Promise<{ success: boolean; team?: { name: string; description: string; roles: Array<{ roleName: string; displayName: string; color: string; systemPrompt: string }> }; error?: string }>
-    onEvent: (callback: (event: any) => void) => () => void
-  }
 }
 
 declare global {

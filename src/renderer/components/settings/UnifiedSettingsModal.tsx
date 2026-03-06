@@ -228,7 +228,7 @@ function GeneralTab() {
         <div className="flex items-center gap-2 mb-3">
           <Globe className="w-4 h-4 text-accent-blue" />
           <h3 className="text-sm font-medium text-text-primary">代理设置</h3>
-          <span className="text-xs text-text-muted">用于 AI 连接 Anthropic / Telegram 等服务</span>
+          <span className="text-xs text-text-muted">用于 AI 连接 Anthropic 等服务</span>
         </div>
 
         <div className="border border-border rounded-lg p-3 space-y-3">
@@ -308,14 +308,14 @@ function GeneralTab() {
               <Check className="w-3 h-3 text-green-500 flex-shrink-0 mt-0.5" />
               <span>
                 已配置 {settings.proxyType?.toUpperCase()} 代理：{settings.proxyHost}:{settings.proxyPort}。
-                AI 连接和 Telegram Bot 将使用此代理。
+                AI 连接将使用此代理。
               </span>
             </div>
           ) : (
             <div className="flex items-start gap-2 px-3 py-2 rounded-lg bg-yellow-500/5 border border-yellow-500/20 text-xs text-text-secondary leading-relaxed">
               <ShieldAlert className="w-3 h-3 text-yellow-500 flex-shrink-0 mt-0.5" />
               <span>
-                未配置代理。程序将自动从系统环境变量或 PowerShell profile 读取代理（仅 Windows），AI 连接和 Telegram Bot 均适用。
+                未配置代理。程序将自动从系统环境变量或 PowerShell profile 读取代理（仅 Windows），AI 连接均适用。
                 如果连接失败，请在此手动配置代理。
               </span>
             </div>
@@ -397,7 +397,7 @@ function GeneralTab() {
           <div>
             <div className="text-sm text-text-primary">系统登录后自动启动 SpectrAI</div>
             <div className="text-xs text-text-muted mt-0.5 leading-relaxed">
-              开启后，电脑重启或用户登录时将自动启动应用，Telegram 远程控制随时可用。
+              开启后，电脑重启或用户登录时将自动启动应用。
             </div>
           </div>
         </label>

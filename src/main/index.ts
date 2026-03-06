@@ -368,10 +368,8 @@ function initializeManagers(): void {
   sessionManagerV2 = new SessionManagerV2(adapterRegistry)
   agentManagerV2 = new AgentManagerV2(adapterRegistry, sessionManagerV2, database)
 
-  // ★ 注入 database 和 agentManagerV2 到 SessionManagerV2，用于 Skill 拦截
-  // 使用 setter 延迟注入（agentManagerV2 在 sessionManagerV2 之后初始化）
+  // ★ 注入 database 到 SessionManagerV2，用于 Skill 拦截
   sessionManagerV2.setDatabase(database)
-  sessionManagerV2.setAgentManager(agentManagerV2)
 
   // ★ 注入 bridgePort 到 agentManagerV2，使子会话（团队成员、spawn_agent）也能获得 MCP 工具
   // 必须在 spawnAgent() 首次调用前完成注入，否则子会话无法使用 list_sessions 等跨会话感知工具

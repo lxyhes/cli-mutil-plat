@@ -414,7 +414,6 @@ export type NotificationType =
   | 'error_occurred'
   | 'session_stuck'
   | 'quota_warning'
-  | 'workflow_trigger'
 
 export type InterventionType = 'confirmation' | 'error' | 'stuck'
 
@@ -487,50 +486,6 @@ export interface TerminalHeaderInfo {
   activityIndicator: boolean
 }
 
-// ---- 工作流 ----
-
-export interface Workflow {
-  id: string
-  name: string
-  description: string
-  steps: WorkflowStep[]
-  variables: Record<string, string>
-  isTemplate?: boolean
-}
-
-export type WorkflowStepType = 'claude_code' | 'manual_review' | 'transform'
-export type WorkflowTrigger = 'auto' | 'manual'
-export type WorkflowStepStatus =
-  | 'pending'
-  | 'running'
-  | 'waiting_review'
-  | 'ready'
-  | 'completed'
-  | 'failed'
-
-export interface WorkflowStep {
-  id: string
-  name: string
-  type: WorkflowStepType
-  claudeConfig?: {
-    prompt: string
-    workingDirectory: string
-    autoAccept?: boolean
-  }
-  dependsOn: string[]
-  trigger: WorkflowTrigger
-}
-
-export interface WorkflowExecution {
-  id: string
-  workflowId: string
-  status: 'running' | 'completed' | 'failed' | 'cancelled'
-  variables: Record<string, string>
-  stepStatuses: Record<string, WorkflowStepStatus>
-  startedAt: string
-  completedAt?: string
-}
-
 // ---- 用量 ----
 
 export interface UsageSummary {
@@ -597,17 +552,6 @@ export interface KanbanColumn {
   icon: string
 }
 
-// ---- 全局简报 ----
-
-export interface BriefingItem {
-  sessionId: string
-  sessionName: string
-  status: string
-  summary: string
-  nextStep?: string
-  priority: 'low' | 'medium' | 'high'
-}
-
 // ---- 解析规则 ----
 
 export interface ParserRule {
@@ -628,56 +572,6 @@ export interface ProviderConfirmationConfig {
   /** 中置信度正则 */
   mediumPatterns: string[]
 }
-
-// ---- Telegram 远程控制 ----
-
-export interface TelegramConfig {
-  botToken: string
-  botEnabled: boolean
-  activeAIProviderId: string
-  pushEnabled: boolean
-  pushConfirmation: boolean
-  pushErrors: boolean
-  pushCompletions: boolean
-  pushStuck: boolean
-  pushWorkflow: boolean
-  maxConversationTokens: number  // 默认 8000
-}
-
-export interface TelegramAIProviderConfig {
-  id: string          // uuid
-  name: string        // '深度求索' | '通义千问' | 'GPT-4o'
-  apiEndpoint: string // https://api.deepseek.com/v1
-  apiKey: string      // 加密存储
-  model: string       // deepseek-chat
-  maxTokens: number   // 4096
-  priority: number    // 0=最高
-  isActive: boolean
-}
-
-export interface TelegramAllowedUser {
-  userId: number
-  username?: string
-  displayName?: string
-  role: 'admin' | 'viewer'  // viewer只读
-}
-
-export type TelegramBotStatus = 'stopped' | 'starting' | 'running' | 'error'
-
-export interface FeishuConfig {
-  appId: string
-  appSecret: string
-  encryptKey?: string
-  botEnabled: boolean
-}
-
-export interface FeishuAllowedUser {
-  openId: string
-  displayName?: string
-  role: 'admin' | 'viewer'
-}
-
-export type FeishuBotStatus = 'stopped' | 'starting' | 'running' | 'error'
 
 /** Provider 状态推断参数 */
 export interface ProviderStateConfig {
@@ -893,7 +787,7 @@ export interface McpServer {
 // Skill 技能模板类型
 // ─────────────────────────────────────────────────────────────
 
-export type SkillType = 'prompt' | 'native' | 'orchestration'
+export type SkillType = 'prompt' | 'native'
 export type SkillSource = 'builtin' | 'marketplace' | 'local' | 'custom'
 
 export interface SkillVariable {
@@ -903,17 +797,6 @@ export interface SkillVariable {
   defaultValue?: string
   type?: 'text' | 'select' | 'multiline'
   options?: string[]
-}
-
-export interface OrchestrationStep {
-  name: string
-  /** 使用的 Provider ID */
-  providerId: string
-  /** 提示词模板，支持 {{variable}} 和 {{prev_output}} */
-  promptTemplate: string
-  /** 依赖的步骤名 */
-  dependsOn?: string[]
-  timeout?: number
 }
 
 export interface Skill {
@@ -934,12 +817,6 @@ export interface Skill {
   nativeConfig?: {
     providerId: string
     rawContent: string
-  }
-  // ---- Orchestration Skill（多 Provider 协作） ----
-  orchestrationConfig?: {
-    steps: OrchestrationStep[]
-    mergeStrategy: 'concatenate' | 'vote' | 'llm-summarize' | 'last'
-    outputFormat?: string
   }
   /** 使用此 Skill 所需的 MCP ID 列表 */
   requiredMcps?: string[]
@@ -985,112 +862,3 @@ export interface ProviderCapability {
   skillSupport: ProviderSkillCapability
 }
 
-// ─────────────────────────────────────────────────────────────
-// Agent Teams — 团队会话模式类型
-// ─────────────────────────────────────────────────────────────
-
-/** 团队角色定义（模板级） */
-export interface TeamRoleDefinition {
-  id: string
-  teamId: string
-  roleName: string
-  displayName: string
-  systemPrompt: string
-  providerId: string
-  color: string
-  sortOrder: number
-}
-
-/** 团队模板定义 */
-export interface TeamDefinition {
-  id: string
-  name: string
-  description?: string
-  roles: TeamRoleDefinition[]
-  createdAt: string
-  updatedAt: string
-}
-
-/** 团队成员（运行时） */
-export interface TeamMember {
-  id: string
-  instanceId: string
-  roleName: string
-  displayName: string
-  providerId: string
-  color: string
-  agentId?: string
-  childSessionId?: string
-  status: 'pending' | 'starting' | 'running' | 'idle' | 'completed' | 'failed'
-  /**
-   * 是否已收到过至少一次任务分配。
-   * false/undefined = 刚 spawn，正在等待 Leader 分配任务（不算"工作中"）
-   * true = 已收到任务，正在执行（真正的"工作中"）
-   */
-  hasReceivedTask?: boolean
-  joinedAt: string
-  lastActiveAt?: string
-}
-
-/** 团队任务（共享任务列表条目） */
-export interface TeamTaskItem {
-  id: string
-  instanceId: string
-  title: string
-  description?: string
-  /** goal: 整体目标（只读展示，不可认领）；task: 普通可认领任务 */
-  type: 'goal' | 'task'
-  status: 'pending' | 'in_progress' | 'completed' | 'blocked'
-  assignedTo?: string
-  completedBy?: string
-  dependencies: string[]
-  createdBy: string
-  claimedAt?: string
-  completedAt?: string
-  summary?: string
-  createdAt: string
-}
-
-/** 团队 P2P 消息 */
-export interface TeamMessage {
-  id: string
-  instanceId: string
-  /** 关联的任务 ID（用于按任务过滤消息） */
-  taskId?: string
-  fromRole: string
-  toRole?: string
-  content: string
-  timestamp: string
-  messageType: 'chat' | 'task_assign' | 'task_complete' | 'plan_request' | 'plan_approved' | 'broadcast'
-}
-
-/** 团队运行实例 */
-export interface TeamInstance {
-  id: string
-  teamId: string
-  name: string
-  parentSessionId?: string
-  workingDirectory: string
-  task?: string
-  status: 'starting' | 'running' | 'paused' | 'completed' | 'failed' | 'waiting_user'
-  goalRound?: number
-  members: TeamMember[]
-  startedAt: string
-  endedAt?: string
-}
-
-/** 创建团队实例的参数 */
-export interface CreateTeamInstanceParams {
-  teamId: string
-  workingDirectory: string
-  task?: string
-  parentSessionId?: string
-  autoAccept?: boolean
-}
-
-/** 创建团队模板的参数 */
-export interface CreateTeamDefinitionParams {
-  name: string
-  description?: string
-  roles: Omit<TeamRoleDefinition, 'id' | 'teamId'>[]
-}

@@ -2,7 +2,7 @@
  * 代理工具函数 — 跨模块共享
  *
  * 提供从进程环境变量 / Windows PowerShell profile 读取代理 URL 的能力，
- * 供 AI 连接（ClaudeSdkAdapter）和 Telegram Bot（TelegramBotManager）复用。
+ * 供 AI 连接（ClaudeSdkAdapter）等模块复用。
  */
 
 import { execSync } from 'child_process'

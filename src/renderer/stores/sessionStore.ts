@@ -9,7 +9,6 @@ import type {
   SessionConfig,
   SessionStatus,
   ActivityEvent,
-  BriefingItem,
   ConversationMessage
 } from '../../shared/types'
 import { sanitizeDisplayText } from '../utils/textSanitizer'
@@ -43,8 +42,6 @@ interface SessionState {
   stuckSessions: Record<string, string>  // sessionId -> stuck type ('startup-stuck' | 'possible-stuck' | 'stuck')
   resumingSessions: Set<string>  // sessionId -> resuming
   resumeError: string | null
-  briefing: BriefingItem[]
-  briefingLoading: boolean
   conversations: Record<string, ConversationMessage[]>  // SDK V2: sessionId → 对话消息
   streamingSessions: Set<string>  // SDK V2: 正在流式响应的会话
   conversationLoading: Record<string, boolean>  // SDK V2: 对话历史加载状态
@@ -56,7 +53,6 @@ interface SessionState {
   fetchSessions: () => Promise<void>
   fetchHistorySessions: () => Promise<void>
   fetchSessionActivities: (sessionId: string) => Promise<void>
-  generateBriefing: () => Promise<void>
   createSession: (config: SessionConfig) => Promise<void>
   resumeSession: (oldSessionId: string) => Promise<ResumeSessionResult>
   openSessionForChat: (sessionId: string) => Promise<ResumeSessionResult>
@@ -117,8 +113,6 @@ export const useSessionStore = create<SessionState>((set, get) => ({
   stuckSessions: {},
   resumingSessions: new Set(),
   resumeError: null,
-  briefing: [],
-  briefingLoading: false,
   conversations: {},
   streamingSessions: new Set(),
   conversationLoading: {},
@@ -195,19 +189,6 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       })
     } catch (error) {
       console.error('Failed to fetch sessions:', error)
-    }
-  },
-
-  // 生成 AI 简报
-  generateBriefing: async () => {
-    set({ briefingLoading: true })
-    try {
-      const result = await window.spectrAI.summary.generateBriefing()
-      set({ briefing: result })
-    } catch (error) {
-      console.error('Failed to generate briefing:', error)
-    } finally {
-      set({ briefingLoading: false })
     }
   },
 
@@ -673,7 +654,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       get().updateSessionName(sessionId, name)
     }))
 
-    // 监听外部变更（Telegram 远程创建/终止会话）
+    // 监听外部变更（远程创建/终止会话）
     _sessionListenerUnsubs.push(window.spectrAI.session.onRefresh(() => {
       get().fetchSessions()
     }))

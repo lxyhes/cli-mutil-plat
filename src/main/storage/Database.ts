@@ -135,25 +135,6 @@ export class DatabaseManager {
         timestamp DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
         chunk TEXT NOT NULL
       );
-      CREATE TABLE IF NOT EXISTS workflows (
-        id TEXT PRIMARY KEY,
-        name TEXT NOT NULL,
-        description TEXT,
-        definition TEXT NOT NULL,
-        is_template INTEGER NOT NULL DEFAULT 0,
-        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
-      );
-      CREATE TABLE IF NOT EXISTS workflow_executions (
-        id TEXT PRIMARY KEY,
-        workflow_id TEXT NOT NULL,
-        status TEXT NOT NULL DEFAULT 'pending',
-        variables TEXT,
-        step_statuses TEXT,
-        step_outputs TEXT,
-        started_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        completed_at DATETIME
-      );
       CREATE TABLE IF NOT EXISTS usage_stats (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         session_id TEXT,
@@ -188,75 +169,6 @@ export class DatabaseManager {
         error TEXT,
         artifacts TEXT,
         completed_at TEXT
-      );
-      CREATE TABLE IF NOT EXISTS teams (
-        id TEXT PRIMARY KEY,
-        name TEXT NOT NULL,
-        description TEXT,
-        created_at TEXT NOT NULL,
-        updated_at TEXT NOT NULL
-      );
-      CREATE TABLE IF NOT EXISTS team_roles (
-        id TEXT PRIMARY KEY,
-        team_id TEXT NOT NULL,
-        role_name TEXT NOT NULL,
-        display_name TEXT NOT NULL,
-        system_prompt TEXT DEFAULT '',
-        provider_id TEXT NOT NULL DEFAULT 'claude-code',
-        color TEXT DEFAULT '#6366f1',
-        sort_order INTEGER DEFAULT 0,
-        FOREIGN KEY (team_id) REFERENCES teams(id) ON DELETE CASCADE
-      );
-      CREATE TABLE IF NOT EXISTS team_instances (
-        id TEXT PRIMARY KEY,
-        team_id TEXT NOT NULL,
-        name TEXT NOT NULL,
-        parent_session_id TEXT,
-        working_directory TEXT NOT NULL,
-        task TEXT,
-        status TEXT DEFAULT 'starting',
-        started_at TEXT NOT NULL,
-        ended_at TEXT
-      );
-      CREATE TABLE IF NOT EXISTS team_members (
-        id TEXT PRIMARY KEY,
-        instance_id TEXT NOT NULL,
-        role_name TEXT NOT NULL,
-        display_name TEXT NOT NULL,
-        provider_id TEXT NOT NULL,
-        color TEXT DEFAULT '#6366f1',
-        agent_id TEXT,
-        child_session_id TEXT,
-        status TEXT DEFAULT 'pending',
-        joined_at TEXT NOT NULL,
-        last_active_at TEXT,
-        FOREIGN KEY (instance_id) REFERENCES team_instances(id) ON DELETE CASCADE
-      );
-      CREATE TABLE IF NOT EXISTS team_tasks (
-        id TEXT PRIMARY KEY,
-        instance_id TEXT NOT NULL,
-        title TEXT NOT NULL,
-        description TEXT,
-        type TEXT NOT NULL DEFAULT 'task',
-        status TEXT DEFAULT 'pending',
-        assigned_to TEXT,
-        dependencies TEXT DEFAULT '[]',
-        created_by TEXT NOT NULL,
-        claimed_at TEXT,
-        completed_at TEXT,
-        summary TEXT,
-        created_at TEXT NOT NULL,
-        FOREIGN KEY (instance_id) REFERENCES team_instances(id) ON DELETE CASCADE
-      );
-      CREATE TABLE IF NOT EXISTS team_messages (
-        id TEXT PRIMARY KEY,
-        instance_id TEXT NOT NULL,
-        from_role TEXT NOT NULL,
-        to_role TEXT,
-        content TEXT NOT NULL,
-        message_type TEXT DEFAULT 'chat',
-        timestamp TEXT NOT NULL,
-        FOREIGN KEY (instance_id) REFERENCES team_instances(id) ON DELETE CASCADE
       );
     `)
 

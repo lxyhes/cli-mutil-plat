@@ -1,5 +1,5 @@
 /**
- * Provider, Directory, Usage, Search, Summary, Suggestion, NVM IPC 处理器
+ * Provider, Directory, Usage, Search, Summary, NVM IPC 处理器
  */
 import { ipcMain } from 'electron'
 import * as fs from 'fs'
@@ -11,7 +11,7 @@ import type { IpcDependencies } from './index'
 
 
 export function registerProviderHandlers(deps: IpcDependencies): void {
-  const { database, suggestionEngine, briefingManager } = deps
+  const { database } = deps
 
   // ==================== Provider 相关 ====================
 
@@ -308,34 +308,4 @@ export function registerProviderHandlers(deps: IpcDependencies): void {
     }
   })
 
-  ipcMain.handle('summary:generate-briefing', async () => {
-    try {
-      if (!briefingManager) return []
-      return await briefingManager.generateGlobalBriefing()
-    } catch (error) {
-      console.error('[IPC] summary:generate-briefing error:', error)
-      return []
-    }
-  })
-
-  // ==================== Suggestion 相关 ====================
-
-  ipcMain.handle('suggestion:get-active', async () => {
-    try {
-      return suggestionEngine?.getActiveSuggestion() || null
-    } catch (error) {
-      console.error('[IPC] suggestion:get-active error:', error)
-      return null
-    }
-  })
-
-  ipcMain.handle('suggestion:dismiss', async (_event, suggestionId: string) => {
-    try {
-      suggestionEngine?.dismiss(suggestionId)
-      return { success: true }
-    } catch (error: any) {
-      console.error('[IPC] suggestion:dismiss error:', error)
-      return { success: false, error: error.message }
-    }
-  })
 }

@@ -23,7 +23,6 @@ import type { AdapterRegistry } from '../adapter/AdapterRegistry'
 import type { ProviderEvent, AdapterSessionConfig } from '../adapter/types'
 import { mapToolToActivityType, extractToolDetail } from '../adapter/toolMapping'
 import { SkillEngine } from '../skill/SkillEngine'
-import { OrchestrationSkillEngine } from '../skill/OrchestrationSkillEngine'
 
 // ---- AI 提问检测 ----
 
@@ -195,7 +194,6 @@ export class SessionManagerV2 extends EventEmitter {
   private sessions: Map<string, ManagedSession> = new Map()
   private adapterRegistry: AdapterRegistry
   private database?: any   // DatabaseManager（可选，用于 Skill 拦截）
-  private agentManager?: any  // AgentManagerV2（可选，用于 Orchestration Skill）
 
   private thinkingBuffers: Map<string, string> = new Map()
   private thinkingFlushTimers: Map<string, NodeJS.Timeout> = new Map()
@@ -210,11 +208,6 @@ export class SessionManagerV2 extends EventEmitter {
   /** 注入数据库实例（用于 Skill 拦截） */
   setDatabase(database: any): void {
     this.database = database
-  }
-
-  /** 注入 AgentManager（用于 Orchestration Skill） */
-  setAgentManager(agentManager: any): void {
-    this.agentManager = agentManager
   }
 
   private queueThinkingActivity(sessionId: string, text: string, timestamp: string): void {
@@ -1377,23 +1370,6 @@ export class SessionManagerV2 extends EventEmitter {
         const adapter = this.adapterRegistry.get(providerId)
         await adapter.sendMessage(sessionId, expandedPrompt)
         return true
-
-      } else if (skill.type === 'orchestration') {
-        // 编排 Skill：异步执行，结果注入回父会话
-        if (this.agentManager) {
-          OrchestrationSkillEngine.execute(
-            skill,
-            sessionId,
-            this,
-            this.agentManager,
-            userInput,
-          ).catch(err => {
-            console.error(`[SessionManagerV2] Orchestration Skill 执行失败 /${command}:`, err)
-          })
-          return true
-        }
-        console.warn(`[SessionManagerV2] Orchestration Skill /${command} 需要 AgentManager，已透传给 Provider`)
-        return false
 
       } else if (skill.type === 'native') {
         // Native Skill：透传给 Provider 原生处理

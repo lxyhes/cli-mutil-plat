@@ -147,12 +147,6 @@ contextBridge.exposeInMainWorld('spectrAI', {
       return () => ipcRenderer.removeListener(IPC.SESSION_NAME_CHANGE, listener)
     },
 
-    /** 外部变更通知（Telegram 创建/终止会话时触发） */
-    onRefresh: (callback: () => void) => {
-      const listener = () => callback()
-      ipcRenderer.on('session:refresh', listener)
-      return () => ipcRenderer.removeListener('session:refresh', listener)
-    },
 
     // SDK V2: 结构化消息发送
     sendMessage: (sessionId: string, text: string) =>
@@ -237,63 +231,6 @@ contextBridge.exposeInMainWorld('spectrAI', {
     }
   },
 
-  // ==================== Workflow API ====================
-  workflow: {
-    start: (workflowConfig: any) => ipcRenderer.invoke(IPC.WORKFLOW_START, workflowConfig),
-
-    approveStep: (workflowId: string, stepId: string, approved: boolean) =>
-      ipcRenderer.invoke(IPC.WORKFLOW_APPROVE_STEP, workflowId, stepId, approved)
-  },
-
-  // ==================== Orchestrator API ====================
-  orchestrator: {
-    startWorkflow: (workflow: any, variables?: Record<string, string>) =>
-      ipcRenderer.invoke('orchestrator:start-workflow', workflow, variables),
-
-    cancelWorkflow: (executionId: string) =>
-      ipcRenderer.invoke('orchestrator:cancel-workflow', executionId),
-
-    approveStep: (executionId: string, stepId: string, approved: boolean) =>
-      ipcRenderer.invoke(IPC.WORKFLOW_APPROVE_STEP, executionId, stepId, approved),
-
-    getExecution: (executionId: string) =>
-      ipcRenderer.invoke('orchestrator:get-execution', executionId),
-
-    getActiveExecutions: () =>
-      ipcRenderer.invoke('orchestrator:get-active-executions'),
-
-    // 事件监听
-    onWorkflowStarted: (callback: (executionId: string) => void) => {
-      const listener = (_event: IpcRendererEvent, executionId: string) => callback(executionId)
-      ipcRenderer.on('orchestrator:workflow-started', listener)
-      return () => ipcRenderer.removeListener('orchestrator:workflow-started', listener)
-    },
-    onWorkflowCompleted: (callback: (executionId: string) => void) => {
-      const listener = (_event: IpcRendererEvent, executionId: string) => callback(executionId)
-      ipcRenderer.on('orchestrator:workflow-completed', listener)
-      return () => ipcRenderer.removeListener('orchestrator:workflow-completed', listener)
-    },
-    onWorkflowFailed: (callback: (executionId: string, error: string) => void) => {
-      const listener = (_event: IpcRendererEvent, executionId: string, error: string) => callback(executionId, error)
-      ipcRenderer.on('orchestrator:workflow-failed', listener)
-      return () => ipcRenderer.removeListener('orchestrator:workflow-failed', listener)
-    },
-    onStepStarted: (callback: (executionId: string, stepId: string, sessionId: string) => void) => {
-      const listener = (_event: IpcRendererEvent, executionId: string, stepId: string, sessionId: string) => callback(executionId, stepId, sessionId)
-      ipcRenderer.on('orchestrator:step-started', listener)
-      return () => ipcRenderer.removeListener('orchestrator:step-started', listener)
-    },
-    onStepCompleted: (callback: (executionId: string, stepId: string) => void) => {
-      const listener = (_event: IpcRendererEvent, executionId: string, stepId: string) => callback(executionId, stepId)
-      ipcRenderer.on('orchestrator:step-completed', listener)
-      return () => ipcRenderer.removeListener('orchestrator:step-completed', listener)
-    },
-    onStepReviewNeeded: (callback: (executionId: string, stepId: string, message: string) => void) => {
-      const listener = (_event: IpcRendererEvent, executionId: string, stepId: string, message: string) => callback(executionId, stepId, message)
-      ipcRenderer.on('orchestrator:step-review-needed', listener)
-      return () => ipcRenderer.removeListener('orchestrator:step-review-needed', listener)
-    }
-  },
 
   // ==================== Provider API ====================
   provider: {
@@ -346,22 +283,6 @@ contextBridge.exposeInMainWorld('spectrAI', {
     getAllSessions: () =>
       ipcRenderer.invoke('summary:get-all-sessions'),
 
-    generateBriefing: () =>
-      ipcRenderer.invoke('summary:generate-briefing'),
-  },
-
-  // ==================== Suggestion API ====================
-  suggestion: {
-    getActive: () => ipcRenderer.invoke('suggestion:get-active'),
-
-    dismiss: (suggestionId: string) =>
-      ipcRenderer.invoke('suggestion:dismiss', suggestionId),
-
-    onNew: (callback: (suggestion: any) => void) => {
-      const listener = (_event: IpcRendererEvent, suggestion: any) => callback(suggestion)
-      ipcRenderer.on('suggestion:new', listener)
-      return () => ipcRenderer.removeListener('suggestion:new', listener)
-    }
   },
 
   // ==================== Agent API ====================
@@ -425,38 +346,6 @@ contextBridge.exposeInMainWorld('spectrAI', {
     }
   },
 
-  // ==================== Planner API（自主规划） ====================
-  planner: {
-    start: (goal: string, workDir: string) =>
-      ipcRenderer.invoke(IPC.PLANNER_START, goal, workDir),
-
-    cancel: (planId: string) =>
-      ipcRenderer.invoke(IPC.PLANNER_CANCEL, planId),
-
-    getExecution: (planId: string) =>
-      ipcRenderer.invoke(IPC.PLANNER_GET_EXECUTION, planId),
-
-    getActive: () =>
-      ipcRenderer.invoke(IPC.PLANNER_GET_ACTIVE),
-
-    onProgress: (callback: (planId: string, progress: any) => void) => {
-      const listener = (_event: IpcRendererEvent, planId: string, progress: any) => callback(planId, progress)
-      ipcRenderer.on(IPC.PLANNER_PROGRESS, listener)
-      return () => ipcRenderer.removeListener(IPC.PLANNER_PROGRESS, listener)
-    },
-
-    onCompleted: (callback: (planId: string, summary: string) => void) => {
-      const listener = (_event: IpcRendererEvent, planId: string, summary: string) => callback(planId, summary)
-      ipcRenderer.on(IPC.PLANNER_COMPLETED, listener)
-      return () => ipcRenderer.removeListener(IPC.PLANNER_COMPLETED, listener)
-    },
-
-    onFailed: (callback: (planId: string, error: string) => void) => {
-      const listener = (_event: IpcRendererEvent, planId: string, error: string) => callback(planId, error)
-      ipcRenderer.on(IPC.PLANNER_FAILED, listener)
-      return () => ipcRenderer.removeListener(IPC.PLANNER_FAILED, listener)
-    },
-  },
 
   // ==================== Git / Worktree API ====================
   git: {
@@ -516,35 +405,6 @@ contextBridge.exposeInMainWorld('spectrAI', {
     importVscode: (filePath: string) => ipcRenderer.invoke(IPC.WORKSPACE_IMPORT_VSCODE, filePath),
   },
 
-  // ==================== Telegram API ====================
-  telegram: {
-    getConfig: () => ipcRenderer.invoke('telegram:get-config'),
-    updateConfig: (key: string, value: string) => ipcRenderer.invoke('telegram:update-config', key, value),
-    getStatus: () => ipcRenderer.invoke('telegram:get-status'),
-    restart: () => ipcRenderer.invoke('telegram:restart'),
-    getAIProviders: () => ipcRenderer.invoke('telegram:get-ai-providers'),
-    addAIProvider: (provider: any) => ipcRenderer.invoke('telegram:add-ai-provider', provider),
-    updateAIProvider: (id: string, updates: any) => ipcRenderer.invoke('telegram:update-ai-provider', id, updates),
-    deleteAIProvider: (id: string) => ipcRenderer.invoke('telegram:delete-ai-provider', id),
-    testAIProvider: (provider: any) => ipcRenderer.invoke('telegram:test-ai-provider', provider),
-    getAllowedUsers: () => ipcRenderer.invoke('telegram:get-allowed-users'),
-    addAllowedUser: (userId: number, username?: string, displayName?: string, role?: string) =>
-      ipcRenderer.invoke('telegram:add-allowed-user', userId, username, displayName, role),
-    removeAllowedUser: (userId: number) => ipcRenderer.invoke('telegram:remove-allowed-user', userId),
-    getAPILogs: (limit?: number) => ipcRenderer.invoke('telegram:get-api-logs', limit),
-  },
-
-  // ==================== Feishu API ====================
-  feishu: {
-    getConfig: () => ipcRenderer.invoke('feishu:get-config'),
-    updateConfig: (key: string, value: string) => ipcRenderer.invoke('feishu:update-config', key, value),
-    getStatus: () => ipcRenderer.invoke('feishu:get-status'),
-    restart: () => ipcRenderer.invoke('feishu:restart'),
-    getAllowedUsers: () => ipcRenderer.invoke('feishu:get-allowed-users'),
-    addAllowedUser: (openId: string, displayName?: string, role?: string) =>
-      ipcRenderer.invoke('feishu:add-allowed-user', openId, displayName, role),
-    removeAllowedUser: (openId: string) => ipcRenderer.invoke('feishu:remove-allowed-user', openId),
-  },
 
   // ==================== File Manager API ====================
   fileManager: {
@@ -631,59 +491,4 @@ contextBridge.exposeInMainWorld('spectrAI', {
     importSkillFromUrl: (url: string) => ipcRenderer.invoke(IPC.SKILL_IMPORT_URL, url),
   },
 
-  // ==================== Agent Teams API ====================
-  team: {
-    // 团队模板
-    listDefinitions: () => ipcRenderer.invoke('team:list-definitions'),
-    createDefinition: (params: any) => ipcRenderer.invoke('team:create-definition', params),
-    deleteDefinition: (teamId: string) => ipcRenderer.invoke('team:delete-definition', teamId),
-    updateDefinition: (params: any) => ipcRenderer.invoke('team:update-definition', params),
-
-    // 团队实例
-    listInstances: () => ipcRenderer.invoke('team:list-instances'),
-    start: (params: any) => ipcRenderer.invoke('team:start', params),
-    stop: (instanceId: string) => ipcRenderer.invoke('team:stop', instanceId),
-    resume: (instanceId: string) => ipcRenderer.invoke('team:resume', instanceId),
-    getInstance: (instanceId: string) => ipcRenderer.invoke('team:get-instance', instanceId),
-    deleteInstance: (instanceId: string) => ipcRenderer.invoke('team:delete-instance', instanceId),
-
-    // 任务列表
-    getTasks: (instanceId: string) => ipcRenderer.invoke('team:get-tasks', instanceId),
-    createTask: (params: any) => ipcRenderer.invoke('team:create-task', params),
-    claimTask: (params: { taskId: string; roleName: string }) => ipcRenderer.invoke('team:claim-task', params),
-    completeTask: (params: { taskId: string; summary: string }) => ipcRenderer.invoke('team:complete-task', params),
-
-    // 消息
-    getMessages: (instanceId: string, limit?: number) => ipcRenderer.invoke('team:get-messages', instanceId, limit),
-    sendToRole: (params: any) => ipcRenderer.invoke('team:send-to-role', params),
-    broadcast: (params: any) => ipcRenderer.invoke('team:broadcast', params),
-
-    // 统计
-    getStats: (instanceId: string) => ipcRenderer.invoke('team:get-stats', instanceId),
-
-    // 多轮目标支持
-    addNewGoal: (params: { instanceId: string; goal: string }) =>
-      ipcRenderer.invoke('team:add-new-goal', params),
-    finalizeByUser: (params: { instanceId: string }) =>
-      ipcRenderer.invoke('team:finalize-by-user', params),
-    continueWithLeader: (params: { instanceId: string; message: string }) =>
-      ipcRenderer.invoke('team:continue-with-leader', params),
-    getMemberSessions: (params: { instanceId: string; roleName?: string }) =>
-      ipcRenderer.invoke('team:get-member-sessions', params),
-
-    // AI 生成（优化团队名称/描述/角色提示词）
-    aiGenerate: (params: { type: 'name' | 'description' | 'systemPrompt'; context: string }) =>
-      ipcRenderer.invoke('team:ai-generate', params),
-
-    // AI 一键建团队（根据描述生成完整团队结构）
-    aiGenerateTeam: (params: { description: string }) =>
-      ipcRenderer.invoke('team:ai-generate-team', params),
-
-    // 事件监听（主进程 → 渲染进程）
-    onEvent: (callback: (event: any) => void) => {
-      const listener = (_event: IpcRendererEvent, data: any) => callback(data)
-      ipcRenderer.on('team:event', listener)
-      return () => ipcRenderer.removeListener('team:event', listener)
-    },
-  },
 })
