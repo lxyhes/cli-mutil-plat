@@ -589,6 +589,12 @@ export const useSessionStore = create<SessionState>((set, get) => ({
 
   // 初始化事件监听器
   initListeners: () => {
+    // 检查 window.spectrAI 是否可用（preload 脚本可能还未加载完成）
+    if (!window.spectrAI?.session) {
+      console.warn('[SessionStore] window.spectrAI.session not available, skipping listener initialization')
+      return
+    }
+
     // 先清理旧监听器，防止重复注册
     _sessionListenerUnsubs.forEach(fn => fn())
     _sessionListenerUnsubs = []
@@ -672,6 +678,12 @@ export const useSessionStore = create<SessionState>((set, get) => ({
 
   // 初始化 Agent 事件监听
   initAgentListeners: () => {
+    // 检查 window.spectrAI 是否可用（preload 脚本可能还未加载完成）
+    if (!window.spectrAI?.agent) {
+      console.warn('[SessionStore] window.spectrAI.agent not available, skipping agent listener initialization')
+      return
+    }
+
     // 先清理旧监听器，防止重复注册
     _agentListenerUnsubs.forEach(fn => fn())
     _agentListenerUnsubs = []
@@ -717,6 +729,12 @@ export const useSessionStore = create<SessionState>((set, get) => ({
 
   // SDK V2: 初始化对话事件监听
   initConversationListeners: () => {
+    // 检查 window.spectrAI 是否可用（preload 脚本可能还未加载完成）
+    if (!window.spectrAI?.session) {
+      console.warn('[SessionStore] window.spectrAI.session not available, skipping conversation listener initialization')
+      return
+    }
+
     // 先清理旧监听器，防止重复注册
     _conversationListenerUnsubs.forEach(fn => fn())
     _conversationListenerUnsubs = []

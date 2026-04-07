@@ -26,11 +26,73 @@ export default function App() {
     if (initialized.current) return
     initialized.current = true
 
-    // 初始化监听器
-    initListeners()
-    useSessionStore.getState().initAgentListeners()
-    useSessionStore.getState().initConversationListeners()  // SDK V2 对话事件
-    useTaskStore.getState().initTaskListeners()
+    // 等待 window.spectrAI 可用的辅助函数
+    const waitForSpectrAI = (callback: () => void, maxRetries = 50): void => {
+      if (window.spectrAI) {
+        callback()
+        return
+      }
+      if (maxRetries <= 0) {
+        console.error('[App] window.spectrAI not available after max retries')
+        return
+      }
+      setTimeout(() => waitForSpectrAI(callback, maxRetries - 1), 100)
+    }
+
+    // 注册监听器（含快捷键）
+    const cleanups: (() => void)[] = []
+
+    // 初始化监听器（等待 window.spectrAI 可用）
+    waitForSpectrAI(() => {
+      initListeners()
+      useSessionStore.getState().initAgentListeners()
+      useSessionStore.getState().initConversationListeners()  // SDK V2 对话事件
+      useTaskStore.getState().initTaskListeners()
+
+      // MCP install_skill 通知监听：AI 通过 MCP 安装技能后自动刷新列表
+      cleanups.push(useSkillStore.getState().initMcpInstallListener())
+
+      // Ctrl+1/2/3/4: 切换视图模式
+      cleanups.push(window.spectrAI.shortcut.onViewMode((mode: string) => {
+        const validModes: ViewMode[] = ['grid', 'tabs', 'dashboard', 'kanban']
+        if (validModes.includes(mode as ViewMode)) {
+          useUIStore.getState().setViewMode(mode as ViewMode)
+        }
+      }))
+
+      // Ctrl+Tab: 循环切换选中会话
+      cleanups.push(window.spectrAI.shortcut.onCycleTerminal(() => {
+        const { sessions, selectedSessionId, selectSession } = useSessionStore.getState()
+        const activeSessions = sessions.filter(
+          s => s.status === 'running' || s.status === 'idle' || s.status === 'waiting_input'
+        )
+        if (activeSessions.length === 0) return
+
+        const currentIdx = activeSessions.findIndex(s => s.id === selectedSessionId)
+        const nextIdx = (currentIdx + 1) % activeSessions.length
+        selectSession(activeSessions[nextIdx].id)
+      }))
+
+      // Ctrl+N: 新建会话
+      cleanups.push(window.spectrAI.shortcut.onNewSession(() => {
+        useUIStore.getState().setShowNewSessionDialog(true)
+      }))
+
+      // Ctrl+Shift+N: 新建任务
+      cleanups.push(window.spectrAI.shortcut.onNewTaskSession(() => {
+        useUIStore.getState().toggleNewTaskDialog()
+      }))
+
+      // Ctrl+B: 切换侧边栏
+      cleanups.push(window.spectrAI.shortcut.onToggleSidebar(() => {
+        useUIStore.getState().toggleSidebar()
+      }))
+
+      // Ctrl+F: 全文搜索
+      cleanups.push(window.spectrAI.shortcut.onSearch(() => {
+        useUIStore.getState().toggleSearchPanel()
+      }))
+    })
 
     // 初始化数据（会话 + 设置）
     Promise.all([fetchSessions(), fetchSettings()]).then(async () => {
@@ -45,53 +107,6 @@ export default function App() {
       await sessionState.autoResumeInterrupted()
     })
     fetchTasks()
-
-    // 注册监听器（含快捷键）
-    const cleanups: (() => void)[] = []
-
-    // MCP install_skill 通知监听：AI 通过 MCP 安装技能后自动刷新列表
-    cleanups.push(useSkillStore.getState().initMcpInstallListener())
-
-    // Ctrl+1/2/3/4: 切换视图模式
-    cleanups.push(window.spectrAI.shortcut.onViewMode((mode: string) => {
-      const validModes: ViewMode[] = ['grid', 'tabs', 'dashboard', 'kanban']
-      if (validModes.includes(mode as ViewMode)) {
-        useUIStore.getState().setViewMode(mode as ViewMode)
-      }
-    }))
-
-    // Ctrl+Tab: 循环切换选中会话
-    cleanups.push(window.spectrAI.shortcut.onCycleTerminal(() => {
-      const { sessions, selectedSessionId, selectSession } = useSessionStore.getState()
-      const activeSessions = sessions.filter(
-        s => s.status === 'running' || s.status === 'idle' || s.status === 'waiting_input'
-      )
-      if (activeSessions.length === 0) return
-
-      const currentIdx = activeSessions.findIndex(s => s.id === selectedSessionId)
-      const nextIdx = (currentIdx + 1) % activeSessions.length
-      selectSession(activeSessions[nextIdx].id)
-    }))
-
-    // Ctrl+N: 新建会话
-    cleanups.push(window.spectrAI.shortcut.onNewSession(() => {
-      useUIStore.getState().setShowNewSessionDialog(true)
-    }))
-
-    // Ctrl+Shift+N: 新建任务
-    cleanups.push(window.spectrAI.shortcut.onNewTaskSession(() => {
-      useUIStore.getState().toggleNewTaskDialog()
-    }))
-
-    // Ctrl+B: 切换侧边栏
-    cleanups.push(window.spectrAI.shortcut.onToggleSidebar(() => {
-      useUIStore.getState().toggleSidebar()
-    }))
-
-    // Ctrl+F: 全文搜索
-    cleanups.push(window.spectrAI.shortcut.onSearch(() => {
-      useUIStore.getState().toggleSearchPanel()
-    }))
 
     // Ctrl/Cmd+Shift+T: 切换主题
     const handleThemeShortcut = (e: KeyboardEvent) => {

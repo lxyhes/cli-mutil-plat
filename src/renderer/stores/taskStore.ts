@@ -116,6 +116,12 @@ export const useTaskStore = create<TaskState>((set, get) => ({
 
   // 初始化任务状态变更监听（主进程自动推送）
   initTaskListeners: () => {
+    // 检查 window.spectrAI 是否可用（preload 脚本可能还未加载完成）
+    if (!window.spectrAI?.task) {
+      console.warn('[TaskStore] window.spectrAI.task not available, skipping task listener initialization')
+      return
+    }
+
     window.spectrAI.task.onStatusChange((taskId: string, updates: any) => {
       set((state) => ({
         tasks: state.tasks.map((task) =>
