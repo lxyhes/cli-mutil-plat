@@ -9,6 +9,8 @@ import { promisify } from 'util'
 import * as path from 'path'
 import * as fs from 'fs'
 import type { WorktreeInfo, MergeCheckResult, MergeResult, WorktreeDiffSummary, WorktreeDiffFile } from './types'
+import type { LockManager } from '../concurrency/LockManager'
+import { createGitLock } from '../concurrency/LockManager'
 
 const execFileAsync = promisify(execFile)
 
@@ -46,6 +48,12 @@ function withRepoLock<T>(repoPath: string, fn: () => Promise<T>): Promise<T> {
 }
 
 export class GitWorktreeService {
+  private lockManager: LockManager | null = null
+
+  constructor(lockManager?: LockManager) {
+    this.lockManager = lockManager || null
+  }
+
   /**
    * 执行 git 命令
    */
@@ -405,7 +413,24 @@ export class GitWorktreeService {
     branch: string,
     taskId: string,
   ): Promise<{ worktreePath: string; branch: string }> {
-    return withRepoLock(repoPath, async () => {
+    // 使用 LockManager 或降级到 Promise 链锁
+    if (this.lockManager) {
+      const lockResource = createGitLock(repoPath, 'create-worktree')
+      return this.lockManager.withLock(
+        lockResource,
+        { owner: `git-service-${Date.now()}`, timeout: 60000 },
+        () => this._createWorktreeImpl(repoPath, branch, taskId)
+      )
+    }
+
+    return withRepoLock(repoPath, () => this._createWorktreeImpl(repoPath, branch, taskId))
+  }
+
+  private async _createWorktreeImpl(
+    repoPath: string,
+    branch: string,
+    taskId: string,
+  ): Promise<{ worktreePath: string; branch: string }> {
       const worktreePath = this.getWorktreeBasePath(repoPath, taskId)
 
       // 安全检查：目标目录不应已存在
@@ -437,7 +462,7 @@ export class GitWorktreeService {
 
       console.log(`[GitWorktree] Created worktree: ${worktreePath} (branch: ${branch})`)
       return { worktreePath, branch }
-    })
+    }
   }
 
   /**
@@ -448,7 +473,24 @@ export class GitWorktreeService {
     worktreePath: string,
     options?: { deleteBranch?: boolean; branchName?: string },
   ): Promise<void> {
-    return withRepoLock(repoPath, async () => {
+    // 使用 LockManager 或降级到 Promise 链锁
+    if (this.lockManager) {
+      const lockResource = createGitLock(repoPath, 'remove-worktree')
+      return this.lockManager.withLock(
+        lockResource,
+        { owner: `git-service-${Date.now()}`, timeout: 60000 },
+        () => this._removeWorktreeImpl(repoPath, worktreePath, options)
+      )
+    }
+
+    return withRepoLock(repoPath, () => this._removeWorktreeImpl(repoPath, worktreePath, options))
+  }
+
+  private async _removeWorktreeImpl(
+    repoPath: string,
+    worktreePath: string,
+    options?: { deleteBranch?: boolean; branchName?: string },
+  ): Promise<void> {
       // 移除 worktree
       if (fs.existsSync(worktreePath)) {
         try {
@@ -474,7 +516,7 @@ export class GitWorktreeService {
       }
 
       console.log(`[GitWorktree] Removed worktree: ${worktreePath}`)
-    })
+    }
   }
 
   /**
@@ -576,7 +618,24 @@ export class GitWorktreeService {
     branchName: string,
     options?: { squash?: boolean; message?: string; cleanup?: boolean; targetBranch?: string },
   ): Promise<MergeResult> {
-    return withRepoLock(repoPath, async () => {
+    // 使用 LockManager 或降级到 Promise 链锁
+    if (this.lockManager) {
+      const lockResource = createGitLock(repoPath, 'merge-to-main')
+      return this.lockManager.withLock(
+        lockResource,
+        { owner: `git-service-${Date.now()}`, timeout: 120000 },
+        () => this._mergeToMainImpl(repoPath, branchName, options)
+      )
+    }
+
+    return withRepoLock(repoPath, () => this._mergeToMainImpl(repoPath, branchName, options))
+  }
+
+  private async _mergeToMainImpl(
+    repoPath: string,
+    branchName: string,
+    options?: { squash?: boolean; message?: string; cleanup?: boolean; targetBranch?: string },
+  ): Promise<MergeResult> {
       const mainBranch = options?.targetBranch || await this.detectMainBranch(repoPath)
       const currentBranch = await this.getCurrentBranch(repoPath)
 
@@ -613,7 +672,7 @@ export class GitWorktreeService {
       }
 
       return { mainBranch, linesAdded, linesRemoved }
-    })
+    }
   }
 
   /**

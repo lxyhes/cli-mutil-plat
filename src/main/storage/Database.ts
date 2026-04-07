@@ -26,6 +26,7 @@ import { SettingsRepository } from './repositories/SettingsRepository'
 import { WorkspaceRepository } from './repositories/WorkspaceRepository'
 import { McpRepository } from './repositories/McpRepository'
 import { SkillRepository } from './repositories/SkillRepository'
+import { LockManager } from '../concurrency/LockManager'
 
 
 /**
@@ -35,6 +36,7 @@ import { SkillRepository } from './repositories/SkillRepository'
 export class DatabaseManager {
   private db: any = null
   private usingSqlite: boolean = false
+  private lockManager!: LockManager
 
   // 所有 repository 实例
   private taskRepo!: TaskRepository
@@ -88,6 +90,10 @@ export class DatabaseManager {
     this.workspaceRepo = new WorkspaceRepository(this.db, this.usingSqlite)
     this.mcpRepo = new McpRepository(this.db, this.usingSqlite)
     this.skillRepo = new SkillRepository(this.db, this.usingSqlite)
+
+    // 初始化 LockManager
+    this.lockManager = new LockManager(this.db)
+
     // 初始化内置预置数据
     this.insertBuiltinData()
   }
@@ -339,6 +345,13 @@ export class DatabaseManager {
     for (const skill of BUILTIN_SKILLS) {
       this.skillRepo.insertOrIgnore(skill)
     }
+  }
+
+  /**
+   * 获取 LockManager 实例
+   */
+  getLockManager(): LockManager {
+    return this.lockManager
   }
 
   /**
