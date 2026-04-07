@@ -27,16 +27,19 @@ import { WorkspaceRepository } from './repositories/WorkspaceRepository'
 import { McpRepository } from './repositories/McpRepository'
 import { SkillRepository } from './repositories/SkillRepository'
 import { LockManager } from '../concurrency/LockManager'
+import type { MemoryManagedComponent, ComponentMemoryInfo } from '../memory/MemoryCoordinator'
 
 
 /**
  * 数据库管理器
  * 优先使用 better-sqlite3，加载失败时自动降级为内存存储
  */
-export class DatabaseManager {
+export class DatabaseManager implements MemoryManagedComponent {
+  name = 'DatabaseManager'
   private db: any = null
   private usingSqlite: boolean = false
   private lockManager!: LockManager
+  private lastCleanupTime?: Date
 
   // 所有 repository 实例
   private taskRepo!: TaskRepository
@@ -352,6 +355,101 @@ export class DatabaseManager {
    */
   getLockManager(): LockManager {
     return this.lockManager
+  }
+
+  // ============================================================
+  // 内存管理接口实现
+  // ============================================================
+
+  /**
+   * 清理内存
+   * @param mode normal: 常规清理（清理 30 天前的日志）, aggressive: 激进清理（清理 7 天前的日志 + VACUUM）
+   */
+  async cleanup(mode: 'normal' | 'aggressive'): Promise<void> {
+    if (!this.usingSqlite || !this.db) {
+      return
+    }
+
+    try {
+      if (mode === 'normal') {
+        // 常规清理：清理 30 天前的日志
+        this.cleanupOldLogs(30)
+      } else {
+        // 激进清理：清理 7 天前的日志
+        this.cleanupOldLogs(7)
+      }
+
+      // VACUUM（压缩数据库文件，回收空间）
+      // 注意：VACUUM 会锁定整个数据库，可能耗时较长
+      if (mode === 'aggressive') {
+        console.log('[DatabaseManager] Running VACUUM...')
+        this.db.exec('VACUUM')
+        console.log('[DatabaseManager] VACUUM completed')
+      }
+
+      this.lastCleanupTime = new Date()
+    } catch (err) {
+      console.warn('[DatabaseManager] Cleanup failed:', err)
+    }
+  }
+
+  /**
+   * 获取内存信息
+   */
+  getMemoryInfo(): ComponentMemoryInfo {
+    if (!this.usingSqlite || !this.db) {
+      return {
+        name: this.name,
+        itemCount: 0,
+        estimatedSize: 0,
+        lastCleanup: this.lastCleanupTime?.toISOString()
+      }
+    }
+
+    try {
+      // 查询数据库统计信息
+      const stats = this.db.prepare(`
+        SELECT
+          (SELECT COUNT(*) FROM sessions) as sessionCount,
+          (SELECT COUNT(*) FROM session_logs) as logCount,
+          (SELECT COUNT(*) FROM conversation_messages) as messageCount,
+          (SELECT COUNT(*) FROM activity_events) as activityCount
+      `).get() as {
+        sessionCount: number
+        logCount: number
+        messageCount: number
+        activityCount: number
+      }
+
+      // 估算内存占用（SQLite 缓存 + 查询结果）
+      // 日志每条约 500 字节，消息每条约 2KB，活动每条约 500 字节
+      const estimatedSize =
+        (stats.logCount * 500) +
+        (stats.messageCount * 2000) +
+        (stats.activityCount * 500)
+
+      return {
+        name: this.name,
+        itemCount: stats.sessionCount,
+        estimatedSize,
+        lastCleanup: this.lastCleanupTime?.toISOString(),
+        metadata: {
+          sessionCount: stats.sessionCount,
+          logCount: stats.logCount,
+          messageCount: stats.messageCount,
+          activityCount: stats.activityCount,
+          usingSqlite: this.usingSqlite
+        }
+      }
+    } catch (err) {
+      console.warn('[DatabaseManager] Failed to get memory info:', err)
+      return {
+        name: this.name,
+        itemCount: 0,
+        estimatedSize: 0,
+        lastCleanup: this.lastCleanupTime?.toISOString()
+      }
+    }
   }
 
   /**

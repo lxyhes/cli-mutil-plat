@@ -269,6 +269,9 @@ function initializeManagers(): void {
   // 2. 会话管理器
   sessionManager = new SessionManager()
 
+  // 注册到内存管理协调器
+  memoryCoordinator.registerComponent(sessionManager)
+
   // 3. 并发控制
   concurrencyGuard = new ConcurrencyGuard({ maxSessions: 9 })
 
@@ -430,6 +433,9 @@ function initializeManagers(): void {
       heapUsed: `${(stats.heapUsed / 1024 / 1024).toFixed(2)} MB`
     })
   })
+
+  // 注册组件到内存管理协调器
+  memoryCoordinator.registerComponent(database)
 
   // 启动监控
   memoryCoordinator.start()
@@ -806,6 +812,9 @@ app.whenReady().then(() => {
   // 初始化文件改动追踪器
   fileChangeTracker = new FileChangeTracker(database)
 
+  // 注册到内存管理协调器
+  memoryCoordinator.registerComponent(fileChangeTracker)
+
   // 连接 V1 PTY sessionManager → fileChangeTracker
   if (sessionManager) {
     sessionManager.on('status-change', (sessionId: string, status: string) => {
@@ -855,6 +864,7 @@ app.whenReady().then(() => {
     agentManagerV2,
     agentBridgePort: 63721,
     updateManager,
+    memoryCoordinator,
   }, fileChangeTracker)
 
   // 连接事件流

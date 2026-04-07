@@ -11,6 +11,7 @@ import * as path from 'path'
 import type { TrackedFileChange, FileChangeType } from '../../shared/types'
 import type { LockManager } from '../concurrency/LockManager'
 import { createFileLock } from '../concurrency/LockManager'
+import type { MemoryManagedComponent, ComponentMemoryInfo } from '../memory/MemoryCoordinator'
 
 // 排除的目录/文件模式
 const EXCLUDE_PATTERNS = [
@@ -38,7 +39,9 @@ function shouldExclude(filePath: string): boolean {
  * 事件：
  * - 'files-updated' (sessionId: string, files: TrackedFileChange[]) — 文件变更时实时推送 + 会话 idle 时 flush
  */
-export class FileChangeTracker extends EventEmitter {
+export class FileChangeTracker extends EventEmitter implements MemoryManagedComponent {
+  name = 'FileChangeTracker'
+
   /** 每个唯一目录一个物理 watcher + 引用计数（多会话共用同一目录时复用） */
   private dirWatchers = new Map<string, { watcher: fs.FSWatcher; refCount: number }>()
 
@@ -69,6 +72,9 @@ export class FileChangeTracker extends EventEmitter {
 
   /** LockManager 实例（可选，用于文件操作锁保护） */
   private lockManager: LockManager | null = null
+
+  /** 上次清理时间 */
+  private lastCleanupTime?: Date
 
   constructor(database: any, lockManager?: LockManager) {
     super()
@@ -629,5 +635,83 @@ export class FileChangeTracker extends EventEmitter {
     console.log(
       `[FileChangeTracker] flushed ${changes.length} file changes for session ${sessionId}`
     )
+  }
+
+  // ============================================================
+  // 内存管理接口实现
+  // ============================================================
+
+  /**
+   * 清理内存
+   * @param mode normal: 常规清理（清理已完成会话）, aggressive: 激进清理（清理所有非运行会话）
+   */
+  async cleanup(mode: 'normal' | 'aggressive'): Promise<void> {
+    const sessionsToClean: string[] = []
+
+    if (mode === 'normal') {
+      // 常规清理：只清理没有活跃窗口的会话（已完成/终止）
+      for (const [sessionId] of this.changeBuffers) {
+        if (!this.activeWindows.has(sessionId)) {
+          sessionsToClean.push(sessionId)
+        }
+      }
+    } else {
+      // 激进清理：清理所有会话的缓冲区（保留活跃窗口映射）
+      sessionsToClean.push(...Array.from(this.changeBuffers.keys()))
+    }
+
+    // 清理变更缓冲区
+    for (const sessionId of sessionsToClean) {
+      this.changeBuffers.delete(sessionId)
+    }
+
+    // 清理 debounce timers
+    for (const [key, timer] of this.debounceTimers) {
+      clearTimeout(timer)
+      this.debounceTimers.delete(key)
+    }
+
+    this.lastCleanupTime = new Date()
+
+    if (sessionsToClean.length > 0) {
+      console.log(`[FileChangeTracker] Cleaned up ${sessionsToClean.length} session buffers (${mode} mode)`)
+    }
+  }
+
+  /**
+   * 获取内存信息
+   */
+  getMemoryInfo(): ComponentMemoryInfo {
+    const sessionCount = this.sessionDirs.size
+    const activeSessionCount = this.activeWindows.size
+    const watcherCount = this.dirWatchers.size
+
+    // 计算缓冲区中的文件总数
+    let totalFileCount = 0
+    for (const buffer of this.changeBuffers.values()) {
+      totalFileCount += buffer.size
+    }
+
+    // 估算内存占用：
+    // - 每个会话映射 ~1KB
+    // - 每个 watcher ~5KB
+    // - 每个文件变更记录 ~1KB
+    const estimatedSize =
+      (sessionCount * 1024) +
+      (watcherCount * 5 * 1024) +
+      (totalFileCount * 1024)
+
+    return {
+      name: this.name,
+      itemCount: sessionCount,
+      estimatedSize,
+      lastCleanup: this.lastCleanupTime?.toISOString(),
+      metadata: {
+        activeSessionCount,
+        watcherCount,
+        totalFileCount,
+        bufferCount: this.changeBuffers.size
+      }
+    }
   }
 }

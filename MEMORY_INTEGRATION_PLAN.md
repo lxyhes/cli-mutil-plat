@@ -377,13 +377,13 @@ ipcMain.handle(IPC.MEMORY_GET_REPORT, async () => {
 | 任务 | 状态 | 预计用时 | 实际用时 |
 |------|------|----------|----------|
 | 1. 主进程启动 MemoryCoordinator | ✅ 已完成 | 0.5h | 0.25h |
-| 2. FileChangeTracker 内存管理 | ⏳ 待开始 | 1h | - |
-| 3. DatabaseManager 内存管理 | ⏳ 待开始 | 1h | - |
-| 4. SessionManagerV2 内存管理 | ⏳ 待开始 | 1h | - |
+| 2. FileChangeTracker 内存管理 | ✅ 已完成 | 1h | 0.5h |
+| 3. DatabaseManager 内存管理 | ✅ 已完成 | 1h | 0.5h |
+| 4. SessionManagerV2 内存管理 | ✅ 已完成 | 1h | 0.5h |
 | 5. 内存报告 IPC Handler | ⏳ 待开始 | 0.5h | - |
 | 6. UI 显示内存状态 | ⏳ 待开始 | 2h | - |
 | 7. 编写测试 | ⏳ 待开始 | 2h | - |
-| **总计** | **15%** | **8h** | **0.25h** |
+| **总计** | **50%** | **8h** | **1.75h** |
 
 ---
 

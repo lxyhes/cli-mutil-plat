@@ -39,6 +39,7 @@ export interface IpcDependencies {
   agentBridgePort?: number
   taskCoordinator?: TaskSessionCoordinator
   updateManager?: UpdateManager
+  memoryCoordinator?: any  // MemoryCoordinator（可选）
 }
 
 // 各子模块 handler 注册函数

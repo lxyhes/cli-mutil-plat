@@ -12,12 +12,13 @@ import type { NotificationManager } from '../notification/NotificationManager'
 import type { TrayManager } from '../tray/TrayManager'
 import type { SessionManagerV2 } from '../session/SessionManagerV2'
 import type { FileChangeTracker } from '../tracker/FileChangeTracker'
+import type { MemoryCoordinator } from '../memory/MemoryCoordinator'
 import { sendToRenderer, aiRenamingLocks, performAiRename } from './shared'
 import type { IpcDependencies } from './index'
 import { createErrorResponse, createSuccessResponse, ErrorCode, SpectrAIError } from '../../shared/errors'
 
 export function registerSystemHandlers(deps: IpcDependencies): void {
-  const { database, notificationManager } = deps
+  const { database, notificationManager, memoryCoordinator } = deps
 
   // ==================== 全局应用设置 ====================
 
@@ -66,6 +67,54 @@ export function registerSystemHandlers(deps: IpcDependencies): void {
     const filePath = join(bucketDir, filename)
     await fs.promises.writeFile(filePath, Buffer.from(base64Data, 'base64'))
     return filePath
+  })
+
+  // ---- 内存管理 IPC ----
+
+  ipcMain.handle(IPC.MEMORY_GET_REPORT, async () => {
+    try {
+      if (!memoryCoordinator) {
+        throw new SpectrAIError({
+          code: ErrorCode.INTERNAL,
+          message: 'MemoryCoordinator not initialized',
+          userMessage: '内存管理器未初始化'
+        })
+      }
+
+      const report = memoryCoordinator.generateReport()
+      const stats = memoryCoordinator.getMemoryStats()
+      const trend = memoryCoordinator.getMemoryTrend()
+      const components = memoryCoordinator.getComponentsInfo()
+
+      return createSuccessResponse({
+        report,
+        stats,
+        trend,
+        components
+      })
+    } catch (err) {
+      return createErrorResponse(err, 'get memory report')
+    }
+  })
+
+  ipcMain.handle(IPC.MEMORY_FORCE_CLEANUP, async (_event, mode: 'normal' | 'aggressive' = 'normal') => {
+    try {
+      if (!memoryCoordinator) {
+        throw new SpectrAIError({
+          code: ErrorCode.INTERNAL,
+          message: 'MemoryCoordinator not initialized',
+          userMessage: '内存管理器未初始化'
+        })
+      }
+
+      await memoryCoordinator.forceCleanup(mode)
+
+      return createSuccessResponse({
+        message: `内存清理完成 (${mode} 模式)`
+      })
+    } catch (err) {
+      return createErrorResponse(err, 'force memory cleanup')
+    }
   })
 }
 

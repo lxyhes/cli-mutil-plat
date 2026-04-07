@@ -24,6 +24,7 @@ import type { ProviderEvent, AdapterSessionConfig } from '../adapter/types'
 import { mapToolToActivityType, extractToolDetail } from '../adapter/toolMapping'
 import { SkillEngine } from '../skill/SkillEngine'
 import type { LockManager } from '../concurrency/LockManager'
+import type { MemoryManagedComponent, ComponentMemoryInfo } from '../memory/MemoryCoordinator'
 
 // ---- AI 提问检测 ----
 
@@ -191,11 +192,13 @@ export interface SendMessageDispatchResult {
  * - 'title-change'(sessionId, name) — 会话名称变化
  * - 'claude-session-id'(sessionId, claudeId) — Provider 会话 ID 检测到
  */
-export class SessionManagerV2 extends EventEmitter {
+export class SessionManagerV2 extends EventEmitter implements MemoryManagedComponent {
+  name = 'SessionManagerV2'
   private sessions: Map<string, ManagedSession> = new Map()
   private adapterRegistry: AdapterRegistry
   private database?: any   // DatabaseManager（可选，用于 Skill 拦截）
   private lockManager?: LockManager
+  private lastCleanupTime?: Date
 
   private thinkingBuffers: Map<string, string> = new Map()
   private thinkingFlushTimers: Map<string, NodeJS.Timeout> = new Map()
@@ -1030,6 +1033,87 @@ export class SessionManagerV2 extends EventEmitter {
       if (this.lockManager) {
         this.lockManager.releaseAllLocksForOwner(`session:${id}`).catch(() => {})
       }
+    }
+  }
+
+  // ---- 内存管理接口实现 ----
+
+  /**
+   * 清理内存：移除已完成的会话、清空缓冲区
+   */
+  async cleanup(mode: 'normal' | 'aggressive'): Promise<void> {
+    const sessionsToRemove: string[] = []
+
+    for (const [id, session] of this.sessions) {
+      const isCompleted = session.status === 'completed' || session.status === 'terminated'
+
+      if (mode === 'aggressive') {
+        // 激进模式：移除所有已完成的会话
+        if (isCompleted) {
+          sessionsToRemove.push(id)
+        }
+      } else {
+        // 正常模式：只移除超过 1 小时的已完成会话
+        if (isCompleted && session.endedAt) {
+          const endTime = new Date(session.endedAt).getTime()
+          const now = Date.now()
+          if (now - endTime > 3600000) { // 1 小时
+            sessionsToRemove.push(id)
+          }
+        }
+      }
+    }
+
+    // 移除会话
+    for (const id of sessionsToRemove) {
+      this.sessions.delete(id)
+      this.thinkingBuffers.delete(id)
+      const timer = this.thinkingFlushTimers.get(id)
+      if (timer) {
+        clearTimeout(timer)
+        this.thinkingFlushTimers.delete(id)
+      }
+    }
+
+    this.lastCleanupTime = new Date()
+
+    if (sessionsToRemove.length > 0) {
+      console.log(`[SessionManagerV2] Cleaned up ${sessionsToRemove.length} sessions (mode: ${mode})`)
+    }
+  }
+
+  /**
+   * 获取内存使用信息
+   */
+  getMemoryInfo(): ComponentMemoryInfo {
+    const sessionCount = this.sessions.size
+    const thinkingBufferCount = this.thinkingBuffers.size
+    const timerCount = this.thinkingFlushTimers.size
+
+    // 估算内存占用
+    let totalBufferSize = 0
+    for (const buffer of this.thinkingBuffers.values()) {
+      totalBufferSize += buffer.length * 2 // UTF-16 字符
+    }
+
+    // 每个会话对象约 5KB（包含配置、状态、消息历史等）
+    const estimatedSize = sessionCount * 5120 + totalBufferSize
+
+    return {
+      name: this.name,
+      itemCount: sessionCount,
+      estimatedSize,
+      lastCleanup: this.lastCleanupTime,
+      metadata: {
+        activeSessions: Array.from(this.sessions.values()).filter(s =>
+          s.status === 'active' || s.status === 'waiting'
+        ).length,
+        completedSessions: Array.from(this.sessions.values()).filter(s =>
+          s.status === 'completed' || s.status === 'terminated'
+        ).length,
+        thinkingBuffers: thinkingBufferCount,
+        activeTimers: timerCount,
+      },
     }
   }
 

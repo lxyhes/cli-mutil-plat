@@ -95,6 +95,10 @@ export const IPC = {
   SETTINGS_GET_ALL: 'settings:get-all',
   SETTINGS_UPDATE: 'settings:update',
 
+  // 内存管理
+  MEMORY_GET_REPORT: 'memory:get-report',
+  MEMORY_FORCE_CLEANUP: 'memory:force-cleanup',
+
   // 应用更新
   UPDATE_GET_STATE: 'update:get-state',
   UPDATE_CHECK: 'update:check',
