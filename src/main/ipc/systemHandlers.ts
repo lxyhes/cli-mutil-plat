@@ -14,6 +14,7 @@ import type { SessionManagerV2 } from '../session/SessionManagerV2'
 import type { FileChangeTracker } from '../tracker/FileChangeTracker'
 import { sendToRenderer, aiRenamingLocks, performAiRename } from './shared'
 import type { IpcDependencies } from './index'
+import { createErrorResponse, createSuccessResponse, ErrorCode, SpectrAIError } from '../../shared/errors'
 
 export function registerSystemHandlers(deps: IpcDependencies): void {
   const { database, notificationManager } = deps
@@ -34,7 +35,7 @@ export function registerSystemHandlers(deps: IpcDependencies): void {
     if (key === 'autoLaunch') {
       app.setLoginItemSettings({ openAtLogin: !!value })
     }
-    return { success: true }
+    return createSuccessResponse({})
   })
 
   // ---- 日志 IPC ----

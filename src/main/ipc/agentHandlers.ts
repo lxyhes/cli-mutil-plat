@@ -19,6 +19,7 @@ import {
 import type { IpcDependencies } from './index'
 import { sendToRenderer } from './shared'
 import { IPC } from '../../shared/constants'
+import { createErrorResponse, createSuccessResponse, ErrorCode, SpectrAIError } from '../../shared/errors'
 
 export function registerAgentHandlers(deps: IpcDependencies): void {
   const { sessionManagerV2, agentManagerV2 } = deps
@@ -36,12 +37,18 @@ export function registerAgentHandlers(deps: IpcDependencies): void {
 
   ipcMain.handle('agent:cancel', async (_event, agentId: string) => {
     try {
-      if (!agentManagerV2) return { success: false, error: 'AgentManagerV2 未初始化' }
+      if (!agentManagerV2) {
+        throw new SpectrAIError({
+          code: ErrorCode.INTERNAL,
+          message: 'AgentManagerV2 not initialized',
+          userMessage: 'AgentManagerV2 未初始化'
+        })
+      }
       const success = agentManagerV2.cancelAgent(agentId)
-      return { success }
+      return createSuccessResponse({ success })
     } catch (error: any) {
       console.error('[IPC] agent:cancel error:', error)
-      return { success: false, error: error.message }
+      return createErrorResponse(error, { operation: 'agent.cancel', agentId })
     }
   })
 

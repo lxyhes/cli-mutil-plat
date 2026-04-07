@@ -4,6 +4,7 @@
  */
 
 import { create } from 'zustand'
+import type { IpcResponse } from '../../shared/errors'
 import type { ViewMode, LayoutMode, PaneContent } from '../../shared/types'
 import { THEMES, THEME_IDS, DEFAULT_THEME_ID } from '../../shared/constants'
 

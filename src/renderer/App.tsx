@@ -5,6 +5,7 @@
 
 import { useEffect, useRef } from 'react'
 import AppLayout from './components/layout/AppLayout'
+import { ErrorBoundary } from './components/ErrorBoundary'
 import { useSessionStore } from './stores/sessionStore'
 import { useTaskStore } from './stores/taskStore'
 import { useSkillStore } from './stores/skillStore'
@@ -126,5 +127,9 @@ export default function App() {
     return () => cleanups.forEach(fn => fn())
   }, [])
 
-  return <AppLayout />
+  return (
+    <ErrorBoundary>
+      <AppLayout />
+    </ErrorBoundary>
+  )
 }

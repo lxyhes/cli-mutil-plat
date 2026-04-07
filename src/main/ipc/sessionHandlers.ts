@@ -32,6 +32,7 @@ import {
 import { checkProviderAvailability } from '../agent/providerAvailability'
 import type { IpcDependencies } from './index'
 import { sendToRenderer, aiRenamingLocks, performAiRename } from './shared'
+import { createErrorResponse, createSuccessResponse, ErrorCode, SpectrAIError } from '../../shared/errors'
 
 const RESUME_PROMPT_TOKEN_BUDGET = 7000
 const RESUME_SUMMARY_TOKEN_BUDGET = 2400
@@ -399,13 +400,22 @@ export function registerSessionHandlers(deps: IpcDependencies): void {
       try {
       const smV2 = deps.sessionManagerV2
       if (!smV2) {
-        return { success: false, error: 'SDK V2 SessionManager 未初始化' }
+        throw new SpectrAIError({
+          code: ErrorCode.INTERNAL,
+          message: 'SDK V2 SessionManager not initialized',
+          userMessage: 'SDK V2 SessionManager 未初始化'
+        })
       }
 
       // 检查并发限制
       const resourceCheck = concurrencyGuard.checkResources()
       if (!resourceCheck.canCreate) {
-        return { success: false, error: resourceCheck.reason }
+        throw new SpectrAIError({
+          code: ErrorCode.RESOURCE_EXHAUSTED,
+          message: `Resource limit reached: ${resourceCheck.reason}`,
+          userMessage: resourceCheck.reason,
+          recoverable: true
+        })
       }
 
       // 查询 Provider
@@ -625,15 +635,14 @@ export function registerSessionHandlers(deps: IpcDependencies): void {
         }
       }
 
-      return {
-        success: true,
+      return createSuccessResponse({
         sessionId,
         ready: readyInfo.ready,
-        status: readyInfo.status,
-      }
+        status: readyInfo.status
+      })
       } catch (error: any) {
         console.error('[IPC] SESSION_CREATE error:', error)
-        return { success: false, error: error.message }
+        return createErrorResponse(error, { operation: 'session.create', config })
       }
     })()
     createSessionInFlight.set(dedupeKey, task)
@@ -648,17 +657,21 @@ export function registerSessionHandlers(deps: IpcDependencies): void {
     try {
       const smV2 = deps.sessionManagerV2
       if (!smV2) {
-        return { success: false, error: 'SDK V2 SessionManager 未初始化' }
+        throw new SpectrAIError({
+          code: ErrorCode.INTERNAL,
+          message: 'SDK V2 SessionManager not initialized',
+          userMessage: 'SDK V2 SessionManager 未初始化'
+        })
       }
       if (smV2.getSession(sessionId)) {
         await smV2.terminateSession(sessionId)
         concurrencyGuard.unregisterSession()
       }
       database.updateSession(sessionId, { status: 'terminated' as any })
-      return { success: true }
+      return createSuccessResponse({ success: true })
     } catch (error: any) {
       console.error('[IPC] SESSION_TERMINATE error:', error)
-      return { success: false, error: error.message }
+      return createErrorResponse(error, { operation: 'session.terminate', sessionId })
     }
   })
 
@@ -674,10 +687,10 @@ export function registerSessionHandlers(deps: IpcDependencies): void {
       // 从内存 Map 中移除，防止 SESSION_GET_ALL 返回已删除的"幽灵会话"
       // 导致 fetchSessions() 合并后已删会话重新出现在前端列表
       smV2?.removeSession(sessionId)
-      return { success: true }
+      return createSuccessResponse({ success: true })
     } catch (error: any) {
       console.error('[IPC] SESSION_DELETE error:', error)
-      return { success: false, error: error.message }
+      return createErrorResponse(error, { operation: 'session.delete', sessionId })
     }
   })
 
@@ -685,12 +698,16 @@ export function registerSessionHandlers(deps: IpcDependencies): void {
     try {
       const smV2 = deps.sessionManagerV2
       if (!smV2) {
-        return { success: false, error: 'SDK V2 SessionManager 未初始化' }
+        throw new SpectrAIError({
+          code: ErrorCode.INTERNAL,
+          message: 'SDK V2 SessionManager not initialized',
+          userMessage: 'SDK V2 SessionManager 未初始化'
+        })
       }
       await smV2.sendMessage(sessionId, input)
-      return { success: true }
+      return createSuccessResponse({ success: true })
     } catch (error: any) {
-      return { success: false, error: error.message }
+      return createErrorResponse(error, { operation: 'session.sendInput', sessionId })
     }
   })
 
@@ -698,7 +715,11 @@ export function registerSessionHandlers(deps: IpcDependencies): void {
     try {
       const smV2 = deps.sessionManagerV2
       if (!smV2) {
-        return { success: false, error: 'SDK V2 SessionManager 未初始化' }
+        throw new SpectrAIError({
+          code: ErrorCode.INTERNAL,
+          message: 'SDK V2 SessionManager not initialized',
+          userMessage: 'SDK V2 SessionManager 未初始化'
+        })
       }
       await smV2.sendConfirmation(sessionId, confirmed)
 
@@ -706,9 +727,9 @@ export function registerSessionHandlers(deps: IpcDependencies): void {
         trayManager.decrementBadge()
       }
 
-      return { success: true }
+      return createSuccessResponse({ success: true })
     } catch (error: any) {
-      return { success: false, error: error.message }
+      return createErrorResponse(error, { operation: 'session.confirm', sessionId })
     }
   })
 
@@ -719,7 +740,7 @@ export function registerSessionHandlers(deps: IpcDependencies): void {
 
   ipcMain.handle(IPC.SESSION_RESIZE, async (_event, _sessionId: string, _cols: number, _rows: number) => {
     // V2 Adapter 层不需要手动 resize
-    return { success: true }
+    return createSuccessResponse({ success: true })
   })
 
   ipcMain.handle(IPC.SESSION_GET_ALL, async () => {
@@ -814,7 +835,11 @@ export function registerSessionHandlers(deps: IpcDependencies): void {
     try {
       const trimmed = newName.trim()
       if (!trimmed) {
-        return { success: false, error: '名称不能为空' }
+        throw new SpectrAIError({
+          code: ErrorCode.INVALID_INPUT,
+          message: 'Session name cannot be empty',
+          userMessage: '名称不能为空'
+        })
       }
 
       database.updateSession(sessionId, { name: trimmed, nameLocked: true })
@@ -826,10 +851,10 @@ export function registerSessionHandlers(deps: IpcDependencies): void {
         sendToRenderer(IPC.SESSION_NAME_CHANGE, sessionId, trimmed)
       }
 
-      return { success: true }
+      return createSuccessResponse({ success: true })
     } catch (error: any) {
       console.error('[IPC] SESSION_RENAME error:', error)
-      return { success: false, error: error.message }
+      return createErrorResponse(error, { operation: 'session.rename', sessionId })
     }
   })
 
@@ -837,7 +862,12 @@ export function registerSessionHandlers(deps: IpcDependencies): void {
 
   ipcMain.handle(IPC.SESSION_AI_RENAME, async (_event, sessionId: string) => {
     if (aiRenamingLocks.has(sessionId)) {
-      return { success: false, error: '正在 AI 重命名中，请稍候' }
+      throw new SpectrAIError({
+          code: ErrorCode.RESOURCE_BUSY,
+          message: 'AI rename already in progress',
+          userMessage: '正在 AI 重命名中，请稍候',
+          recoverable: true
+        })
     }
     aiRenamingLocks.add(sessionId)
     try {
@@ -852,10 +882,10 @@ export function registerSessionHandlers(deps: IpcDependencies): void {
         sendToRenderer(IPC.SESSION_NAME_CHANGE, sessionId, result.name!)
       }
 
-      return { success: true, name: result.name }
+      return createSuccessResponse({ name: result.name })
     } catch (error: any) {
       console.error('[IPC] SESSION_AI_RENAME error:', error)
-      return { success: false, error: error.message }
+      return createErrorResponse(error, { operation: 'session.aiRename', sessionId })
     } finally {
       aiRenamingLocks.delete(sessionId)
     }
@@ -867,13 +897,21 @@ export function registerSessionHandlers(deps: IpcDependencies): void {
     try {
       const smV2 = deps.sessionManagerV2
       if (!smV2) {
-        return { success: false, error: 'SDK V2 SessionManager 未初始化' }
+        throw new SpectrAIError({
+          code: ErrorCode.INTERNAL,
+          message: 'SDK V2 SessionManager not initialized',
+          userMessage: 'SDK V2 SessionManager 未初始化'
+        })
       }
 
       const dbSessions = database.getAllSessions()
       const oldSession = dbSessions.find((s: any) => s.id === oldSessionId)
       if (!oldSession) {
-        return { success: false, error: '找不到原会话记录' }
+        throw new SpectrAIError({
+          code: ErrorCode.SESSION_NOT_FOUND,
+          message: 'Original session not found',
+          userMessage: '找不到原会话记录'
+        })
       }
 
       const providerId = oldSession.providerId || oldSession.config?.providerId || 'claude-code'
@@ -882,7 +920,12 @@ export function registerSessionHandlers(deps: IpcDependencies): void {
       if (!provider.resumeArg) {
         const resourceCheck = concurrencyGuard.checkResources();
         if (!resourceCheck.canCreate) {
-          return { success: false, error: resourceCheck.reason };
+          throw new SpectrAIError({
+          code: ErrorCode.RESOURCE_EXHAUSTED,
+          message: `Resource limit: ${resourceCheck.reason}`,
+          userMessage: resourceCheck.reason,
+          recoverable: true
+        });
         }
 
         const history = database.getConversationMessages(oldSessionId, 260);
@@ -1009,12 +1052,17 @@ export function registerSessionHandlers(deps: IpcDependencies): void {
         await smV2.waitForSessionReady(newSessionId, readyTimeoutMs);
 
         console.warn(`[IPC] ${provider.name} does not support native resume; created continuation session ${newSessionId} from ${oldSessionId}`);
-        return { success: true, sessionId: newSessionId, recreated: true };
+        return createSuccessResponse({ sessionId: newSessionId, recreated: true });
       }
 
       const resourceCheck = concurrencyGuard.checkResources()
       if (!resourceCheck.canCreate) {
-        return { success: false, error: resourceCheck.reason }
+        throw new SpectrAIError({
+          code: ErrorCode.RESOURCE_EXHAUSTED,
+          message: `Resource limit: ${resourceCheck.reason}`,
+          userMessage: resourceCheck.reason,
+          recoverable: true
+        })
       }
 
       const claudeSessionId = (oldSession as any).claudeSessionId
@@ -1194,10 +1242,10 @@ export function registerSessionHandlers(deps: IpcDependencies): void {
         }
       }
 
-      return { success: true, sessionId: oldSessionId }
+      return createSuccessResponse({ sessionId: oldSessionId })
     } catch (error: any) {
       console.error('[IPC] SESSION_RESUME error:', error)
-      return { success: false, error: error.message }
+      return createErrorResponse(error, { operation: 'session.resume', oldSessionId })
     }
   })
 
@@ -1207,13 +1255,17 @@ export function registerSessionHandlers(deps: IpcDependencies): void {
     try {
       const smV2 = deps.sessionManagerV2
       if (!smV2) {
-        return { success: false, error: 'SDK V2 SessionManager 未初始化' }
+        throw new SpectrAIError({
+          code: ErrorCode.INTERNAL,
+          message: 'SDK V2 SessionManager not initialized',
+          userMessage: 'SDK V2 SessionManager 未初始化'
+        })
       }
       const dispatch = await smV2.sendMessage(sessionId, message)
-      return { success: true, dispatch }
+      return createSuccessResponse({ dispatch })
     } catch (error: any) {
       console.error('[IPC] SESSION_SEND_MESSAGE error:', error)
-      return { success: false, error: error.message }
+      return createErrorResponse(error, { operation: 'session.sendMessage', sessionId })
     }
   })
 
@@ -1221,13 +1273,17 @@ export function registerSessionHandlers(deps: IpcDependencies): void {
     try {
       const smV2 = deps.sessionManagerV2
       if (!smV2) {
-        return { success: false, error: 'SDK V2 SessionManager 未初始化' }
+        throw new SpectrAIError({
+          code: ErrorCode.INTERNAL,
+          message: 'SDK V2 SessionManager not initialized',
+          userMessage: 'SDK V2 SessionManager 未初始化'
+        })
       }
       await smV2.abortSession(sessionId)
-      return { success: true }
+      return createSuccessResponse({ success: true })
     } catch (error: any) {
       console.error('[IPC] SESSION_ABORT error:', error)
-      return { success: false, error: error.message }
+      return createErrorResponse(error, { operation: 'session.abort', sessionId })
     }
   })
 
@@ -1249,7 +1305,11 @@ export function registerSessionHandlers(deps: IpcDependencies): void {
     try {
       const smV2 = deps.sessionManagerV2
       if (!smV2) {
-        return { success: false, error: 'SDK V2 SessionManager 未初始化' }
+        throw new SpectrAIError({
+          code: ErrorCode.INTERNAL,
+          message: 'SDK V2 SessionManager not initialized',
+          userMessage: 'SDK V2 SessionManager 未初始化'
+        })
       }
       await smV2.sendConfirmation(sessionId, accept)
 
@@ -1257,10 +1317,10 @@ export function registerSessionHandlers(deps: IpcDependencies): void {
         trayManager.decrementBadge()
       }
 
-      return { success: true }
+      return createSuccessResponse({ success: true })
     } catch (error: any) {
       console.error('[IPC] SESSION_PERMISSION_RESPOND error:', error)
-      return { success: false, error: error.message }
+      return createErrorResponse(error, { operation: 'session.permissionRespond', sessionId })
     }
   })
 
@@ -1268,12 +1328,16 @@ export function registerSessionHandlers(deps: IpcDependencies): void {
   ipcMain.handle(IPC.SESSION_ANSWER_QUESTION, async (_event, sessionId: string, answers: Record<string, string>) => {
     try {
       const smV2 = deps.sessionManagerV2
-      if (!smV2) return { success: false, error: 'SDK V2 SessionManager 未初始化' }
+      if (!smV2) throw new SpectrAIError({
+          code: ErrorCode.INTERNAL,
+          message: 'SDK V2 SessionManager not initialized',
+          userMessage: 'SDK V2 SessionManager 未初始化'
+        })
       await smV2.sendQuestionAnswer(sessionId, answers)
-      return { success: true }
+      return createSuccessResponse({ success: true })
     } catch (error: any) {
       console.error('[IPC] SESSION_ANSWER_QUESTION error:', error)
-      return { success: false, error: error.message }
+      return createErrorResponse(error, { operation: 'session.answerQuestion', sessionId })
     }
   })
 
@@ -1281,12 +1345,16 @@ export function registerSessionHandlers(deps: IpcDependencies): void {
   ipcMain.handle(IPC.SESSION_APPROVE_PLAN, async (_event, sessionId: string, approved: boolean) => {
     try {
       const smV2 = deps.sessionManagerV2
-      if (!smV2) return { success: false, error: 'SDK V2 SessionManager 未初始化' }
+      if (!smV2) throw new SpectrAIError({
+          code: ErrorCode.INTERNAL,
+          message: 'SDK V2 SessionManager not initialized',
+          userMessage: 'SDK V2 SessionManager 未初始化'
+        })
       await smV2.sendPlanApproval(sessionId, approved)
-      return { success: true }
+      return createSuccessResponse({ success: true })
     } catch (error: any) {
       console.error('[IPC] SESSION_APPROVE_PLAN error:', error)
-      return { success: false, error: error.message }
+      return createErrorResponse(error, { operation: 'session.approvePlan', sessionId })
     }
   })
 
@@ -1294,12 +1362,16 @@ export function registerSessionHandlers(deps: IpcDependencies): void {
   ipcMain.handle(IPC.SESSION_GET_QUEUE, async (_event, sessionId: string) => {
     try {
       const smV2 = deps.sessionManagerV2
-      if (!smV2) return { success: false, error: 'SDK V2 SessionManager 未初始化' }
+      if (!smV2) throw new SpectrAIError({
+          code: ErrorCode.INTERNAL,
+          message: 'SDK V2 SessionManager not initialized',
+          userMessage: 'SDK V2 SessionManager 未初始化'
+        })
       const messages = smV2.getScheduledMessages(sessionId)
-      return { success: true, messages }
+      return createSuccessResponse({ messages })
     } catch (error: any) {
       console.error('[IPC] SESSION_GET_QUEUE error:', error)
-      return { success: false, error: error.message }
+      return createErrorResponse(error, { operation: 'session.getQueue', sessionId })
     }
   })
 
@@ -1307,12 +1379,16 @@ export function registerSessionHandlers(deps: IpcDependencies): void {
   ipcMain.handle(IPC.SESSION_CLEAR_QUEUE, async (_event, sessionId: string) => {
     try {
       const smV2 = deps.sessionManagerV2
-      if (!smV2) return { success: false, error: 'SDK V2 SessionManager 未初始化' }
+      if (!smV2) throw new SpectrAIError({
+          code: ErrorCode.INTERNAL,
+          message: 'SDK V2 SessionManager not initialized',
+          userMessage: 'SDK V2 SessionManager 未初始化'
+        })
       const cleared = smV2.clearScheduledMessages(sessionId)
-      return { success: true, cleared }
+      return createSuccessResponse({ cleared })
     } catch (error: any) {
       console.error('[IPC] SESSION_CLEAR_QUEUE error:', error)
-      return { success: false, error: error.message }
+      return createErrorResponse(error, { operation: 'session.clearQueue', sessionId })
     }
   })
 }

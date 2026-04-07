@@ -8,6 +8,7 @@
 import { ipcMain } from 'electron'
 import { IPC } from '../../shared/constants'
 import type { IpcDependencies } from './index'
+import { createErrorResponse, createSuccessResponse, ErrorCode, SpectrAIError } from '../../shared/errors'
 
 const DEFAULT_REGISTRY_URL = 'https://raw.githubusercontent.com/spectrai/registry/main/registry.json'
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000  // 24 小时
@@ -223,10 +224,10 @@ export function registerRegistryHandlers(deps: IpcDependencies): void {
       database.updateAppSetting('registry_cache_mcps', mcps)
       database.updateAppSetting('registry_cache_skills', skills.length > 0 ? skills : BUILTIN_MARKET_SKILLS)
       database.updateAppSetting('registry_cache_time', Date.now())
-      return { success: true, mcpsCount: mcps.length, skillsCount: skills.length }
+      return createSuccessResponse({ mcpsCount: mcps.length, skillsCount: skills.length })
     } catch (err: any) {
       console.error('[Registry] force refresh failed:', err.message)
-      return { success: false, error: err.message }
+      return createErrorResponse(err, { operation: 'registry' })
     }
   })
 
@@ -250,10 +251,10 @@ export function registerRegistryHandlers(deps: IpcDependencies): void {
         updatedAt: now,
       }
       database.createSkill(skill)
-      return { success: true, skill }
+      return createSuccessResponse({ skill })
     } catch (err: any) {
       console.error('[Registry] import skill from URL failed:', err.message)
-      return { success: false, error: err.message }
+      return createErrorResponse(err, { operation: 'registry' })
     }
   })
 }

@@ -8,6 +8,7 @@ import { IPC } from '../../shared/constants'
 import { BUILTIN_PROVIDERS } from '../../shared/types'
 import { listInstalledNodeVersions } from '../node/NodeVersionResolver'
 import type { IpcDependencies } from './index'
+import { createErrorResponse, createSuccessResponse, ErrorCode, SpectrAIError } from '../../shared/errors'
 
 
 export function registerProviderHandlers(deps: IpcDependencies): void {
@@ -36,20 +37,20 @@ export function registerProviderHandlers(deps: IpcDependencies): void {
   ipcMain.handle(IPC.PROVIDER_CREATE, async (_event, provider: any) => {
     try {
       const created = database.createProvider(provider)
-      return { success: true, provider: created }
+      return createSuccessResponse({ provider: created })
     } catch (error: any) {
       console.error('[IPC] PROVIDER_CREATE error:', error)
-      return { success: false, error: error.message }
+      return createErrorResponse(error, { operation: 'provider' })
     }
   })
 
   ipcMain.handle(IPC.PROVIDER_UPDATE, async (_event, id: string, updates: any) => {
     try {
       database.updateProvider(id, updates)
-      return { success: true }
+      return createSuccessResponse({})
     } catch (error: any) {
       console.error('[IPC] PROVIDER_UPDATE error:', error)
-      return { success: false, error: error.message }
+      return createErrorResponse(error, { operation: 'provider' })
     }
   })
 
@@ -57,12 +58,17 @@ export function registerProviderHandlers(deps: IpcDependencies): void {
     try {
       const deleted = database.deleteProvider(id)
       if (!deleted) {
-        return { success: false, error: '无法删除内置 Provider' }
+        throw new SpectrAIError({
+        code: ErrorCode.INVALID_INPUT,
+        message: 'Cannot delete built-in provider',
+        userMessage: '无法删除内置 Provider',
+        context: { providerId: id }
+      })
       }
-      return { success: true }
+      return createSuccessResponse({})
     } catch (error: any) {
       console.error('[IPC] PROVIDER_DELETE error:', error)
-      return { success: false, error: error.message }
+      return createErrorResponse(error, { operation: 'provider' })
     }
   })
 
@@ -71,10 +77,10 @@ export function registerProviderHandlers(deps: IpcDependencies): void {
   ipcMain.handle(IPC.PROVIDER_REORDER, async (_event, orderedIds: string[]) => {
     try {
       database.reorderProviders(orderedIds)
-      return { success: true }
+      return createSuccessResponse({})
     } catch (error: any) {
       console.error('[IPC] PROVIDER_REORDER error:', error)
-      return { success: false, error: error.message }
+      return createErrorResponse(error, { operation: 'provider' })
     }
   })
 
@@ -83,12 +89,21 @@ export function registerProviderHandlers(deps: IpcDependencies): void {
   ipcMain.handle(IPC.PROVIDER_CHECK_CLI, async (_event, command: string) => {
     const normalized = (command || '').trim()
     if (!normalized) {
-      return { found: false, path: null, reason: '命令为空' }
+      return { found: false, path: null, reason: new SpectrAIError({
+      code: ErrorCode.INVALID_INPUT,
+      message: 'Command is empty',
+      userMessage: '命令为空'
+    }).userMessage }
     }
 
     if (path.isAbsolute(normalized)) {
       if (!fs.existsSync(normalized)) {
-        return { found: false, path: normalized, reason: '路径不存在' }
+        return { found: false, path: normalized, reason: new SpectrAIError({
+        code: ErrorCode.NOT_FOUND,
+        message: 'Path does not exist',
+        userMessage: '路径不存在',
+        context: { path: normalized }
+      }).userMessage }
       }
       try {
         if (process.platform !== 'win32') {
@@ -96,7 +111,12 @@ export function registerProviderHandlers(deps: IpcDependencies): void {
         }
         return { found: true, path: normalized }
       } catch {
-        return { found: false, path: normalized, reason: '路径不可执行（缺少执行权限）' }
+        return { found: false, path: normalized, reason: new SpectrAIError({
+          code: ErrorCode.PERMISSION_DENIED,
+          message: 'Path is not executable',
+          userMessage: '路径不可执行（缺少执行权限）',
+          context: { path: normalized }
+        }).userMessage }
       }
     }
 
@@ -109,7 +129,12 @@ export function registerProviderHandlers(deps: IpcDependencies): void {
       const firstLine = output.split('\n')[0].trim()
       return { found: true, path: firstLine }
     } catch {
-      return { found: false, path: null, reason: '命令未在 PATH 中找到' }
+      return { found: false, path: null, reason: new SpectrAIError({
+      code: ErrorCode.NOT_FOUND,
+      message: 'Command not found in PATH',
+      userMessage: '命令未在 PATH 中找到',
+      context: { command: normalized }
+    }).userMessage }
     }
   })
 
@@ -133,7 +158,12 @@ export function registerProviderHandlers(deps: IpcDependencies): void {
       if (fs.existsSync(p)) {
         return { found: true, path: p }
       }
-      return { found: false, path: null, error: `文件不存在：${p}` }
+      return { found: false, path: null, error: new SpectrAIError({
+        code: ErrorCode.NOT_FOUND,
+        message: 'File does not exist',
+        userMessage: `文件不存在：${p}`,
+        context: { path: p }
+      }).userMessage }
     }
 
     // 模式 2：自动检测 —— 构建增强 PATH
@@ -191,7 +221,11 @@ export function registerProviderHandlers(deps: IpcDependencies): void {
       if (fs.existsSync(globalCliJs)) return { found: true, path: globalCliJs }
     } catch { /* ignore */ }
 
-    return { found: false, path: null, error: '未找到 Claude Code CLI，请安装后重试或手动指定路径' }
+    return { found: false, path: null, error: new SpectrAIError({
+    code: ErrorCode.NOT_FOUND,
+    message: 'Claude Code CLI not found',
+    userMessage: '未找到 Claude Code CLI，请安装后重试或手动指定路径'
+  }).userMessage }
   })
 
   // ==================== Directory 相关 ====================
@@ -208,18 +242,18 @@ export function registerProviderHandlers(deps: IpcDependencies): void {
   ipcMain.handle(IPC.DIRECTORY_TOGGLE_PIN, async (_event, dirPath: string) => {
     try {
       database.toggleDirectoryPin(dirPath)
-      return { success: true }
+      return createSuccessResponse({})
     } catch (error: any) {
-      return { success: false, error: error.message }
+      return createErrorResponse(error, { operation: 'provider' })
     }
   })
 
   ipcMain.handle(IPC.DIRECTORY_REMOVE, async (_event, dirPath: string) => {
     try {
       database.removeDirectory(dirPath)
-      return { success: true }
+      return createSuccessResponse({})
     } catch (error: any) {
-      return { success: false, error: error.message }
+      return createErrorResponse(error, { operation: 'provider' })
     }
   })
 
@@ -276,7 +310,7 @@ export function registerProviderHandlers(deps: IpcDependencies): void {
 
   ipcMain.handle(IPC.USAGE_FLUSH, async () => {
     // SDK V2：outputParser 已移除，直接返回成功（数据已实时写入 DB）
-    return { success: true }
+    return createSuccessResponse({})
   })
 
   // ==================== Session Summary 相关 ====================

@@ -3,6 +3,7 @@
  * 按仓库根目录聚合所有 session 的 git 信息，支持完整 git 操作
  */
 import { create } from 'zustand'
+import type { IpcResponse } from '../../shared/errors'
 import { safeAPI } from '../utils/api'
 
 export interface GitRemoteStatus {

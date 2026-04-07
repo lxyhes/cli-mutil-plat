@@ -5,6 +5,7 @@
  */
 
 import { create } from 'zustand'
+import type { IpcResponse } from '../../shared/errors'
 import type { FileEntry } from '../../shared/fileManagerTypes'
 
 // 重新导出，方便组件直接从 store 引入

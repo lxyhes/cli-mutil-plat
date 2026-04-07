@@ -8,6 +8,7 @@
  */
 
 import { create } from 'zustand'
+import type { IpcResponse } from '../../shared/errors'
 
 /** 代理类型 */
 export type ProxyType = 'none' | 'http' | 'socks5'
@@ -61,10 +62,15 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
 
   fetchSettings: async () => {
     try {
-      const raw = await window.spectrAI.settings.getAll()
+      const result: IpcResponse<Record<string, any>> = await window.spectrAI.settings.getAll()
+      if (!result.success) {
+        console.warn('[settingsStore] fetchSettings error:', result.error?.userMessage)
+        set({ loaded: true })
+        return
+      }
       const settings: AppSettings = {
         ...DEFAULT_SETTINGS,
-        ...(raw as Partial<AppSettings>),
+        ...(result.data as Partial<AppSettings>),
       }
       set({ settings, loaded: true })
     } catch (err) {
@@ -75,26 +81,40 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
 
   updateSetting: async (key, value) => {
     // 乐观更新 UI
+    const prevValue = get().settings[key]
     set((s) => ({ settings: { ...s.settings, [key]: value } }))
     try {
-      await window.spectrAI.settings.update(key, value)
+      const result: IpcResponse<void> = await window.spectrAI.settings.update(key, value)
+      if (!result.success) {
+        console.warn('[settingsStore] updateSetting error:', result.error?.userMessage)
+        // 回滚
+        set((s) => ({ settings: { ...s.settings, [key]: prevValue } }))
+      }
     } catch (err) {
       console.warn('[settingsStore] updateSetting error:', err)
       // 回滚
-      const prev = get().settings
-      set({ settings: { ...prev, [key]: DEFAULT_SETTINGS[key] } })
+      set((s) => ({ settings: { ...s.settings, [key]: prevValue } }))
     }
   },
 
   updateSettings: async (updates) => {
     // 乐观更新 UI
+    const prevSettings = { ...get().settings }
     set((s) => ({ settings: { ...s.settings, ...updates } }))
     try {
       for (const [key, value] of Object.entries(updates)) {
-        await window.spectrAI.settings.update(key, value)
+        const result: IpcResponse<void> = await window.spectrAI.settings.update(key, value)
+        if (!result.success) {
+          console.warn('[settingsStore] updateSettings error:', result.error?.userMessage)
+          // 回滚到之前的状态
+          set({ settings: prevSettings })
+          return
+        }
       }
     } catch (err) {
       console.warn('[settingsStore] updateSettings error:', err)
+      // 回滚到之前的状态
+      set({ settings: prevSettings })
     }
   },
 }))

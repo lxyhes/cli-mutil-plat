@@ -9,6 +9,7 @@ import { GitWorktreeService } from '../git/GitWorktreeService'
 import { injectWorkspaceSection } from '../agent/supervisorPrompt'
 import { v4 as uuidv4 } from 'uuid'
 import type { IpcDependencies } from './index'
+import { createErrorResponse, createSuccessResponse, ErrorCode, SpectrAIError } from '../../shared/errors'
 
 export function registerTaskHandlers(deps: IpcDependencies): void {
   const { database, sessionManagerV2, concurrencyGuard, taskCoordinator } = deps
@@ -38,7 +39,12 @@ export function registerTaskHandlers(deps: IpcDependencies): void {
       if (taskData.worktreeEnabled && taskData.workspaceId && taskData.gitBranch) {
         const workspace = database.getWorkspace(taskData.workspaceId)
         if (!workspace) {
-          return { success: false, error: '工作区不存在' }
+          throw new SpectrAIError({
+            code: ErrorCode.NOT_FOUND,
+            message: `Workspace not found: ${taskData.workspaceId}`,
+            userMessage: '工作区不存在',
+            context: { workspaceId: taskData.workspaceId }
+          })
         }
 
         const worktreePaths: Record<string, string> = {}
@@ -81,11 +87,20 @@ export function registerTaskHandlers(deps: IpcDependencies): void {
           for (const repo of workspace.repos) {
             const wtp = worktreePaths[(repo as any).id]
             if (wtp) {
-              try { await gitService.removeWorktree((repo as any).repoPath, wtp) } catch (_) {}
+              try {
+                await gitService.removeWorktree((repo as any).repoPath, wtp)
+              } catch (cleanupErr) {
+                // 清理失败不阻断流程，但记录日志供排查
+                console.warn(`[Cleanup] Failed to remove worktree ${wtp}:`, cleanupErr)
+              }
             }
           }
           console.error('[IPC] Multi-repo worktree creation failed:', wtErr)
-          return { success: false, error: `多仓库 Worktree 创建失败: ${wtErr.message}` }
+          return createErrorResponse(wtErr, {
+            operation: 'task.create.worktree',
+            taskId,
+            workspaceId: taskData.workspaceId
+          })
         }
       }
       // 路径2：单仓库 worktree 创建（向后兼容）
@@ -100,24 +115,27 @@ export function registerTaskHandlers(deps: IpcDependencies): void {
           taskData.gitBranch = result.branch
         } catch (wtErr: any) {
           console.error('[IPC] Worktree creation failed:', wtErr)
-          return { success: false, error: `Worktree 创建失败: ${wtErr.message}` }
+          return createErrorResponse(wtErr, {
+            operation: 'task.create.worktree',
+            taskId,
+            gitRepoPath: taskData.gitRepoPath
+          })
         }
       }
 
       const created = database.createTask(taskData)
-      return { success: true, taskId: created.id }
+      return createSuccessResponse({ taskId: created.id })
     } catch (error: any) {
-      console.error('[IPC] TASK_CREATE error:', error)
-      return { success: false, error: error.message }
+      return createErrorResponse(error, { operation: 'task.create' })
     }
   })
 
   ipcMain.handle(IPC.TASK_UPDATE, async (_event, taskId: string, updates: any) => {
     try {
       database.updateTask(taskId, updates)
-      return { success: true }
+      return createSuccessResponse({ success: true })
     } catch (error: any) {
-      return { success: false, error: error.message }
+      return createErrorResponse(error, { operation: 'task.update', taskId })
     }
   })
 

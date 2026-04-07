@@ -11,6 +11,7 @@ import { v4 as uuidv4 } from 'uuid'
 import { IPC } from '../../shared/constants'
 import { GitWorktreeService } from '../git/GitWorktreeService'
 import type { IpcDependencies } from './index'
+import { createErrorResponse, createSuccessResponse, ErrorCode, SpectrAIError } from '../../shared/errors'
 
 function normalizePrimaryFlags<T extends { isPrimary: boolean }>(repos: T[]): T[] {
   let primaryFound = false
@@ -57,17 +58,30 @@ export function registerWorkspaceHandlers(deps: IpcDependencies): void {
   }) => {
     try {
       if (!data.name?.trim()) {
-        return { success: false, error: '工作区名称不能为空' }
+        throw new SpectrAIError({
+        code: ErrorCode.INVALID_INPUT,
+        message: 'Workspace name cannot be empty',
+        userMessage: '工作区名称不能为空'
+      })
       }
       if (!data.repos || data.repos.length === 0) {
-        return { success: false, error: '至少需要添加一个仓库' }
+        throw new SpectrAIError({
+        code: ErrorCode.INVALID_INPUT,
+        message: 'At least one repository required',
+        userMessage: '至少需要添加一个仓库'
+      })
       }
 
       // 验证所有仓库路径均为有效 git 仓库
       for (const repo of data.repos) {
         const valid = await gitService.isGitRepo(repo.repoPath)
         if (!valid) {
-          return { success: false, error: `路径不是 git 仓库: ${repo.repoPath}` }
+          throw new SpectrAIError({
+          code: ErrorCode.INVALID_INPUT,
+          message: 'Path is not a git repository',
+          userMessage: `路径不是 git 仓库: ${repo.repoPath}`,
+          context: { repoPath: repo.repoPath }
+        })
         }
       }
 
@@ -93,10 +107,10 @@ export function registerWorkspaceHandlers(deps: IpcDependencies): void {
       )
 
       console.log(`[IPC] Workspace created: ${workspaceId} (${data.repos.length} repos)`)
-      return { success: true, workspaceId }
+      return createSuccessResponse({ workspaceId })
     } catch (error: any) {
       console.error('[IPC] WORKSPACE_CREATE error:', error)
-      return { success: false, error: error.message }
+      return createErrorResponse(error, { operation: 'workspace' })
     }
   })
 
@@ -110,7 +124,12 @@ export function registerWorkspaceHandlers(deps: IpcDependencies): void {
     try {
       const existing = database.getWorkspace(workspaceId)
       if (!existing) {
-        return { success: false, error: '工作区不存在' }
+        throw new SpectrAIError({
+        code: ErrorCode.NOT_FOUND,
+        message: 'Workspace not found',
+        userMessage: '工作区不存在',
+        context: { workspaceId }
+      })
       }
 
       // 若有仓库更新，验证路径合法性
@@ -119,7 +138,12 @@ export function registerWorkspaceHandlers(deps: IpcDependencies): void {
         for (const repo of normalizedRepos) {
           const valid = await gitService.isGitRepo(repo.repoPath)
           if (!valid) {
-            return { success: false, error: `路径不是 git 仓库: ${repo.repoPath}` }
+            throw new SpectrAIError({
+          code: ErrorCode.INVALID_INPUT,
+          message: 'Path is not a git repository',
+          userMessage: `路径不是 git 仓库: ${repo.repoPath}`,
+          context: { repoPath: repo.repoPath }
+        })
           }
         }
       }
@@ -138,10 +162,10 @@ export function registerWorkspaceHandlers(deps: IpcDependencies): void {
         rootPath: data.rootPath,
       }, reposForUpdate)
 
-      return { success: true }
+      return createSuccessResponse({})
     } catch (error: any) {
       console.error('[IPC] WORKSPACE_UPDATE error:', error)
-      return { success: false, error: error.message }
+      return createErrorResponse(error, { operation: 'workspace' })
     }
   })
 
@@ -150,13 +174,18 @@ export function registerWorkspaceHandlers(deps: IpcDependencies): void {
     try {
       const existing = database.getWorkspace(workspaceId)
       if (!existing) {
-        return { success: false, error: '工作区不存在' }
+        throw new SpectrAIError({
+        code: ErrorCode.NOT_FOUND,
+        message: 'Workspace not found',
+        userMessage: '工作区不存在',
+        context: { workspaceId }
+      })
       }
       database.deleteWorkspace(workspaceId)
-      return { success: true }
+      return createSuccessResponse({})
     } catch (error: any) {
       console.error('[IPC] WORKSPACE_DELETE error:', error)
-      return { success: false, error: error.message }
+      return createErrorResponse(error, { operation: 'workspace' })
     }
   })
 
@@ -164,7 +193,12 @@ export function registerWorkspaceHandlers(deps: IpcDependencies): void {
   ipcMain.handle(IPC.WORKSPACE_SCAN_REPOS, async (_event, dirPath: string) => {
     try {
       if (!fs.existsSync(dirPath)) {
-        return { success: false, error: '目录不存在', repos: [] }
+        throw new SpectrAIError({
+        code: ErrorCode.NOT_FOUND,
+        message: 'Directory does not exist',
+        userMessage: '目录不存在',
+        context: { dirPath }
+      })
       }
 
       const entries = fs.readdirSync(dirPath, { withFileTypes: true })
@@ -185,10 +219,10 @@ export function registerWorkspaceHandlers(deps: IpcDependencies): void {
         }
       }
 
-      return { success: true, repos: results }
+      return createSuccessResponse({ repos: results })
     } catch (error: any) {
       console.error('[IPC] WORKSPACE_SCAN_REPOS error:', error)
-      return { success: false, error: error.message, repos: [] }
+      return createErrorResponse(error, { operation: 'workspace-scan' })
     }
   })
 
@@ -196,7 +230,12 @@ export function registerWorkspaceHandlers(deps: IpcDependencies): void {
   ipcMain.handle(IPC.WORKSPACE_IMPORT_VSCODE, async (_event, filePath: string) => {
     try {
       if (!fs.existsSync(filePath)) {
-        return { success: false, error: '文件不存在', repos: [] }
+        throw new SpectrAIError({
+        code: ErrorCode.NOT_FOUND,
+        message: 'File does not exist',
+        userMessage: '文件不存在',
+        context: { filePath }
+      })
       }
 
       const raw = fs.readFileSync(filePath, 'utf-8')
@@ -231,7 +270,12 @@ export function registerWorkspaceHandlers(deps: IpcDependencies): void {
       }
 
       if (!parsed.folders || !Array.isArray(parsed.folders)) {
-        return { success: false, error: '无效的 .code-workspace 文件（缺少 folders 字段）', repos: [] }
+        throw new SpectrAIError({
+        code: ErrorCode.INVALID_INPUT,
+        message: 'Invalid .code-workspace file',
+        userMessage: '无效的 .code-workspace 文件（缺少 folders 字段）',
+        context: { filePath }
+      })
       }
 
       const workspaceDir = path.dirname(filePath)
@@ -251,15 +295,20 @@ export function registerWorkspaceHandlers(deps: IpcDependencies): void {
       }
 
       if (repos.length === 0) {
-        return { success: false, error: '未找到有效的仓库路径', repos: [] }
+        throw new SpectrAIError({
+        code: ErrorCode.NOT_FOUND,
+        message: 'No valid repository paths found',
+        userMessage: '未找到有效的仓库路径',
+        context: { filePath }
+      })
       }
 
       // 推荐工作区名称（取文件名去后缀）
       const suggestedName = path.basename(filePath, '.code-workspace')
-      return { success: true, repos, suggestedName }
+      return createSuccessResponse({ repos, suggestedName })
     } catch (error: any) {
       console.error('[IPC] WORKSPACE_IMPORT_VSCODE error:', error)
-      return { success: false, error: error.message, repos: [] }
+      return createErrorResponse(error, { operation: 'workspace-scan' })
     }
   })
 }

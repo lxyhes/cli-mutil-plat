@@ -5,6 +5,7 @@
  */
 
 import { create } from 'zustand'
+import type { IpcResponse } from '../../shared/errors'
 
 // ─────────────────────────────────────────────────────────
 // 类型定义

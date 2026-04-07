@@ -3,6 +3,7 @@
  * @author weibin
  */
 import { create } from 'zustand'
+import type { IpcResponse } from '../../shared/errors'
 import type { Skill } from '../../shared/types'
 import { safeAPI } from '../utils/api'
 

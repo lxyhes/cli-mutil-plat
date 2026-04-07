@@ -5,6 +5,7 @@
 
 import { create } from 'zustand'
 import type { TaskCard, TaskStatus } from '../../shared/types'
+import type { IpcResponse } from '../../shared/errors'
 
 interface TaskState {
   // 状态
@@ -33,10 +34,14 @@ export const useTaskStore = create<TaskState>((set, get) => ({
       return
     }
     try {
-      const tasks = await window.spectrAI.task.getAll()
-      set({ tasks })
+      const result: IpcResponse<TaskCard[]> = await window.spectrAI.task.getAll()
+      if (!result.success) {
+        console.error('[TaskStore] Failed to fetch tasks:', result.error?.userMessage)
+        return
+      }
+      set({ tasks: result.data || [] })
     } catch (error) {
-      console.error('Failed to fetch tasks:', error)
+      console.error('[TaskStore] Failed to fetch tasks:', error)
     }
   },
 
@@ -47,10 +52,13 @@ export const useTaskStore = create<TaskState>((set, get) => ({
       throw new Error('window.spectrAI.task not available')
     }
     try {
-      await window.spectrAI.task.create(task)
+      const result: IpcResponse<void> = await window.spectrAI.task.create(task)
+      if (!result.success) {
+        throw new Error(result.error?.userMessage || 'Failed to create task')
+      }
       await get().fetchTasks()
     } catch (error) {
-      console.error('Failed to create task:', error)
+      console.error('[TaskStore] Failed to create task:', error)
       throw error
     }
   },
@@ -62,10 +70,13 @@ export const useTaskStore = create<TaskState>((set, get) => ({
       throw new Error('window.spectrAI.task not available')
     }
     try {
-      await window.spectrAI.task.update(id, updates)
+      const result: IpcResponse<void> = await window.spectrAI.task.update(id, updates)
+      if (!result.success) {
+        throw new Error(result.error?.userMessage || 'Failed to update task')
+      }
       await get().fetchTasks()
     } catch (error) {
-      console.error('Failed to update task:', error)
+      console.error('[TaskStore] Failed to update task:', error)
       throw error
     }
   },
@@ -77,10 +88,13 @@ export const useTaskStore = create<TaskState>((set, get) => ({
       throw new Error('window.spectrAI.task not available')
     }
     try {
-      await window.spectrAI.task.delete(id)
+      const result: IpcResponse<void> = await window.spectrAI.task.delete(id)
+      if (!result.success) {
+        throw new Error(result.error?.userMessage || 'Failed to delete task')
+      }
       await get().fetchTasks()
     } catch (error) {
-      console.error('Failed to delete task:', error)
+      console.error('[TaskStore] Failed to delete task:', error)
       throw error
     }
   },
@@ -129,7 +143,7 @@ export const useTaskStore = create<TaskState>((set, get) => ({
       }
       return result
     } catch (error: any) {
-      console.error('Failed to start session for task:', error)
+      console.error('[TaskStore] Failed to start session for task:', error)
       return { success: false, error: error.message }
     }
   },

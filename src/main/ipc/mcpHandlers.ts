@@ -6,6 +6,7 @@ import { execFileSync, spawn } from 'child_process'
 import { IPC } from '../../shared/constants'
 import type { IpcDependencies } from './index'
 import { sendToRenderer } from './shared'
+import { createErrorResponse, createSuccessResponse, ErrorCode, SpectrAIError } from '../../shared/errors'
 
 interface PythonInfo {
   command: string
@@ -127,10 +128,10 @@ export function registerMcpHandlers(deps: IpcDependencies): void {
   // MCP_GET_ALL: 获取所有 MCP 服务器
   ipcMain.handle(IPC.MCP_GET_ALL, async () => {
     try {
-      return { success: true, data: database.getAllMcps() }
+      return createSuccessResponse({ data: database.getAllMcps() })
     } catch (err) {
       console.error('[MCP] getAllMcps error:', err)
-      return { success: false, error: (err as Error).message }
+      return createErrorResponse(err, { operation: 'mcp' })
     }
   })
 
@@ -138,11 +139,16 @@ export function registerMcpHandlers(deps: IpcDependencies): void {
   ipcMain.handle(IPC.MCP_GET, async (_event, id: string) => {
     try {
       const server = database.getMcp(id)
-      if (!server) return { success: false, error: 'MCP 服务器不存在' }
-      return { success: true, data: server }
+      if (!server) throw new SpectrAIError({
+        code: ErrorCode.NOT_FOUND,
+        message: 'MCP server not found',
+        userMessage: 'MCP 服务器不存在',
+        context: { serverId: id }
+      })
+      return createSuccessResponse({ data: server })
     } catch (err) {
       console.error('[MCP] getMcp error:', err)
-      return { success: false, error: (err as Error).message }
+      return createErrorResponse(err, { operation: 'mcp' })
     }
   })
 
@@ -150,10 +156,10 @@ export function registerMcpHandlers(deps: IpcDependencies): void {
   ipcMain.handle(IPC.MCP_CREATE, async (_event, server: any) => {
     try {
       const created = database.createMcp(server)
-      return { success: true, data: created }
+      return createSuccessResponse({ data: created })
     } catch (err) {
       console.error('[MCP] createMcp error:', err)
-      return { success: false, error: (err as Error).message }
+      return createErrorResponse(err, { operation: 'mcp' })
     }
   })
 
@@ -161,10 +167,10 @@ export function registerMcpHandlers(deps: IpcDependencies): void {
   ipcMain.handle(IPC.MCP_UPDATE, async (_event, id: string, updates: any) => {
     try {
       database.updateMcp(id, updates)
-      return { success: true }
+      return createSuccessResponse({})
     } catch (err) {
       console.error('[MCP] updateMcp error:', err)
-      return { success: false, error: (err as Error).message }
+      return createErrorResponse(err, { operation: 'mcp' })
     }
   })
 
@@ -172,11 +178,16 @@ export function registerMcpHandlers(deps: IpcDependencies): void {
   ipcMain.handle(IPC.MCP_DELETE, async (_event, id: string) => {
     try {
       const deleted = database.deleteMcp(id)
-      if (!deleted) return { success: false, error: 'MCP 服务器不存在或删除失败' }
-      return { success: true }
+      if (!deleted) throw new SpectrAIError({
+        code: ErrorCode.NOT_FOUND,
+        message: 'MCP server not found or delete failed',
+        userMessage: 'MCP 服务器不存在或删除失败',
+        context: { serverId: id }
+      })
+      return createSuccessResponse({})
     } catch (err) {
       console.error('[MCP] deleteMcp error:', err)
-      return { success: false, error: (err as Error).message }
+      return createErrorResponse(err, { operation: 'mcp' })
     }
   })
 
@@ -184,20 +195,20 @@ export function registerMcpHandlers(deps: IpcDependencies): void {
   ipcMain.handle(IPC.MCP_TOGGLE, async (_event, id: string, enabled: boolean) => {
     try {
       database.toggleMcp(id, enabled)
-      return { success: true }
+      return createSuccessResponse({})
     } catch (err) {
       console.error('[MCP] toggleMcp error:', err)
-      return { success: false, error: (err as Error).message }
+      return createErrorResponse(err, { operation: 'mcp' })
     }
   })
 
   // MCP_GET_FOR_PROVIDER: 获取对指定 Provider 启用的 MCP 列表
   ipcMain.handle(IPC.MCP_GET_FOR_PROVIDER, async (_event, providerId: string) => {
     try {
-      return { success: true, data: database.getEnabledMcpsForProvider(providerId) }
+      return createSuccessResponse({ data: database.getEnabledMcpsForProvider(providerId) })
     } catch (err) {
       console.error('[MCP] getEnabledMcpsForProvider error:', err)
-      return { success: false, error: (err as Error).message }
+      return createErrorResponse(err, { operation: 'mcp' })
     }
   })
 
@@ -205,7 +216,12 @@ export function registerMcpHandlers(deps: IpcDependencies): void {
   ipcMain.handle(IPC.MCP_TEST_CONNECTION, async (_event, serverId: string) => {
     try {
       const server = database.getMcp(serverId)
-      if (!server) return { success: false, error: 'MCP 服务器不存在' }
+      if (!server) throw new SpectrAIError({
+        code: ErrorCode.NOT_FOUND,
+        message: 'MCP server not found',
+        userMessage: 'MCP 服务器不存在',
+        context: { serverId: id }
+      })
 
       if (server.transport === 'stdio' && server.command) {
         // 绝对路径（exe 文件等）：直接用 fs.existsSync 检测，比 where/which 更可靠
@@ -213,53 +229,77 @@ export function registerMcpHandlers(deps: IpcDependencies): void {
         if (isAbsolutePath) {
           const { existsSync } = await import('fs')
           if (existsSync(server.command)) {
-            return { success: true, message: `程序已找到: ${server.command}` }
+            return createSuccessResponse({ message: `程序已找到: ${server.command}` })
           } else {
-            return { success: false, error: `程序不存在: ${server.command}，请检查路径是否正确` }
+            throw new SpectrAIError({
+            code: ErrorCode.NOT_FOUND,
+            message: 'Program not found',
+            userMessage: `程序不存在: ${server.command}，请检查路径是否正确`,
+            context: { command: server.command }
+          })
           }
         }
         // 普通命令名（npx、uvx 等）：用 where/which 检查
         if (!commandExists(server.command)) {
           if (server.command === 'uvx' || server.command === 'uv') {
-            return { success: false, error: getUvInstallHint() }
+            throw new SpectrAIError({
+            code: ErrorCode.NOT_FOUND,
+            message: 'uv/uvx not installed',
+            userMessage: getUvInstallHint()
+          })
           }
           if (server.command === 'pip' || server.command === 'pip3') {
-            return { success: false, error: getPipInstallHint() }
+            throw new SpectrAIError({
+            code: ErrorCode.NOT_FOUND,
+            message: 'pip not installed',
+            userMessage: getPipInstallHint()
+          })
           }
-          return {
-            success: false,
-            error: `命令 '${server.command}' 未安装，请先运行: ${server.installCommand || ''}`,
-          }
+          throw new SpectrAIError({
+            code: ErrorCode.NOT_FOUND,
+            message: 'Command not installed',
+            userMessage: `命令 '${server.command}' 未安装，请先运行: ${server.installCommand || ''}`,
+            context: { command: server.command }
+          })
         }
 
         // pip 安装链路预检查（避免 Python 版本/环境不满足时直接失败）
         if (typeof server.installCommand === 'string' && server.installCommand.trim().startsWith('pip ')) {
           const requiresPy310 = /mcp-server-(git|sqlite)\b/i.test(server.installCommand)
           const py = ensurePythonAndPip(requiresPy310 ? 10 : undefined)
-          if (!py.ok) return { success: false, error: py.error }
+          if (!py.ok) throw new SpectrAIError({
+          code: ErrorCode.INVALID_STATE,
+          message: 'Python environment check failed',
+          userMessage: py.error
+        })
         }
 
-        return { success: true, message: `命令 '${server.command}' 已找到` }
+        return createSuccessResponse({ message: `命令 '${server.command}' 已找到` })
       }
 
       // HTTP / SSE 类型或无 command 时，视配置有效
-      return { success: true, message: '配置有效' }
+      return createSuccessResponse({ message: '配置有效' })
     } catch (err) {
       console.error('[MCP] testConnection error:', err)
-      return { success: false, error: (err as Error).message }
+      return createErrorResponse(err, { operation: 'mcp' })
     }
   })
 
   // MCP_INSTALL: 安装 MCP（执行 installCommand，流式推送进度）
   ipcMain.handle(IPC.MCP_INSTALL, async (_event, id: string) => {
     const server = deps.database.getMcp(id)
-    if (!server?.installCommand) return { success: false, error: '无安装命令' }
+    if (!server?.installCommand) throw new SpectrAIError({
+      code: ErrorCode.INVALID_INPUT,
+      message: 'No install command',
+      userMessage: '无安装命令',
+      context: { serverId: id }
+    })
 
     return new Promise<{ success: boolean; error?: string }>((resolve) => {
       const resolved = resolveInstallCommand(server.installCommand!)
       if (resolved.error) {
         sendToRenderer(IPC.MCP_INSTALL_PROGRESS, { id, line: `✗ ${resolved.error}`, type: 'error' })
-        resolve({ success: false, error: resolved.error })
+        resolve(createErrorResponse(new Error(resolved.error), { operation: "mcp-install" }))
         return
       }
 
@@ -276,15 +316,15 @@ export function registerMcpHandlers(deps: IpcDependencies): void {
         if (code === 0) {
           deps.database.updateMcp(id, { isInstalled: true })
           sendToRenderer(IPC.MCP_INSTALL_PROGRESS, { id, line: '✓ 安装完成', type: 'done' })
-          resolve({ success: true })
+          resolve(createSuccessResponse({}))
         } else {
           sendToRenderer(IPC.MCP_INSTALL_PROGRESS, { id, line: `✗ 安装失败（退出码 ${code}）`, type: 'error' })
-          resolve({ success: false, error: `退出码 ${code}` })
+          resolve(createErrorResponse(new Error(`退出码 ${code}`), { operation: "mcp-install" }))
         }
       })
       proc.on('error', (err: Error) => {
         sendToRenderer(IPC.MCP_INSTALL_PROGRESS, { id, line: `✗ ${err.message}`, type: 'error' })
-        resolve({ success: false, error: err.message })
+        resolve(createErrorResponse(err, { operation: "mcp-install" }))
       })
     })
   })

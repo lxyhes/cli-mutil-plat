@@ -6,6 +6,7 @@ import { IPC } from '../../shared/constants'
 import { GitWorktreeService } from '../git/GitWorktreeService'
 import type { IpcDependencies } from './index'
 import type { FileChangeTracker } from '../tracker/FileChangeTracker'
+import { createErrorResponse, createSuccessResponse, ErrorCode, SpectrAIError } from '../../shared/errors'
 
 export function registerGitHandlers(deps: IpcDependencies, fileChangeTracker?: FileChangeTracker): void {
   // ==================== Git / Worktree ====================
@@ -97,46 +98,46 @@ export function registerGitHandlers(deps: IpcDependencies, fileChangeTracker?: F
   ipcMain.handle(IPC.GIT_STAGE, async (_event, repoPath: string, filePaths: string[]) => {
     try {
       await gitService.stageFiles(repoPath, filePaths)
-      return { success: true }
+      return createSuccessResponse({ success: true })
     } catch (error: any) {
-      return { success: false, error: error.message }
+      return createErrorResponse(error, { operation: 'git.stage', repoPath })
     }
   })
 
   ipcMain.handle(IPC.GIT_UNSTAGE, async (_event, repoPath: string, filePaths: string[]) => {
     try {
       await gitService.unstageFiles(repoPath, filePaths)
-      return { success: true }
+      return createSuccessResponse({ success: true })
     } catch (error: any) {
-      return { success: false, error: error.message }
+      return createErrorResponse(error, { operation: 'git.unstage', repoPath })
     }
   })
 
   ipcMain.handle(IPC.GIT_DISCARD, async (_event, repoPath: string, filePaths: string[]) => {
     try {
       await gitService.discardChanges(repoPath, filePaths)
-      return { success: true }
+      return createSuccessResponse({ success: true })
     } catch (error: any) {
       console.error('[IPC] GIT_DISCARD error:', error)
-      return { success: false, error: error.message }
+      return createErrorResponse(error, { operation: 'git.discard', repoPath })
     }
   })
 
   ipcMain.handle(IPC.GIT_STAGE_ALL, async (_event, repoPath: string) => {
     try {
       await gitService.stageAll(repoPath)
-      return { success: true }
+      return createSuccessResponse({ success: true })
     } catch (error: any) {
-      return { success: false, error: error.message }
+      return createErrorResponse(error, { operation: 'git.stageAll', repoPath })
     }
   })
 
   ipcMain.handle(IPC.GIT_COMMIT, async (_event, repoPath: string, message: string) => {
     try {
       await gitService.commit(repoPath, message)
-      return { success: true }
+      return createSuccessResponse({ success: true })
     } catch (error: any) {
-      return { success: false, error: error.message }
+      return createErrorResponse(error, { operation: 'git.commit', repoPath })
     }
   })
 
@@ -178,18 +179,18 @@ export function registerGitHandlers(deps: IpcDependencies, fileChangeTracker?: F
   ipcMain.handle(IPC.WORKTREE_CREATE, async (_event, repoPath: string, branch: string, taskId: string) => {
     try {
       const result = await gitService.createWorktree(repoPath, branch, taskId)
-      return { success: true, ...result }
+      return createSuccessResponse(result)
     } catch (error: any) {
-      return { success: false, error: error.message }
+      return createErrorResponse(error, { operation: 'worktree.create', repoPath })
     }
   })
 
   ipcMain.handle(IPC.WORKTREE_REMOVE, async (_event, repoPath: string, worktreePath: string, deleteBranch?: boolean, branchName?: string) => {
     try {
       await gitService.removeWorktree(repoPath, worktreePath, { deleteBranch, branchName })
-      return { success: true }
+      return createSuccessResponse({ success: true })
     } catch (error: any) {
-      return { success: false, error: error.message }
+      return createErrorResponse(error, { operation: 'worktree.remove', repoPath })
     }
   })
 
@@ -248,9 +249,9 @@ export function registerGitHandlers(deps: IpcDependencies, fileChangeTracker?: F
         await gitService.removeWorktree(repoPath, worktreeToRemove.path, { deleteBranch: true, branchName })
       }
 
-      return { success: true, ...result }
+      return createSuccessResponse(result)
     } catch (error: any) {
-      return { success: false, error: error.message }
+      return createErrorResponse(error, { operation: 'worktree.merge', repoPath })
     }
   })
 
