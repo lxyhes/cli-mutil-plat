@@ -7,6 +7,9 @@
 // ★ 必须最先导入，激活 electron-log 并重定向 console.*
 import './logger'
 import { app, BrowserWindow, ipcMain, Menu } from 'electron'
+
+// ★ 禁用硬件加速，解决某些显卡驱动导致的黑屏问题
+app.disableHardwareAcceleration()
 import type { MenuItemConstructorOptions } from 'electron'
 import { join } from 'path'
 import { readFileSync, writeFileSync, existsSync } from 'fs'
