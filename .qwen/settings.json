@@ -1,7 +1,22 @@
 {
   "permissions": {
     "allow": [
-      "Bash(git add *)"
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(git push)",
+      "Bash(npm run *)",
+      "Bash(npx *)",
+      "Bash(dir *)",
+      "Bash(type *)",
+      "Read(C:\\Users\\Laobool\\AppData\\Roaming\\spectrai\\logs/**)",
+      "Bash(set *)",
+      "Bash(tasklist)",
+      "Bash(findstr *)",
+      "Bash(taskkill *)",
+      "Bash(timeout *)",
+      "Bash(node *)",
+      "Bash(rmdir *)"
     ]
-  }
+  },
+  "$version": 3
 }

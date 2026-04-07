@@ -70,6 +70,7 @@ export interface SpectrAIAPI {
     onActivity: (callback: (sessionId: string, activity: any) => void) => () => void
     onIntervention: (callback: (sessionId: string, intervention: any) => void) => () => void
     onNameChange: (callback: (sessionId: string, name: string) => void) => () => void
+    onRefresh: (callback: () => void) => () => void  // 会话列表刷新（远程创建/终止会话时触发）
 
     // SDK V2 扩展方法
     sendMessage?: (sessionId: string, text: string) => Promise<{

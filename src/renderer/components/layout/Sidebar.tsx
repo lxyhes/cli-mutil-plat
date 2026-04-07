@@ -217,6 +217,24 @@ export function SessionsContent() {
     }
   }, [dirContextMenu])
 
+  /**
+   * 等待 window.spectrAI.app 可用（最多等待 3 秒）
+   * 返回 true 表示可用，false 表示超时
+   */
+  const waitForSpectrAIApp = async (): Promise<boolean> => {
+    let attempts = 0
+    const maxAttempts = 30
+    while (!window.spectrAI?.app && attempts < maxAttempts) {
+      await new Promise(resolve => setTimeout(resolve, 100))
+      attempts++
+    }
+    if (!window.spectrAI?.app) {
+      console.error('[Sidebar] window.spectrAI.app not available after waiting')
+      return false
+    }
+    return true
+  }
+
   const openNewSessionDialog = async (prefillDir?: string) => {
     setCreateSessionError(null)
     setSessionName(`会话 ${new Date().toLocaleTimeString()}`)
@@ -310,10 +328,8 @@ export function SessionsContent() {
   }
 
   const handleSelectDirectory = async () => {
-    if (!window.spectrAI?.app) {
-      console.warn('[Sidebar] window.spectrAI.app not available')
-      return
-    }
+    if (!await waitForSpectrAIApp()) return
+
     try {
       const result = await window.spectrAI.app.selectDirectory()
       if (result) setSessionCwd(result)
@@ -713,10 +729,7 @@ export function SessionsContent() {
                         <button
                           type="button"
                           onClick={async () => {
-                            if (!window.spectrAI?.app) {
-                              console.warn('[Sidebar] window.spectrAI.app not available')
-                              return
-                            }
+                            if (!await waitForSpectrAIApp()) return
                             const dir = await window.spectrAI.app.selectDirectory()
                             if (!dir) return
                             const existing = recentDirs.find(d => d.path === dir)
@@ -770,16 +783,16 @@ export function SessionsContent() {
                                         <span className="truncate max-w-[120px]">{shortPath}</span>
                                         <div className="flex items-center ml-0.5 opacity-0 group-hover:opacity-100 btn-transition">
                                           <button
-                                            onClick={(e) => {
+                                            onClick={async (e) => {
                                               e.stopPropagation()
-                                              if (!window.spectrAI?.app) {
-                                                console.warn('[Sidebar] window.spectrAI.app not available')
-                                                return
-                                              }
-                                              window.spectrAI.app.toggleDirectoryPin(dir.path).then(async () => {
+                                              if (!await waitForSpectrAIApp()) return
+                                              try {
+                                                await window.spectrAI.app.toggleDirectoryPin(dir.path)
                                                 const dirs = await window.spectrAI.app.getRecentDirectories()
                                                 setRecentDirs(dirs)
-                                              })
+                                              } catch (error) {
+                                                console.error('Failed to toggle directory pin:', error)
+                                              }
                                             }}
                                             className="p-0.5 rounded hover:bg-bg-hover text-text-muted hover:text-accent-yellow btn-transition"
                                             title={dir.isPinned ? '取消收藏' : '收藏'}
@@ -787,18 +800,18 @@ export function SessionsContent() {
                                             <Star className={`w-3 h-3 ${dir.isPinned ? 'fill-accent-yellow text-accent-yellow' : ''}`} />
                                           </button>
                                           <button
-                                            onClick={(e) => {
+                                            onClick={async (e) => {
                                               e.stopPropagation()
-                                              if (!window.spectrAI?.app) {
-                                                console.warn('[Sidebar] window.spectrAI.app not available')
-                                                return
-                                              }
+                                              if (!await waitForSpectrAIApp()) return
                                               if (confirm(`确定从常用列表中移除 "${dir.path}" 吗？`)) {
-                                                window.spectrAI.app.removeDirectory(dir.path).then(async () => {
+                                                try {
+                                                  await window.spectrAI.app.removeDirectory(dir.path)
                                                   const dirs = await window.spectrAI.app.getRecentDirectories()
                                                   setRecentDirs(dirs)
                                                   if (sessionCwd === dir.path) setSessionCwd('')
-                                                })
+                                                } catch (error) {
+                                                  console.error('Failed to remove directory:', error)
+                                                }
                                               }
                                             }}
                                             className="p-0.5 rounded hover:bg-bg-hover text-text-muted hover:text-accent-red btn-transition"

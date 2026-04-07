@@ -29,12 +29,17 @@ export default function App() {
     // 等待 window.spectrAI 可用的辅助函数
     const waitForSpectrAI = (callback: () => void, maxRetries = 50): void => {
       if (window.spectrAI) {
+        console.log('[App] window.spectrAI is available')
         callback()
         return
       }
       if (maxRetries <= 0) {
         console.error('[App] window.spectrAI not available after max retries')
+        console.error('[App] window object keys:', Object.keys(window).filter(k => k.includes('spectr') || k.includes('Spectr')))
         return
+      }
+      if (maxRetries % 10 === 0) {
+        console.log(`[App] Waiting for window.spectrAI... (${50 - maxRetries}/50)`)
       }
       setTimeout(() => waitForSpectrAI(callback, maxRetries - 1), 100)
     }

@@ -164,6 +164,14 @@ function createWindow(): void {
       nodeIntegration: false
     }
   }
+
+  // ★ 开发模式下打印 preload 路径，方便调试
+  if (process.env.NODE_ENV === 'development' || !app.isPackaged) {
+    const preloadPath = windowOptions.webPreferences!.preload
+    console.log('[startup] Preload script path:', preloadPath)
+    console.log('[startup] __dirname:', __dirname)
+    console.log('[startup] Preload exists:', require('fs').existsSync(preloadPath))
+  }
   if (supportsTitleBarOverlay) {
     windowOptions.titleBarOverlay = {
       color: '#161B22',    // bg.secondary of dark theme，与自定义标题栏背景色一致
@@ -190,6 +198,15 @@ function createWindow(): void {
   mainWindow.on('ready-to-show', ensureStartupVisible)
   mainWindow.webContents.once('did-finish-load', ensureStartupVisible)
   startupFallbackTimer = setTimeout(ensureStartupVisible, 2000)
+
+  // ★ 开发模式下监听渲染进程的控制台输出
+  if (process.env.NODE_ENV === 'development' || !app.isPackaged) {
+    mainWindow.webContents.on('console-message', (_event, level, message, _line, _sourceId) => {
+      if (message.includes('[Preload]') || message.includes('spectrAI')) {
+        console.log(`[Renderer Console] L${level}: ${message}`)
+      }
+    })
+  }
 
   // 监听 resize / move，防抖保存窗口状态
   mainWindow.on('resize', () => { if (mainWindow) scheduleSaveWindowState(mainWindow) })
@@ -725,6 +742,11 @@ function registerShortcuts(): void {
 /**
  * App 生命周期管理
  */
+// ★ 开发模式下设置应用名称，确保 userData 目录正确
+if (process.env.NODE_ENV === 'development' || !app.isPackaged) {
+  app.name = 'SpectrAI'
+}
+
 app.whenReady().then(() => {
   // Finder 启动时提前修复 PATH，确保后续 Provider 检测和 CLI spawn 可用
   bootstrapShellPath()

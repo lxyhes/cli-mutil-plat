@@ -2,13 +2,12 @@
  * Preload 安全桥接 - 暴露受控的 API 给渲染进程
  * @author weibin
  */
-import { ipcRenderer, IpcRendererEvent, clipboard } from 'electron'
+import { ipcRenderer, IpcRendererEvent, clipboard, contextBridge } from 'electron'
 import { IPC } from '../shared/constants'
 
-// contextBridge 是 Electron preload 上下文的全局 API，用于安全暴露 IPC 接口给渲染进程
-// 注意：electron-vite externalizeDepsPlugin 把 import { contextBridge } from 'electron'
-// 编译成 require("electron").contextBridge，但 electron 包本身不导出此属性
-// 正确做法：直接使用全局 contextBridge，由 Electron 运行时提供
+// ★ 调试：记录 preload 脚本开始执行
+console.log('[Preload] Script started, contextBridge available:', !!contextBridge)
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const ctxBr: any = contextBridge
 
@@ -16,7 +15,9 @@ if (!ctxBr) {
   // eslint-disable-next-line no-console
   console.error('[Preload] contextBridge not available! spectrAI API will not be exposed.')
 } else {
-  ctxBr.exposeInMainWorld('spectrAI', {
+  console.log('[Preload] Exposing spectrAI API to renderer...')
+  
+  const api = {
   // ==================== Clipboard API ====================
   clipboard: {
     readText: () => clipboard.readText(),
@@ -152,6 +153,13 @@ if (!ctxBr) {
       }
       ipcRenderer.on(IPC.SESSION_NAME_CHANGE, listener)
       return () => ipcRenderer.removeListener(IPC.SESSION_NAME_CHANGE, listener)
+    },
+
+    // 监听会话列表刷新（远程创建/终止会话时触发）
+    onRefresh: (callback: () => void) => {
+      const listener = () => callback()
+      ipcRenderer.on(IPC.SESSION_REFRESH, listener)
+      return () => ipcRenderer.removeListener(IPC.SESSION_REFRESH, listener)
     },
 
 
@@ -497,8 +505,16 @@ if (!ctxBr) {
     forceRefresh: () => ipcRenderer.invoke(IPC.REGISTRY_FORCE_REFRESH),
     importSkillFromUrl: (url: string) => ipcRenderer.invoke(IPC.SKILL_IMPORT_URL, url),
   },
+  }
 
-})
+  console.log('[Preload] Calling exposeInMainWorld...')
+  ctxBr.exposeInMainWorld('spectrAI', api)
+  console.log('[Preload] exposeInMainWorld completed successfully')
 
-// 关闭 else 块
-}
+  // ★ 验证：尝试访问已暴露的 API
+  setTimeout(() => {
+    // eslint-disable-next-line no-console
+    console.log('[Preload] Verification - window.spectrAI should be available now')
+  }, 1000)
+
+} // 关闭 else 块

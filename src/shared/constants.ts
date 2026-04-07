@@ -27,6 +27,7 @@ export const IPC = {
   SESSION_GET_ACTIVITIES: 'session:get-activities',
   SESSION_RESUME: 'session:resume',
   SESSION_NAME_CHANGE: 'session:name-change',
+  SESSION_REFRESH: 'session:refresh',  // 会话列表刷新（远程创建/终止会话时触发）
   SESSION_GET_LOGS: 'session:get-logs',
   SESSION_GET_OUTPUT: 'session:get-output',
   SESSION_RENAME: 'session:rename',
