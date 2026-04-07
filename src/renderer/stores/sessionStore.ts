@@ -122,6 +122,10 @@ export const useSessionStore = create<SessionState>((set, get) => ({
 
   // 获取所有活跃会话（内存中的）
   fetchSessions: async () => {
+    if (!window.spectrAI?.session) {
+      console.warn('[SessionStore] window.spectrAI.session not available')
+      return
+    }
     try {
       const activeSessions = await window.spectrAI.session.getAll()
       // 同时加载历史会话并合并
@@ -194,6 +198,10 @@ export const useSessionStore = create<SessionState>((set, get) => ({
 
   // 单独获取历史会话（从数据库）
   fetchHistorySessions: async () => {
+    if (!window.spectrAI?.session) {
+      console.warn('[SessionStore] window.spectrAI.session not available')
+      return
+    }
     try {
       const historySessions = await window.spectrAI.session.getHistory()
       set((state) => {
@@ -211,6 +219,10 @@ export const useSessionStore = create<SessionState>((set, get) => ({
 
   // 从数据库加载指定会话的活动事件
   fetchSessionActivities: async (sessionId: string) => {
+    if (!window.spectrAI?.session) {
+      console.warn('[SessionStore] window.spectrAI.session not available')
+      return
+    }
     try {
       const dbActivities = await window.spectrAI.session.getActivities(sessionId)
       if (dbActivities && dbActivities.length > 0) {
@@ -257,6 +269,10 @@ export const useSessionStore = create<SessionState>((set, get) => ({
 
   // 创建新会话
   createSession: async (config: SessionConfig) => {
+    if (!window.spectrAI?.session) {
+      console.warn('[SessionStore] window.spectrAI.session not available')
+      throw new Error('window.spectrAI.session not available')
+    }
     const dedupeKey = [
       config.workingDirectory || '',
       config.providerId || '',
@@ -287,6 +303,10 @@ export const useSessionStore = create<SessionState>((set, get) => ({
 
   // 恢复中断的会话（使用 claude --resume）
   resumeSession: async (oldSessionId: string) => {
+    if (!window.spectrAI?.session) {
+      console.warn('[SessionStore] window.spectrAI.session not available')
+      return { success: false, error: 'window.spectrAI.session not available' }
+    }
     const inFlight = resumeSessionInFlight.get(oldSessionId)
     if (inFlight) return inFlight
 
@@ -368,6 +388,10 @@ export const useSessionStore = create<SessionState>((set, get) => ({
 
   // 终止会话
   terminateSession: async (id: string) => {
+    if (!window.spectrAI?.session) {
+      console.warn('[SessionStore] window.spectrAI.session not available')
+      throw new Error('window.spectrAI.session not available')
+    }
     try {
       await window.spectrAI.session.terminate(id)
       await get().fetchSessions()
@@ -379,6 +403,10 @@ export const useSessionStore = create<SessionState>((set, get) => ({
 
   // 删除会话（从数据库永久删除）
   deleteSession: async (id: string) => {
+    if (!window.spectrAI?.session) {
+      console.warn('[SessionStore] window.spectrAI.session not available')
+      throw new Error('window.spectrAI.session not available')
+    }
     try {
       const result = await window.spectrAI.session.delete(id)
       if (!result.success) throw new Error(result.error || '删除失败')
@@ -404,6 +432,10 @@ export const useSessionStore = create<SessionState>((set, get) => ({
 
   // 发送输入
   sendInput: async (id: string, data: string) => {
+    if (!window.spectrAI?.session) {
+      console.warn('[SessionStore] window.spectrAI.session not available')
+      throw new Error('window.spectrAI.session not available')
+    }
     try {
       await window.spectrAI.session.sendInput(id, data)
     } catch (error) {
@@ -414,6 +446,10 @@ export const useSessionStore = create<SessionState>((set, get) => ({
 
   // 发送确认
   sendConfirmation: async (id: string, accept: boolean) => {
+    if (!window.spectrAI?.session) {
+      console.warn('[SessionStore] window.spectrAI.session not available')
+      throw new Error('window.spectrAI.session not available')
+    }
     try {
       await window.spectrAI.session.confirm(id, accept)
     } catch (error) {
@@ -424,6 +460,10 @@ export const useSessionStore = create<SessionState>((set, get) => ({
 
   // 调整会话终端大小
   resizeSession: async (id: string, cols: number, rows: number) => {
+    if (!window.spectrAI?.session) {
+      console.warn('[SessionStore] window.spectrAI.session not available')
+      return
+    }
     try {
       await window.spectrAI.session.resize(id, cols, rows)
     } catch (error) {
@@ -495,6 +535,10 @@ export const useSessionStore = create<SessionState>((set, get) => ({
   },
 
   renameSession: async (id: string, newName: string) => {
+    if (!window.spectrAI?.session) {
+      console.warn('[SessionStore] window.spectrAI.session not available')
+      return false
+    }
     try {
       const result = await window.spectrAI.session.rename(id, newName)
       if (result.success) {
@@ -510,6 +554,10 @@ export const useSessionStore = create<SessionState>((set, get) => ({
   },
 
   aiRenameSession: async (id: string) => {
+    if (!window.spectrAI?.session) {
+      console.warn('[SessionStore] window.spectrAI.session not available')
+      return { success: false, error: 'window.spectrAI.session not available' }
+    }
     try {
       const result = await window.spectrAI.session.aiRename(id)
       if (result.success) {
@@ -525,6 +573,10 @@ export const useSessionStore = create<SessionState>((set, get) => ({
 
   // 启动时自动恢复可精确定位的中断会话（仅 claudeSessionId 可用）
   autoResumeInterrupted: async () => {
+    if (!window.spectrAI?.session) {
+      console.warn('[SessionStore] window.spectrAI.session not available')
+      return
+    }
     const allInterrupted = get().sessions.filter(s => s.status === 'interrupted')
     if (allInterrupted.length === 0) return
 
@@ -775,6 +827,10 @@ export const useSessionStore = create<SessionState>((set, get) => ({
 
   // SDK V2: 发送结构化消息
   sendMessage: async (sessionId: string, text: string) => {
+    if (!window.spectrAI?.session) {
+      console.warn('[SessionStore] window.spectrAI.session not available')
+      throw new Error('window.spectrAI.session not available')
+    }
     try {
       await window.spectrAI.session.sendMessage(sessionId, text)
     } catch (error) {
@@ -785,6 +841,10 @@ export const useSessionStore = create<SessionState>((set, get) => ({
 
   // SDK V2: 静默执行 Skill —— 展开 promptTemplate 并发送，同时在对话中显示干净的 "▶ /skillname" 徽章
   sendSkillMessage: async (sessionId: string, skillName: string, expandedTemplate: string) => {
+    if (!window.spectrAI?.session) {
+      console.warn('[SessionStore] window.spectrAI.session not available')
+      throw new Error('window.spectrAI.session not available')
+    }
     // ① 提前插入合成的用户消息（显示命令名，而非模板原文）
     get().addConversationMessage(sessionId, {
       id: `skill-exec-${Date.now()}-${sessionId}`,
