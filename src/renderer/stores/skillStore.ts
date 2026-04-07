@@ -4,6 +4,7 @@
  */
 import { create } from 'zustand'
 import type { Skill } from '../../shared/types'
+import { safeAPI } from '../utils/api'
 
 interface SkillState {
   skills: Skill[]
@@ -28,7 +29,7 @@ export const useSkillStore = create<SkillState>((set, _get) => ({
   fetchAll: async () => {
     set({ loading: true, error: null })
     try {
-      const result = await (window as any).spectrAI.skill.getAll()
+      const result = await safeAPI.skill.getAll()
       if (result.success) {
         set({ skills: result.data || [], loading: false })
       } else {
@@ -41,7 +42,7 @@ export const useSkillStore = create<SkillState>((set, _get) => ({
 
   create: async (skill) => {
     try {
-      const result = await (window as any).spectrAI.skill.create(skill)
+      const result = await safeAPI.skill.create(skill)
       if (result.success) {
         set(state => ({ skills: [...state.skills, result.data] }))
         return result.data
@@ -56,7 +57,7 @@ export const useSkillStore = create<SkillState>((set, _get) => ({
 
   update: async (id, updates) => {
     try {
-      const result = await (window as any).spectrAI.skill.update(id, updates)
+      const result = await safeAPI.skill.update(id, updates)
       if (result.success) {
         set(state => ({
           skills: state.skills.map(s => s.id === id ? { ...s, ...updates } : s)
@@ -71,7 +72,7 @@ export const useSkillStore = create<SkillState>((set, _get) => ({
 
   remove: async (id) => {
     try {
-      const result = await (window as any).spectrAI.skill.delete(id)
+      const result = await safeAPI.skill.delete(id)
       if (result.success) {
         set(state => ({ skills: state.skills.filter(s => s.id !== id) }))
       } else {
@@ -84,7 +85,7 @@ export const useSkillStore = create<SkillState>((set, _get) => ({
 
   toggle: async (id, enabled) => {
     try {
-      const result = await (window as any).spectrAI.skill.toggle(id, enabled)
+      const result = await safeAPI.skill.toggle(id, enabled)
       if (result.success) {
         set(state => ({
           skills: state.skills.map(s => s.id === id ? { ...s, isEnabled: enabled } : s)
@@ -100,10 +101,12 @@ export const useSkillStore = create<SkillState>((set, _get) => ({
   clearError: () => set({ error: null }),
 
   initMcpInstallListener: () => {
-    const spectrAI = (window as any).spectrAI
-    if (!spectrAI?.skill?.onInstalled) return () => {}
+    if (!window.spectrAI?.skill?.onInstalled) {
+      console.warn('[SkillStore] window.spectrAI.skill.onInstalled not available')
+      return () => {}
+    }
 
-    const unsubscribe = spectrAI.skill.onInstalled((newSkill: Skill) => {
+    const unsubscribe = window.spectrAI.skill.onInstalled((newSkill: Skill) => {
       // 收到 MCP install_skill 通知后，将新技能追加到列表（若已存在则替换）
       set(state => {
         const exists = state.skills.some(s => s.id === newSkill.id)

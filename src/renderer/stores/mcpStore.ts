@@ -4,6 +4,7 @@
  */
 import { create } from 'zustand'
 import type { McpServer } from '../../shared/types'
+import { safeAPI } from '../utils/api'
 
 interface McpState {
   servers: McpServer[]
@@ -27,7 +28,7 @@ export const useMcpStore = create<McpState>((set, _get) => ({
   fetchAll: async () => {
     set({ loading: true, error: null })
     try {
-      const result = await (window as any).spectrAI.mcp.getAll()
+      const result = await safeAPI.mcp.getAll()
       if (result.success) {
         set({ servers: result.data || [], loading: false })
       } else {
@@ -40,7 +41,7 @@ export const useMcpStore = create<McpState>((set, _get) => ({
 
   create: async (server) => {
     try {
-      const result = await (window as any).spectrAI.mcp.create(server)
+      const result = await safeAPI.mcp.create(server)
       if (result.success) {
         set(state => ({ servers: [...state.servers, result.data] }))
         return result.data
@@ -55,7 +56,7 @@ export const useMcpStore = create<McpState>((set, _get) => ({
 
   update: async (id, updates) => {
     try {
-      const result = await (window as any).spectrAI.mcp.update(id, updates)
+      const result = await safeAPI.mcp.update(id, updates)
       if (result.success) {
         set(state => ({
           servers: state.servers.map(s => s.id === id ? { ...s, ...updates } : s)
@@ -70,7 +71,7 @@ export const useMcpStore = create<McpState>((set, _get) => ({
 
   remove: async (id) => {
     try {
-      const result = await (window as any).spectrAI.mcp.delete(id)
+      const result = await safeAPI.mcp.delete(id)
       if (result.success) {
         set(state => ({ servers: state.servers.filter(s => s.id !== id) }))
       } else {
@@ -83,7 +84,7 @@ export const useMcpStore = create<McpState>((set, _get) => ({
 
   toggle: async (id, enabled) => {
     try {
-      const result = await (window as any).spectrAI.mcp.toggle(id, enabled)
+      const result = await safeAPI.mcp.toggle(id, enabled)
       if (result.success) {
         set(state => ({
           servers: state.servers.map(s => s.id === id ? { ...s, isGlobalEnabled: enabled } : s)
@@ -98,7 +99,7 @@ export const useMcpStore = create<McpState>((set, _get) => ({
 
   testConnection: async (id) => {
     try {
-      return await (window as any).spectrAI.mcp.testConnection(id)
+      return await safeAPI.mcp.testConnection(id)
     } catch (err) {
       return { success: false, error: (err as Error).message }
     }

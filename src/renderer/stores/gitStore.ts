@@ -3,6 +3,7 @@
  * 按仓库根目录聚合所有 session 的 git 信息，支持完整 git 操作
  */
 import { create } from 'zustand'
+import { safeAPI } from '../utils/api'
 
 export interface GitRemoteStatus {
   hasUpstream: boolean
@@ -71,9 +72,6 @@ function normPath(p: string): string {
   return p.replace(/\//g, '\\').toLowerCase()
 }
 
-const git = () => (window as any).spectrAI.git
-const wt  = () => (window as any).spectrAI.worktree
-
 const DEFAULT_REMOTE_STATUS: GitRemoteStatus = {
   hasUpstream: false,
   upstream: null,
@@ -101,7 +99,7 @@ export const useGitStore = create<GitState>((set, get) => ({
 
   refreshStatus: async (repoRoot) => {
     try {
-      const status = await git().getStatus(repoRoot)
+      const status = await safeAPI.git.getStatus(repoRoot)
       set(s => ({ repoStatusCache: { ...s.repoStatusCache, [normPath(repoRoot)]: status } }))
     } catch (err) {
       console.error('[GitStore] refreshStatus error:', err)
@@ -110,7 +108,7 @@ export const useGitStore = create<GitState>((set, get) => ({
 
   refreshLog: async (repoRoot) => {
     try {
-      const log = await git().getLog(repoRoot, 30)
+      const log = await safeAPI.git.getLog(repoRoot, 30)
       set(s => ({ repoLogCache: { ...s.repoLogCache, [normPath(repoRoot)]: log } }))
     } catch (err) {
       console.error('[GitStore] refreshLog error:', err)
@@ -118,38 +116,38 @@ export const useGitStore = create<GitState>((set, get) => ({
   },
 
   stageFiles: async (repoRoot, paths) => {
-    const result = await git().stage(repoRoot, paths)
+    const result = await safeAPI.git.stage(repoRoot, paths)
     await get().refreshStatus(repoRoot)
     return result ?? { success: true, output: '' }
   },
 
   unstageFiles: async (repoRoot, paths) => {
-    const result = await git().unstage(repoRoot, paths)
+    const result = await safeAPI.git.unstage(repoRoot, paths)
     await get().refreshStatus(repoRoot)
     return result ?? { success: true, output: '' }
   },
 
   discardFiles: async (repoRoot, paths) => {
-    const result = await git().discard(repoRoot, paths)
+    const result = await safeAPI.git.discard(repoRoot, paths)
     await get().refreshStatus(repoRoot)
     return result ?? { success: true, output: '' }
   },
 
   stageAll: async (repoRoot) => {
-    await git().stageAll(repoRoot)
+    await safeAPI.git.stageAll(repoRoot)
     await get().refreshStatus(repoRoot)
   },
 
   commit: async (repoRoot, message) => {
     try {
-      const result = await git().commit(repoRoot, message)
+      const result = await safeAPI.git.commit(repoRoot, message)
       if (result?.success !== false) {
         await Promise.all([get().refreshStatus(repoRoot), get().refreshLog(repoRoot)])
         // 刷新分支/脏状态/远程同步状态
         const [branch, isDirty, remoteStatus] = await Promise.all([
-          git().getCurrentBranch(repoRoot).catch(() => 'unknown'),
-          git().isDirty(repoRoot).catch(() => false),
-          git().getRemoteStatus(repoRoot).catch(() => DEFAULT_REMOTE_STATUS),
+          safeAPI.git.getCurrentBranch(repoRoot).catch(() => 'unknown'),
+          safeAPI.git.isDirty(repoRoot).catch(() => false),
+          safeAPI.git.getRemoteStatus(repoRoot).catch(() => DEFAULT_REMOTE_STATUS),
         ])
         set(s => {
           const key = normPath(repoRoot)
@@ -173,7 +171,7 @@ export const useGitStore = create<GitState>((set, get) => ({
     const key = normPath(repoRoot)
     set(s => ({ operationMap: { ...s.operationMap, [key]: 'pull' } }))
     try {
-      const result = await git().pull(repoRoot)
+      const result = await safeAPI.git.pull(repoRoot)
       // 刷新整体信息
       const sessions = Object.values(get().repoInfoMap).flatMap(r => r.sessions)
       await get().refreshAll(sessions)
@@ -189,7 +187,7 @@ export const useGitStore = create<GitState>((set, get) => ({
     const key = normPath(repoRoot)
     set(s => ({ operationMap: { ...s.operationMap, [key]: 'push' } }))
     try {
-      const result = await git().push(repoRoot)
+      const result = await safeAPI.git.push(repoRoot)
       const sessions = Object.values(get().repoInfoMap).flatMap(r => r.sessions)
       await get().refreshAll(sessions)
       return result
@@ -212,7 +210,7 @@ export const useGitStore = create<GitState>((set, get) => ({
       await Promise.all(uniqueDirs.map(async (dir) => {
         if (dir in dirToRepoCache) return
         try {
-          const root = await git().getRepoRoot(dir)
+          const root = await safeAPI.git.getRepoRoot(dir)
           dirToRepoCache[dir] = root ?? null
         } catch {
           dirToRepoCache[dir] = null
@@ -238,10 +236,10 @@ export const useGitStore = create<GitState>((set, get) => ({
           ) as string
           try {
             const [branch, isDirty, remoteStatus, worktrees] = await Promise.all([
-              git().getCurrentBranch(originalRoot).catch(() => 'unknown'),
-              git().isDirty(originalRoot).catch(() => false),
-              git().getRemoteStatus(originalRoot).catch(() => DEFAULT_REMOTE_STATUS),
-              wt().list(originalRoot).catch(() => []),
+              safeAPI.git.getCurrentBranch(originalRoot).catch(() => 'unknown'),
+              safeAPI.git.isDirty(originalRoot).catch(() => false),
+              safeAPI.git.getRemoteStatus(originalRoot).catch(() => DEFAULT_REMOTE_STATUS),
+              safeAPI.worktree.list(originalRoot).catch(() => []),
             ])
             repoInfoMap[nk] = {
               repoRoot: originalRoot,
