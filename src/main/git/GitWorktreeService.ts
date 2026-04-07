@@ -431,38 +431,37 @@ export class GitWorktreeService {
     branch: string,
     taskId: string,
   ): Promise<{ worktreePath: string; branch: string }> {
-      const worktreePath = this.getWorktreeBasePath(repoPath, taskId)
+    const worktreePath = this.getWorktreeBasePath(repoPath, taskId)
 
-      // 安全检查：目标目录不应已存在
-      if (fs.existsSync(worktreePath)) {
-        // 可能是上次创建失败残留，尝试清理
-        try {
-          await this.git(repoPath, ['worktree', 'remove', '--force', worktreePath])
-        } catch {
-          // 忽略，后面 add 会报错
-        }
+    // 安全检查：目标目录不应已存在
+    if (fs.existsSync(worktreePath)) {
+      // 可能是上次创建失败残留，尝试清理
+      try {
+        await this.git(repoPath, ['worktree', 'remove', '--force', worktreePath])
+      } catch {
+        // 忽略，后面 add 会报错
       }
-
-      // 确保父目录存在
-      const parentDir = path.dirname(worktreePath)
-      if (!fs.existsSync(parentDir)) {
-        fs.mkdirSync(parentDir, { recursive: true })
-      }
-
-      // 如果分支已存在，直接 checkout；否则创建新分支
-      const exists = await this.branchExists(repoPath, branch)
-      if (exists) {
-        await this.git(repoPath, ['worktree', 'add', worktreePath, branch])
-      } else {
-        await this.git(repoPath, ['worktree', 'add', '-b', branch, worktreePath])
-      }
-
-      // 确保 .spectrai-worktrees 被 .gitignore
-      await this.ensureGitignore(repoPath)
-
-      console.log(`[GitWorktree] Created worktree: ${worktreePath} (branch: ${branch})`)
-      return { worktreePath, branch }
     }
+
+    // 确保父目录存在
+    const parentDir = path.dirname(worktreePath)
+    if (!fs.existsSync(parentDir)) {
+      fs.mkdirSync(parentDir, { recursive: true })
+    }
+
+    // 如果分支已存在，直接 checkout；否则创建新分支
+    const exists = await this.branchExists(repoPath, branch)
+    if (exists) {
+      await this.git(repoPath, ['worktree', 'add', worktreePath, branch])
+    } else {
+      await this.git(repoPath, ['worktree', 'add', '-b', branch, worktreePath])
+    }
+
+    // 确保 .spectrai-worktrees 被 .gitignore
+    await this.ensureGitignore(repoPath)
+
+    console.log(`[GitWorktree] Created worktree: ${worktreePath} (branch: ${branch})`)
+    return { worktreePath, branch }
   }
 
   /**
@@ -491,32 +490,31 @@ export class GitWorktreeService {
     worktreePath: string,
     options?: { deleteBranch?: boolean; branchName?: string },
   ): Promise<void> {
-      // 移除 worktree
-      if (fs.existsSync(worktreePath)) {
-        try {
-          await this.git(repoPath, ['worktree', 'remove', '--force', worktreePath])
-        } catch (err) {
-          // 如果 worktree 目录被外部删除，prune 清理残留引用
-          console.warn(`[GitWorktree] worktree remove failed, trying prune:`, err)
-          await this.git(repoPath, ['worktree', 'prune'])
-        }
-      } else {
-        // 目录不存在，清理可能的残留
+    // 移除 worktree
+    if (fs.existsSync(worktreePath)) {
+      try {
+        await this.git(repoPath, ['worktree', 'remove', '--force', worktreePath])
+      } catch (err) {
+        // 如果 worktree 目录被外部删除，prune 清理残留引用
+        console.warn(`[GitWorktree] worktree remove failed, trying prune:`, err)
         await this.git(repoPath, ['worktree', 'prune'])
       }
-
-      // 可选删除分支
-      if (options?.deleteBranch && options?.branchName) {
-        try {
-          await this.git(repoPath, ['branch', '-D', options.branchName])
-          console.log(`[GitWorktree] Deleted branch: ${options.branchName}`)
-        } catch (err) {
-          console.warn(`[GitWorktree] Failed to delete branch ${options.branchName}:`, err)
-        }
-      }
-
-      console.log(`[GitWorktree] Removed worktree: ${worktreePath}`)
+    } else {
+      // 目录不存在，清理可能的残留
+      await this.git(repoPath, ['worktree', 'prune'])
     }
+
+    // 可选删除分支
+    if (options?.deleteBranch && options?.branchName) {
+      try {
+        await this.git(repoPath, ['branch', '-D', options.branchName])
+        console.log(`[GitWorktree] Deleted branch: ${options.branchName}`)
+      } catch (err) {
+        console.warn(`[GitWorktree] Failed to delete branch ${options.branchName}:`, err)
+      }
+    }
+
+    console.log(`[GitWorktree] Removed worktree: ${worktreePath}`)
   }
 
   /**
@@ -636,43 +634,42 @@ export class GitWorktreeService {
     branchName: string,
     options?: { squash?: boolean; message?: string; cleanup?: boolean; targetBranch?: string },
   ): Promise<MergeResult> {
-      const mainBranch = options?.targetBranch || await this.detectMainBranch(repoPath)
-      const currentBranch = await this.getCurrentBranch(repoPath)
+    const mainBranch = options?.targetBranch || await this.detectMainBranch(repoPath)
+    const currentBranch = await this.getCurrentBranch(repoPath)
 
-      // 切到主分支
-      if (currentBranch !== mainBranch) {
-        await this.git(repoPath, ['checkout', mainBranch])
-      }
-
-      // 合并
-      const mergeArgs = ['merge']
-      if (options?.squash) {
-        mergeArgs.push('--squash')
-      }
-      mergeArgs.push(branchName)
-      await this.git(repoPath, mergeArgs)
-
-      // squash 需要额外 commit
-      if (options?.squash) {
-        const msg = options.message || `Merge task branch ${branchName}`
-        await this.git(repoPath, ['commit', '-m', msg])
-      }
-
-      // 获取变更统计
-      let linesAdded = 0
-      let linesRemoved = 0
-      try {
-        const stat = await this.git(repoPath, ['diff', '--stat', 'HEAD~1'])
-        const match = stat.match(/(\d+) insertions?\(\+\)/)
-        const match2 = stat.match(/(\d+) deletions?\(-\)/)
-        if (match) linesAdded = parseInt(match[1], 10)
-        if (match2) linesRemoved = parseInt(match2[1], 10)
-      } catch {
-        // 忽略统计错误
-      }
-
-      return { mainBranch, linesAdded, linesRemoved }
+    // 切到主分支
+    if (currentBranch !== mainBranch) {
+      await this.git(repoPath, ['checkout', mainBranch])
     }
+
+    // 合并
+    const mergeArgs = ['merge']
+    if (options?.squash) {
+      mergeArgs.push('--squash')
+    }
+    mergeArgs.push(branchName)
+    await this.git(repoPath, mergeArgs)
+
+    // squash 需要额外 commit
+    if (options?.squash) {
+      const msg = options.message || `Merge task branch ${branchName}`
+      await this.git(repoPath, ['commit', '-m', msg])
+    }
+
+    // 获取变更统计
+    let linesAdded = 0
+    let linesRemoved = 0
+    try {
+      const stat = await this.git(repoPath, ['diff', '--stat', 'HEAD~1'])
+      const match = stat.match(/(\d+) insertions?\(\+\)/)
+      const match2 = stat.match(/(\d+) deletions?\(-\)/)
+      if (match) linesAdded = parseInt(match[1], 10)
+      if (match2) linesRemoved = parseInt(match2[1], 10)
+    } catch {
+      // 忽略统计错误
+    }
+
+    return { mainBranch, linesAdded, linesRemoved }
   }
 
   /**

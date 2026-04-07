@@ -3,7 +3,7 @@
  */
 
 import React, { useEffect, useState } from 'react'
-import { X, FolderGit2, Power, RefreshCw, ExternalLink } from 'lucide-react'
+import { X, FolderGit2, Power, RefreshCw, ExternalLink, Activity } from 'lucide-react'
 import { useSettingsStore } from '../../stores/settingsStore'
 
 interface GeneralSettingsProps {
@@ -20,10 +20,27 @@ type UpdateState = {
   message?: string
 }
 
+type MemoryReport = {
+  timestamp: number
+  components: Array<{
+    name: string
+    status: 'healthy' | 'warning' | 'critical'
+    memoryUsage: number
+    details?: Record<string, unknown>
+  }>
+  summary: {
+    totalAllocated: number
+    totalUsed: number
+    healthStatus: 'healthy' | 'warning' | 'critical'
+  }
+}
+
 const GeneralSettings: React.FC<GeneralSettingsProps> = ({ onClose }) => {
   const { settings, updateSetting } = useSettingsStore()
   const [updateState, setUpdateState] = useState<UpdateState | null>(null)
   const [updating, setUpdating] = useState(false)
+  const [memoryReport, setMemoryReport] = useState<MemoryReport | null>(null)
+  const [loadingMemory, setLoadingMemory] = useState(false)
 
   useEffect(() => {
     let cancelled = false
@@ -37,7 +54,17 @@ const GeneralSettings: React.FC<GeneralSettingsProps> = ({ onClose }) => {
       }
     }
 
+    const loadMemoryReport = async () => {
+      try {
+        const report = await window.spectrAI.memory.getReport()
+        if (!cancelled) setMemoryReport(report)
+      } catch {
+        // ignore
+      }
+    }
+
     void loadState()
+    void loadMemoryReport()
     const unsubscribe = window.spectrAI.update.onStateChanged((state) => {
       setUpdateState(state)
     })
@@ -65,6 +92,41 @@ const GeneralSettings: React.FC<GeneralSettingsProps> = ({ onClose }) => {
       setUpdateState(result.state)
     } finally {
       setUpdating(false)
+    }
+  }
+
+  const handleRefreshMemory = async () => {
+    setLoadingMemory(true)
+    try {
+      const report = await window.spectrAI.memory.getReport()
+      setMemoryReport(report)
+    } finally {
+      setLoadingMemory(false)
+    }
+  }
+
+  const handleCleanupMemory = async () => {
+    setLoadingMemory(true)
+    try {
+      await window.spectrAI.memory.forceCleanup()
+      const report = await window.spectrAI.memory.getReport()
+      setMemoryReport(report)
+    } finally {
+      setLoadingMemory(false)
+    }
+  }
+
+  const formatBytes = (bytes: number): string => {
+    if (bytes < 1024) return `${bytes} B`
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+  }
+
+  const getStatusColor = (status: 'healthy' | 'warning' | 'critical'): string => {
+    switch (status) {
+      case 'healthy': return 'text-green-500'
+      case 'warning': return 'text-yellow-500'
+      case 'critical': return 'text-red-500'
     }
   }
 
@@ -203,6 +265,66 @@ const GeneralSettings: React.FC<GeneralSettingsProps> = ({ onClose }) => {
                 </button>
               )}
             </div>
+          </div>
+
+          <div className="border-t border-border" />
+
+          <div>
+            <div className="flex items-center gap-2 mb-3">
+              <Activity className="w-4 h-4 text-accent-blue" />
+              <h3 className="text-sm font-medium text-text-primary">内存状态</h3>
+            </div>
+
+            {memoryReport && (
+              <div className="space-y-3">
+                <div className="text-xs text-text-secondary">
+                  总体状态：
+                  <span className={`ml-1 font-medium ${getStatusColor(memoryReport.summary.healthStatus)}`}>
+                    {memoryReport.summary.healthStatus === 'healthy' ? '健康' :
+                     memoryReport.summary.healthStatus === 'warning' ? '警告' : '严重'}
+                  </span>
+                  <span className="ml-2 text-text-muted">
+                    已用：{formatBytes(memoryReport.summary.totalUsed)}
+                  </span>
+                </div>
+
+                <div className="space-y-2">
+                  {memoryReport.components.map((component) => (
+                    <div key={component.name} className="flex items-center justify-between text-xs">
+                      <span className="text-text-primary">{component.name}</span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-text-muted">{formatBytes(component.memoryUsage)}</span>
+                        <span className={`w-2 h-2 rounded-full ${
+                          component.status === 'healthy' ? 'bg-green-500' :
+                          component.status === 'warning' ? 'bg-yellow-500' : 'bg-red-500'
+                        }`} />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="flex gap-2 pt-2">
+                  <button
+                    onClick={handleRefreshMemory}
+                    disabled={loadingMemory}
+                    className="px-3 py-1.5 rounded text-xs bg-bg-tertiary border border-border text-text-primary hover:border-accent-blue/30 disabled:opacity-50"
+                  >
+                    刷新
+                  </button>
+                  <button
+                    onClick={handleCleanupMemory}
+                    disabled={loadingMemory}
+                    className="px-3 py-1.5 rounded text-xs bg-bg-tertiary border border-border text-text-primary hover:border-accent-blue/30 disabled:opacity-50"
+                  >
+                    清理内存
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {!memoryReport && (
+              <div className="text-xs text-text-muted">加载中...</div>
+            )}
           </div>
         </div>
 

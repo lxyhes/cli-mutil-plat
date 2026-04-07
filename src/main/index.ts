@@ -269,9 +269,6 @@ function initializeManagers(): void {
   // 2. 会话管理器
   sessionManager = new SessionManager()
 
-  // 注册到内存管理协调器
-  memoryCoordinator.registerComponent(sessionManager)
-
   // 3. 并发控制
   concurrencyGuard = new ConcurrencyGuard({ maxSessions: 9 })
 
@@ -400,6 +397,9 @@ function initializeManagers(): void {
   // ★ 注入 bridgePort 到 agentManagerV2，使子会话（团队成员、spawn_agent）也能获得 MCP 工具
   // 必须在 spawnAgent() 首次调用前完成注入，否则子会话无法使用 list_sessions 等跨会话感知工具
   agentManagerV2.setBridgePort(63721)
+
+  // 注册 SessionManagerV2 到内存管理协调器
+  memoryCoordinator.registerComponent(sessionManagerV2)
 
   // 12. 内存管理协调器
   memoryCoordinator = new MemoryCoordinator({
@@ -975,7 +975,7 @@ app.on('before-quit', () => {
   MCPConfigGenerator.cleanupAll()
 
   // ★ 在 cleanup 之前提前捕获 SDK V2 会话状态
-  // 必须在 sessionManagerV2.cleanup() 之前拿快照，否则 cleanup() 会将所有会话
+  // 必须在 sessionManagerV2.dispose() 之前拿快照，否则 dispose() 会将所有会话
   // 内存状态变为 terminated，后面的过滤器会把它们全部排除，导致没有会话被标为 interrupted
   const activeV2SessionsSnapshot = sessionManagerV2.getAllSessions().filter(
     s => s.status !== 'completed' && s.status !== 'terminated' && s.status !== 'error'
@@ -987,7 +987,7 @@ app.on('before-quit', () => {
 
   // 清理 SDK V2 资源
   sessionManagerV2.removeAllListeners()
-  sessionManagerV2.cleanup()
+  sessionManagerV2.dispose()
   agentManagerV2.removeAllListeners()
   agentManagerV2.cleanup()
   adapterRegistry.cleanup()

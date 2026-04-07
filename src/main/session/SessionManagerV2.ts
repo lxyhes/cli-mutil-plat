@@ -1019,19 +1019,19 @@ export class SessionManagerV2 extends EventEmitter implements MemoryManagedCompo
   }
 
   /**
-   * 清理所有资源
+   * 清理所有资源（应用关闭时调用）
    */
-  cleanup(): void {
+  async dispose(): Promise<void> {
     for (const [id, session] of this.sessions) {
       if (session.status !== 'completed' && session.status !== 'terminated') {
         try {
           const adapter = this.adapterRegistry.get(session.provider.id)
-          adapter.terminateSession(id).catch(() => {})
+          await adapter.terminateSession(id).catch(() => {})
         } catch { /* ignore */ }
       }
       // 释放会话相关的所有锁
       if (this.lockManager) {
-        this.lockManager.releaseAllLocksForOwner(`session:${id}`).catch(() => {})
+        await this.lockManager.releaseAllLocksForOwner(`session:${id}`).catch(() => {})
       }
     }
   }

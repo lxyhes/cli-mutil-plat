@@ -47,6 +47,12 @@ if (!ctxBr) {
     openFile: () => ipcRenderer.invoke(IPC.LOG_OPEN_FILE),
   },
 
+  // ==================== Memory API ====================
+  memory: {
+    getReport: () => ipcRenderer.invoke(IPC.MEMORY_GET_REPORT),
+    forceCleanup: (mode?: 'normal' | 'aggressive') => ipcRenderer.invoke(IPC.MEMORY_FORCE_CLEANUP, mode),
+  },
+
   // ==================== App API ====================
   app: {
     getCwd: () => process.cwd(),

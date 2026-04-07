@@ -159,6 +159,28 @@ export interface SpectrAIAPI {
     flush: () => Promise<{ success: boolean }>
   }
 
+  memory: {
+    getReport: () => Promise<{
+      timestamp: number
+      components: Array<{
+        name: string
+        status: 'healthy' | 'warning' | 'critical'
+        memoryUsage: number
+        details?: Record<string, unknown>
+      }>
+      summary: {
+        totalAllocated: number
+        totalUsed: number
+        healthStatus: 'healthy' | 'warning' | 'critical'
+      }
+    }>
+    forceCleanup: (mode?: 'normal' | 'aggressive') => Promise<{
+      success: boolean
+      freedMemory: number
+      errors: string[]
+    }>
+  }
+
   /** @deprecated use usage.getSummary() */
   getUsageSummary: () => Promise<{
     totalTokens: number
