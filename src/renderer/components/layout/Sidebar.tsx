@@ -229,6 +229,16 @@ export function SessionsContent() {
     setIsCreatingSession(false)
     setShowNewSessionDialog(true)
 
+    if (!window.spectrAI?.provider || !window.spectrAI?.app) {
+      console.warn('[Sidebar] window.spectrAI not available')
+      setProviders([])
+      setRecentDirs([])
+      setSessionCwd(prefillDir || '')
+      setWorkspaces([])
+      setIsWorkspacesLoading(false)
+      return
+    }
+
     try {
       const providerList = await window.spectrAI.provider.getAll()
       setProviders(providerList)
@@ -300,6 +310,10 @@ export function SessionsContent() {
   }
 
   const handleSelectDirectory = async () => {
+    if (!window.spectrAI?.app) {
+      console.warn('[Sidebar] window.spectrAI.app not available')
+      return
+    }
     try {
       const result = await window.spectrAI.app.selectDirectory()
       if (result) setSessionCwd(result)
@@ -602,6 +616,10 @@ export function SessionsContent() {
         <ProviderManager
           onClose={async () => {
             setShowProviderManager(false)
+            if (!window.spectrAI?.provider) {
+              console.warn('[Sidebar] window.spectrAI.provider not available')
+              return
+            }
             try {
               const providerList = await window.spectrAI.provider.getAll()
               setProviders(providerList)
@@ -695,6 +713,10 @@ export function SessionsContent() {
                         <button
                           type="button"
                           onClick={async () => {
+                            if (!window.spectrAI?.app) {
+                              console.warn('[Sidebar] window.spectrAI.app not available')
+                              return
+                            }
                             const dir = await window.spectrAI.app.selectDirectory()
                             if (!dir) return
                             const existing = recentDirs.find(d => d.path === dir)
@@ -750,6 +772,10 @@ export function SessionsContent() {
                                           <button
                                             onClick={(e) => {
                                               e.stopPropagation()
+                                              if (!window.spectrAI?.app) {
+                                                console.warn('[Sidebar] window.spectrAI.app not available')
+                                                return
+                                              }
                                               window.spectrAI.app.toggleDirectoryPin(dir.path).then(async () => {
                                                 const dirs = await window.spectrAI.app.getRecentDirectories()
                                                 setRecentDirs(dirs)
@@ -763,6 +789,10 @@ export function SessionsContent() {
                                           <button
                                             onClick={(e) => {
                                               e.stopPropagation()
+                                              if (!window.spectrAI?.app) {
+                                                console.warn('[Sidebar] window.spectrAI.app not available')
+                                                return
+                                              }
                                               if (confirm(`确定从常用列表中移除 "${dir.path}" 吗？`)) {
                                                 window.spectrAI.app.removeDirectory(dir.path).then(async () => {
                                                   const dirs = await window.spectrAI.app.getRecentDirectories()
