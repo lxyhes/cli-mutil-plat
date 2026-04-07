@@ -43,6 +43,7 @@ import { IFlowAcpAdapter } from './adapter/IFlowAcpAdapter'
 import { OpenCodeSdkAdapter } from './adapter/OpenCodeSdkAdapter'
 import { bootstrapShellPath } from './bootstrap/shellPath'
 import { UpdateManager } from './update/UpdateManager'
+import { MemoryCoordinator } from './memory/MemoryCoordinator'
 
 
 let mainWindow: BrowserWindow | null = null
@@ -137,6 +138,8 @@ let sessionManagerV2: SessionManagerV2
 let agentManagerV2: AgentManagerV2
 // 文件改动追踪
 let fileChangeTracker: FileChangeTracker
+// 内存管理
+let memoryCoordinator: MemoryCoordinator
 
 /**
  * 创建主窗口
@@ -395,7 +398,41 @@ function initializeManagers(): void {
   // 必须在 spawnAgent() 首次调用前完成注入，否则子会话无法使用 list_sessions 等跨会话感知工具
   agentManagerV2.setBridgePort(63721)
 
+  // 12. 内存管理协调器
+  memoryCoordinator = new MemoryCoordinator({
+    warning: 500,   // 500 MB
+    critical: 800,  // 800 MB
+    maximum: 1024   // 1 GB
+  })
 
+  // 监听内存事件
+  memoryCoordinator.on('warning', (stats) => {
+    console.warn('[Memory] Warning threshold reached:', {
+      rss: `${(stats.rss / 1024 / 1024).toFixed(2)} MB`,
+      heapUsed: `${(stats.heapUsed / 1024 / 1024).toFixed(2)} MB`
+    })
+  })
+
+  memoryCoordinator.on('critical', (stats) => {
+    console.error('[Memory] Critical threshold reached:', {
+      rss: `${(stats.rss / 1024 / 1024).toFixed(2)} MB`,
+      heapUsed: `${(stats.heapUsed / 1024 / 1024).toFixed(2)} MB`
+    })
+    // 通知渲染进程
+    try {
+      sendToRenderer('memory:critical', stats)
+    } catch { /* ignore */ }
+  })
+
+  memoryCoordinator.on('maximum', (stats) => {
+    console.error('[Memory] Maximum threshold reached, forcing cleanup:', {
+      rss: `${(stats.rss / 1024 / 1024).toFixed(2)} MB`,
+      heapUsed: `${(stats.heapUsed / 1024 / 1024).toFixed(2)} MB`
+    })
+  })
+
+  // 启动监控
+  memoryCoordinator.start()
 }
 
 /**
@@ -900,6 +937,10 @@ app.on('will-quit', () => {
 
 app.on('before-quit', () => {
   isQuitting = true
+
+  // 停止内存监控
+  memoryCoordinator?.stop()
+  memoryCoordinator?.cleanup()
 
   // 停止状态推断引擎
   stateInference.stop()

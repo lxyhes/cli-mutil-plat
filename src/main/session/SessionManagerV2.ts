@@ -23,6 +23,7 @@ import type { AdapterRegistry } from '../adapter/AdapterRegistry'
 import type { ProviderEvent, AdapterSessionConfig } from '../adapter/types'
 import { mapToolToActivityType, extractToolDetail } from '../adapter/toolMapping'
 import { SkillEngine } from '../skill/SkillEngine'
+import type { LockManager } from '../concurrency/LockManager'
 
 // ---- AI 提问检测 ----
 
@@ -194,6 +195,7 @@ export class SessionManagerV2 extends EventEmitter {
   private sessions: Map<string, ManagedSession> = new Map()
   private adapterRegistry: AdapterRegistry
   private database?: any   // DatabaseManager（可选，用于 Skill 拦截）
+  private lockManager?: LockManager
 
   private thinkingBuffers: Map<string, string> = new Map()
   private thinkingFlushTimers: Map<string, NodeJS.Timeout> = new Map()
@@ -208,6 +210,11 @@ export class SessionManagerV2 extends EventEmitter {
   /** 注入数据库实例（用于 Skill 拦截） */
   setDatabase(database: any): void {
     this.database = database
+  }
+
+  /** 注入 LockManager 实例（用于会话清理时释放锁） */
+  setLockManager(lockManager: LockManager): void {
+    this.lockManager = lockManager
   }
 
   private queueThinkingActivity(sessionId: string, text: string, timestamp: string): void {
@@ -830,6 +837,13 @@ export class SessionManagerV2 extends EventEmitter {
     session._cleanup?.()
     session._cleanup = undefined
 
+    // 释放会话相关的所有锁
+    if (this.lockManager) {
+      await this.lockManager.releaseAllLocksForOwner(`session:${id}`).catch(err => {
+        console.warn(`[SessionManagerV2] Failed to release locks for session ${id}:`, err)
+      })
+    }
+
     this.emit('status-change', id, 'completed')
     this.emit('activity', id, {
       id: uuidv4(),
@@ -1011,6 +1025,10 @@ export class SessionManagerV2 extends EventEmitter {
           const adapter = this.adapterRegistry.get(session.provider.id)
           adapter.terminateSession(id).catch(() => {})
         } catch { /* ignore */ }
+      }
+      // 释放会话相关的所有锁
+      if (this.lockManager) {
+        this.lockManager.releaseAllLocksForOwner(`session:${id}`).catch(() => {})
       }
     }
   }

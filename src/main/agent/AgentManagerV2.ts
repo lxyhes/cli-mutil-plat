@@ -20,6 +20,8 @@ import type { AIProvider } from '../../shared/types'
 import { isProviderAvailable, checkProviderAvailability } from './providerAvailability'
 import { MCPConfigGenerator } from './MCPConfigGenerator'
 import { GitWorktreeService } from '../git/GitWorktreeService'
+import type { LockManager } from '../concurrency/LockManager'
+import { createAgentLock } from '../concurrency/LockManager'
 
 interface ManagedAgent {
   info: AgentInfo
@@ -40,6 +42,7 @@ export class AgentManagerV2 extends EventEmitter {
   private sessionManager: SessionManagerV2
   private database: DatabaseManager
   private gitWorktreeService = new GitWorktreeService()
+  private lockManager: LockManager | null = null
   /** Agent Bridge WebSocket 端口，用于为子会话生成 MCP 配置（0 = 未初始化） */
   private bridgePort: number = 0
 
@@ -66,11 +69,13 @@ export class AgentManagerV2 extends EventEmitter {
     adapterRegistry: AdapterRegistry,
     sessionManager: SessionManagerV2,
     database: DatabaseManager,
+    lockManager?: LockManager,
   ) {
     super()
     this.adapterRegistry = adapterRegistry
     this.sessionManager = sessionManager
     this.database = database
+    this.lockManager = lockManager || null
     this.listenEvents()
   }
 
@@ -142,6 +147,19 @@ export class AgentManagerV2 extends EventEmitter {
     const childSessionId = `agent-${agentId.slice(0, 8)}`
     const providerId = config.providerId || 'claude-code'
     const workDir = config.workDir || this.getParentWorkDir(parentSessionId)
+
+    // 使用 LockManager 防止重复执行同一 Agent
+    if (this.lockManager) {
+      const lockResource = createAgentLock(agentId)
+      const acquired = this.lockManager.tryAcquire(lockResource, {
+        owner: parentSessionId,
+        timeout: 300000, // 5 分钟
+      })
+
+      if (!acquired) {
+        throw new Error(`Agent ${agentId} is already running`)
+      }
+    }
 
     const info: AgentInfo = {
       agentId,
@@ -474,6 +492,12 @@ export class AgentManagerV2 extends EventEmitter {
     agent.info.status = exitCode === 0 ? 'completed' : 'failed'
     agent.info.completedAt = new Date().toISOString()
     agent.info.result = result
+
+    // 释放 Agent 锁
+    if (this.lockManager) {
+      const lockResource = createAgentLock(agentId)
+      this.lockManager.release(lockResource, agent.parentSessionId)
+    }
 
     // 终止底层子会话进程（幂等，若已终止则无副作用）
     // 修复：oneShot 子代理任务完成后，底层会话不会自动退出，

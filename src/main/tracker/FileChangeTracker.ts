@@ -9,6 +9,8 @@ import { EventEmitter } from 'events'
 import * as fs from 'fs'
 import * as path from 'path'
 import type { TrackedFileChange, FileChangeType } from '../../shared/types'
+import type { LockManager } from '../concurrency/LockManager'
+import { createFileLock } from '../concurrency/LockManager'
 
 // 排除的目录/文件模式
 const EXCLUDE_PATTERNS = [
@@ -65,9 +67,13 @@ export class FileChangeTracker extends EventEmitter {
   /** 数据库引用（用于写入 activity_events） */
   private database: any
 
-  constructor(database: any) {
+  /** LockManager 实例（可选，用于文件操作锁保护） */
+  private lockManager: LockManager | null = null
+
+  constructor(database: any, lockManager?: LockManager) {
     super()
     this.database = database
+    this.lockManager = lockManager || null
   }
 
   // ============================================================
@@ -195,12 +201,31 @@ export class FileChangeTracker extends EventEmitter {
    * 记录 worktree merge 后的 git diff 文件改动（替代 FS Watch 归因）
    * 路径转为主仓库绝对路径后写入缓冲区和数据库，并通知 UI
    */
-  recordWorktreeChanges(
+  async recordWorktreeChanges(
+    sessionId: string,
+    mainRepoPath: string,
+    files: Array<{ path: string; changeType: FileChangeType }>
+  ): Promise<void> {
+    if (files.length === 0) return
+
+    // 使用 LockManager 保护批量文件写入操作
+    if (this.lockManager) {
+      const lockResource = createFileLock(mainRepoPath)
+      return this.lockManager.withLock(
+        lockResource,
+        { owner: sessionId, timeout: 30000 },
+        () => this._recordWorktreeChangesImpl(sessionId, mainRepoPath, files)
+      )
+    }
+
+    return this._recordWorktreeChangesImpl(sessionId, mainRepoPath, files)
+  }
+
+  private _recordWorktreeChangesImpl(
     sessionId: string,
     mainRepoPath: string,
     files: Array<{ path: string; changeType: FileChangeType }>
   ): void {
-    if (files.length === 0) return
 
     const timestamp = Date.now()
     const changes: TrackedFileChange[] = files.map(f => ({
@@ -514,6 +539,31 @@ export class FileChangeTracker extends EventEmitter {
   }
 
   private recordChange(
+    sessionId: string,
+    filePath: string,
+    changeType: FileChangeType,
+    timestamp: number,
+    concurrent: boolean
+  ): void {
+    // 使用 LockManager 保护单个文件记录操作
+    if (this.lockManager) {
+      const lockResource = createFileLock(filePath)
+      this.lockManager.withLock(
+        lockResource,
+        { owner: sessionId, timeout: 5000 },
+        () => this._recordChangeImpl(sessionId, filePath, changeType, timestamp, concurrent)
+      ).catch(err => {
+        console.warn(`[FileChangeTracker] Failed to acquire lock for ${filePath}:`, err)
+        // 降级：无锁模式直接记录
+        this._recordChangeImpl(sessionId, filePath, changeType, timestamp, concurrent)
+      })
+      return
+    }
+
+    this._recordChangeImpl(sessionId, filePath, changeType, timestamp, concurrent)
+  }
+
+  private _recordChangeImpl(
     sessionId: string,
     filePath: string,
     changeType: FileChangeType,
