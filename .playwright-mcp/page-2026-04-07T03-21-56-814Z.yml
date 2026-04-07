@@ -1,0 +1,103 @@
+- generic [ref=e3]:
+  - generic [ref=e5]:
+    - img [ref=e6]
+    - generic [ref=e8]: SpectrAI
+  - generic [ref=e9]:
+    - generic [ref=e10]:
+      - generic [ref=e11]:
+        - button "会话管理" [ref=e12] [cursor=pointer]:
+          - img [ref=e14]
+        - button "文件资源管理器" [ref=e17]:
+          - img [ref=e18]
+        - button "Git 分支" [ref=e23]:
+          - img [ref=e24]
+        - button "监控看板" [ref=e28]:
+          - img [ref=e29]
+        - button "MCP 工具" [ref=e30]:
+          - img [ref=e31]
+        - button "技能库" [ref=e33]:
+          - img [ref=e34]
+      - generic [ref=e37]:
+        - button "时间线" [ref=e38] [cursor=pointer]:
+          - img [ref=e40]
+        - button "统计" [ref=e42]:
+          - img [ref=e43]
+      - button "设置" [ref=e48] [cursor=pointer]:
+        - img [ref=e49]
+    - generic [ref=e56]:
+      - generic [ref=e58]:
+        - generic [ref=e59]:
+          - generic [ref=e60]:
+            - img [ref=e61]
+            - heading "SpectrAI" [level=1] [ref=e63]
+          - generic [ref=e64]:
+            - button "搜索日志 (Ctrl+F)" [ref=e65] [cursor=pointer]:
+              - img [ref=e66]
+            - button "新建会话" [ref=e69] [cursor=pointer]:
+              - img [ref=e70]
+        - generic [ref=e72]:
+          - paragraph [ref=e73]: 暂无会话
+          - paragraph [ref=e74]: 点击下方"新建会话"开始
+        - button "新建会话" [ref=e76] [cursor=pointer]:
+          - img [ref=e77]
+          - generic [ref=e79]: 新建会话
+      - generic [ref=e81]:
+        - generic [ref=e82]:
+          - generic [ref=e83]:
+            - generic [ref=e84]:
+              - button "会话" [ref=e85] [cursor=pointer]:
+                - img [ref=e86]
+                - text: 会话
+              - button "文件" [ref=e88] [cursor=pointer]:
+                - img [ref=e89]
+                - text: 文件
+            - generic [ref=e91]:
+              - button "单窗格" [ref=e92] [cursor=pointer]:
+                - img [ref=e93]
+              - button "左右分栏" [ref=e95] [cursor=pointer]:
+                - img [ref=e96]
+              - button "上下分栏" [ref=e98] [cursor=pointer]:
+                - img [ref=e99]
+          - generic [ref=e104]:
+            - generic [ref=e105]:
+              - generic [ref=e106]:
+                - img [ref=e107]
+                - generic [ref=e110]: SpectrAI
+              - generic [ref=e111]: 多 AI 会话编排平台
+            - generic [ref=e112]:
+              - paragraph [ref=e113]: 开始
+              - generic [ref=e114]:
+                - button "新建会话" [ref=e115] [cursor=pointer]:
+                  - img [ref=e116]
+                  - generic [ref=e118]: 新建会话
+                - button "查看看板" [ref=e119] [cursor=pointer]:
+                  - img [ref=e120]
+                  - generic [ref=e121]: 查看看板
+            - generic [ref=e122]:
+              - generic [ref=e123]: Ctrl+N 新建会话
+              - generic [ref=e124]: Ctrl+B 折叠侧边栏
+        - button "收起左侧面板" [ref=e125] [cursor=pointer]:
+          - img [ref=e126]
+        - button "收起右侧面板" [ref=e128] [cursor=pointer]:
+          - img [ref=e129]
+      - generic [ref=e135]:
+        - paragraph [ref=e136]: 未选择会话
+        - paragraph [ref=e137]: 点击终端窗口或侧边栏会话查看详情
+  - generic [ref=e138]:
+    - generic "活跃会话 / 历史总会话" [ref=e142]: 活跃 0/共 0
+    - generic [ref=e144]:
+      - button "网格视图 (Ctrl+1)" [ref=e145] [cursor=pointer]:
+        - img [ref=e146]
+      - button "标签页视图 (Ctrl+2)" [ref=e148] [cursor=pointer]:
+        - img [ref=e149]
+      - button "仪表盘 (Ctrl+3)" [ref=e151] [cursor=pointer]:
+        - img [ref=e152]
+      - button "任务看板 (Ctrl+4)" [ref=e154] [cursor=pointer]:
+        - img [ref=e155]
+    - generic [ref=e156]:
+      - generic "会话统计：总计 / 运行 / 等待 / 异常" [ref=e157]:
+        - generic [ref=e158]: 总 0
+        - generic [ref=e159]: 运行 0
+        - generic [ref=e160]: 等待 0
+        - generic [ref=e161]: 异常 0
+      - generic "应用本次启动运行时长" [ref=e162]: 运行 0s

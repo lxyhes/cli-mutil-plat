@@ -28,6 +28,10 @@ export const useTaskStore = create<TaskState>((set, get) => ({
 
   // 获取所有任务
   fetchTasks: async () => {
+    if (!window.spectrAI?.task) {
+      console.warn('[TaskStore] window.spectrAI.task not available')
+      return
+    }
     try {
       const tasks = await window.spectrAI.task.getAll()
       set({ tasks })
@@ -38,6 +42,10 @@ export const useTaskStore = create<TaskState>((set, get) => ({
 
   // 创建新任务
   createTask: async (task: Partial<TaskCard>) => {
+    if (!window.spectrAI?.task) {
+      console.warn('[TaskStore] window.spectrAI.task not available')
+      throw new Error('window.spectrAI.task not available')
+    }
     try {
       await window.spectrAI.task.create(task)
       await get().fetchTasks()
@@ -49,6 +57,10 @@ export const useTaskStore = create<TaskState>((set, get) => ({
 
   // 更新任务
   updateTask: async (id: string, updates: Partial<TaskCard>) => {
+    if (!window.spectrAI?.task) {
+      console.warn('[TaskStore] window.spectrAI.task not available')
+      throw new Error('window.spectrAI.task not available')
+    }
     try {
       await window.spectrAI.task.update(id, updates)
       await get().fetchTasks()
@@ -60,6 +72,10 @@ export const useTaskStore = create<TaskState>((set, get) => ({
 
   // 删除任务
   deleteTask: async (id: string) => {
+    if (!window.spectrAI?.task) {
+      console.warn('[TaskStore] window.spectrAI.task not available')
+      throw new Error('window.spectrAI.task not available')
+    }
     try {
       await window.spectrAI.task.delete(id)
       await get().fetchTasks()
@@ -101,6 +117,10 @@ export const useTaskStore = create<TaskState>((set, get) => ({
 
   // 为任务启动关联会话
   startSessionForTask: async (taskId: string, config?: any) => {
+    if (!window.spectrAI?.task) {
+      console.warn('[TaskStore] window.spectrAI.task not available')
+      return { success: false, error: 'window.spectrAI.task not available' }
+    }
     try {
       const result = await window.spectrAI.task.startSession(taskId, config)
       if (result.success) {
