@@ -2,14 +2,22 @@
  * Preload 安全桥接 - 暴露受控的 API 给渲染进程
  * @author weibin
  */
-
-import { contextBridge, ipcRenderer, IpcRendererEvent, clipboard } from 'electron'
+import { ipcRenderer, IpcRendererEvent, clipboard } from 'electron'
 import { IPC } from '../shared/constants'
+
+// 安全获取 contextBridge（优先使用全局 API，兜底使用 electron.contextBridge）
+const ctxBr = typeof contextBridge !== 'undefined'
+  ? contextBridge
+  : (typeof electron !== 'undefined' ? electron.contextBridge : null)
+
+if (!ctxBr) {
+  console.error('[Preload] contextBridge not available! Preload will not expose spectrAI API.')
+}
 
 /**
  * 暴露给渲染进程的 API
  */
-contextBridge.exposeInMainWorld('spectrAI', {
+ctxBr?.exposeInMainWorld('spectrAI', {
   // ==================== Clipboard API ====================
   clipboard: {
     readText: () => clipboard.readText(),
