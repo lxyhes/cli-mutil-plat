@@ -5,19 +5,19 @@
 import { ipcRenderer, IpcRendererEvent, clipboard } from 'electron'
 import { IPC } from '../shared/constants'
 
-// 安全获取 contextBridge（优先使用全局 API，兜底使用 electron.contextBridge）
-const ctxBr = typeof contextBridge !== 'undefined'
+// 安全获取 contextBridge（Electron preload 上下文中，contextBridge 是全局 API）
+// 注意：electron-vite externalizeDepsPlugin 会把 import { contextBridge } from 'electron'
+// 编译成 require("electron").contextBridge，但 electron npm 包本身可能不导出 contextBridge
+// 正确做法：直接使用全局 contextBridge，它是 Electron preload 运行时提供的
+const ctxBr: any = typeof contextBridge !== 'undefined'
   ? contextBridge
-  : (typeof electron !== 'undefined' ? electron.contextBridge : null)
+  : (typeof electron !== 'undefined' ? (electron as any).contextBridge : null)
 
 if (!ctxBr) {
-  console.error('[Preload] contextBridge not available! Preload will not expose spectrAI API.')
-}
-
-/**
- * 暴露给渲染进程的 API
- */
-ctxBr?.exposeInMainWorld('spectrAI', {
+  // eslint-disable-next-line no-console
+  console.error('[Preload] contextBridge not available! spectrAI API will not be exposed.')
+} else {
+  ctxBr.exposeInMainWorld('spectrAI', {
   // ==================== Clipboard API ====================
   clipboard: {
     readText: () => clipboard.readText(),
@@ -500,3 +500,6 @@ ctxBr?.exposeInMainWorld('spectrAI', {
   },
 
 })
+
+// 关闭 else 块
+}

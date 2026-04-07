@@ -178,6 +178,12 @@ function GeneralTab() {
   const [updating, setUpdating] = useState(false)
 
   useEffect(() => {
+    // 检查 window.spectrAI 是否可用
+    if (!window.spectrAI?.update) {
+      console.warn('[GeneralTab] window.spectrAI.update not available')
+      return
+    }
+
     let cancelled = false
 
     const loadState = async () => {
@@ -201,6 +207,10 @@ function GeneralTab() {
   }, [])
 
   const handleCheckUpdate = async () => {
+    if (!window.spectrAI?.update) {
+      console.warn('[GeneralTab] window.spectrAI.update not available')
+      return
+    }
     setUpdating(true)
     try {
       const result = await window.spectrAI.update.checkForUpdates(true)
@@ -211,6 +221,10 @@ function GeneralTab() {
   }
 
   const handleDownloadUpdate = async () => {
+    if (!window.spectrAI?.update) {
+      console.warn('[GeneralTab] window.spectrAI.update not available')
+      return
+    }
     setUpdating(true)
     try {
       const result = await window.spectrAI.update.downloadUpdate()
@@ -476,7 +490,7 @@ function GeneralTab() {
 
           {updateState?.status === 'downloaded' && (
             <button
-              onClick={() => void window.spectrAI.update.quitAndInstall()}
+              onClick={() => window.spectrAI?.update?.quitAndInstall()}
               className="px-3 py-1.5 rounded text-xs bg-green-600 text-white hover:opacity-90"
             >
               重启并安装
@@ -485,7 +499,7 @@ function GeneralTab() {
 
           {(updateState?.isMajorUpdate || updateState?.status === 'error') && (
             <button
-              onClick={() => void window.spectrAI.update.openDownloadPage()}
+              onClick={() => window.spectrAI?.update?.openDownloadPage()}
               className="px-3 py-1.5 rounded text-xs bg-bg-tertiary border border-border text-text-primary hover:border-accent-blue/30 inline-flex items-center gap-1"
             >
               官网下载 <ExternalLink className="w-3 h-3" />
@@ -616,6 +630,11 @@ function LogTab() {
   const timerRef  = useRef<ReturnType<typeof setInterval> | null>(null)
 
   const fetchLogs = useCallback(async () => {
+    if (!window.spectrAI?.log) {
+      console.warn('[LogTab] window.spectrAI.log not available')
+      setLines([])
+      return
+    }
     setLoading(true)
     try {
       const result = await window.spectrAI.log.getRecent(300)
@@ -680,7 +699,7 @@ function LogTab() {
           </button>
           {/* 在系统编辑器中打开 */}
           <button
-            onClick={() => window.spectrAI.log.openFile()}
+            onClick={() => window.spectrAI?.log?.openFile()}
             className="p-1.5 rounded btn-transition text-text-secondary hover:text-text-primary"
             title="用系统编辑器打开日志文件"
           >
