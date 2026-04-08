@@ -398,9 +398,6 @@ function initializeManagers(): void {
   // 必须在 spawnAgent() 首次调用前完成注入，否则子会话无法使用 list_sessions 等跨会话感知工具
   agentManagerV2.setBridgePort(63721)
 
-  // 注册 SessionManagerV2 到内存管理协调器
-  memoryCoordinator.registerComponent(sessionManagerV2)
-
   // 12. 内存管理协调器
   memoryCoordinator = new MemoryCoordinator({
     warning: 500,   // 500 MB
@@ -435,6 +432,7 @@ function initializeManagers(): void {
   })
 
   // 注册组件到内存管理协调器
+  memoryCoordinator.registerComponent(sessionManagerV2)
   memoryCoordinator.registerComponent(database)
 
   // 启动监控

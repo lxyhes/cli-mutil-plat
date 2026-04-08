@@ -13,6 +13,7 @@ import type {
   ConversationMessage
 } from '../../shared/types'
 import { sanitizeDisplayText } from '../utils/textSanitizer'
+import { safeAPI } from '../utils/api'
 
 /** Agent 信息（从主进程同步） */
 interface AgentInfo {
@@ -123,14 +124,14 @@ export const useSessionStore = create<SessionState>((set, get) => ({
 
   // 获取所有活跃会话（内存中的）
   fetchSessions: async () => {
-    if (!window.spectrAI?.session) {
-      console.warn('[SessionStore] window.spectrAI.session not available')
+    if (!safeAPI.isAPIReady()) {
+      console.warn('[SessionStore] SpectrAI API not ready')
       return
     }
     try {
-      const activeSessions = await window.spectrAI.session.getAll()
+      const activeSessions = await safeAPI.session.getAll()
       // 同时加载历史会话并合并
-      const historySessions = await window.spectrAI.session.getHistory()
+      const historySessions = await safeAPI.session.getHistory()
 
       // 合并：活跃会话优先，历史会话补充（去重）
       const activeIds = new Set(activeSessions.map((s: Session) => s.id))
@@ -199,12 +200,12 @@ export const useSessionStore = create<SessionState>((set, get) => ({
 
   // 单独获取历史会话（从数据库）
   fetchHistorySessions: async () => {
-    if (!window.spectrAI?.session) {
-      console.warn('[SessionStore] window.spectrAI.session not available')
+    if (!safeAPI.isAPIReady()) {
+      console.warn('[SessionStore] SpectrAI API not ready')
       return
     }
     try {
-      const historySessions = await window.spectrAI.session.getHistory()
+      const historySessions = await safeAPI.session.getHistory()
       set((state) => {
         const activeIds = new Set(state.sessions.filter(
           s => s.status === 'running' || s.status === 'idle' || s.status === 'waiting_input' || s.status === 'starting'
@@ -220,12 +221,12 @@ export const useSessionStore = create<SessionState>((set, get) => ({
 
   // 从数据库加载指定会话的活动事件
   fetchSessionActivities: async (sessionId: string) => {
-    if (!window.spectrAI?.session) {
-      console.warn('[SessionStore] window.spectrAI.session not available')
+    if (!safeAPI.isAPIReady()) {
+      console.warn('[SessionStore] SpectrAI API not ready')
       return
     }
     try {
-      const dbActivities = await window.spectrAI.session.getActivities(sessionId)
+      const dbActivities = await safeAPI.session.getActivities(sessionId)
       if (dbActivities && dbActivities.length > 0) {
         const normalizedActivities = dbActivities.map((e: ActivityEvent) => ({
           ...e,
@@ -270,9 +271,9 @@ export const useSessionStore = create<SessionState>((set, get) => ({
 
   // 创建新会话
   createSession: async (config: SessionConfig) => {
-    if (!window.spectrAI?.session) {
-      console.warn('[SessionStore] window.spectrAI.session not available')
-      throw new Error('window.spectrAI.session not available')
+    if (!safeAPI.isAPIReady()) {
+      console.warn('[SessionStore] SpectrAI API not ready')
+      throw new Error('SpectrAI API not ready')
     }
     const dedupeKey = [
       config.workingDirectory || '',
@@ -285,7 +286,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     if (createSessionInFlightKeys.has(dedupeKey)) return
     createSessionInFlightKeys.add(dedupeKey)
     try {
-      const result = await window.spectrAI.session.create(config)
+      const result = await safeAPI.session.create(config)
       if (!result?.success) {
         throw new Error(result?.error || '创建会话失败')
       }
@@ -304,9 +305,9 @@ export const useSessionStore = create<SessionState>((set, get) => ({
 
   // 恢复中断的会话（使用 claude --resume）
   resumeSession: async (oldSessionId: string) => {
-    if (!window.spectrAI?.session) {
-      console.warn('[SessionStore] window.spectrAI.session not available')
-      return { success: false, error: 'window.spectrAI.session not available' }
+    if (!safeAPI.isAPIReady()) {
+      console.warn('[SessionStore] SpectrAI API not ready')
+      return { success: false, error: 'SpectrAI API not ready' }
     }
     const inFlight = resumeSessionInFlight.get(oldSessionId)
     if (inFlight) return inFlight
@@ -317,7 +318,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
         resumingSessions: new Set([...state.resumingSessions, oldSessionId])
       }))
       try {
-        const result = await window.spectrAI.session.resume(oldSessionId)
+        const result = await safeAPI.session.resume(oldSessionId)
         if (result.success) {
           const resumedId = result.sessionId || oldSessionId
 
@@ -389,12 +390,12 @@ export const useSessionStore = create<SessionState>((set, get) => ({
 
   // 终止会话
   terminateSession: async (id: string) => {
-    if (!window.spectrAI?.session) {
-      console.warn('[SessionStore] window.spectrAI.session not available')
-      throw new Error('window.spectrAI.session not available')
+    if (!safeAPI.isAPIReady()) {
+      console.warn('[SessionStore] SpectrAI API not ready')
+      throw new Error('SpectrAI API not ready')
     }
     try {
-      await window.spectrAI.session.terminate(id)
+      await safeAPI.session.terminate(id)
       await get().fetchSessions()
     } catch (error) {
       console.error('Failed to terminate session:', error)
@@ -404,12 +405,12 @@ export const useSessionStore = create<SessionState>((set, get) => ({
 
   // 删除会话（从数据库永久删除）
   deleteSession: async (id: string) => {
-    if (!window.spectrAI?.session) {
-      console.warn('[SessionStore] window.spectrAI.session not available')
-      throw new Error('window.spectrAI.session not available')
+    if (!safeAPI.isAPIReady()) {
+      console.warn('[SessionStore] SpectrAI API not ready')
+      throw new Error('SpectrAI API not ready')
     }
     try {
-      const result = const result: IpcResponse<void> = await window.spectrAI.session.delete(id)
+      const result: IpcResponse<void> = await safeAPI.session.delete(id)
       if (!result.success) {
         console.error('[sessionStore] deleteSession error:', result.error?.userMessage)
         return
@@ -437,12 +438,12 @@ export const useSessionStore = create<SessionState>((set, get) => ({
 
   // 发送输入
   sendInput: async (id: string, data: string) => {
-    if (!window.spectrAI?.session) {
-      console.warn('[SessionStore] window.spectrAI.session not available')
-      throw new Error('window.spectrAI.session not available')
+    if (!safeAPI.isAPIReady()) {
+      console.warn('[SessionStore] SpectrAI API not ready')
+      throw new Error('SpectrAI API not ready')
     }
     try {
-      await window.spectrAI.session.sendInput(id, data)
+      await safeAPI.session.sendInput(id, data)
     } catch (error) {
       console.error('Failed to send input:', error)
       throw error
@@ -451,12 +452,12 @@ export const useSessionStore = create<SessionState>((set, get) => ({
 
   // 发送确认
   sendConfirmation: async (id: string, accept: boolean) => {
-    if (!window.spectrAI?.session) {
-      console.warn('[SessionStore] window.spectrAI.session not available')
-      throw new Error('window.spectrAI.session not available')
+    if (!safeAPI.isAPIReady()) {
+      console.warn('[SessionStore] SpectrAI API not ready')
+      throw new Error('SpectrAI API not ready')
     }
     try {
-      await window.spectrAI.session.confirm(id, accept)
+      await safeAPI.session.confirm(id, accept)
     } catch (error) {
       console.error('Failed to send confirmation:', error)
       throw error
@@ -465,12 +466,12 @@ export const useSessionStore = create<SessionState>((set, get) => ({
 
   // 调整会话终端大小
   resizeSession: async (id: string, cols: number, rows: number) => {
-    if (!window.spectrAI?.session) {
-      console.warn('[SessionStore] window.spectrAI.session not available')
+    if (!safeAPI.isAPIReady()) {
+      console.warn('[SessionStore] SpectrAI API not ready')
       return
     }
     try {
-      await window.spectrAI.session.resize(id, cols, rows)
+      await safeAPI.session.resize(id, cols, rows)
     } catch (error) {
       console.error('Failed to resize session:', error)
     }
@@ -540,12 +541,12 @@ export const useSessionStore = create<SessionState>((set, get) => ({
   },
 
   renameSession: async (id: string, newName: string) => {
-    if (!window.spectrAI?.session) {
-      console.warn('[SessionStore] window.spectrAI.session not available')
+    if (!safeAPI.isAPIReady()) {
+      console.warn('[SessionStore] SpectrAI API not ready')
       return false
     }
     try {
-      const result = await window.spectrAI.session.rename(id, newName)
+      const result = await safeAPI.session.rename(id, newName)
       if (result.success) {
         get().updateSessionName(id, newName.trim())
         return true
@@ -559,12 +560,12 @@ export const useSessionStore = create<SessionState>((set, get) => ({
   },
 
   aiRenameSession: async (id: string) => {
-    if (!window.spectrAI?.session) {
-      console.warn('[SessionStore] window.spectrAI.session not available')
-      return { success: false, error: 'window.spectrAI.session not available' }
+    if (!safeAPI.isAPIReady()) {
+      console.warn('[SessionStore] SpectrAI API not ready')
+      return { success: false, error: 'SpectrAI API not ready' }
     }
     try {
-      const result = await window.spectrAI.session.aiRename(id)
+      const result = await safeAPI.session.aiRename(id)
       if (result.success) {
         get().updateSessionName(id, result.name!)
         return { success: true, name: result.name }
@@ -578,8 +579,8 @@ export const useSessionStore = create<SessionState>((set, get) => ({
 
   // 启动时自动恢复可精确定位的中断会话（仅 claudeSessionId 可用）
   autoResumeInterrupted: async () => {
-    if (!window.spectrAI?.session) {
-      console.warn('[SessionStore] window.spectrAI.session not available')
+    if (!safeAPI.isAPIReady()) {
+      console.warn('[SessionStore] SpectrAI API not ready')
       return
     }
     const allInterrupted = get().sessions.filter(s => s.status === 'interrupted')
@@ -610,7 +611,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
 
     for (const session of toResume) {
       try {
-        const result = await window.spectrAI.session.resume(session.id)
+        const result = await safeAPI.session.resume(session.id)
         if (result.success) {
           const resumedId = result.sessionId || session.id
           setTimeout(() => {
@@ -646,9 +647,9 @@ export const useSessionStore = create<SessionState>((set, get) => ({
 
   // 初始化事件监听器
   initListeners: () => {
-    // 检查 window.spectrAI 是否可用（preload 脚本可能还未加载完成）
-    if (!window.spectrAI?.session) {
-      console.warn('[SessionStore] window.spectrAI.session not available, skipping listener initialization')
+    // 检查 safeAPI 是否可用（preload 脚本可能还未加载完成）
+    if (!safeAPI.isAPIReady()) {
+      console.warn('[SessionStore] SpectrAI API not ready, skipping listener initialization')
       return
     }
 
@@ -657,7 +658,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     _sessionListenerUnsubs = []
 
     // 监听状态变化
-    _sessionListenerUnsubs.push(window.spectrAI.session.onStatusChange((sessionId: string, status: string) => {
+    _sessionListenerUnsubs.push(safeAPI.session.onStatusChange((sessionId: string, status: string) => {
       get().updateSessionStatus(sessionId, status as SessionStatus)
       if (status !== 'starting' && get().resumingSessions.has(sessionId)) {
         set((state) => {
@@ -692,12 +693,12 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     }))
 
     // 监听活动事件
-    _sessionListenerUnsubs.push(window.spectrAI.session.onActivity((sessionId: string, activity: ActivityEvent) => {
+    _sessionListenerUnsubs.push(safeAPI.session.onActivity((sessionId: string, activity: ActivityEvent) => {
       get().addActivity(sessionId, activity)
     }))
 
     // 监听干预请求（卡住/启动超时/恢复）
-    _sessionListenerUnsubs.push(window.spectrAI.session.onIntervention((sessionId: string, intervention: any) => {
+    _sessionListenerUnsubs.push(safeAPI.session.onIntervention((sessionId: string, intervention: any) => {
       const type = intervention?.type
       if (type === 'startup-stuck' || type === 'possible-stuck' || type === 'stuck') {
         set((state) => ({
@@ -713,17 +714,17 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     }))
 
     // 监听会话名称变更（终端标题变化）
-    _sessionListenerUnsubs.push(window.spectrAI.session.onNameChange((sessionId: string, name: string) => {
+    _sessionListenerUnsubs.push(safeAPI.session.onNameChange((sessionId: string, name: string) => {
       get().updateSessionName(sessionId, name)
     }))
 
     // 监听外部变更（远程创建/终止会话）
-    _sessionListenerUnsubs.push(window.spectrAI.session.onRefresh(() => {
+    _sessionListenerUnsubs.push(safeAPI.session.onRefresh(() => {
       get().fetchSessions()
     }))
 
     // ★ SDK V2: 实时 token 用量推送（每轮对话结束后触发）
-    const tokenUnsub = window.spectrAI.session.onTokenUpdate?.((sessionId: string, usage: { inputTokens: number; outputTokens: number; total: number }) => {
+    const tokenUnsub = safeAPI.session.onTokenUpdate?.((sessionId: string, usage: { inputTokens: number; outputTokens: number; total: number }) => {
       set((state) => ({
         sessions: state.sessions.map(s =>
           s.id === sessionId ? { ...s, estimatedTokens: usage.total } : s
@@ -735,9 +736,9 @@ export const useSessionStore = create<SessionState>((set, get) => ({
 
   // 初始化 Agent 事件监听
   initAgentListeners: () => {
-    // 检查 window.spectrAI 是否可用（preload 脚本可能还未加载完成）
-    if (!window.spectrAI?.agent) {
-      console.warn('[SessionStore] window.spectrAI.agent not available, skipping agent listener initialization')
+    // 检查 safeAPI 是否可用（preload 脚本可能还未加载完成）
+    if (!safeAPI.isAPIReady()) {
+      console.warn('[SessionStore] SpectrAI API not ready, skipping agent listener initialization')
       return
     }
 
@@ -745,7 +746,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     _agentListenerUnsubs.forEach(fn => fn())
     _agentListenerUnsubs = []
 
-    _agentListenerUnsubs.push(window.spectrAI.agent.onCreated((agentInfo: AgentInfo) => {
+    _agentListenerUnsubs.push(safeAPI.agent.onCreated((agentInfo: AgentInfo) => {
       set((state) => {
         const parentId = agentInfo.parentSessionId
         const existing = state.agents[parentId] || []
@@ -757,7 +758,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       get().fetchSessions()
     }))
 
-    _agentListenerUnsubs.push(window.spectrAI.agent.onStatusChange((agentId: string, status: string) => {
+    _agentListenerUnsubs.push(safeAPI.agent.onStatusChange((agentId: string, status: string) => {
       set((state) => {
         const newAgents = { ...state.agents }
         for (const parentId of Object.keys(newAgents)) {
@@ -769,7 +770,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       })
     }))
 
-    _agentListenerUnsubs.push(window.spectrAI.agent.onCompleted((agentId: string, _result: any) => {
+    _agentListenerUnsubs.push(safeAPI.agent.onCompleted((agentId: string, _result: any) => {
       set((state) => {
         const newAgents = { ...state.agents }
         for (const parentId of Object.keys(newAgents)) {
@@ -786,9 +787,9 @@ export const useSessionStore = create<SessionState>((set, get) => ({
 
   // SDK V2: 初始化对话事件监听
   initConversationListeners: () => {
-    // 检查 window.spectrAI 是否可用（preload 脚本可能还未加载完成）
-    if (!window.spectrAI?.session) {
-      console.warn('[SessionStore] window.spectrAI.session not available, skipping conversation listener initialization')
+    // 检查 safeAPI 是否可用（preload 脚本可能还未加载完成）
+    if (!safeAPI.isAPIReady()) {
+      console.warn('[SessionStore] SpectrAI API not ready, skipping conversation listener initialization')
       return
     }
 
@@ -796,7 +797,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     _conversationListenerUnsubs.forEach(fn => fn())
     _conversationListenerUnsubs = []
 
-    _conversationListenerUnsubs.push(window.spectrAI.session.onConversationMessage(
+    _conversationListenerUnsubs.push(safeAPI.session.onConversationMessage(
       (sessionId: string, msg: ConversationMessage) => {
         // Skill 静默执行时，SDK 会回显用户发送的模板文本，此处将其拦截
         // 合成的 "▶ /skillname" 消息已由 sendSkillMessage 提前加入对话，无需 SDK 回显
@@ -813,7 +814,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     ))
 
     // 监听会话初始化数据（tools/skills/mcp）
-    _conversationListenerUnsubs.push(window.spectrAI.session.onInitData(
+    _conversationListenerUnsubs.push(safeAPI.session.onInitData(
       (sessionId: string, data: any) => {
         get().setSessionInitData(sessionId, data)
       }
@@ -832,12 +833,12 @@ export const useSessionStore = create<SessionState>((set, get) => ({
 
   // SDK V2: 发送结构化消息
   sendMessage: async (sessionId: string, text: string) => {
-    if (!window.spectrAI?.session) {
-      console.warn('[SessionStore] window.spectrAI.session not available')
-      throw new Error('window.spectrAI.session not available')
+    if (!safeAPI.isAPIReady()) {
+      console.warn('[SessionStore] SpectrAI API not ready')
+      throw new Error('SpectrAI API not ready')
     }
     try {
-      await window.spectrAI.session.sendMessage(sessionId, text)
+      await safeAPI.session.sendMessage(sessionId, text)
     } catch (error) {
       console.error('Failed to send message:', error)
       throw error
@@ -846,9 +847,9 @@ export const useSessionStore = create<SessionState>((set, get) => ({
 
   // SDK V2: 静默执行 Skill —— 展开 promptTemplate 并发送，同时在对话中显示干净的 "▶ /skillname" 徽章
   sendSkillMessage: async (sessionId: string, skillName: string, expandedTemplate: string) => {
-    if (!window.spectrAI?.session) {
-      console.warn('[SessionStore] window.spectrAI.session not available')
-      throw new Error('window.spectrAI.session not available')
+    if (!safeAPI.isAPIReady()) {
+      console.warn('[SessionStore] SpectrAI API not ready')
+      throw new Error('SpectrAI API not ready')
     }
     // ① 提前插入合成的用户消息（显示命令名，而非模板原文）
     get().addConversationMessage(sessionId, {
@@ -864,7 +865,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
 
     // ③ 发送展开后的模板
     try {
-      await window.spectrAI.session.sendMessage(sessionId, expandedTemplate)
+      await safeAPI.session.sendMessage(sessionId, expandedTemplate)
     } catch (error) {
       // 发送失败时撤销标记，避免屏蔽后续正常消息
       set(state => {
@@ -959,7 +960,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
   // 加载指定父会话的 Agent 列表
   fetchAgents: async (parentSessionId: string) => {
     try {
-      const agents = await window.spectrAI.agent.list(parentSessionId)
+      const agents = await safeAPI.agent.list(parentSessionId)
       set((state) => ({
         agents: { ...state.agents, [parentSessionId]: agents }
       }))

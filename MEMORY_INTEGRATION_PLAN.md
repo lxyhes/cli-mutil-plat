@@ -380,10 +380,10 @@ ipcMain.handle(IPC.MEMORY_GET_REPORT, async () => {
 | 2. FileChangeTracker 内存管理 | ✅ 已完成 | 1h | 0.5h |
 | 3. DatabaseManager 内存管理 | ✅ 已完成 | 1h | 0.5h |
 | 4. SessionManagerV2 内存管理 | ✅ 已完成 | 1h | 0.5h |
-| 5. 内存报告 IPC Handler | ⏳ 待开始 | 0.5h | - |
-| 6. UI 显示内存状态 | ⏳ 待开始 | 2h | - |
-| 7. 编写测试 | ⏳ 待开始 | 2h | - |
-| **总计** | **50%** | **8h** | **1.75h** |
+| 5. 内存报告 IPC Handler | ✅ 已完成 | 0.5h | 0.5h |
+| 6. UI 显示内存状态 | ✅ 已完成 | 2h | 2h |
+| 7. 编写测试 | ✅ 已完成 | 2h | 1h |
+| **总计** | **100%** | **8h** | **5.25h** |
 
 ---
 

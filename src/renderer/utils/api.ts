@@ -30,6 +30,24 @@ export class APIAccessor {
   }
 
   private async waitForAPI(): Promise<void> {
+    // 优先使用 preload 回调（更可靠，无竞态）
+    const tryRegisterCallback = (): boolean => {
+      const fn = (window as any).__spectrAIOnReady
+      if (typeof fn === 'function') {
+        fn(() => {
+          this.api = window.spectrAI
+          this.isReady = true
+          this.resolveReady()
+          console.log('[APIAccessor] SpectrAI API ready (via preload callback)')
+        })
+        return true
+      }
+      return false
+    }
+
+    if (tryRegisterCallback()) return
+
+    // 兜底：轮询（preload 回调未就绪时，如 preload 还未执行）
     const MAX_RETRIES = 100 // 5秒超时（100 * 50ms）
     let retries = 0
 
@@ -38,7 +56,7 @@ export class APIAccessor {
         this.api = window.spectrAI
         this.isReady = true
         this.resolveReady()
-        console.log('[APIAccessor] SpectrAI API ready')
+        console.log('[APIAccessor] SpectrAI API ready (via polling)')
         return
       }
 
@@ -59,6 +77,9 @@ export class APIAccessor {
       if (retries % 20 === 0) {
         console.log(`[APIAccessor] Waiting for SpectrAI API... (${retries}/${MAX_RETRIES})`)
       }
+
+      // 注册回调同时继续轮询，双保险
+      tryRegisterCallback()
 
       setTimeout(check, 50)
     }
@@ -214,6 +235,9 @@ export class APIAccessor {
 
 // 导出单例实例
 export const api = APIAccessor.getInstance()
+
+// safeAPI 别名（兼容各 store 的导入方式）
+export const safeAPI = api
 
 // 导出便捷函数
 export const waitForAPI = () => api.ready()

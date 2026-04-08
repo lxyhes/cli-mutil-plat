@@ -511,11 +511,23 @@ if (!ctxBr) {
     forceRefresh: () => ipcRenderer.invoke(IPC.REGISTRY_FORCE_REFRESH),
     importSkillFromUrl: (url: string) => ipcRenderer.invoke(IPC.SKILL_IMPORT_URL, url),
   },
+
+  // ★ 渲染进程注册 API 就绪回调（避免轮询）
+  __registerAPIAvailableCallback: (cb: () => void) => { _apiReadyCallbacks.push(cb) },
   }
+
+  // API 就绪回调队列（非 context-isolated 全局）
+  const _apiReadyCallbacks: (() => void)[] = []
+
+  // 重新暴露回调注册给渲染进程（绕过 contextBridge）
+  ;(window as any).__spectrAIOnReady = (cb: () => void) => { _apiReadyCallbacks.push(cb) }
 
   console.log('[Preload] Calling exposeInMainWorld...')
   ctxBr.exposeInMainWorld('spectrAI', api)
   console.log('[Preload] exposeInMainWorld completed successfully')
+
+  // ★ 通知所有等待者
+  _apiReadyCallbacks.forEach(cb => { try { cb() } catch {} })
 
   // ★ 验证：尝试访问已暴露的 API
   setTimeout(() => {

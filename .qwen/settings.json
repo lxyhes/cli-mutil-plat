@@ -15,7 +15,9 @@
       "Bash(taskkill *)",
       "Bash(timeout *)",
       "Bash(node *)",
-      "Bash(rmdir *)"
+      "Bash(rmdir *)",
+      "Read(E:\\go_product\\go_video_master\\utility\\library\\libDomain/**)",
+      "Bash(gf *)"
     ]
   },
   "$version": 3
