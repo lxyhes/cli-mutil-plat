@@ -98,21 +98,21 @@ export default function App() {
       cleanups.push(window.spectrAI.shortcut.onSearch(() => {
         useUIStore.getState().toggleSearchPanel()
       }))
+
+      // 初始化数据（会话 + 设置），必须在 window.spectrAI 就绪后调用
+      Promise.all([fetchSessions(), fetchSettings()]).then(async () => {
+        const sessionState = useSessionStore.getState()
+        const interruptedCount = sessionState.sessions.filter(
+          s => s.status === 'interrupted' && !!s.claudeSessionId
+        ).length
+
+        if (interruptedCount === 0) return
+
+        // 有中断会话时自动恢复，无需用户确认
+        await sessionState.autoResumeInterrupted()
+      })
+      fetchTasks()
     })
-
-    // 初始化数据（会话 + 设置）
-    Promise.all([fetchSessions(), fetchSettings()]).then(async () => {
-      const sessionState = useSessionStore.getState()
-      const interruptedCount = sessionState.sessions.filter(
-        s => s.status === 'interrupted' && !!s.claudeSessionId
-      ).length
-
-      if (interruptedCount === 0) return
-
-      // 有中断会话时自动恢复，无需用户确认
-      await sessionState.autoResumeInterrupted()
-    })
-    fetchTasks()
 
     // Ctrl/Cmd+Shift+T: 切换主题
     const handleThemeShortcut = (e: KeyboardEvent) => {

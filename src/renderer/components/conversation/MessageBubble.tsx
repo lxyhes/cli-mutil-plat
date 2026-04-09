@@ -196,7 +196,7 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({ message, isStreaming }) =
   // ★ 只有在「流式输出进行中」时才以等宽纯文本渲染流式草稿，避免 Markdown 频繁重解析闪烁。
   // 当 isStreaming=false（session 已进入 waiting_input）时，即使 id 仍带 delta- 前缀
   // 也应渲染为 Markdown，解决 OpenCode 等 Provider 在 turn_complete 时未能固化草稿的问题。
-  const isStreamingDraft = message.id.startsWith('delta-') && !!isStreaming
+  const isStreamingDraft = typeof message.id === 'string' && message.id.startsWith('delta-') && !!isStreaming
   const isUser = role === 'user'
 
   // ★ Skill 静默执行徽章：以 "▶ /" 开头的用户消息为技能执行占位，渲染为紧凑徽章

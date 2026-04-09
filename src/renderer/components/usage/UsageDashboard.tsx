@@ -62,6 +62,7 @@ export default function UsageDashboard() {
   const [loading, setLoading] = useState(true)
 
   const fetchData = useCallback(async () => {
+    if (!window.spectrAI?.usage) return
     try {
       const [summaryData, historyData] = await Promise.all([
         window.spectrAI.usage.getSummary(),

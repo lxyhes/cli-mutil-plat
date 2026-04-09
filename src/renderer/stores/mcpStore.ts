@@ -31,7 +31,10 @@ export const useMcpStore = create<McpState>((set, _get) => ({
     try {
       const result = await safeAPI.mcp.getAll()
       if (result.success) {
-        set({ servers: result.data || [], loading: false })
+        // 防御性检查：确保 servers 始终是数组
+        const serversData = result.data
+        const servers = Array.isArray(serversData) ? serversData : []
+        set({ servers, loading: false })
       } else {
         set({ error: result.error, loading: false })
       }

@@ -376,7 +376,10 @@ export class ClaudeSdkAdapter extends BaseProviderAdapter {
       const localAppData = process.env.LOCALAPPDATA
       const userProfile  = process.env.USERPROFILE || process.env.HOME
       if (appData)      addToPath(path.join(appData, 'npm'))           // npm global bin
-      if (localAppData) addToPath(path.join(localAppData, 'pnpm'))     // pnpm global bin
+      if (localAppData) {
+        addToPath(path.join(localAppData, 'pnpm'))     // pnpm global bin
+        addToPath(path.join(localAppData, 'Microsoft', 'WinGet', 'Links')) // WinGet
+      }
       if (userProfile) {
         addToPath(path.join(userProfile, '.local', 'bin'))             // 官方安装器 install.ps1 → claude.exe
         addToPath(path.join(userProfile, '.bun', 'bin'))               // bun
@@ -460,6 +463,15 @@ export class ClaudeSdkAdapter extends BaseProviderAdapter {
       const appData      = process.env.APPDATA
       const localAppData = process.env.LOCALAPPDATA
       const userProfile  = process.env.USERPROFILE || process.env.HOME
+
+      // ⓪ WinGet 原生安装（claude.exe，优先级最高，常见于 Windows 11）
+      if (localAppData) {
+        const wingetExe = path.join(localAppData, 'Microsoft', 'WinGet', 'Links', 'claude.exe')
+        if (fs.existsSync(wingetExe)) {
+          logger.info(`[ClaudeSdkAdapter] Probed WinGet native binary: ${wingetExe}`)
+          return wingetExe
+        }
+      }
 
       // ① npm global（最常见）
       if (appData) {

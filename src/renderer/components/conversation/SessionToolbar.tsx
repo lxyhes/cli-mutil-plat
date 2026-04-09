@@ -116,8 +116,8 @@ const SessionToolbar: React.FC<SessionToolbarProps> = ({ sessionId, onSkillClick
 
   // 首次挂载时确保数据已加载
   useEffect(() => {
-    if (allSkills.length === 0) fetchSkills()
-    if (allMcpServers.length === 0) fetchMcps()
+    if ((allSkills?.length ?? 0) === 0) fetchSkills()
+    if ((allMcpServers?.length ?? 0) === 0) fetchMcps()
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Popover 打开时自动聚焦搜索框；关闭时清空筛选词
@@ -133,7 +133,8 @@ const SessionToolbar: React.FC<SessionToolbarProps> = ({ sessionId, onSkillClick
   // ---- 计算合并后的 Skill 列表 ----
   const skillList = useMemo((): SkillItem[] => {
     // 1. SpectrAI DB Skill：isEnabled + 有 slashCommand + 兼容当前 Provider
-    const dbItems: SkillItem[] = allSkills
+    const safeSkills = Array.isArray(allSkills) ? allSkills : []
+    const dbItems: SkillItem[] = safeSkills
       .filter(s => {
         if (!s.isEnabled || !s.slashCommand) return false
         if (s.compatibleProviders === 'all') return true
@@ -192,6 +193,9 @@ const SessionToolbar: React.FC<SessionToolbarProps> = ({ sessionId, onSkillClick
 
   // ---- 计算 MCP 列表 ----
   const mcpList = useMemo(() => {
+    // 防御性检查：确保 allMcpServers 是数组
+    const safeMcpServers = Array.isArray(allMcpServers) ? allMcpServers : []
+    
     // 从 initData.tools 中解析 MCP 工具（格式：mcp__serverKey__toolName）
     const toolsByServer: Record<string, string[]> = {}
     if (initData?.tools && Array.isArray(initData.tools)) {
@@ -215,13 +219,13 @@ const SessionToolbar: React.FC<SessionToolbarProps> = ({ sessionId, onSkillClick
         // initData.mcpServers 中存放的是 Claude Code 上报的配置键名（即 McpServer.id）
         // 需要同时匹配 s.id（用户自建 MCP）和 s.name（内置 MCP 键名与名称相同的情况）
         const key = typeof m === 'string' ? m : (m.name || m.id || String(m))
-        const full = allMcpServers.find(s => s.id === key || s.name === key)
+        const full = safeMcpServers.find(s => s.id === key || s.name === key)
         // 优先展示用户填写的中文显示名，若未找到则回退到 key
         const tools = toolsByServer[key] || []
         return { name: full?.name ?? key, category: full?.category, description: full?.description, key, tools }
       }).filter(m => m.name)
     }
-    return allMcpServers
+    return safeMcpServers
       .filter(s => s.isGlobalEnabled)
       .map(s => {
         const tools = toolsByServer[s.id] || toolsByServer[s.name] || []
