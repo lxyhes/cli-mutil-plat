@@ -233,9 +233,6 @@ const MessageInput: React.FC<MessageInputProps> = ({
   const [showModelMenu, setShowModelMenu] = useState(false)
   const [selectedModelIndex, setSelectedModelIndex] = useState(0)
   const modelMenuRef = useRef<HTMLDivElement>(null)
-  const availableModels = useMemo((): ModelInfo[] => {
-    return (initData as any)?.availableModels || []
-  }, [initData])
 
   // ---- @ 文件引用弹窗状态 ----
   const [atMenuOpen, setAtMenuOpen] = useState(false)
@@ -254,6 +251,11 @@ const MessageInput: React.FC<MessageInputProps> = ({
   const workDir = useSessionStore(state =>
     sessionId ? state.sessions.find(s => s.id === sessionId)?.config?.workingDirectory : undefined
   )
+
+  // ★ 可用模型列表（从 initData 中读取）
+  const availableModels = useMemo((): ModelInfo[] => {
+    return (initData as any)?.availableModels || []
+  }, [initData])
 
   const slashCommands = useMemo(() => {
     return extractSlashCommands(initData?.skills || [])
