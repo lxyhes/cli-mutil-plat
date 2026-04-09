@@ -40,6 +40,7 @@ export interface IpcDependencies {
   taskCoordinator?: TaskSessionCoordinator
   updateManager?: UpdateManager
   memoryCoordinator?: any  // MemoryCoordinator（可选）
+  teamManager?: any  // TeamManager（可选）
 }
 
 // 各子模块 handler 注册函数
@@ -56,6 +57,7 @@ import { registerSkillHandlers } from './skillHandlers'
 import { registerRegistryHandlers } from './registryHandlers'
 import { registerUpdateHandlers } from './updateHandlers'
 import { registerAnalyzerHandlers } from './analyzerHandlers'
+import { registerTeamHandlers } from './teamHandlers'
 import type { FileChangeTracker } from '../tracker/FileChangeTracker'
 
 // re-export wireSessionManagerV2Events from systemHandlers
@@ -79,6 +81,7 @@ export function registerIpcHandlers(deps: IpcDependencies, fileChangeTracker?: F
   registerSkillHandlers(deps)
   registerRegistryHandlers(deps)
   registerAnalyzerHandlers(deps)
+  registerTeamHandlers({ teamManager: deps.teamManager! })
   if (deps.updateManager) {
     registerUpdateHandlers(deps.updateManager)
   }

@@ -104,6 +104,16 @@ export const IPC = {
   ANALYZER_GET_REPORT: 'analyzer:get-report',
   ANALYZER_GET_ALL_REPORTS: 'analyzer:get-all-reports',
 
+  // Agent Teams
+  TEAM_CREATE: 'team:create',
+  TEAM_GET_ALL: 'team:get-all',
+  TEAM_GET: 'team:get',
+  TEAM_GET_TASKS: 'team:get-tasks',
+  TEAM_GET_MESSAGES: 'team:get-messages',
+  TEAM_CREATE_TASK: 'team:create-task',
+  TEAM_COMPLETE_TASK: 'team:complete-task',
+  TEAM_GET_TEMPLATES: 'team:get-templates',
+
   // 应用更新
   UPDATE_GET_STATE: 'update:get-state',
   UPDATE_CHECK: 'update:check',
