@@ -68,8 +68,7 @@ interface MessageInputProps {
   onOpenSessionSearch?: () => void
 }
 
-/**
- * 从 initData 的 skills 数组提取 slash command 列表
+/** 从 initData 的 skills 数组提取 slash command 列表
  * SDK skills 格式: { name: "commit", description: "..." } 或字符串
  */
 function extractSlashCommands(skills: any[]): SlashCommand[] {
@@ -83,6 +82,13 @@ function extractSlashCommands(skills: any[]): SlashCommand[] {
     const desc = s.description || s.hint || s.summary || s.help || ''
     return { name: name.startsWith('/') ? name.slice(1) : name, description: desc }
   }).filter(s => s.name)
+}
+
+/** 模型定义 */
+interface ModelInfo {
+  id: string
+  name: string
+  description?: string
 }
 
 /** 粘贴/拖拽文件时，根据扩展名判断是否为图片 */
@@ -223,6 +229,14 @@ const MessageInput: React.FC<MessageInputProps> = ({
   const [selectedIndex, setSelectedIndex] = useState(0)
   const menuRef = useRef<HTMLDivElement>(null)
 
+  // ---- 模型选择面板状态 ----
+  const [showModelMenu, setShowModelMenu] = useState(false)
+  const [selectedModelIndex, setSelectedModelIndex] = useState(0)
+  const modelMenuRef = useRef<HTMLDivElement>(null)
+  const availableModels = useMemo((): ModelInfo[] => {
+    return (initData as any)?.availableModels || []
+  }, [initData])
+
   // ---- @ 文件引用弹窗状态 ----
   const [atMenuOpen, setAtMenuOpen] = useState(false)
   const [atQuery, setAtQuery] = useState('')
@@ -272,12 +286,29 @@ const MessageInput: React.FC<MessageInputProps> = ({
     }
   }, [text, filteredCommands.length])
 
+  // ★ 检测 /model 命令，显示模型选择面板
+  useEffect(() => {
+    const isModelCommand = text.startsWith('/model') || text.startsWith('/model ')
+    const shouldShow = isModelCommand && !text.includes('\n') && availableModels.length > 0
+    setShowModelMenu(shouldShow)
+    if (shouldShow) {
+      setSelectedModelIndex(0)
+    }
+  }, [text, availableModels.length])
+
   // 滚动 slash 菜单选中项到可见区域
   useEffect(() => {
     if (!showSlashMenu || !menuRef.current) return
     const item = menuRef.current.children[selectedIndex] as HTMLElement
     item?.scrollIntoView({ block: 'nearest' })
   }, [selectedIndex, showSlashMenu])
+
+  // 滚动模型菜单选中项到可见区域
+  useEffect(() => {
+    if (!showModelMenu || !modelMenuRef.current) return
+    const item = modelMenuRef.current.children[selectedModelIndex] as HTMLElement
+    item?.scrollIntoView({ block: 'nearest' })
+  }, [selectedModelIndex, showModelMenu])
 
   // 滚动 @ 菜单选中项到可见区域
   useEffect(() => {
@@ -389,6 +420,13 @@ const MessageInput: React.FC<MessageInputProps> = ({
   const selectCommand = useCallback((cmd: SlashCommand) => {
     setText(`/${cmd.name} `)
     setShowSlashMenu(false)
+    textareaRef.current?.focus()
+  }, [])
+
+  // ---- 模型选中 ----
+  const selectModel = useCallback((model: ModelInfo) => {
+    setText(`/model ${model.id}`)
+    setShowModelMenu(false)
     textareaRef.current?.focus()
   }, [])
 
@@ -722,7 +760,36 @@ const MessageInput: React.FC<MessageInputProps> = ({
       return
     }
 
-    // ② Slash 菜单打开时拦截上下箭头/Enter/Esc
+    // ② 模型选择面板打开时拦截
+    if (showModelMenu && availableModels.length > 0) {
+      if (e.key === 'ArrowUp') {
+        e.preventDefault()
+        setSelectedModelIndex(prev => (prev > 0 ? prev - 1 : availableModels.length - 1))
+        return
+      }
+      if (e.key === 'ArrowDown') {
+        e.preventDefault()
+        setSelectedModelIndex(prev => (prev < availableModels.length - 1 ? prev + 1 : 0))
+        return
+      }
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault()
+        selectModel(availableModels[selectedModelIndex])
+        return
+      }
+      if (e.key === 'Escape') {
+        e.preventDefault()
+        setShowModelMenu(false)
+        return
+      }
+      if (e.key === 'Tab') {
+        e.preventDefault()
+        selectModel(availableModels[selectedModelIndex])
+        return
+      }
+    }
+
+    // ③ Slash 菜单打开时拦截上下箭头/Enter/Esc
     if (showSlashMenu && filteredCommands.length > 0) {
       if (e.key === 'ArrowUp') {
         e.preventDefault()
@@ -756,7 +823,8 @@ const MessageInput: React.FC<MessageInputProps> = ({
       handleSend()
     }
   }, [handleSend, showSlashMenu, filteredCommands, selectedIndex, selectCommand,
-      atMenuOpen, filteredAtFiles, atSelectedIndex, selectAtFile])
+      atMenuOpen, filteredAtFiles, atSelectedIndex, selectAtFile,
+      showModelMenu, availableModels, selectedModelIndex, selectModel])
 
   const isDisabled = disabled || sending
   const hasAttachments = attachments.length > 0 || fileRefs.length > 0
@@ -794,6 +862,55 @@ const MessageInput: React.FC<MessageInputProps> = ({
               <span className="font-mono font-medium flex-shrink-0">/{cmd.name}</span>
               {cmd.description && (
                 <span className="text-xs text-text-secondary truncate">{cmd.description}</span>
+              )}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* ★ 模型选择面板（输入 /model 时显示） */}
+      {showModelMenu && availableModels.length > 0 && (
+        <div
+          ref={modelMenuRef}
+          className="absolute bottom-full left-4 right-4 mb-1
+            bg-bg-secondary border border-border rounded-lg shadow-lg
+            max-h-64 overflow-y-auto z-50"
+          style={{ scrollbarWidth: 'thin' }}
+        >
+          {/* 标题 */}
+          <div className="px-3 py-2 border-b border-border">
+            <span className="text-xs font-medium text-text-muted uppercase tracking-wide">
+              可用模型
+            </span>
+          </div>
+          {availableModels.map((model, idx) => (
+            <button
+              key={model.id}
+              className={`w-full text-left px-3 py-2.5 flex items-start gap-2
+                transition-colors text-sm
+                ${idx === selectedModelIndex
+                  ? 'bg-accent-blue/15 text-accent-blue'
+                  : 'text-text-primary hover:bg-bg-hover'}`}
+              onMouseEnter={() => setSelectedModelIndex(idx)}
+              onMouseDown={(e) => {
+                e.preventDefault()
+                selectModel(model)
+              }}
+            >
+              <div className="flex flex-col gap-0.5 min-w-0 flex-1">
+                <span className="font-mono font-medium text-left">
+                  {model.name}
+                </span>
+                {model.description && (
+                  <span className="text-xs text-text-muted truncate">
+                    {model.description}
+                  </span>
+                )}
+              </div>
+              {idx === selectedModelIndex && (
+                <span className="text-[10px] text-accent-blue flex-shrink-0 mt-0.5">
+                  ✓
+                </span>
               )}
             </button>
           ))}

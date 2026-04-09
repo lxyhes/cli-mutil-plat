@@ -394,6 +394,16 @@ export class IFlowAcpAdapter extends BaseProviderAdapter {
       session.adapter.providerSessionId = session.iflowSessionId
       this.emit('status-change', sessionId, 'waiting_input')
 
+      // ★ 发出 session-init-data 事件（包含模型信息，供前端 /model 命令使用）
+      this.emit('session-init-data', sessionId, {
+        model: config.model || 'default',
+        tools: [],
+        mcpServers: [],
+        skills: [],
+        plugins: [],
+        availableModels: this.getAvailableModels(),
+      })
+
       // 4. 如果有初始 prompt，立即发送
       if (config.initialPrompt) {
         await this.sendMessage(sessionId, config.initialPrompt)
@@ -586,6 +596,20 @@ export class IFlowAcpAdapter extends BaseProviderAdapter {
     }
     this.sessions.clear()
     this.pendingResumeIds.clear()
+  }
+
+  /**
+   * 获取 IFlow 可用的模型列表
+   * TODO: 未来可以从 IFlow CLI 的 API 动态获取
+   */
+  private getAvailableModels(): Array<{ id: string; name: string; description?: string }> {
+    // IFlow 支持的常见模型列表（基于 IFlow 文档和常见配置）
+    return [
+      { id: 'claude-sonnet-4-20250514', name: 'Claude Sonnet 4', description: '默认模型，平衡性能与成本' },
+      { id: 'claude-opus-4-20250514', name: 'Claude Opus 4', description: '最强模型，适合复杂任务' },
+      { id: 'claude-sonnet-3-5-20241022', name: 'Claude Sonnet 3.5', description: '上一代 Sonnet' },
+      { id: 'claude-3-5-haiku-20241022', name: 'Claude Haiku 3.5', description: '快速响应，适合简单任务' },
+    ]
   }
 
   // ---- ACP NDJSON 行处理 ----
