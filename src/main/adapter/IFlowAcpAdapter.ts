@@ -388,11 +388,23 @@ export class IFlowAcpAdapter extends BaseProviderAdapter {
       console.log(`[IFlowAcpAdapter][${sessionId}] session/new params:`, JSON.stringify(sessionNewParams, null, 2).slice(0, 500))
 
       const sessionResult = await this.rpc(sessionId, ACP_METHOD.session_new, sessionNewParams)
+      
+      // ★ 诊断日志：打印 session/new 的完整响应
+      console.log(`[IFlowAcpAdapter][${sessionId}] session/new response:`, JSON.stringify(sessionResult, null, 2).slice(0, 500))
+      
       session.iflowSessionId = sessionResult?.sessionId
 
       session.adapter.status = 'waiting_input'
       session.adapter.providerSessionId = session.iflowSessionId
       this.emit('status-change', sessionId, 'waiting_input')
+
+      // ★ 发出 provider-session-id 事件（让 SessionManagerV2 保存 IFlow 会话 ID，用于下次恢复）
+      if (session.iflowSessionId) {
+        this.emit('provider-session-id', sessionId, session.iflowSessionId)
+        console.log(`[IFlowAcpAdapter] Emitted provider-session-id for ${sessionId}: ${session.iflowSessionId}`)
+      } else {
+        console.warn(`[IFlowAcpAdapter][${sessionId}] session.new 未返回 sessionId，无法恢复会话！`)
+      }
 
       // ★ 发出 session-init-data 事件（包含模型信息，供前端 /model 命令使用）
       this.emit('session-init-data', sessionId, {

@@ -35,7 +35,10 @@ export default function SkillsSidebarView() {
   const openSettings = () =>
     window.dispatchEvent(new CustomEvent('open-settings-tab', { detail: 'skills' }))
 
-  const filtered = skills.filter(
+  // 防御性检查：确保 skills 是数组
+  const safeSkills = Array.isArray(skills) ? skills : []
+
+  const filtered = safeSkills.filter(
     (s) =>
       s.name.toLowerCase().includes(search.toLowerCase()) ||
       s.slashCommand?.includes(search) ||
