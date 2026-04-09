@@ -274,6 +274,18 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
   }, [sessionId])
 
   const sendWithSmartScheduling = useCallback(async (text: string) => {
+    // ★ 拦截 /model 命令：本地切换模型，不发送给 CLI
+    if (text.startsWith('/model ')) {
+      const modelId = text.slice(7).trim()
+      if (modelId) {
+        console.log(`[ConversationView] 切换模型: ${modelId}`)
+        // TODO: 调用 API 切换当前会话的模型
+        // 目前仅显示提示，实际切换需要后端支持
+        setQueueHintText(`模型切换请求: ${modelId}（需重启会话生效）`)
+      }
+      return
+    }
+
     const dispatch = await sendMessage(text)
     if (!dispatch?.scheduled) return
 

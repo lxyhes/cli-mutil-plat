@@ -17,7 +17,8 @@
       "Bash(node *)",
       "Bash(rmdir *)",
       "Read(E:\\go_product\\go_video_master\\utility\\library\\libDomain/**)",
-      "Bash(gf *)"
+      "Bash(gf *)",
+      "Bash(powershell *)"
     ]
   },
   "$version": 3
