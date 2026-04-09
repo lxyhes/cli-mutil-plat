@@ -543,4 +543,111 @@ export const MIGRATIONS: Migration[] = [
       }
     },
   },
+
+  // ── v31: Agent Teams 表 ──
+  {
+    version: 31,
+    description: 'create Agent Teams tables',
+    up(db) {
+      try {
+        // 团队实例表
+        if (!tableExists(db, 'team_instances')) {
+          db.exec(`
+            CREATE TABLE team_instances (
+              id TEXT PRIMARY KEY,
+              name TEXT NOT NULL,
+              template_id TEXT,
+              status TEXT NOT NULL DEFAULT 'pending',
+              work_dir TEXT NOT NULL,
+              session_id TEXT NOT NULL,
+              objective TEXT,
+              created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+              started_at DATETIME,
+              completed_at DATETIME
+            );
+          `)
+        }
+
+        // 团队成员表
+        if (!tableExists(db, 'team_members')) {
+          db.exec(`
+            CREATE TABLE team_members (
+              id TEXT PRIMARY KEY,
+              instance_id TEXT NOT NULL,
+              role_id TEXT NOT NULL,
+              role_name TEXT NOT NULL,
+              role_identifier TEXT NOT NULL,
+              role_icon TEXT,
+              role_color TEXT,
+              session_id TEXT NOT NULL,
+              status TEXT NOT NULL DEFAULT 'idle',
+              provider_id TEXT NOT NULL,
+              current_task_id TEXT,
+              joined_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+              last_active_at DATETIME,
+              FOREIGN KEY (instance_id) REFERENCES team_instances(id) ON DELETE CASCADE
+            );
+            CREATE INDEX idx_team_members_instance ON team_members(instance_id);
+          `)
+        }
+
+        // 团队任务表
+        if (!tableExists(db, 'team_tasks')) {
+          db.exec(`
+            CREATE TABLE team_tasks (
+              id TEXT PRIMARY KEY,
+              instance_id TEXT NOT NULL,
+              title TEXT NOT NULL,
+              description TEXT,
+              status TEXT NOT NULL DEFAULT 'pending',
+              assigned_to TEXT,
+              claimed_by TEXT,
+              claimed_at DATETIME,
+              priority TEXT NOT NULL DEFAULT 'medium',
+              dependencies TEXT,
+              result TEXT,
+              created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+              completed_at DATETIME,
+              FOREIGN KEY (instance_id) REFERENCES team_instances(id) ON DELETE CASCADE
+            );
+            CREATE INDEX idx_team_tasks_instance_status ON team_tasks(instance_id, status);
+          `)
+        }
+
+        // 团队消息表
+        if (!tableExists(db, 'team_messages')) {
+          db.exec(`
+            CREATE TABLE team_messages (
+              id TEXT PRIMARY KEY,
+              instance_id TEXT NOT NULL,
+              from_member_id TEXT NOT NULL,
+              to_member_id TEXT,
+              type TEXT NOT NULL DEFAULT 'role_message',
+              content TEXT NOT NULL,
+              timestamp DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+              FOREIGN KEY (instance_id) REFERENCES team_instances(id) ON DELETE CASCADE
+            );
+            CREATE INDEX idx_team_messages_instance_timestamp ON team_messages(instance_id, timestamp DESC);
+          `)
+        }
+
+        // 团队模板表
+        if (!tableExists(db, 'team_templates')) {
+          db.exec(`
+            CREATE TABLE team_templates (
+              id TEXT PRIMARY KEY,
+              name TEXT NOT NULL,
+              description TEXT,
+              roles TEXT NOT NULL,
+              created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+          `)
+        }
+
+        console.log('[Migration v31] Agent Teams tables created successfully')
+      } catch (err) {
+        console.error('[Migration v31] Failed to create Agent Teams tables:', err)
+      }
+    },
+  },
 ]

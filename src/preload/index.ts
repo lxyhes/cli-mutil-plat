@@ -512,6 +512,18 @@ if (!ctxBr) {
     importSkillFromUrl: (url: string) => ipcRenderer.invoke(IPC.SKILL_IMPORT_URL, url),
   },
 
+  // ==================== Agent Teams API ====================
+  team: {
+    create: (request: any) => ipcRenderer.invoke(IPC.TEAM_CREATE, request),
+    getAll: (status?: string) => ipcRenderer.invoke(IPC.TEAM_GET_ALL, status),
+    get: (teamId: string) => ipcRenderer.invoke(IPC.TEAM_GET, teamId),
+    getTasks: (teamId: string, status?: string) => ipcRenderer.invoke(IPC.TEAM_GET_TASKS, teamId, status),
+    getMessages: (teamId: string, limit?: number) => ipcRenderer.invoke(IPC.TEAM_GET_MESSAGES, teamId, limit),
+    createTask: (teamId: string, task: any) => ipcRenderer.invoke(IPC.TEAM_CREATE_TASK, teamId, task),
+    completeTask: (teamId: string, taskId: string, result: string) => ipcRenderer.invoke(IPC.TEAM_COMPLETE_TASK, teamId, taskId, result),
+    getTemplates: () => ipcRenderer.invoke(IPC.TEAM_GET_TEMPLATES),
+  },
+
   // ★ 渲染进程注册 API 就绪回调（避免轮询）
   __registerAPIAvailableCallback: (cb: () => void) => { _apiReadyCallbacks.push(cb) },
   }
