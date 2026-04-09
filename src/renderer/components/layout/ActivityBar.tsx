@@ -11,7 +11,7 @@
  */
 
 import { useState, useEffect } from 'react'
-import { Bot, FolderTree, GitBranch, BarChart2, Settings, Activity, PieChart, Plug, Zap } from 'lucide-react'
+import { Bot, FolderTree, GitBranch, BarChart2, Settings, Activity, PieChart, Plug, Zap, Users } from 'lucide-react'
 import type { PanelId, PanelSide } from '../../stores/uiStore'
 import { useUIStore } from '../../stores/uiStore'
 
@@ -26,6 +26,7 @@ const PANEL_DEFS: {
   { id: 'explorer',  icon: FolderTree, label: '文件资源管理器' },
   { id: 'git',       icon: GitBranch,  label: 'Git 分支' },
   { id: 'dashboard', icon: BarChart2,  label: '监控看板' },
+  { id: 'team' as PanelId,    icon: Users, label: 'Agent Teams' },
   { id: 'timeline',  icon: Activity,   label: '时间线' },
   { id: 'stats',     icon: PieChart,   label: '统计' },
   { id: 'mcp' as PanelId,    icon: Plug,  label: 'MCP 工具' },

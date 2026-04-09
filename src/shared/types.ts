@@ -477,7 +477,7 @@ export interface ThemeConfig {
 export type ViewMode = 'grid' | 'tabs' | 'dashboard' | 'kanban'
 
 export type LayoutMode = 'single' | 'split-h' | 'split-v'
-export type PaneContent = 'sessions' | 'files'
+export type PaneContent = 'sessions' | 'files' | 'team'
 
 export interface TerminalHeaderInfo {
   taskName: string

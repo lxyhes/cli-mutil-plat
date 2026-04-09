@@ -18,6 +18,7 @@ import WelcomeTab from '../terminal/WelcomeTab'
 import TerminalTabs from '../terminal/TerminalTabs'
 import DashboardView from '../dashboard/DashboardView'
 import KanbanBoard from '../kanban/KanbanBoard'
+import { TeamSessionView } from '../team'
 import { FilePane } from '../file-manager'
 import MainPanelHeader from './MainPanelHeader'
 
@@ -56,6 +57,9 @@ function PaneView({ content, viewMode, hasSessions }: {
   if (content === 'files') {
     return <FilePane />
   }
+  if (content === 'team') {
+    return <TeamSessionView />
+  }
   return <SessionsView viewMode={viewMode} hasSessions={hasSessions} />
 }
 
@@ -64,9 +68,13 @@ function PaneView({ content, viewMode, hasSessions }: {
 // ─────────────────────────────────────────────────────────
 
 export default function MainPanel() {
-  const { viewMode, layoutMode, primaryPane, secondaryPane } = useUIStore()
+  const { viewMode, layoutMode, primaryPane, secondaryPane, activePanelLeft, activePanelRight, panelSides } = useUIStore()
   const { sessions } = useSessionStore()
   const hasSessions = sessions.length > 0
+
+  // 当 active panel 是 team 时，显示团队视图
+  const isTeamActive = activePanelLeft === 'team' || activePanelRight === 'team'
+  const effectivePrimaryPane = isTeamActive ? 'team' : primaryPane
 
   // ── 单窗格模式：两个视图始终保持挂载，CSS 控制显示 ──
   if (layoutMode === 'single') {
@@ -77,7 +85,7 @@ export default function MainPanel() {
           {/* 会话视图 - 始终挂载，切到文件时隐藏 */}
           <div
             className="absolute inset-0"
-            style={{ display: primaryPane === 'sessions' ? 'flex' : 'none', flexDirection: 'column' }}
+            style={{ display: effectivePrimaryPane === 'sessions' ? 'flex' : 'none', flexDirection: 'column' }}
           >
             <SessionsView viewMode={viewMode} hasSessions={hasSessions} />
           </div>
@@ -85,9 +93,17 @@ export default function MainPanel() {
           {/* 文件视图 - 始终挂载，切到会话时隐藏 */}
           <div
             className="absolute inset-0"
-            style={{ display: primaryPane === 'files' ? 'flex' : 'none', flexDirection: 'column' }}
+            style={{ display: effectivePrimaryPane === 'files' ? 'flex' : 'none', flexDirection: 'column' }}
           >
             <FilePane />
+          </div>
+
+          {/* 团队视图 - 团队面板激活时显示 */}
+          <div
+            className="absolute inset-0"
+            style={{ display: effectivePrimaryPane === 'team' ? 'flex' : 'none', flexDirection: 'column' }}
+          >
+            <TeamSessionView />
           </div>
         </div>
       </div>
@@ -101,7 +117,7 @@ export default function MainPanel() {
       <div className="flex-1 min-h-0">
         <Allotment vertical={layoutMode === 'split-v'}>
           <Allotment.Pane minSize={150}>
-            <PaneView content={primaryPane} viewMode={viewMode} hasSessions={hasSessions} />
+            <PaneView content={effectivePrimaryPane} viewMode={viewMode} hasSessions={hasSessions} />
           </Allotment.Pane>
           <Allotment.Pane minSize={150}>
             <PaneView content={secondaryPane} viewMode={viewMode} hasSessions={hasSessions} />
