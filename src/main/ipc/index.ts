@@ -55,6 +55,7 @@ import { registerMcpHandlers } from './mcpHandlers'
 import { registerSkillHandlers } from './skillHandlers'
 import { registerRegistryHandlers } from './registryHandlers'
 import { registerUpdateHandlers } from './updateHandlers'
+import { registerAnalyzerHandlers } from './analyzerHandlers'
 import type { FileChangeTracker } from '../tracker/FileChangeTracker'
 
 // re-export wireSessionManagerV2Events from systemHandlers
@@ -77,6 +78,7 @@ export function registerIpcHandlers(deps: IpcDependencies, fileChangeTracker?: F
   registerMcpHandlers(deps)
   registerSkillHandlers(deps)
   registerRegistryHandlers(deps)
+  registerAnalyzerHandlers(deps)
   if (deps.updateManager) {
     registerUpdateHandlers(deps.updateManager)
   }

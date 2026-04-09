@@ -99,6 +99,11 @@ export const IPC = {
   MEMORY_GET_REPORT: 'memory:get-report',
   MEMORY_FORCE_CLEANUP: 'memory:force-cleanup',
 
+  // 多维度专家分析
+  ANALYZER_START: 'analyzer:start',
+  ANALYZER_GET_REPORT: 'analyzer:get-report',
+  ANALYZER_GET_ALL_REPORTS: 'analyzer:get-all-reports',
+
   // 应用更新
   UPDATE_GET_STATE: 'update:get-state',
   UPDATE_CHECK: 'update:check',
