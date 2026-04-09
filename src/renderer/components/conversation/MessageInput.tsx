@@ -17,7 +17,7 @@
  */
 
 import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react'
-import { FileText, Code, FileImage, FileArchive, X, ExternalLink, MessagesSquare, AtSign } from 'lucide-react'
+import { FileText, Code, FileImage, FileArchive, X, ExternalLink, MessagesSquare, AtSign, Mic, MicOff } from 'lucide-react'
 import { useSessionStore } from '../../stores/sessionStore'
 import { useUIStore } from '../../stores/uiStore'
 import { toPlatformShortcutLabel } from '../../utils/shortcut'
@@ -223,6 +223,12 @@ const MessageInput: React.FC<MessageInputProps> = ({
   const [dragOver, setDragOver] = useState(false)
   const [dragHasNonImage, setDragHasNonImage] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+
+  // ---- 语音输入状态 ----
+  const [isRecording, setIsRecording] = useState(false)
+  const [isListening, setIsListening] = useState(false)
+  const [speechError, setSpeechError] = useState<string | null>(null)
+  const recognitionRef = useRef<any>(null)
 
   // ---- Slash Command 自动补全状态 ----
   const [showSlashMenu, setShowSlashMenu] = useState(false)
@@ -430,6 +436,109 @@ const MessageInput: React.FC<MessageInputProps> = ({
     setText(`/model ${model.id}`)
     setShowModelMenu(false)
     textareaRef.current?.focus()
+  }, [])
+
+  // ---- 语音输入 ----
+
+  /** 初始化语音识别 */
+  const initSpeechRecognition = useCallback(() => {
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
+    if (!SpeechRecognition) {
+      setSpeechError('当前浏览器不支持语音识别，请使用 Chrome/Edge 浏览器')
+      return null
+    }
+
+    const recognition = new SpeechRecognition()
+    recognition.continuous = true        // 连续识别
+    recognition.interimResults = true    // 返回临时结果（实时显示）
+    recognition.lang = 'zh-CN'           // 默认中文（支持中英文混合）
+    recognition.maxAlternatives = 1
+
+    recognition.onstart = () => {
+      setIsRecording(true)
+      setSpeechError(null)
+    }
+
+    recognition.onresult = (event: any) => {
+      let interimTranscript = ''
+      let finalTranscript = ''
+
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        const transcript = event.results[i][0].transcript
+        if (event.results[i].isFinal) {
+          finalTranscript += transcript
+        } else {
+          interimTranscript += transcript
+        }
+      }
+
+      // 将识别结果追加到输入框
+      if (finalTranscript) {
+        setText(prev => {
+          const sep = prev && !prev.endsWith(' ') && !prev.endsWith('\n') ? ' ' : ''
+          return prev + sep + finalTranscript
+        })
+      }
+
+      // 临时结果不追加到输入框，可以在 UI 上显示（可选）
+      if (interimTranscript) {
+        console.log('[语音输入] 临时识别:', interimTranscript)
+      }
+    }
+
+    recognition.onerror = (event: any) => {
+      console.error('[语音输入] 识别错误:', event.error)
+      if (event.error === 'not-allowed') {
+        setSpeechError('请允许麦克风权限')
+      } else if (event.error === 'no-speech') {
+        setSpeechError('未检测到语音，请重试')
+      } else {
+        setSpeechError(`语音识别失败: ${event.error}`)
+      }
+      setIsRecording(false)
+    }
+
+    recognition.onend = () => {
+      setIsRecording(false)
+      setIsListening(false)
+    }
+
+    return recognition
+  }, [])
+
+  /** 开始/停止语音输入 */
+  const toggleVoiceInput = useCallback(() => {
+    if (isRecording) {
+      // 停止录音
+      if (recognitionRef.current) {
+        recognitionRef.current.stop()
+      }
+    } else {
+      // 开始录音
+      if (!recognitionRef.current) {
+        recognitionRef.current = initSpeechRecognition()
+      }
+      if (recognitionRef.current) {
+        try {
+          setIsListening(true)
+          recognitionRef.current.start()
+        } catch (err) {
+          console.error('[语音输入] 启动失败:', err)
+          setSpeechError('语音输入启动失败，请重试')
+        }
+      }
+    }
+  }, [isRecording, initSpeechRecognition])
+
+  /** 组件卸载时清理语音识别 */
+  useEffect(() => {
+    return () => {
+      if (recognitionRef.current) {
+        try {
+          recognitionRef.current.stop()
+        } catch (_) { /* ignore */ }
+      }
+    }
   }, [])
 
   /** 加载项目文件列表（懒加载，@ 首次触发时执行） */
@@ -1039,6 +1148,28 @@ const MessageInput: React.FC<MessageInputProps> = ({
           </div>
         )}
 
+        {/* ★ 语音输入状态提示 */}
+        {speechError && (
+          <div className="flex items-center justify-center py-1.5 text-xs text-accent-red gap-1.5 bg-accent-red/5 rounded px-2">
+            <span>⚠️</span>
+            <span>{speechError}</span>
+            <button
+              type="button"
+              onClick={() => setSpeechError(null)}
+              className="ml-1 text-accent-red hover:text-accent-red/70"
+            >
+              ×
+            </button>
+          </div>
+        )}
+
+        {isListening && !speechError && (
+          <div className="flex items-center justify-center py-1.5 text-xs text-accent-blue gap-1.5">
+            <span className="inline-block w-1.5 h-1.5 bg-accent-blue rounded-full animate-pulse" />
+            <span>正在聆听...</span>
+          </div>
+        )}
+
         {/* textarea + 工具按钮行 */}
         <div className="flex items-end gap-1">
           {/* 跨会话引用按钮（有回调时才显示） */}
@@ -1071,6 +1202,27 @@ const MessageInput: React.FC<MessageInputProps> = ({
               disabled:opacity-50 disabled:cursor-not-allowed
               placeholder:text-text-muted"
           />
+
+          {/* ★ 语音输入按钮 */}
+          <button
+            type="button"
+            onClick={toggleVoiceInput}
+            disabled={isDisabled}
+            title={isRecording ? '点击停止语音输入' : '点击开始语音输入'}
+            className={`p-1.5 rounded-lg transition-all flex-shrink-0 relative
+              ${isRecording
+                ? 'bg-accent-red/20 text-accent-red animate-pulse hover:bg-accent-red/30'
+                : 'text-text-muted hover:text-accent-blue hover:bg-accent-blue/10'
+              }
+              disabled:opacity-30 disabled:cursor-not-allowed`}
+          >
+            {isRecording ? <MicOff size={14} /> : <Mic size={14} />}
+            {/* 录音状态指示器 */}
+            {isRecording && (
+              <span className="absolute -top-1 -right-1 w-2 h-2 bg-accent-red rounded-full animate-ping" />
+            )}
+          </button>
+
           <button
             onClick={handleSend}
             disabled={isDisabled || (!text.trim() && !hasAttachments)}
