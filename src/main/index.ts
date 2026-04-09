@@ -28,6 +28,8 @@ import { OutputReaderManager } from './reader/OutputReaderManager'
 import { ClaudeJsonlReader } from './reader/ClaudeJsonlReader'
 import { GitWorktreeService } from './git/GitWorktreeService'
 import { registerIpcHandlers, wireSessionManagerV2Events, sendToRenderer } from './ipc'
+import { TeamManager } from './team/TeamManager'
+import { TeamRepository } from './team/TeamRepository'
 import { FileChangeTracker } from './tracker/FileChangeTracker'
 import { migrateFromLegacyUserData, migrateApiKeyEncryption } from './migration'
 import { IPC, THEMES } from '../shared/constants'
@@ -813,6 +815,15 @@ app.whenReady().then(() => {
   // 注册到内存管理协调器
   memoryCoordinator.registerComponent(fileChangeTracker)
 
+  // Agent Teams 团队管理器
+  const teamRepo = (database as any).usingSqlite !== undefined 
+    ? new TeamRepository((database as any).db, (database as any).usingSqlite)
+    : new TeamRepository(null, false)
+  const teamManager = new TeamManager(teamRepo, agentManagerV2!, sessionManagerV2!)
+
+  // 注册到内存管理协调器
+  memoryCoordinator.registerComponent(teamManager)
+
   // 连接 V1 PTY sessionManager → fileChangeTracker
   if (sessionManager) {
     sessionManager.on('status-change', (sessionId: string, status: string) => {
@@ -863,6 +874,7 @@ app.whenReady().then(() => {
     agentBridgePort: 63721,
     updateManager,
     memoryCoordinator,
+    teamManager,
   }, fileChangeTracker)
 
   // 连接事件流
