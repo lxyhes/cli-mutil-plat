@@ -379,12 +379,15 @@ export class IFlowAcpAdapter extends BaseProviderAdapter {
       const resumeSessionId = this.pendingResumeIds.get(sessionId)
       if (resumeSessionId) this.pendingResumeIds.delete(sessionId)
 
-      const sessionResult = await this.rpc(sessionId, ACP_METHOD.session_new, {
+      const sessionNewParams = {
         cwd: config.workingDirectory,
         mcpServers: this.loadMcpServersForAcp(config),
         ...(resumeSessionId ? { sessionId: resumeSessionId } : {}),
         ...(config.systemPrompt ? { settings: { systemPrompt: config.systemPrompt } } : {}),
-      })
+      }
+      console.log(`[IFlowAcpAdapter][${sessionId}] session/new params:`, JSON.stringify(sessionNewParams, null, 2).slice(0, 500))
+
+      const sessionResult = await this.rpc(sessionId, ACP_METHOD.session_new, sessionNewParams)
       session.iflowSessionId = sessionResult?.sessionId
 
       session.adapter.status = 'waiting_input'
@@ -591,6 +594,12 @@ export class IFlowAcpAdapter extends BaseProviderAdapter {
     const session = this.sessions.get(sessionId)
     if (!session || !line) return
 
+    // ★ 记录所有 stdout 输出（帮助诊断）
+    if (!line.startsWith('{')) {
+      // 非 JSON 行，可能是日志或错误信息
+      console.log(`[IFlowAcpAdapter][${sessionId}] stdout non-JSON: ${line.slice(0, 200)}`)
+    }
+
     let msg: any
     try {
       msg = JSON.parse(line)
@@ -601,16 +610,35 @@ export class IFlowAcpAdapter extends BaseProviderAdapter {
       return
     }
 
+    // ★ 调试日志：打印所有收到的 JSON-RPC 消息（帮助排查超时问题）
+    const msgId = msg.id
+    const hasResult = msg.result !== undefined
+    const hasError = msg.error !== undefined
+    const hasMethod = msg.method !== undefined
+    
+    if (msgId !== undefined || hasMethod) {
+      console.log(
+        `[IFlowAcpAdapter][${sessionId}] RPC message received:`
+        + ` id=${msgId ?? '(notification)'}`
+        + ` method=${hasMethod ? msg.method : '(response)'}`
+        + ` hasResult=${hasResult}`
+        + ` hasError=${hasError}`
+      )
+    }
+
     // JSON-RPC 响应（有 id，有 result 或 error）
     if (msg.id !== undefined && (msg.result !== undefined || msg.error !== undefined)) {
       const pending = session.pendingRequests.get(msg.id)
       if (pending) {
+        console.log(`[IFlowAcpAdapter][${sessionId}] Resolving pending RPC id=${msg.id}`)
         session.pendingRequests.delete(msg.id)
         if (msg.error) {
           pending.reject(new Error(msg.error.message || JSON.stringify(msg.error)))
         } else {
           pending.resolve(msg.result)
         }
+      } else {
+        console.warn(`[IFlowAcpAdapter][${sessionId}] No pending request for RPC id=${msg.id}`)
       }
       return
     }
@@ -827,16 +855,23 @@ export class IFlowAcpAdapter extends BaseProviderAdapter {
     const id = ++session.requestId
     const req = JSON.stringify({ jsonrpc: '2.0', id, method, params: params ?? {} })
 
+    console.log(`[IFlowAcpAdapter][${sessionId}] RPC request sent: id=${id} method=${method}`)
+
     return new Promise((resolve, reject) => {
       session.pendingRequests.set(id, { resolve, reject })
       this.writeLine(sessionId, req)
 
       // 超时（长耗时操作如 session/prompt 设 10 分钟；握手类设 30 秒）
+      // ★ session/new 可能需要加载 MCP 服务器/初始化上下文，增加到 120 秒
+      //   实测 IFlow 在 Windows 上首次启动需要 ~60 秒
       const isPrompt = method === ACP_METHOD.session_prompt
-      const timeoutMs = isPrompt ? 10 * 60 * 1000 : 30_000
+      const isSessionNew = method === ACP_METHOD.session_new
+      const timeoutMs = isPrompt ? 10 * 60 * 1000 : isSessionNew ? 120_000 : 30_000
       const timer = setTimeout(() => {
         if (session.pendingRequests.has(id)) {
           session.pendingRequests.delete(id)
+          console.error(`[IFlowAcpAdapter][${sessionId}] RPC timeout: id=${id} method=${method} timeoutMs=${timeoutMs}`)
+          console.error(`[IFlowAcpAdapter][${sessionId}] Pending requests before delete: ${Array.from(session.pendingRequests.keys()).join(', ') || '(none)'}`)
           reject(new Error(`ACP RPC timeout (${timeoutMs / 1000}s): ${method}`))
         }
       }, timeoutMs)
