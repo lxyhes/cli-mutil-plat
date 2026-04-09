@@ -490,4 +490,57 @@ export const MIGRATIONS: Migration[] = [
       addColumnIfNotExists(db, 'mcp_servers', 'headers', 'TEXT')
     },
   },
+
+  // ── v30: 修复 conversation_messages 表 id 字段类型（INTEGER → TEXT） ──
+  {
+    version: 30,
+    description: 'fix conversation_messages id type from INTEGER to TEXT',
+    up(db) {
+      try {
+        // SQLite 不支持 ALTER COLUMN，需要重建表
+        db.exec(`
+          -- 1. 创建新表（id 改为 TEXT PRIMARY KEY）
+          CREATE TABLE conversation_messages_new (
+            id TEXT PRIMARY KEY,
+            session_id TEXT NOT NULL,
+            role TEXT NOT NULL,
+            type TEXT NOT NULL DEFAULT 'text',
+            content TEXT,
+            timestamp DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            attachments TEXT,
+            tool_name TEXT,
+            tool_input TEXT,
+            tool_result TEXT,
+            is_error INTEGER NOT NULL DEFAULT 0,
+            thinking_text TEXT,
+            usage_input_tokens INTEGER,
+            usage_output_tokens INTEGER,
+            tool_use_id TEXT,
+            file_change TEXT
+          );
+          CREATE INDEX idx_conv_messages_session_new ON conversation_messages(session_id, timestamp);
+
+          -- 2. 复制数据（rowid 作为临时 id，仅当原 id 为 NULL 时）
+          INSERT OR IGNORE INTO conversation_messages_new
+          (id, session_id, role, type, content, timestamp, attachments, tool_name, tool_input, tool_result,
+           is_error, thinking_text, usage_input_tokens, usage_output_tokens, tool_use_id, file_change)
+          SELECT
+            COALESCE(CAST(id AS TEXT), 'msg_' || rowid),
+            session_id, role, type, content, timestamp, attachments, tool_name, tool_input, tool_result,
+            is_error, thinking_text, usage_input_tokens, usage_output_tokens, tool_use_id, file_change
+          FROM conversation_messages;
+
+          -- 3. 删除旧表
+          DROP TABLE conversation_messages;
+
+          -- 4. 重命名新表
+          ALTER TABLE conversation_messages_new RENAME TO conversation_messages;
+        `)
+        console.log('[Migration v30] Successfully rebuilt conversation_messages table with TEXT id')
+      } catch (err) {
+        console.error('[Migration v30] Failed to rebuild conversation_messages table:', err)
+        // 不抛出异常，允许应用继续运行
+      }
+    },
+  },
 ]

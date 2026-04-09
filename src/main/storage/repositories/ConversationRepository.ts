@@ -40,13 +40,16 @@ export class ConversationRepository {
   }): void {
     if (!this.db) return
     try {
+      // 确保 id 是字符串类型（数据库表 id 字段为 TEXT PRIMARY KEY）
+      const messageId = typeof msg.id === 'string' ? msg.id : `msg_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`
+      
       this.db.prepare(`
         INSERT OR IGNORE INTO conversation_messages
         (id, session_id, role, content, timestamp, attachments, tool_name, tool_input, tool_result,
          is_error, thinking_text, usage_input_tokens, usage_output_tokens, tool_use_id, file_change)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).run(
-        msg.id,
+        messageId,
         msg.sessionId,
         msg.role,
         msg.content,
