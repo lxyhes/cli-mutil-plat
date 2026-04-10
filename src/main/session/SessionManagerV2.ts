@@ -417,11 +417,17 @@ export class SessionManagerV2 extends EventEmitter implements MemoryManagedCompo
       this.emit('session-init-data', id, data)
     }
 
+    const onAuthRequired = (sid: string, data: { providerId: string; message: string; authCommand: string }) => {
+      if (sid !== id) return
+      this.emit('auth-required', id, data)
+    }
+
     adapter.on('event', onEvent)
     adapter.on('status-change', onStatusChange)
     adapter.on('conversation-message', onConversationMessage)
     adapter.on('provider-session-id', onProviderSessionId)
     adapter.on('session-init-data', onInitData)
+    adapter.on('auth-required', onAuthRequired)
 
     // 存储清理函数，在 session 结束或 resume 时调用
     session._cleanup = () => {
@@ -430,6 +436,7 @@ export class SessionManagerV2 extends EventEmitter implements MemoryManagedCompo
       adapter.off('conversation-message', onConversationMessage)
       adapter.off('provider-session-id', onProviderSessionId)
       adapter.off('session-init-data', onInitData)
+      adapter.off('auth-required', onAuthRequired)
     }
 
     // 构建 Adapter 配置

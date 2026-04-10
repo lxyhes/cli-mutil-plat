@@ -38,6 +38,7 @@ import { EvaluationService } from './evaluation/EvaluationService'
 import { WorkflowService } from './workflow/WorkflowService'
 import { SummaryService } from './summary/SummaryService'
 import { GoalService } from './goal/GoalService'
+import { PromptOptimizerService } from './prompt-optimizer/PromptOptimizerService'
 import { FileChangeTracker } from './tracker/FileChangeTracker'
 import { migrateFromLegacyUserData, migrateApiKeyEncryption } from './migration'
 import { IPC, THEMES } from '../shared/constants'
@@ -48,6 +49,7 @@ import { SessionManagerV2 } from './session/SessionManagerV2'
 import { AgentManagerV2 } from './agent/AgentManagerV2'
 import { ClaudeSdkAdapter } from './adapter/ClaudeSdkAdapter'
 import { CodexAppServerAdapter } from './adapter/CodexAppServerAdapter'
+import { QwenSdkAdapter } from './adapter/QwenSdkAdapter'
 import { GeminiHeadlessAdapter } from './adapter/GeminiHeadlessAdapter'
 import { IFlowAcpAdapter } from './adapter/IFlowAcpAdapter'
 import { OpenCodeSdkAdapter } from './adapter/OpenCodeSdkAdapter'
@@ -157,6 +159,7 @@ let evaluationService: EvaluationService | null = null
 let workflowService: WorkflowService | null = null
 let summaryService: SummaryService | null = null
 let goalService: GoalService | null = null
+let promptOptimizerService: PromptOptimizerService | null = null
 
 /**
  * 创建主窗口
@@ -383,6 +386,11 @@ function initializeManagers(): void {
     adapterRegistry.register(claudeSdkAdapter)
   } catch (err) {
     console.warn('[init] ClaudeSdkAdapter not available:', err)
+  }
+  try {
+    adapterRegistry.register(new QwenSdkAdapter())
+  } catch (err) {
+    console.warn('[init] QwenSdkAdapter not available:', err)
   }
   try {
     adapterRegistry.register(new CodexAppServerAdapter())
@@ -876,6 +884,11 @@ app.whenReady().then(() => {
     goalService = new GoalService(database)
   }
 
+  // Prompt Optimizer 提示词优化服务
+  if (database) {
+    promptOptimizerService = new PromptOptimizerService(database, database.promptOptimizerRepo, sessionManagerV2 ?? undefined)
+  }
+
   // ★ 注册 team_* 方法处理器到 AgentBridge，使 agents 可以调用团队工具
   agentBridge.setTeamBridgeHandler(async (request) => {
     const { id, sessionId, method, params } = request
@@ -1005,6 +1018,7 @@ app.whenReady().then(() => {
     workflowService,
     summaryService,
     goalService,
+    promptOptimizerService,
   }, fileChangeTracker)
 
   // 连接事件流
@@ -1131,6 +1145,9 @@ app.on('before-quit', () => {
 
   // 停止 Goal Anchor 服务
   goalService?.removeAllListeners()
+
+  // 停止 Prompt Optimizer 服务
+  promptOptimizerService?.removeAllListeners()
 
   // ★ 在 cleanup 之前提前捕获 SDK V2 会话状态
   // 必须在 sessionManagerV2.dispose() 之前拿快照，否则 dispose() 会将所有会话

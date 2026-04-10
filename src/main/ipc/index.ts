@@ -49,6 +49,7 @@ export interface IpcDependencies {
   workflowService?: any  // WorkflowService（可选）
   summaryService?: any  // SummaryService（可选）
   goalService?: any  // GoalService（可选）
+  promptOptimizerService?: any  // PromptOptimizerService（可选）
 }
 
 // 各子模块 handler 注册函数
@@ -74,6 +75,7 @@ import { registerWorkflowHandlers } from './workflowHandlers'
 import { registerEvaluationHandlers } from './evaluationHandlers'
 import { registerSummaryHandlers } from './summaryHandlers'
 import { registerGoalHandlers } from './goalHandlers'
+import { registerPromptOptimizerHandlers } from './promptOptimizerHandlers'
 import type { FileChangeTracker } from '../tracker/FileChangeTracker'
 
 // re-export wireSessionManagerV2Events from systemHandlers
@@ -106,6 +108,7 @@ export function registerIpcHandlers(deps: IpcDependencies, fileChangeTracker?: F
   registerEvaluationHandlers(deps)
   registerSummaryHandlers(deps)
   registerGoalHandlers(deps)
+  registerPromptOptimizerHandlers(deps)
   if (deps.updateManager) {
     registerUpdateHandlers(deps.updateManager)
   }

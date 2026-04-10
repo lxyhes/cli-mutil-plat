@@ -368,6 +368,15 @@ export function wireSessionManagerV2Events(
     sendToRenderer(IPC.SESSION_INIT_DATA, sessionId, data)
   })
 
+  // ★ Provider 需要认证（如 Qwen CLI） → 转发给渲染进程显示对话框
+  sessionManagerV2.on('auth-required', (sessionId: string, data: {
+    providerId: string
+    message: string
+    authCommand: string
+  }) => {
+    sendToRenderer(IPC.SESSION_AUTH_REQUIRED, sessionId, data)
+  })
+
   // ★ SDK V2: Token 用量更新 → 持久化 + 推送给渲染进程
   sessionManagerV2.on('usage-update', (sessionId: string, usage: {
     inputTokens: number

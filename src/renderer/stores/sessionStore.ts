@@ -50,6 +50,7 @@ interface SessionState {
   sessionInitData: Record<string, { model: string; tools: string[]; skills: any[]; mcpServers: any[] }>  // SDK V2: 会话初始化数据
   activityHistoryLoaded: Set<string>  // 已从数据库加载过历史活动的会话 ID（防止 session_start 竞态导致跳过加载）
   suppressNextEcho: Set<string>  // 静默执行 Skill 时，需要屏蔽 SDK 回显的会话 ID 集合
+  authRequiredData: { sessionId: string; providerId: string; message: string; authCommand: string } | null  // Provider 需要认证
 
   // 方法
   fetchSessions: () => Promise<void>
@@ -83,6 +84,8 @@ interface SessionState {
   bulkAddConversationMessages: (sessionId: string, msgs: ConversationMessage[]) => void
   setConversationLoading: (sessionId: string, loading: boolean) => void  // SDK V2
   setSessionInitData: (sessionId: string, data: any) => void  // SDK V2: 存储初始化数据
+  setAuthRequiredData: (data: { sessionId: string; providerId: string; message: string; authCommand: string } | null) => void  // 设置认证需要的数据
+  clearAuthRequiredData: () => void  // 清除认证需要的数据
   fetchAgents: (parentSessionId: string) => Promise<void>
 }
 
@@ -121,6 +124,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
   sessionInitData: {},
   activityHistoryLoaded: new Set(),
   suppressNextEcho: new Set(),
+  authRequiredData: null,
 
   // 获取所有活跃会话（内存中的）
   fetchSessions: async () => {

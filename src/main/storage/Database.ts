@@ -34,6 +34,7 @@ import { PlannerRepository } from './repositories/PlannerRepository'
 import { WorkflowRepository } from './repositories/WorkflowRepository'
 import { SummaryRepository } from './repositories/SummaryRepository'
 import { GoalRepository } from './repositories/GoalRepository'
+import { PromptOptimizerRepository } from './repositories/PromptOptimizerRepository'
 import { LockManager } from '../concurrency/LockManager'
 import type { MemoryManagedComponent, ComponentMemoryInfo } from '../memory/MemoryCoordinator'
 
@@ -70,6 +71,7 @@ export class DatabaseManager implements MemoryManagedComponent {
   private workflowRepo!: WorkflowRepository
   private summaryRepo!: SummaryRepository
   private goalRepo!: GoalRepository
+  private promptOptimizerRepo!: PromptOptimizerRepository
 
 
   constructor(dbPath: string) {
@@ -117,6 +119,7 @@ export class DatabaseManager implements MemoryManagedComponent {
     this.workflowRepo = new WorkflowRepository(this.db, this.usingSqlite)
     this.summaryRepo = new SummaryRepository(this.db, this.usingSqlite)
     this.goalRepo = new GoalRepository(this.db, this.usingSqlite)
+    this.promptOptimizerRepo = new PromptOptimizerRepository(this)
 
     // 初始化 LockManager
     this.lockManager = new LockManager(this.db)
@@ -647,6 +650,33 @@ export class DatabaseManager implements MemoryManagedComponent {
   getGoalsDueSoon = (days?: number) => this.goalRepo.getGoalsDueSoon(days)
   getActiveGoals = () => this.goalRepo.getActiveGoals()
   getGoalStats = () => this.goalRepo.getGoalStats()
+
+  // ─── Prompt Optimizer 操作 ───
+
+  createPromptTemplate = (...args: Parameters<PromptOptimizerRepository['createTemplate']>) => this.promptOptimizerRepo.createTemplate(...args)
+  getPromptTemplate = (...args: Parameters<PromptOptimizerRepository['getTemplate']>) => this.promptOptimizerRepo.getTemplate(...args)
+  listPromptTemplates = (...args: Parameters<PromptOptimizerRepository['listTemplates']>) => this.promptOptimizerRepo.listTemplates(...args)
+  updatePromptTemplate = (...args: Parameters<PromptOptimizerRepository['updateTemplate']>) => this.promptOptimizerRepo.updateTemplate(...args)
+  deletePromptTemplate = (...args: Parameters<PromptOptimizerRepository['deleteTemplate']>) => this.promptOptimizerRepo.deleteTemplate(...args)
+
+  createPromptVersion = (...args: Parameters<PromptOptimizerRepository['createVersion']>) => this.promptOptimizerRepo.createVersion(...args)
+  getPromptVersion = (...args: Parameters<PromptOptimizerRepository['getVersion']>) => this.promptOptimizerRepo.getVersion(...args)
+  listPromptVersions = (...args: Parameters<PromptOptimizerRepository['listVersions']>) => this.promptOptimizerRepo.listVersions(...args)
+  updatePromptVersion = (...args: Parameters<PromptOptimizerRepository['updateVersion']>) => this.promptOptimizerRepo.updateVersion(...args)
+  setPromptBaseline = (...args: Parameters<PromptOptimizerRepository['setBaseline']>) => this.promptOptimizerRepo.setBaseline(...args)
+  getBestPromptVersion = (...args: Parameters<PromptOptimizerRepository['getBestVersion']>) => this.promptOptimizerRepo.getBestVersion(...args)
+
+  createPromptTest = (...args: Parameters<PromptOptimizerRepository['createTest']>) => this.promptOptimizerRepo.createTest(...args)
+  getPromptTest = (...args: Parameters<PromptOptimizerRepository['getTest']>) => this.promptOptimizerRepo.getTest(...args)
+  listPromptTests = (...args: Parameters<PromptOptimizerRepository['listTests']>) => this.promptOptimizerRepo.listTests(...args)
+  getPromptTestStats = (...args: Parameters<PromptOptimizerRepository['getTestStats']>) => this.promptOptimizerRepo.getTestStats(...args)
+
+  createPromptOptimizationRun = (...args: Parameters<PromptOptimizerRepository['createOptimizationRun']>) => this.promptOptimizerRepo.createOptimizationRun(...args)
+  getPromptOptimizationRun = (...args: Parameters<PromptOptimizerRepository['getOptimizationRun']>) => this.promptOptimizerRepo.getOptimizationRun(...args)
+  listPromptOptimizationRuns = (...args: Parameters<PromptOptimizerRepository['listOptimizationRuns']>) => this.promptOptimizerRepo.listOptimizationRuns(...args)
+  updatePromptOptimizationRun = (...args: Parameters<PromptOptimizerRepository['updateOptimizationRun']>) => this.promptOptimizerRepo.updateOptimizationRun(...args)
+  addPromptFeedback = (...args: Parameters<PromptOptimizerRepository['addFeedback']>) => this.promptOptimizerRepo.addFeedback(...args)
+  listPromptFeedback = (...args: Parameters<PromptOptimizerRepository['listFeedbackByRun']>) => this.promptOptimizerRepo.listFeedbackByRun(...args)
 
   // ─── 内置数据初始化 ───
 

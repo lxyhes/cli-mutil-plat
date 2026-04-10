@@ -219,6 +219,19 @@ if (!ctxBr) {
       return () => ipcRenderer.removeListener(IPC.SESSION_INIT_DATA, listener)
     },
 
+    // SDK V2: Provider 需要认证事件监听
+    onAuthRequired: (callback: (sessionId: string, data: {
+      providerId: string
+      message: string
+      authCommand: string
+    }) => void) => {
+      const listener = (_event: IpcRendererEvent, sessionId: string, data: any) => {
+        callback(sessionId, data)
+      }
+      ipcRenderer.on(IPC.SESSION_AUTH_REQUIRED, listener)
+      return () => ipcRenderer.removeListener(IPC.SESSION_AUTH_REQUIRED, listener)
+    },
+
     // SDK V2: Token 用量更新事件
     onTokenUpdate: (callback: (sessionId: string, usage: any) => void) => {
       const listener = (_event: IpcRendererEvent, sessionId: string, usage: any) => {
@@ -705,6 +718,51 @@ if (!ctxBr) {
     onStatus: (callback: (status: any) => void) => {
       ipcRenderer.on(IPC.GOAL_STATUS, (_e, status) => callback(status))
       return () => ipcRenderer.removeListener(IPC.GOAL_STATUS, () => {})
+    },
+  },
+
+  // ==================== Prompt Optimizer API ====================
+  promptOptimizer: {
+    // Template CRUD
+    createTemplate: (data: any) => ipcRenderer.invoke(IPC.PROMPT_TEMPLATE_CREATE, data),
+    listTemplates: (category?: string) => ipcRenderer.invoke(IPC.PROMPT_TEMPLATE_LIST, category),
+    getTemplate: (id: string) => ipcRenderer.invoke(IPC.PROMPT_TEMPLATE_GET, id),
+    updateTemplate: (id: string, updates: any) => ipcRenderer.invoke(IPC.PROMPT_TEMPLATE_UPDATE, id, updates),
+    deleteTemplate: (id: string) => ipcRenderer.invoke(IPC.PROMPT_TEMPLATE_DELETE, id),
+    // Version management
+    createVersion: (data: any) => ipcRenderer.invoke(IPC.PROMPT_VERSION_CREATE, data),
+    listVersions: (templateId: string) => ipcRenderer.invoke(IPC.PROMPT_VERSION_LIST, templateId),
+    updateVersion: (id: string, updates: any) => ipcRenderer.invoke(IPC.PROMPT_VERSION_UPDATE, id, updates),
+    setBaseline: (versionId: string) => ipcRenderer.invoke(IPC.PROMPT_VERSION_SET_BASELINE, versionId),
+    // Testing
+    runTest: (versionId: string, testInput: string, providerId?: string) =>
+      ipcRenderer.invoke(IPC.PROMPT_RUN_TEST, versionId, testInput, providerId),
+    compare: (versionId1: string, versionId2: string, testInput: string) =>
+      ipcRenderer.invoke(IPC.PROMPT_COMPARE, versionId1, versionId2, testInput),
+    listTests: (versionId: string, limit?: number) =>
+      ipcRenderer.invoke(IPC.PROMPT_TEST_LIST, versionId, limit),
+    getTestStats: (versionId: string) => ipcRenderer.invoke(IPC.PROMPT_TEST_GET_STATS, versionId),
+    // Optimization (Advanced)
+    optimizeAuto: (templateId: string, targetVersionId: string) =>
+      ipcRenderer.invoke(IPC.PROMPT_OPTIMIZE_AUTO, templateId, targetVersionId),
+    optimizeWithHints: (templateId: string, targetVersionId: string, hints: string) =>
+      ipcRenderer.invoke(IPC.PROMPT_OPTIMIZE_HINTS, templateId, targetVersionId, hints),
+    getOptimizationRun: (runId: string) =>
+      ipcRenderer.invoke(IPC.PROMPT_OPTIMIZATION_GET_RUN, runId),
+    listOptimizationRuns: (templateId?: string, limit?: number) =>
+      ipcRenderer.invoke(IPC.PROMPT_OPTIMIZATION_LIST_RUNS, templateId, limit),
+    getFeedback: (runId: string) =>
+      ipcRenderer.invoke(IPC.PROMPT_OPTIMIZATION_GET_FEEDBACK, runId),
+    getBestVersion: (templateId: string) =>
+      ipcRenderer.invoke(IPC.PROMPT_GET_BEST_VERSION, templateId),
+    promoteBest: (templateId: string) =>
+      ipcRenderer.invoke(IPC.PROMPT_PROMOTE_BEST, templateId),
+    getEvolution: (templateId: string) =>
+      ipcRenderer.invoke(IPC.PROMPT_GET_EVOLUTION, templateId),
+    // Events
+    onStatus: (callback: (status: any) => void) => {
+      ipcRenderer.on(IPC.PROMPT_OPTIMIZATION_STATUS, (_e, status) => callback(status))
+      return () => ipcRenderer.removeListener(IPC.PROMPT_OPTIMIZATION_STATUS, () => {})
     },
   },
 

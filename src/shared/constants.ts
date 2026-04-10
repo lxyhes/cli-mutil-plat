@@ -41,6 +41,7 @@ export const IPC = {
   SESSION_PERMISSION_REQUEST: 'session:permission-request',
   SESSION_PERMISSION_RESPOND: 'session:permission-respond',
   SESSION_INIT_DATA: 'session:init-data',           // 会话初始化数据（tools/skills/mcp）
+  SESSION_AUTH_REQUIRED: 'session:auth-required',   // Provider 需要认证（如 Qwen CLI 需要 qwen auth）
   SESSION_TOKEN_UPDATE: 'session:token-update',     // SDK V2: 实时 token 用量推送（主进程 → 渲染进程）
   SESSION_ABORT: 'session:abort',                   // SDK V2: 中断当前正在执行的轮次（软中断，会话保持可用）
   SESSION_ANSWER_QUESTION: 'session:answer-question',   // 用户回答 AskUserQuestion
