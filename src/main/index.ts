@@ -60,6 +60,7 @@ import { MemoryCoordinator } from './memory/MemoryCoordinator'
 
 let mainWindow: BrowserWindow | null = null
 let isQuitting = false
+const isDevelopment = process.env.NODE_ENV === 'development' || !app.isPackaged
 
 /**
  * 唤起主窗口（用于启动兜底、托盘唤起、二次启动激活）
@@ -78,6 +79,9 @@ function showMainWindow(): void {
 
 const hasSingleInstanceLock = app.requestSingleInstanceLock()
 if (!hasSingleInstanceLock) {
+  if (isDevelopment) {
+    console.warn('[startup] Another SpectrAI instance is already running. Close the existing app instance first if you want terminal-attached dev logs.')
+  }
   app.quit()
 }
 
@@ -189,7 +193,7 @@ function createWindow(): void {
   }
 
   // ★ 开发模式下打印 preload 路径，方便调试
-  if (process.env.NODE_ENV === 'development' || !app.isPackaged) {
+  if (isDevelopment) {
     const preloadPath = windowOptions.webPreferences!.preload
     console.log('[startup] Preload script path:', preloadPath)
     console.log('[startup] __dirname:', __dirname)
@@ -223,11 +227,18 @@ function createWindow(): void {
   startupFallbackTimer = setTimeout(ensureStartupVisible, 2000)
 
   // ★ 开发模式下监听渲染进程的控制台输出
-  if (process.env.NODE_ENV === 'development' || !app.isPackaged) {
-    mainWindow.webContents.on('console-message', (_event, level, message, _line, _sourceId) => {
-      if (message.includes('[Preload]') || message.includes('spectrAI')) {
-        console.log(`[Renderer Console] L${level}: ${message}`)
-      }
+  if (isDevelopment) {
+    const levelMap: Record<number, 'debug' | 'log' | 'warn' | 'error'> = {
+      0: 'debug',
+      1: 'log',
+      2: 'warn',
+      3: 'error'
+    }
+
+    mainWindow.webContents.on('console-message', (_event, level, message, line, sourceId) => {
+      const consoleMethod = levelMap[level] ?? 'log'
+      const sourceLabel = sourceId ? `${sourceId}:${line}` : `line:${line}`
+      console[consoleMethod](`[Renderer Console] ${sourceLabel} ${message}`)
     })
   }
 
@@ -809,7 +820,7 @@ function registerShortcuts(): void {
  * App 生命周期管理
  */
 // ★ 开发模式下设置应用名称，确保 userData 目录正确
-if (process.env.NODE_ENV === 'development' || !app.isPackaged) {
+if (isDevelopment) {
   app.name = 'SpectrAI'
 }
 

@@ -33,10 +33,20 @@ npm run build:mac          # Build + create macOS dev package (requires npm run 
 
 # Distribution packages
 npm run dist               # Windows NSIS installer
-npm run dist:mac           # macOS DMG + ZIP
+npm run dist:mac           # macOS current-arch DMG + ZIP
+npm run dist:mac:x64       # macOS x64 DMG + ZIP
+npm run dist:mac:safe      # macOS current-arch generic update publish
 ```
 
 **Important**: Always run `npm run rebuild` after `npm install` to recompile native modules (better-sqlite3, node-pty) for Electron's Node version.
+
+## Auto Update Notes
+
+- The app uses `electron-updater` generic feeds.
+- Windows expects `.../releases/stable/win/x64/latest.yml`.
+- macOS expects `.../releases/stable/mac/<arch>/latest-mac.yml`.
+- If `latest-mac.yml` is missing, packaged builds will show an update-feed error and skip repeated background checks.
+- When publishing macOS builds, upload `latest-mac.yml` together with the ZIP/DMG artifacts to the matching arch directory.
 
 ## Architecture
 

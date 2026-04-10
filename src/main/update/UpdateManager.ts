@@ -29,8 +29,18 @@ export interface UpdatePolicy {
   notice?: string
 }
 
-const DEFAULT_FEED_BASE = 'http://claudeops.wbdao.cn/releases'
-const DEFAULT_POLICY_URL = 'http://claudeops.wbdao.cn/api/update-policy.json'
+interface ResolvedFeedConfig {
+  channel: 'stable' | 'beta'
+  feedBase: string
+  feedUrl: string
+  manifestFile: string
+  manifestUrl: string
+  platform: string
+  arch: string
+}
+
+const DEFAULT_FEED_BASE = 'https://claudeops.wbdao.cn/releases'
+const DEFAULT_POLICY_URL = 'https://claudeops.wbdao.cn/api/update-policy.json'
 
 export class UpdateManager extends EventEmitter {
   private state: UpdateState = {
@@ -41,6 +51,7 @@ export class UpdateManager extends EventEmitter {
   private initialized = false
   private policy: UpdatePolicy | null = null
   private intervalTimer: ReturnType<typeof setInterval> | null = null
+  private skippedAutoCheckFeedUrl: string | null = null
 
   constructor(
     private readonly getMainWindow: () => BrowserWindow | null,
@@ -61,7 +72,7 @@ export class UpdateManager extends EventEmitter {
       return
     }
 
-    this.configureAutoUpdater()
+    this.configureAutoUpdater(this.getFeedConfig())
     this.bindAutoUpdaterEvents()
 
     setTimeout(() => {
@@ -93,7 +104,13 @@ export class UpdateManager extends EventEmitter {
       return { success: false, state: this.getState() }
     }
 
-    this.configureAutoUpdater()
+    const feedConfig = this.getFeedConfig()
+
+    if (!manual && this.skippedAutoCheckFeedUrl === feedConfig.feedUrl) {
+      return { success: false, state: this.getState() }
+    }
+
+    this.configureAutoUpdater(feedConfig)
 
     if (manual) {
       this.setState({ status: 'checking', message: 'Checking for updates...' })
@@ -101,12 +118,27 @@ export class UpdateManager extends EventEmitter {
 
     try {
       await this.fetchPolicy()
+      const preflightError = await this.preflightUpdateFeed(feedConfig)
+      if (preflightError) {
+        this.skippedAutoCheckFeedUrl = manual ? this.skippedAutoCheckFeedUrl : feedConfig.feedUrl
+        this.setState({
+          status: 'error',
+          message: preflightError,
+        })
+        return { success: false, state: this.getState() }
+      }
+
+      this.skippedAutoCheckFeedUrl = null
       await autoUpdater.checkForUpdates()
       return { success: true, state: this.getState() }
     } catch (error: any) {
+      const message = this.resolveUpdateErrorMessage(error, feedConfig)
+      if (!manual && this.isMissingManifestError(message, feedConfig.manifestFile)) {
+        this.skippedAutoCheckFeedUrl = feedConfig.feedUrl
+      }
       this.setState({
         status: 'error',
-        message: error?.message || 'Failed to check updates.',
+        message,
       })
       return { success: false, state: this.getState() }
     }
@@ -131,26 +163,16 @@ export class UpdateManager extends EventEmitter {
   }
 
   openDownloadPage(): { success: boolean } {
-    const url = this.policy?.downloadUrl || 'http://claudeops.wbdao.cn/'
+    const url = this.policy?.downloadUrl || this.getFeedConfig().feedUrl || 'https://claudeops.wbdao.cn/'
     void shell.openExternal(url)
     return { success: true }
   }
 
-  private configureAutoUpdater(): void {
-    const settings = this.getAppSettings()
-    const channel = settings.updateChannel === 'beta' ? 'beta' : 'stable'
-    const feedBase = typeof settings.updateFeedBase === 'string' && settings.updateFeedBase
-      ? settings.updateFeedBase
-      : DEFAULT_FEED_BASE
-
-    const platform = process.platform === 'win32' ? 'win' : process.platform === 'darwin' ? 'mac' : process.platform
-    const arch = process.arch === 'x64' ? 'x64' : process.arch
-    const feedUrl = `${feedBase}/${channel}/${platform}/${arch}`
-
+  private configureAutoUpdater(feedConfig: ResolvedFeedConfig): void {
     autoUpdater.autoDownload = false
     autoUpdater.autoInstallOnAppQuit = true
-    autoUpdater.allowPrerelease = channel === 'beta'
-    autoUpdater.setFeedURL({ provider: 'generic', url: feedUrl, protocol: 'http' } as any)
+    autoUpdater.allowPrerelease = feedConfig.channel === 'beta'
+    autoUpdater.setFeedURL({ provider: 'generic', url: feedConfig.feedUrl, protocol: 'http' } as any)
   }
 
   private bindAutoUpdaterEvents(): void {
@@ -231,6 +253,57 @@ export class UpdateManager extends EventEmitter {
     } catch {
       // ignore policy request errors
     }
+  }
+
+  private getFeedConfig(): ResolvedFeedConfig {
+    const settings = this.getAppSettings()
+    const channel = settings.updateChannel === 'beta' ? 'beta' : 'stable'
+    const feedBase = typeof settings.updateFeedBase === 'string' && settings.updateFeedBase
+      ? settings.updateFeedBase
+      : DEFAULT_FEED_BASE
+
+    const normalizedFeedBase = feedBase.replace(/\/+$/, '')
+    const platform = process.platform === 'win32' ? 'win' : process.platform === 'darwin' ? 'mac' : process.platform
+    const arch = process.arch === 'x64' ? 'x64' : process.arch
+    const feedUrl = `${normalizedFeedBase}/${channel}/${platform}/${arch}`
+    const manifestFile = process.platform === 'darwin' ? 'latest-mac.yml' : 'latest.yml'
+
+    return {
+      channel,
+      feedBase: normalizedFeedBase,
+      feedUrl,
+      manifestFile,
+      manifestUrl: `${feedUrl}/${manifestFile}`,
+      platform,
+      arch,
+    }
+  }
+
+  private async preflightUpdateFeed(feedConfig: ResolvedFeedConfig): Promise<string | null> {
+    try {
+      const res = await fetch(feedConfig.manifestUrl, { signal: AbortSignal.timeout(10_000) })
+      if (res.ok) return null
+
+      if (res.status === 404) {
+        return `Update feed is not published for ${feedConfig.platform}/${feedConfig.arch} yet. Missing ${feedConfig.manifestFile}.`
+      }
+
+      return `Update server responded with ${res.status} while checking ${feedConfig.manifestFile}.`
+    } catch (error: any) {
+      return `Failed to reach update server: ${error?.message || 'Network request failed.'}`
+    }
+  }
+
+  private resolveUpdateErrorMessage(error: any, feedConfig: ResolvedFeedConfig): string {
+    const rawMessage = error?.message || 'Failed to check updates.'
+    if (this.isMissingManifestError(rawMessage, feedConfig.manifestFile)) {
+      return `Update feed is not published for ${feedConfig.platform}/${feedConfig.arch} yet. Missing ${feedConfig.manifestFile}.`
+    }
+    return rawMessage
+  }
+
+  private isMissingManifestError(message: string, manifestFile: string): boolean {
+    return message.includes(`Cannot find channel "${manifestFile}"`) || (message.includes(manifestFile) && message.includes('404'))
   }
 
   private shouldForceUpgrade(currentVersion: string): boolean {

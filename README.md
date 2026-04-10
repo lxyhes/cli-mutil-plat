@@ -243,11 +243,38 @@ npm run dev
 | `npm run build:win` | 构建 Windows 开发版 |
 | `npm run build:mac` | 构建 macOS 开发版（`.app`） |
 | `npm run dist` | 打包 Windows 安装程序（NSIS） |
-| `npm run dist:mac` | 打包 macOS 安装程序（DMG + ZIP） |
+| `npm run dist:mac` | 打包 macOS 安装程序（当前架构，DMG + ZIP） |
+| `npm run dist:mac:x64` | 打包 macOS x64 安装程序（DMG + ZIP） |
+| `npm run dist:mac:safe` | 打包并发布 macOS 当前架构更新元数据到 generic feed |
 | `npm run preview` | 预览生产构建 |
 | `npm run rebuild` | 重建所有原生模块 |
 | `npm run typecheck` | TypeScript 类型检查 |
 | `npm run lint` | ESLint 代码检查 |
+
+## 自动更新发布说明
+
+SpectrAI 桌面端使用 `electron-updater` 的 generic provider。客户端会按平台和架构读取以下元数据：
+
+- Windows x64: `https://claudeops.wbdao.cn/releases/stable/win/x64/latest.yml`
+- macOS arm64: `https://claudeops.wbdao.cn/releases/stable/mac/arm64/latest-mac.yml`
+- macOS x64: `https://claudeops.wbdao.cn/releases/stable/mac/x64/latest-mac.yml`
+
+如果服务端缺少这些文件，客户端会提示“更新源未发布完整”，并停止后台重复轮询。
+
+推荐发布方式：
+
+```bash
+# Windows generic feed
+npm run dist:safe
+
+# macOS 当前架构 generic feed
+npm run dist:mac:safe
+
+# macOS x64 本地打包
+npm run dist:mac:x64
+```
+
+发布 macOS 自动更新时，除了 DMG/ZIP 产物，还必须把同目录下的 `latest-mac.yml` 一起上传到对应 feed 目录，否则应用无法检测到新版本。
 
 ## macOS 运行排障（Finder 双击启动）
 

@@ -19,8 +19,150 @@ const MAX_READ_SIZE = 5 * 1024 * 1024
 /** 活跃的目录监听器，key 为规范化的目录绝对路径 */
 const watchers = new Map<string, fs.FSWatcher>()
 
+function isPathWithinRoot(targetPath: string, rootPath: string): boolean {
+  const relative = path.relative(rootPath, targetPath)
+  return relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative))
+}
+
+async function canonicalizePath(targetPath: string, allowMissing = false): Promise<string> {
+  const absolutePath = path.resolve(targetPath)
+
+  if (!allowMissing) {
+    return fs.promises.realpath(absolutePath)
+  }
+
+  let probePath = absolutePath
+  while (true) {
+    try {
+      const realProbePath = await fs.promises.realpath(probePath)
+      const relative = path.relative(probePath, absolutePath)
+      return path.resolve(realProbePath, relative)
+    } catch (error: any) {
+      if (error?.code !== 'ENOENT') throw error
+    }
+
+    const parentPath = path.dirname(probePath)
+    if (parentPath === probePath) {
+      throw new SpectrAIError({
+        code: ErrorCode.NOT_FOUND,
+        message: 'Path does not exist',
+        userMessage: '路径不存在',
+        context: { targetPath: absolutePath },
+      })
+    }
+    probePath = parentPath
+  }
+}
+
+async function getAuthorizedRoots(deps: IpcDependencies): Promise<string[]> {
+  const rootCandidates = new Set<string>()
+  const addRoot = (candidate?: string | null): void => {
+    if (!candidate || typeof candidate !== 'string') return
+    const trimmed = candidate.trim()
+    if (!trimmed) return
+    rootCandidates.add(path.resolve(trimmed))
+  }
+
+  try {
+    const sessions = deps.database.getAllSessions()
+    for (const session of sessions) {
+      addRoot((session as any).workingDirectory)
+      addRoot((session as any).config?.workingDirectory)
+    }
+  } catch {
+    // ignore
+  }
+
+  try {
+    const v1Sessions = deps.sessionManager?.getAllSessions?.() ?? []
+    for (const session of v1Sessions) {
+      addRoot((session as any).cwd)
+      addRoot((session as any).workingDirectory)
+      addRoot((session as any).config?.workingDirectory)
+    }
+  } catch {
+    // ignore
+  }
+
+  try {
+    const v2Sessions = deps.sessionManagerV2?.getAllSessions?.() ?? []
+    for (const session of v2Sessions) {
+      addRoot((session as any).workingDirectory)
+      addRoot((session as any).config?.workingDirectory)
+    }
+  } catch {
+    // ignore
+  }
+
+  try {
+    const workspaces = deps.database.getAllWorkspaces()
+    for (const workspace of workspaces) {
+      addRoot(workspace.rootPath)
+      for (const repo of workspace.repos || []) {
+        addRoot(repo.repoPath)
+      }
+    }
+  } catch {
+    // ignore
+  }
+
+  const canonicalRoots = new Set<string>()
+  for (const rootCandidate of rootCandidates) {
+    try {
+      canonicalRoots.add(await canonicalizePath(rootCandidate, true))
+    } catch {
+      // ignore roots that no longer exist
+    }
+  }
+
+  return Array.from(canonicalRoots)
+}
+
+async function assertFileManagerPathAllowed(
+  deps: IpcDependencies,
+  targetPath: string,
+  operation: string,
+  allowMissing = false
+): Promise<string> {
+  const canonicalTargetPath = await canonicalizePath(targetPath, allowMissing)
+  const authorizedRoots = await getAuthorizedRoots(deps)
+
+  if (authorizedRoots.some(rootPath => isPathWithinRoot(canonicalTargetPath, rootPath))) {
+    return canonicalTargetPath
+  }
+
+  throw new SpectrAIError({
+    code: ErrorCode.PERMISSION_DENIED,
+    message: `Path is outside authorized workspaces/sessions: ${canonicalTargetPath}`,
+    userMessage: '该路径不在已授权的工作区或会话目录内，已拒绝访问',
+    context: { operation, targetPath: canonicalTargetPath },
+  })
+}
+
+async function ensurePathDoesNotExist(targetPath: string, kind: 'file' | 'directory' | 'target'): Promise<void> {
+  try {
+    await fs.promises.lstat(targetPath)
+  } catch (error: any) {
+    if (error?.code === 'ENOENT') return
+    throw error
+  }
+
+  const messages: Record<typeof kind, string> = {
+    file: '文件已存在',
+    directory: '目录已存在',
+    target: '目标名称已存在',
+  }
+
+  throw new SpectrAIError({
+    code: ErrorCode.ALREADY_EXISTS,
+    message: `${kind} already exists`,
+    userMessage: messages[kind],
+    context: { targetPath },
+  })
+}
+
 export function registerFileManagerHandlers(
-  _deps: IpcDependencies,
+  deps: IpcDependencies,
   fileChangeTracker?: FileChangeTracker
 ): void {
 
@@ -28,7 +170,7 @@ export function registerFileManagerHandlers(
 
   ipcMain.handle('file-manager:list-dir', async (_event, { path: dirPath }: { path: string }) => {
     try {
-      const normalizedPath = path.normalize(dirPath)
+      const normalizedPath = await assertFileManagerPathAllowed(deps, dirPath, 'fileManager.listDir')
       const dirents = await fs.promises.readdir(normalizedPath, { withFileTypes: true })
 
       const entries: FileEntry[] = []
@@ -90,7 +232,7 @@ export function registerFileManagerHandlers(
 
   ipcMain.handle('file-manager:open-path', async (_event, filePath: string) => {
     try {
-      const normalizedPath = path.normalize(filePath)
+      const normalizedPath = await assertFileManagerPathAllowed(deps, filePath, 'fileManager.openPath', true)
       const errorMsg = await shell.openPath(normalizedPath)
       // shell.openPath 返回空字符串表示成功，否则返回错误描述
       if (errorMsg) {
@@ -107,7 +249,7 @@ export function registerFileManagerHandlers(
 
   ipcMain.handle('file-manager:read-file', async (_event, filePath: string) => {
     try {
-      const normalizedPath = path.normalize(filePath)
+      const normalizedPath = await assertFileManagerPathAllowed(deps, filePath, 'fileManager.readFile')
 
       // 先检查文件大小，超出 5MB 拒绝读取
       const stat = await fs.promises.stat(normalizedPath)
@@ -127,9 +269,9 @@ export function registerFileManagerHandlers(
 
   // ==================== watch-dir：开始监听目录变化 ====================
 
-  ipcMain.handle('file-manager:watch-dir', (_event, dirPath: string) => {
+  ipcMain.handle('file-manager:watch-dir', async (_event, dirPath: string) => {
     try {
-      const normalizedPath = path.normalize(dirPath)
+      const normalizedPath = await assertFileManagerPathAllowed(deps, dirPath, 'fileManager.watchDir')
 
       // 若已有监听器，先关闭旧的（幂等操作）
       if (watchers.has(normalizedPath)) {
@@ -167,9 +309,14 @@ export function registerFileManagerHandlers(
 
   // ==================== unwatch-dir：停止监听目录 ====================
 
-  ipcMain.handle('file-manager:unwatch-dir', (_event, dirPath: string) => {
+  ipcMain.handle('file-manager:unwatch-dir', async (_event, dirPath: string) => {
     try {
-      const normalizedPath = path.normalize(dirPath)
+      let normalizedPath: string
+      try {
+        normalizedPath = await canonicalizePath(dirPath, true)
+      } catch {
+        normalizedPath = path.resolve(dirPath)
+      }
 
       if (watchers.has(normalizedPath)) {
         watchers.get(normalizedPath)!.close()
@@ -199,7 +346,7 @@ export function registerFileManagerHandlers(
           context: { contentLength: content.length }
         })
         }
-        const normalizedPath = path.normalize(filePath)
+        const normalizedPath = await assertFileManagerPathAllowed(deps, filePath, 'fileManager.writeFile', true)
         await fs.promises.writeFile(normalizedPath, content, 'utf-8')
         return createSuccessResponse({})
       } catch (error: any) {
@@ -224,7 +371,7 @@ export function registerFileManagerHandlers(
     maxResults = 800
   ) => {
     try {
-      const normalizedPath = path.normalize(dirPath)
+      const normalizedPath = await assertFileManagerPathAllowed(deps, dirPath, 'fileManager.listProjectFiles')
 
       // 检查是否是目录
       let dirStat: fs.Stats
@@ -313,19 +460,8 @@ export function registerFileManagerHandlers(
     'file-manager:create-file',
     async (_event, filePath: string) => {
       try {
-        const normalizedPath = path.normalize(filePath)
-        // 检查是否已存在
-        try {
-          await fs.promises.access(normalizedPath)
-          throw new SpectrAIError({
-          code: ErrorCode.ALREADY_EXISTS,
-          message: 'File already exists',
-          userMessage: '文件已存在',
-          context: { filePath: normalizedPath }
-        })
-        } catch {
-          // 不存在，正常继续
-        }
+        const normalizedPath = await assertFileManagerPathAllowed(deps, filePath, 'fileManager.createFile', true)
+        await ensurePathDoesNotExist(normalizedPath, 'file')
         // 确保父目录存在
         const dir = path.dirname(normalizedPath)
         await fs.promises.mkdir(dir, { recursive: true })
@@ -344,19 +480,8 @@ export function registerFileManagerHandlers(
     'file-manager:create-dir',
     async (_event, dirPath: string) => {
       try {
-        const normalizedPath = path.normalize(dirPath)
-        // 检查是否已存在
-        try {
-          await fs.promises.access(normalizedPath)
-          throw new SpectrAIError({
-          code: ErrorCode.ALREADY_EXISTS,
-          message: 'Directory already exists',
-          userMessage: '目录已存在',
-          context: { dirPath: normalizedPath }
-        })
-        } catch {
-          // 不存在，正常继续
-        }
+        const normalizedPath = await assertFileManagerPathAllowed(deps, dirPath, 'fileManager.createDir', true)
+        await ensurePathDoesNotExist(normalizedPath, 'directory')
         await fs.promises.mkdir(normalizedPath, { recursive: true })
         return createSuccessResponse({})
       } catch (error: any) {
@@ -372,20 +497,9 @@ export function registerFileManagerHandlers(
     'file-manager:rename',
     async (_event, { oldPath, newPath }: { oldPath: string; newPath: string }) => {
       try {
-        const normalizedOld = path.normalize(oldPath)
-        const normalizedNew = path.normalize(newPath)
-        // 检查目标是否已存在
-        try {
-          await fs.promises.access(normalizedNew)
-          throw new SpectrAIError({
-          code: ErrorCode.ALREADY_EXISTS,
-          message: 'Target name already exists',
-          userMessage: '目标名称已存在',
-          context: { oldPath: normalizedOld, newPath: normalizedNew }
-        })
-        } catch {
-          // 不存在，正常继续
-        }
+        const normalizedOld = await assertFileManagerPathAllowed(deps, oldPath, 'fileManager.rename')
+        const normalizedNew = await assertFileManagerPathAllowed(deps, newPath, 'fileManager.rename', true)
+        await ensurePathDoesNotExist(normalizedNew, 'target')
         await fs.promises.rename(normalizedOld, normalizedNew)
         return createSuccessResponse({})
       } catch (error: any) {
@@ -401,7 +515,7 @@ export function registerFileManagerHandlers(
     'file-manager:delete',
     async (_event, targetPath: string) => {
       try {
-        const normalizedPath = path.normalize(targetPath)
+        const normalizedPath = await assertFileManagerPathAllowed(deps, targetPath, 'fileManager.delete')
         const stat = await fs.promises.stat(normalizedPath)
 
         if (stat.isDirectory()) {
@@ -431,9 +545,9 @@ export function registerFileManagerHandlers(
 
   ipcMain.handle(
     'file-manager:show-in-folder',
-    (_event, filePath: string) => {
+    async (_event, filePath: string) => {
       try {
-        const normalizedPath = path.normalize(filePath)
+        const normalizedPath = await assertFileManagerPathAllowed(deps, filePath, 'fileManager.showInFolder', true)
         shell.showItemInFolder(normalizedPath)
         return createSuccessResponse({})
       } catch (error: any) {
@@ -455,7 +569,7 @@ export function registerFileManagerHandlers(
 
   ipcMain.handle('file-manager:get-file-diff', async (_event, filePath: string) => {
     try {
-      const normalizedPath = path.normalize(filePath)
+      const normalizedPath = await assertFileManagerPathAllowed(deps, filePath, 'fileManager.getFileDiff')
       const dir = path.dirname(normalizedPath)
 
       // 执行 git diff HEAD -- <file>，获取未提交改动

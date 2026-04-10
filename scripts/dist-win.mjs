@@ -75,7 +75,7 @@ const builderArgs = ['electron-builder', '--win', `--config.directories.output=$
 if (publishLatest) {
   builderArgs.push('--publish', 'always')
   builderArgs.push('--config.publish.provider=generic')
-  builderArgs.push('--config.publish.url=http://claudeops.wbdao.cn/releases/stable/win/x64')
+  builderArgs.push('--config.publish.url=https://claudeops.wbdao.cn/releases/stable/win/x64')
 }
 runOrExit(npx, builderArgs)
 

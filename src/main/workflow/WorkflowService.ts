@@ -3,12 +3,14 @@
  * 支持步骤类型：prompt / http / condition / delay
  * 按 DAG 顺序执行，支持并行步骤
  */
+import { randomUUID } from 'crypto'
 import { EventEmitter } from 'events'
 import type { DatabaseManager } from '../storage/Database'
 import type { SessionManagerV2 } from '../session/SessionManagerV2'
 import { sendToRenderer } from '../ipc/shared'
 import { IPC } from '../../shared/constants'
 import type { WorkflowStatus, WorkflowStep } from '../storage/repositories/WorkflowRepository'
+import { ErrorCode, SpectrAIError } from '../../shared/errors'
 
 export type WorkflowServiceStatus = 'stopped' | 'running'
 
@@ -17,6 +19,379 @@ interface RunningExecution {
   workflowId: string
   startedAt: number
   paused: boolean
+}
+
+type ConditionTokenType =
+  | 'identifier'
+  | 'number'
+  | 'string'
+  | 'boolean'
+  | 'null'
+  | 'operator'
+  | 'paren'
+  | 'comma'
+  | 'dot'
+  | 'eof'
+
+interface ConditionToken {
+  type: ConditionTokenType
+  value: string
+}
+
+type ConditionNode =
+  | { type: 'literal'; value: string | number | boolean | null }
+  | { type: 'path'; segments: string[] }
+  | { type: 'call'; name: string; args: ConditionNode[] }
+  | { type: 'unary'; operator: '!'; argument: ConditionNode }
+  | {
+      type: 'binary'
+      operator: '||' | '&&' | '===' | '!==' | '>' | '>=' | '<' | '<='
+      left: ConditionNode
+      right: ConditionNode
+    }
+
+type ConditionComparisonOperator = '===' | '!==' | '>' | '>=' | '<' | '<='
+
+const DISALLOWED_PATH_SEGMENTS = new Set(['__proto__', 'prototype', 'constructor'])
+
+function isIdentifierStart(char: string): boolean {
+  return /[A-Za-z_]/.test(char)
+}
+
+function isIdentifierPart(char: string): boolean {
+  return /[A-Za-z0-9_]/.test(char)
+}
+
+function tokenizeConditionExpression(expression: string): ConditionToken[] {
+  const tokens: ConditionToken[] = []
+  let index = 0
+
+  while (index < expression.length) {
+    const char = expression[index]
+
+    if (/\s/.test(char)) {
+      index++
+      continue
+    }
+
+    const twoCharOp = expression.slice(index, index + 2)
+    const threeCharOp = expression.slice(index, index + 3)
+    if (threeCharOp === '===') {
+      tokens.push({ type: 'operator', value: '===' })
+      index += 3
+      continue
+    }
+    if (threeCharOp === '!==') {
+      tokens.push({ type: 'operator', value: '!==' })
+      index += 3
+      continue
+    }
+    if (twoCharOp === '&&' || twoCharOp === '||' || twoCharOp === '>=' || twoCharOp === '<=') {
+      tokens.push({ type: 'operator', value: twoCharOp })
+      index += 2
+      continue
+    }
+    if (char === '!' || char === '>' || char === '<') {
+      tokens.push({ type: 'operator', value: char })
+      index++
+      continue
+    }
+    if (char === '(' || char === ')') {
+      tokens.push({ type: 'paren', value: char })
+      index++
+      continue
+    }
+    if (char === ',') {
+      tokens.push({ type: 'comma', value: char })
+      index++
+      continue
+    }
+    if (char === '.') {
+      tokens.push({ type: 'dot', value: char })
+      index++
+      continue
+    }
+    if (char === '"' || char === '\'') {
+      const quote = char
+      let value = ''
+      let terminated = false
+      index++
+      while (index < expression.length) {
+        const current = expression[index]
+        if (current === '\\') {
+          const next = expression[index + 1]
+          if (next === undefined) break
+          value += next
+          index += 2
+          continue
+        }
+        if (current === quote) {
+          index++
+          tokens.push({ type: 'string', value })
+          terminated = true
+          break
+        }
+        value += current
+        index++
+      }
+      if (!terminated) {
+        throw new Error('Unterminated string literal')
+      }
+      continue
+    }
+    if (/[0-9]/.test(char)) {
+      let value = char
+      index++
+      while (index < expression.length && /[0-9.]/.test(expression[index])) {
+        value += expression[index]
+        index++
+      }
+      if (!/^\d+(?:\.\d+)?$/.test(value)) {
+        throw new Error(`Invalid number literal: ${value}`)
+      }
+      tokens.push({ type: 'number', value })
+      continue
+    }
+    if (isIdentifierStart(char)) {
+      let value = char
+      index++
+      while (index < expression.length && isIdentifierPart(expression[index])) {
+        value += expression[index]
+        index++
+      }
+      if (value === 'true' || value === 'false') {
+        tokens.push({ type: 'boolean', value })
+      } else if (value === 'null') {
+        tokens.push({ type: 'null', value })
+      } else {
+        tokens.push({ type: 'identifier', value })
+      }
+      continue
+    }
+
+    throw new Error(`Unsupported token: ${char}`)
+  }
+
+  tokens.push({ type: 'eof', value: '' })
+  return tokens
+}
+
+class ConditionParser {
+  private index = 0
+
+  constructor(private readonly tokens: ConditionToken[]) {}
+
+  parse(): ConditionNode {
+    const expression = this.parseOr()
+    this.expect('eof')
+    return expression
+  }
+
+  private parseOr(): ConditionNode {
+    let node = this.parseAnd()
+    while (this.match('operator', '||')) {
+      node = { type: 'binary', operator: '||', left: node, right: this.parseAnd() }
+    }
+    return node
+  }
+
+  private parseAnd(): ConditionNode {
+    let node = this.parseComparison()
+    while (this.match('operator', '&&')) {
+      node = { type: 'binary', operator: '&&', left: node, right: this.parseComparison() }
+    }
+    return node
+  }
+
+  private parseComparison(): ConditionNode {
+    let node = this.parseUnary()
+    while (true) {
+      const token = this.peek()
+      if (token.type !== 'operator') break
+      if (!['===', '!==', '>', '>=', '<', '<='].includes(token.value)) break
+      this.index++
+      const right = this.parseUnary()
+      node = {
+        type: 'binary',
+        operator: token.value as ConditionComparisonOperator,
+        left: node,
+        right,
+      }
+    }
+    return node
+  }
+
+  private parseUnary(): ConditionNode {
+    if (this.match('operator', '!')) {
+      return { type: 'unary', operator: '!', argument: this.parseUnary() }
+    }
+    return this.parsePrimary()
+  }
+
+  private parsePrimary(): ConditionNode {
+    const token = this.peek()
+
+    if (this.match('paren', '(')) {
+      const expr = this.parseOr()
+      this.expect('paren', ')')
+      return expr
+    }
+    if (token.type === 'number') {
+      this.index++
+      return { type: 'literal', value: Number(token.value) }
+    }
+    if (token.type === 'string') {
+      this.index++
+      return { type: 'literal', value: token.value }
+    }
+    if (token.type === 'boolean') {
+      this.index++
+      return { type: 'literal', value: token.value === 'true' }
+    }
+    if (token.type === 'null') {
+      this.index++
+      return { type: 'literal', value: null }
+    }
+    if (token.type === 'identifier') {
+      return this.parseIdentifierOrCall()
+    }
+
+    throw new Error(`Unexpected token: ${token.value || token.type}`)
+  }
+
+  private parseIdentifierOrCall(): ConditionNode {
+    const segments = [this.expect('identifier').value]
+    while (this.match('dot')) {
+      const next = this.expect('identifier').value
+      segments.push(next)
+    }
+
+    if (segments.some(segment => DISALLOWED_PATH_SEGMENTS.has(segment))) {
+      throw new Error('Unsafe property access is not allowed')
+    }
+
+    if (segments.length === 1 && this.match('paren', '(')) {
+      const args: ConditionNode[] = []
+      if (!this.match('paren', ')')) {
+        do {
+          args.push(this.parseOr())
+        } while (this.match('comma'))
+        this.expect('paren', ')')
+      }
+      return { type: 'call', name: segments[0], args }
+    }
+
+    return { type: 'path', segments }
+  }
+
+  private peek(): ConditionToken {
+    return this.tokens[this.index]
+  }
+
+  private match(type: ConditionTokenType, value?: string): boolean {
+    const token = this.tokens[this.index]
+    if (!token || token.type !== type) return false
+    if (value !== undefined && token.value !== value) return false
+    this.index++
+    return true
+  }
+
+  private expect(type: ConditionTokenType, value?: string): ConditionToken {
+    const token = this.tokens[this.index]
+    if (!token || token.type !== type || (value !== undefined && token.value !== value)) {
+      throw new Error(`Expected ${value ?? type}`)
+    }
+    this.index++
+    return token
+  }
+}
+
+function parseConditionExpression(expression: string): ConditionNode {
+  const trimmed = expression.trim()
+  if (!trimmed) {
+    throw new Error('Condition expression cannot be empty')
+  }
+  return new ConditionParser(tokenizeConditionExpression(trimmed)).parse()
+}
+
+function isPlainObject(value: unknown): value is Record<string, any> {
+  return !!value && typeof value === 'object' && !Array.isArray(value)
+}
+
+function resolveConditionPath(scope: Record<string, any>, segments: string[]): any {
+  let current: any = scope
+  for (const segment of segments) {
+    if (DISALLOWED_PATH_SEGMENTS.has(segment)) return undefined
+    if (Array.isArray(current)) {
+      const index = Number(segment)
+      if (!Number.isInteger(index)) return undefined
+      current = current[index]
+      continue
+    }
+    if (!isPlainObject(current) && typeof current !== 'function') {
+      return undefined
+    }
+    current = current[segment]
+  }
+  return current
+}
+
+function evaluateConditionNode(node: ConditionNode, scope: Record<string, any>): any {
+  switch (node.type) {
+    case 'literal':
+      return node.value
+    case 'path':
+      return resolveConditionPath(scope, node.segments)
+    case 'unary':
+      return !Boolean(evaluateConditionNode(node.argument, scope))
+    case 'binary': {
+      if (node.operator === '||') {
+        return Boolean(evaluateConditionNode(node.left, scope)) || Boolean(evaluateConditionNode(node.right, scope))
+      }
+      if (node.operator === '&&') {
+        return Boolean(evaluateConditionNode(node.left, scope)) && Boolean(evaluateConditionNode(node.right, scope))
+      }
+
+      const left = evaluateConditionNode(node.left, scope)
+      const right = evaluateConditionNode(node.right, scope)
+      switch (node.operator) {
+        case '===':
+          return left === right
+        case '!==':
+          return left !== right
+        case '>':
+          return left > right
+        case '>=':
+          return left >= right
+        case '<':
+          return left < right
+        case '<=':
+          return left <= right
+      }
+      return false
+    }
+    case 'call': {
+      const helpers: Record<string, (...args: any[]) => any> = {
+        and: (a: any, b: any) => Boolean(a) && Boolean(b),
+        or: (a: any, b: any) => Boolean(a) || Boolean(b),
+        not: (a: any) => !Boolean(a),
+        eq: (a: any, b: any) => a === b,
+        ne: (a: any, b: any) => a !== b,
+        gt: (a: any, b: any) => a > b,
+        gte: (a: any, b: any) => a >= b,
+        lt: (a: any, b: any) => a < b,
+        lte: (a: any, b: any) => a <= b,
+        contains: (a: any, b: any) => String(a ?? '').includes(String(b ?? '')),
+        startsWith: (a: any, b: any) => String(a ?? '').startsWith(String(b ?? '')),
+        endsWith: (a: any, b: any) => String(a ?? '').endsWith(String(b ?? '')),
+      }
+      const fn = helpers[node.name]
+      if (!fn) {
+        throw new Error(`Unsupported function: ${node.name}`)
+      }
+      return fn(...node.args.map(arg => evaluateConditionNode(arg, scope)))
+    }
+  }
 }
 
 export class WorkflowService extends EventEmitter {
@@ -156,7 +531,7 @@ export class WorkflowService extends EventEmitter {
   }
 
   private async createWorkflowSession(step: WorkflowStep, context: Record<string, any>): Promise<string> {
-    const sessionId = `workflow-${Date.now()}`
+    const sessionId = `workflow-${randomUUID()}`
     if (!this.sessionManagerV2) throw new Error('SessionManagerV2 not available')
 
     const prompt = this.resolveVariables(step.prompt || '', context)
@@ -203,39 +578,26 @@ export class WorkflowService extends EventEmitter {
   }
 
   private evaluateCondition(expression: string, context: Record<string, any>): boolean {
-    try {
-      // 安全求值：只支持简单比较和逻辑运算
-      const keys = Object.keys(context)
-      const values: Record<string, any> = {}
-      keys.forEach(k => { values[k] = context[k] })
+    const ast = parseConditionExpression(expression)
+    const variables = isPlainObject(context.variables) ? context.variables : {}
+    const scope = { context, variables, ...context, ...variables }
+    return Boolean(evaluateConditionNode(ast, scope))
+  }
 
-      // 构建安全函数白名单
-      const fns = {
-        and: (a: boolean, b: boolean) => a && b,
-        or: (a: boolean, b: boolean) => a || b,
-        not: (a: boolean) => !a,
-        eq: (a: any, b: any) => a === b,
-        ne: (a: any, b: any) => a !== b,
-        gt: (a: number, b: number) => a > b,
-        gte: (a: number, b: number) => a >= b,
-        lt: (a: number, b: number) => a < b,
-        lte: (a: number, b: number) => a <= b,
-        contains: (a: string, b: string) => a.includes(b),
-        startsWith: (a: string, b: string) => a.startsWith(b),
-        endsWith: (a: string, b: string) => a.endsWith(b),
+  private validateWorkflowSteps(steps: WorkflowStep[]): void {
+    for (const step of steps) {
+      if (step.type === 'condition') {
+        try {
+          parseConditionExpression(step.conditionExpression || 'false')
+        } catch (error: any) {
+          throw new SpectrAIError({
+            code: ErrorCode.INVALID_INPUT,
+            message: `Invalid condition expression for step ${step.id}: ${error?.message || error}`,
+            userMessage: `条件步骤 "${step.name || step.id}" 的表达式无效`,
+            context: { stepId: step.id, expression: step.conditionExpression },
+          })
+        }
       }
-
-      const fnKeys = Object.keys(fns)
-      const valKeys = Object.keys(values)
-
-      // 使用 Function 构造器但限制 scope
-      const argNames = [...fnKeys, ...valKeys]
-      const argVals = [...Object.values(fns), ...Object.values(values)]
-      // eslint-disable-next-line no-new-func
-      const fn = new Function(...argNames, `return ${expression}`)
-      return fn(...argVals)
-    } catch {
-      return false
     }
   }
 
@@ -392,6 +754,7 @@ export class WorkflowService extends EventEmitter {
     variables?: Record<string, any>
     createdBy?: string
   }): any {
+    this.validateWorkflowSteps(data.steps || [])
     const id = `wf-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
     const workflow = this.db.createWorkflow({
       id,
@@ -413,6 +776,9 @@ export class WorkflowService extends EventEmitter {
     variables?: Record<string, any>
     status?: WorkflowStatus
   }): void {
+    if (updates.steps) {
+      this.validateWorkflowSteps(updates.steps)
+    }
     this.db.updateWorkflow(workflowId, updates)
     sendToRenderer(IPC.WORKFLOW_STATUS, { type: 'workflow-updated', workflowId })
   }
