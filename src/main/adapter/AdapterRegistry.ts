@@ -5,7 +5,7 @@
 
 import type { BaseProviderAdapter } from './types'
 
-export type AdapterType = 'claude-sdk' | 'codex-appserver' | 'gemini-headless' | 'iflow-acp' | 'opencode-sdk'
+export type AdapterType = 'claude-sdk' | 'codex-appserver' | 'gemini-headless' | 'iflow-acp' | 'opencode-sdk' | 'qwen-sdk'
 
 export class AdapterRegistry {
   private adapters: Map<string, BaseProviderAdapter> = new Map()
@@ -89,6 +89,8 @@ export class AdapterRegistry {
         return providerId === 'iflow'
       case 'opencode-sdk':
         return providerId === 'opencode'
+      case 'qwen-sdk':
+        return providerId === 'qwen-coder'
       default:
         return false
     }

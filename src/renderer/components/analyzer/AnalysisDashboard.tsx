@@ -11,21 +11,34 @@ import { Shield, Code, Zap, GitBranch, AlertTriangle, CheckCircle, XCircle, Arro
 
 /** 专家类型配置 */
 const EXPERT_CONFIG: Record<string, { icon: React.ReactNode; color: string; label: string }> = {
-  code_quality: { icon: <Code size={18} />, color: 'text-blue-500', label: '代码质量' },
-  performance: { icon: <Zap size={18} />, color: 'text-yellow-500', label: '性能工程' },
-  security: { icon: <Shield size={18} />, color: 'text-red-500', label: '安全审计' },
-  architecture: { icon: <GitBranch size={18} />, color: 'text-purple-500', label: '架构评估' },
+  code_quality: { icon: <Code size={18} />, color: 'text-accent-blue', label: '代码质量' },
+  performance: { icon: <Zap size={18} />, color: 'text-accent-yellow', label: '性能工程' },
+  security: { icon: <Shield size={18} />, color: 'text-accent-red', label: '安全审计' },
+  architecture: { icon: <GitBranch size={18} />, color: 'text-accent-purple', label: '架构评估' },
 }
 
 export default function AnalysisDashboard() {
   const [analyzing, setAnalyzing] = useState(false)
   const [report, setReport] = useState<any>(null)
+  const [error, setError] = useState<string | null>(null)
 
   const handleStartAnalysis = async () => {
     setAnalyzing(true)
+    setError(null)
     try {
-      // TODO: 调用 IPC 启动分析
-      // const result = await window.spectrAI.analyzer.startAnalysis({ workDir, sessionId })
+      const result = await (window as any).spectrAI.analyzer.startAnalysis({})
+      if (result.success && result.reportId) {
+        const reportResult = await (window as any).spectrAI.analyzer.getReport(result.reportId)
+        if (reportResult.success) {
+          setReport(reportResult.report)
+        } else {
+          setError('获取报告失败')
+        }
+      } else {
+        setError(result.error || '分析启动失败')
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '分析失败')
     } finally {
       setAnalyzing(false)
     }
@@ -51,13 +64,21 @@ export default function AnalysisDashboard() {
 
       {/* 内容区域 */}
       <div className="flex-1 overflow-y-auto p-4">
-        {!report ? (
+        {!report && !error && (
           <div className="flex flex-col items-center justify-center h-full text-text-muted">
             <Shield className="w-16 h-16 mb-4 opacity-30" />
             <p className="text-sm">点击"开始分析"启动多维度代码审查</p>
             <p className="text-xs mt-1 opacity-60">包含代码质量、性能、安全、架构 4 个维度</p>
           </div>
-        ) : (
+        )}
+        {error && (
+          <div className="flex flex-col items-center justify-center h-full text-text-muted">
+            <AlertTriangle className="w-12 h-12 mb-3 text-accent-red opacity-60" />
+            <p className="text-sm text-accent-red">{error}</p>
+            <p className="text-xs mt-1 opacity-60">请检查工作目录或稍后重试</p>
+          </div>
+        )}
+        {report && (
           <div className="space-y-4">
             {/* 总体评分 */}
             <div className="p-4 bg-bg-secondary rounded-lg border border-border">
@@ -81,15 +102,15 @@ export default function AnalysisDashboard() {
                       <span className="text-xs font-medium text-text-primary">{config.label}</span>
                     </div>
                     <div className="flex items-center gap-3 text-xs">
-                      <span className="text-red-500">
+                      <span className="text-accent-red">
                         <AlertTriangle size={12} className="inline mr-1" />
                         {result.stats?.critical || 0}
                       </span>
-                      <span className="text-yellow-500">
+                      <span className="text-accent-yellow">
                         <AlertTriangle size={12} className="inline mr-1" />
                         {result.stats?.high || 0}
                       </span>
-                      <span className="text-blue-500">
+                      <span className="text-accent-blue">
                         <AlertTriangle size={12} className="inline mr-1" />
                         {result.stats?.medium || 0}
                       </span>
@@ -124,7 +145,7 @@ export default function AnalysisDashboard() {
 }
 
 function getScoreColor(score: number): string {
-  if (score >= 80) return 'text-green-500'
-  if (score >= 60) return 'text-yellow-500'
-  return 'text-red-500'
+  if (score >= 80) return 'text-accent-green'
+  if (score >= 60) return 'text-accent-yellow'
+  return 'text-accent-red'
 }

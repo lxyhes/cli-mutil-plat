@@ -8,18 +8,8 @@ import type { Session, SessionStatus, AIProvider, ActivityEvent, Workspace } fro
 // 状态 / 分组 基础定义
 // ─────────────────────────────────────────────────────────
 
-/** 状态中文映射 */
-export const STATUS_LABELS: Record<SessionStatus, string> = {
-  starting: '启动中',
-  running: '运行中',
-  idle: '空闲',
-  waiting_input: '等待输入',
-  paused: '已暂停',
-  completed: '已完成',
-  error: '出错',
-  terminated: '已终止',
-  interrupted: '已中断'
-}
+/** 状态中文映射（从 shared 导入） */
+export { STATUS_LABELS } from '../../../../shared/constants'
 
 /** 运行中的状态集合 */
 export const ACTIVE_STATUSES: Set<SessionStatus> = new Set(['running', 'starting', 'waiting_input', 'idle'])

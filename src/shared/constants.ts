@@ -311,6 +311,7 @@ export const IPC = {
   PROMPT_VERSION_LIST:      'prompt-version:list',
   PROMPT_VERSION_UPDATE:     'prompt-version:update',
   PROMPT_VERSION_SET_BASELINE: 'prompt-version:set-baseline',
+  PROMPT_VERSION_DELETE:      'prompt-version:delete',
   PROMPT_TEST_CREATE:       'prompt-test:create',
   PROMPT_TEST_LIST:         'prompt-test:list',
   PROMPT_TEST_GET_STATS:    'prompt-test:get-stats',
@@ -361,6 +362,20 @@ export const STATUS_COLORS: Record<string, string> = {
   error: '#F85149',
   terminated: '#484F58',
   interrupted: '#D29922',
+}
+
+// ---- 会话状态标签 ----
+
+export const STATUS_LABELS: Record<string, string> = {
+  starting: '启动中',
+  running: '运行中',
+  idle: '空闲',
+  waiting_input: '等待输入',
+  paused: '已暂停',
+  completed: '已完成',
+  error: '出错',
+  terminated: '已终止',
+  interrupted: '已中断',
 }
 
 // ---- 优先级颜色 ----

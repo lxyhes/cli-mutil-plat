@@ -45,7 +45,7 @@ export default function SearchPanel() {
   const inputRef = useRef<HTMLInputElement>(null)
   const debounceRef = useRef<NodeJS.Timeout | null>(null)
 
-  const { selectSession } = useSessionStore()
+  const { openSessionForChat } = useSessionStore()
   const { toggleSearchPanel } = useUIStore()
 
   // 自动聚焦搜索框
@@ -101,7 +101,7 @@ export default function SearchPanel() {
   }
 
   const handleResultClick = (result: SearchResult) => {
-    selectSession(result.sessionId)
+    openSessionForChat(result.sessionId)
     toggleSearchPanel()
   }
 

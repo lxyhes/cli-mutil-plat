@@ -70,7 +70,8 @@ interface GitState {
 }
 
 function normPath(p: string): string {
-  return p.replace(/\//g, '\\').toLowerCase()
+  // 统一转为正斜杠 + 小写，确保跨平台缓存 key 一致
+  return p.replace(/\\/g, '/').toLowerCase()
 }
 
 const DEFAULT_REMOTE_STATUS: GitRemoteStatus = {

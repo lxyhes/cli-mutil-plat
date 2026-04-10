@@ -59,6 +59,16 @@ export function registerPromptOptimizerHandlers(deps: IpcDependencies): void {
     }
   })
 
+  ipcMain.handle(IPC.PROMPT_VERSION_DELETE, async (_event, id: string) => {
+    try {
+      const version = service?.getVersion(id)
+      service?.deleteVersion(id)
+      return createSuccessResponse({ templateId: version?.templateId })
+    } catch (err) {
+      return createErrorResponse(err, { operation: 'prompt-version.delete' })
+    }
+  })
+
   // Version management
   ipcMain.handle(IPC.PROMPT_VERSION_CREATE, async (_event, data: any) => {
     try {

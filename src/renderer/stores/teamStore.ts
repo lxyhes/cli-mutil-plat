@@ -7,7 +7,7 @@
  */
 
 import { create } from 'zustand'
-import type { TeamInstance, TeamTask, TeamMessage, TeamTemplate } from '../../main/team/types'
+import type { TeamInstance, TeamTask, TeamMessage, TeamTemplate } from '../../shared/types'
 
 // 事件监听器引用（用于清理）
 let teamEventCleanup: (() => void)[] = []

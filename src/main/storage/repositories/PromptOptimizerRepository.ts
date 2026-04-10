@@ -159,6 +159,11 @@ export class PromptOptimizerRepository {
     this.db.getDb?.()?.prepare('DELETE FROM prompt_templates WHERE id = ?').run(id)
   }
 
+  deleteVersion(id: string): void {
+    if (!this.usingSqlite) return
+    this.db.getDb?.()?.prepare('DELETE FROM prompt_versions WHERE id = ?').run(id)
+  }
+
   // ── Versions ────────────────────────────────────────────
 
   createVersion(data: {

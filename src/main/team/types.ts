@@ -13,7 +13,7 @@ export type TeamStatus = 'pending' | 'running' | 'completed' | 'failed' | 'cance
 export type MemberStatus = 'idle' | 'running' | 'waiting' | 'completed' | 'failed'
 
 /** 任务状态 */
-export type TaskStatus = 'pending' | 'in_progress' | 'completed' | 'failed' | 'cancelled'
+export type TeamTaskStatus = 'pending' | 'in_progress' | 'completed' | 'failed' | 'cancelled'
 
 /** 消息类型 */
 export type MessageType = 'role_message' | 'broadcast' | 'system' | 'task_update'
@@ -99,7 +99,7 @@ export interface TeamTask {
   /** 任务描述 */
   description: string
   /** 任务状态 */
-  status: TaskStatus
+  status: TeamTaskStatus
   /** 负责成员 ID */
   assignedTo?: string
   /** 认领成员 ID */

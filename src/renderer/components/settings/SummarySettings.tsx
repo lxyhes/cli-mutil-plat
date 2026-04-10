@@ -46,12 +46,12 @@ export default function SummarySettings() {
   const [latestSummary, setLatestSummary] = useState<SessionSummary | null>(null)
 
   useEffect(() => {
+    fetchAllSummaries(50)
     if (selectedSessionId) {
       fetchSummaries(selectedSessionId)
       getLatest(selectedSessionId).then((s) => setLatestSummary(s))
     }
-    fetchAllSummaries(50)
-  }, [])
+  }, [selectedSessionId])
 
   const handleGenerate = async () => {
     if (!selectedSessionId) return

@@ -200,6 +200,24 @@ export const usePromptOptimizerStore = create<PromptOptimizerState>((set, get) =
     }
   },
 
+  deleteVersion: async (id) => {
+    try {
+      const result = await (window as any).spectrAI.promptOptimizer.deleteVersion(id)
+      if (result.success && result.data?.templateId) {
+        const templateId = result.data.templateId
+        set((s) => ({
+          versions: {
+            ...s.versions,
+            [templateId]: (s.versions[templateId] || []).filter(v => v.id !== id),
+          },
+        }))
+      }
+      return result
+    } catch (err: any) {
+      return { success: false, error: { message: err.message } }
+    }
+  },
+
   setActiveTemplate: (template) => set({ activeTemplate: template }),
 
   // ── Versions ───────────────────────────────────────────────

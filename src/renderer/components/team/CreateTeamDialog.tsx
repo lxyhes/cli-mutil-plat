@@ -36,8 +36,8 @@ export default function CreateTeamDialog({ onClose, onSuccess }: CreateTeamDialo
     setCreating(true)
     setError(null)
     try {
-      // 使用当前会话的工作目录，如果没有会话则使用当前目录
-      const workDir = sessions[0]?.config?.workingDirectory || process.cwd()
+      // 使用当前会话的工作目录
+      const workDir = sessions[0]?.config?.workingDirectory || ''
       
       const result = await createTeam({
         name: name.trim(),

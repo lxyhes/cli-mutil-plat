@@ -242,10 +242,10 @@ export const AgentSubList = React.memo(function AgentSubList({ sessionId, agents
 
 /** 文件状态图标映射 */
 const FILE_STATUS_CONFIG: Record<string, { Icon: any; color: string; label: string }> = {
-  A: { Icon: FilePlus, color: 'text-green-400', label: '新增' },
-  M: { Icon: FileEdit, color: 'text-blue-400', label: '修改' },
-  D: { Icon: FileX, color: 'text-red-400', label: '删除' },
-  R: { Icon: FileEdit, color: 'text-yellow-400', label: '重命名' },
+  A: { Icon: FilePlus, color: 'text-accent-green', label: '新增' },
+  M: { Icon: FileEdit, color: 'text-accent-blue', label: '修改' },
+  D: { Icon: FileX, color: 'text-accent-red', label: '删除' },
+  R: { Icon: FileEdit, color: 'text-accent-yellow', label: '重命名' },
 }
 
 /** 获取文件名 */
@@ -392,7 +392,7 @@ export const WorktreeSubList = React.memo(function WorktreeSubList({
     return () => {
       cancelled = true
     }
-  }, [expanded, repoPath, worktreePath, baseCommit, baseBranch, worktreeBranchHint, worktreeBranchCommit, branch, session.id, diffSummary])
+  }, [expanded, repoPath, worktreePath, baseCommit, baseBranch, worktreeBranchHint, worktreeBranchCommit, branch, session.id])
 
   // 查看某个文件的 diff
   const handleShowFileDiff = useCallback(async (filePath: string) => {
@@ -430,9 +430,9 @@ export const WorktreeSubList = React.memo(function WorktreeSubList({
         {/* 差异统计（已加载后显示） */}
         {diffSummary && totalFiles > 0 && (
           <span className="flex items-center gap-1 ml-auto flex-shrink-0">
-            {diffSummary.added > 0 && <span className="text-green-400">+{diffSummary.added}</span>}
-            {diffSummary.modified > 0 && <span className="text-blue-400">~{diffSummary.modified}</span>}
-            {diffSummary.deleted > 0 && <span className="text-red-400">-{diffSummary.deleted}</span>}
+            {diffSummary.added > 0 && <span className="text-accent-green">+{diffSummary.added}</span>}
+            {diffSummary.modified > 0 && <span className="text-accent-blue">~{diffSummary.modified}</span>}
+            {diffSummary.deleted > 0 && <span className="text-accent-red">-{diffSummary.deleted}</span>}
           </span>
         )}
         {diffSummary && totalFiles === 0 && (
@@ -560,9 +560,9 @@ function WorktreeFileDiffModal({ filePath, worktreeBranch, diffText, loading, on
               {lines.map((line, i) => (
                 <div key={i} className={[
                   'px-4 py-0.5 leading-5 whitespace-pre-wrap break-all',
-                  line.type === 'add'    ? 'bg-green-500/10 text-green-400' :
-                  line.type === 'remove' ? 'bg-red-500/10 text-red-400' :
-                  line.type === 'hunk'   ? 'text-blue-400 bg-bg-tertiary' :
+                  line.type === 'add'    ? 'bg-accent-green/10 text-accent-green' :
+                  line.type === 'remove' ? 'bg-accent-red/10 text-accent-red' :
+                  line.type === 'hunk'   ? 'text-accent-blue bg-bg-tertiary' :
                   line.type === 'meta'   ? 'text-text-muted bg-bg-tertiary' :
                                           'text-text-secondary',
                 ].join(' ')}>

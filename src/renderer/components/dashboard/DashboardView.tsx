@@ -9,21 +9,9 @@ import {
   PlayCircle, PauseCircle, Terminal
 } from 'lucide-react'
 import { useSessionStore } from '../../stores/sessionStore'
-import { STATUS_COLORS } from '../../../shared/constants'
+import { STATUS_COLORS, STATUS_LABELS } from '../../../shared/constants'
 import type { Session, SessionStatus, ActivityEvent } from '../../../shared/types'
 import UsageDashboard from '../usage/UsageDashboard'
-
-const STATUS_LABELS: Record<SessionStatus, string> = {
-  starting: '启动中',
-  running: '运行中',
-  idle: '空闲',
-  waiting_input: '等待输入',
-  paused: '已暂停',
-  completed: '已完成',
-  error: '出错',
-  terminated: '已终止',
-  interrupted: '已中断'
-}
 
 function formatDuration(startedAt: string): string {
   const seconds = Math.floor((Date.now() - new Date(startedAt).getTime()) / 1000)

@@ -12,21 +12,8 @@ import {
   ChevronRight, HelpCircle, Sparkles, SquareCheck
 } from 'lucide-react'
 import { useSessionStore } from '../../stores/sessionStore'
-import { STATUS_COLORS } from '../../../shared/constants'
+import { STATUS_COLORS, STATUS_LABELS } from '../../../shared/constants'
 import type { ActivityEvent, ActivityEventType, SessionStatus } from '../../../shared/types'
-
-/** 状态中文标签 */
-const STATUS_LABELS: Record<SessionStatus, string> = {
-  starting: '启动中',
-  running: '运行中',
-  idle: '空闲',
-  waiting_input: '等待输入',
-  paused: '已暂停',
-  completed: '已完成',
-  error: '出错',
-  terminated: '已终止',
-  interrupted: '已中断'
-}
 
 /** 活动类型样式配置（含图标） */
 const ACTIVITY_CONFIG: Record<string, {

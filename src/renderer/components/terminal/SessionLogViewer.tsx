@@ -12,7 +12,7 @@ import '@xterm/xterm/css/xterm.css'
 import { Clock, FileText, RotateCcw, X } from 'lucide-react'
 import { useUIStore } from '../../stores/uiStore'
 import { useSessionStore } from '../../stores/sessionStore'
-import { THEMES, DEFAULT_THEME_ID, STATUS_COLORS } from '../../../shared/constants'
+import { THEMES, DEFAULT_THEME_ID, STATUS_COLORS, STATUS_LABELS } from '../../../shared/constants'
 import type { SessionStatus } from '../../../shared/types'
 
 /** 根据主题 ID 获取终端配色（与 useTerminal 保持一致） */
@@ -39,18 +39,6 @@ function getTerminalTheme(themeId: string) {
     brightCyan: t.brightCyan,
     brightWhite: t.brightWhite,
   }
-}
-
-const STATUS_LABELS: Record<SessionStatus, string> = {
-  starting: '启动中',
-  running: '运行中',
-  idle: '空闲',
-  waiting_input: '等待输入',
-  paused: '已暂停',
-  completed: '已完成',
-  error: '出错',
-  terminated: '已终止',
-  interrupted: '已中断'
 }
 
 interface SessionLogViewerProps {

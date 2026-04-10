@@ -209,7 +209,7 @@ export const BUILTIN_QWEN_PROVIDER: AIProvider = {
   command: 'qwen',
   isBuiltin: true,
   icon: 'qwen',
-  adapterType: 'claude-sdk',
+  adapterType: 'qwen-sdk',
   defaultArgs: [],
   autoAcceptArg: '--yes',
   resumeArg: '--resume',
@@ -895,5 +895,84 @@ export interface ProviderCapability {
   providerId: string
   mcpSupport: ProviderMcpCapability
   skillSupport: ProviderSkillCapability
+}
+
+// ─── Agent Teams 类型 ───────────────────────────────────────────────
+
+export type TeamStatus = 'pending' | 'running' | 'completed' | 'failed' | 'cancelled'
+export type MemberStatus = 'idle' | 'running' | 'waiting' | 'completed' | 'failed'
+export type TeamTaskStatus = 'pending' | 'in_progress' | 'completed' | 'failed' | 'cancelled'
+export type MessageType = 'role_message' | 'broadcast' | 'system' | 'task_update'
+
+export interface TeamRole {
+  id: string
+  name: string
+  identifier: string
+  icon: string
+  color: string
+  description: string
+  systemPrompt: string
+  isLeader: boolean
+}
+
+export interface TeamMember {
+  id: string
+  instanceId: string
+  roleId: string
+  role: TeamRole
+  sessionId: string
+  status: MemberStatus
+  providerId: string
+  currentTaskId?: string
+  joinedAt: string
+  lastActiveAt?: string
+}
+
+export interface TeamInstance {
+  id: string
+  name: string
+  templateId?: string
+  status: TeamStatus
+  workDir: string
+  sessionId: string
+  members: TeamMember[]
+  createdAt: string
+  startedAt?: string
+  completedAt?: string
+  objective: string
+}
+
+export interface TeamTask {
+  id: string
+  instanceId: string
+  title: string
+  description: string
+  status: TeamTaskStatus
+  assignedTo?: string
+  claimedBy?: string
+  claimedAt?: string
+  priority: 'low' | 'medium' | 'high' | 'critical'
+  dependencies: string[]
+  createdAt: string
+  completedAt?: string
+  result?: string
+}
+
+export interface TeamMessage {
+  id: string
+  instanceId: string
+  from: string
+  to?: string
+  type: MessageType
+  content: string
+  timestamp: string
+}
+
+export interface TeamTemplate {
+  id: string
+  name: string
+  description: string
+  roles: TeamRole[]
+  createdAt: string
 }
 

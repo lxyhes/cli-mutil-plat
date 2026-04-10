@@ -8,7 +8,7 @@ import React, { useState, useEffect } from 'react'
 import { Maximize2, X, AlertTriangle, Copy, Hash, FolderOpen, ExternalLink } from 'lucide-react'
 import { useSessionStore } from '../../stores/sessionStore'
 import { useUIStore } from '../../stores/uiStore'
-import { STATUS_COLORS } from '../../../shared/constants'
+import { STATUS_COLORS, STATUS_LABELS } from '../../../shared/constants'
 import type { SessionStatus } from '../../../shared/types'
 import ContextMenu from '../common/ContextMenu'
 import type { MenuItem } from '../common/ContextMenu'
@@ -19,19 +19,6 @@ interface TerminalHeaderProps {
   onMaximize?: () => void
   onClose?: () => void
   children?: React.ReactNode
-}
-
-/** 状态中文标签（仅用于 title 提示，徽章已移至 Tab） */
-const STATUS_LABELS: Record<SessionStatus, string> = {
-  starting: '启动中',
-  running: '运行中',
-  idle: '空闲',
-  waiting_input: '等待输入',
-  paused: '已暂停',
-  completed: '已完成',
-  error: '出错',
-  terminated: '已终止',
-  interrupted: '已中断'
 }
 
 /** 卡住类型中文标签 */

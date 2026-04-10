@@ -23,7 +23,7 @@ function getRepoName(p: string) {
   return p.replace(/\\/g, '/').split('/').filter(Boolean).pop() || p
 }
 function cleanBranch(b: string) { return b.replace('refs/heads/', '') }
-function normPath(p: string) { return p.replace(/\//g, '\\').toLowerCase() }
+function normPath(p: string) { return p.replace(/\\/g, '/').toLowerCase() }
 function getFileName(p: string) { return p.replace(/\\/g, '/').split('/').pop() || p }
 function getDirPath(p: string) {
   const parts = p.replace(/\\/g, '/').split('/')
@@ -641,7 +641,7 @@ function WorktreeItem({ wt, repoRoot, sessions: wtSessions, onShowDiff }: {
     return () => {
       cancelled = true
     }
-  }, [expanded, wt.isMain, wt.path, repoRoot, baseCommit, baseBranch, worktreeBranchCommitHint, primarySessionId, diffSummary, branch])
+  }, [expanded, wt.isMain, wt.path, repoRoot, baseCommit, baseBranch, worktreeBranchCommitHint, primarySessionId, branch])
 
   const handleFileDiff = async (filePath: string) => {
     if (!diffSummary?.worktreeBranch) return

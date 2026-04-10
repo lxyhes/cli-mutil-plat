@@ -135,16 +135,21 @@ export function SessionsContent() {
   // 当 sessionStore 中的 sessions 变化时，同步刷新 pickerGroup
   useEffect(() => {
     if (!pickerGroup) return
-    const sessionIds = new Set(sessions.map(s => s.id))
-    const newSessions = pickerGroup.sessions.filter(s => sessionIds.has(s.id))
-    if (newSessions.length !== pickerGroup.sessions.length) {
-      setPickerGroup(prev => prev ? { ...prev, sessions: newSessions } : null)
+    const existingIds = new Set(pickerGroup.sessions.map(s => s.id))
+    const added = sessions.filter(s => !existingIds.has(s.id))
+    const removed = pickerGroup.sessions.filter(s => sessions.some(cs => cs.id === s.id))
+    if (added.length > 0 || removed.length !== pickerGroup.sessions.length) {
+      setPickerGroup(prev => prev ? {
+        ...prev,
+        sessions: [...prev.sessions.filter(s => sessions.some(cs => cs.id === s.id)), ...added]
+      } : null)
     }
   }, [sessions])
 
   // ── 删除确认弹框 ──
   const [deleteConfirm, setDeleteConfirm] = useState<{ sessionId: string; sessionName: string } | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
 
   useEffect(() => {
     if (aiRenameError) {
@@ -593,6 +598,9 @@ export function SessionsContent() {
                   确定要永久删除 <span className="font-medium text-text-primary">"{deleteConfirm.sessionName}"</span> 吗？<br />
                   此操作将删除会话及其所有历史记录，且无法撤销。
                 </p>
+                {deleteError && (
+                  <p className="text-xs text-accent-red mt-1">{deleteError}</p>
+                )}
               </div>
             </div>
             <div className="flex gap-2 justify-end">
@@ -606,11 +614,12 @@ export function SessionsContent() {
               <button
                 onClick={async () => {
                   setIsDeleting(true)
+                  setDeleteError(null)
                   try {
                     await deleteSession(deleteConfirm.sessionId)
                     setDeleteConfirm(null)
                   } catch (err) {
-                    console.error('Delete session failed:', err)
+                    setDeleteError(err instanceof Error ? err.message : '删除失败')
                   } finally {
                     setIsDeleting(false)
                   }

@@ -47,6 +47,7 @@ export default function TelegramSettings() {
 
   useEffect(() => {
     if (config) {
+      setBotToken(config.botToken || '')
       setCommandPrefix(config.commandPrefix)
       setNotifyOnStart(config.notifyOnStart)
       setNotifyOnEnd(config.notifyOnEnd)

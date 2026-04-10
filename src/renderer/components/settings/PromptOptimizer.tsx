@@ -175,8 +175,8 @@ export default function PromptOptimizer() {
       } else {
         const result = await store.createTemplate(data)
         if (result?.success && data.content) {
-          // auto-create version 1 with content, createVersion 2 with same content
-          // The service auto-creates v1, so we update it if content provided
+          // 模板创建时如果提供了 content，service 会自动创建 version 1
+          // 无需额外操作
         }
       }
       resetTemplateForm()
@@ -185,11 +185,15 @@ export default function PromptOptimizer() {
     }
   }
 
-  const handleDeleteTemplate = async () => {
-    if (!deleteTarget || deleteTarget.type !== 'template') return
+  const handleDelete = async () => {
+    if (!deleteTarget) return
     setDeleting(true)
     try {
-      await store.deleteTemplate(deleteTarget.id)
+      if (deleteTarget.type === 'template') {
+        await store.deleteTemplate(deleteTarget.id)
+      } else {
+        await store.deleteVersion(deleteTarget.id)
+      }
       setDeleteTarget(null)
     } finally {
       setDeleting(false)
@@ -821,7 +825,7 @@ export default function PromptOptimizer() {
           deleteTarget?.type === 'template' ? '所有版本和测试记录也会被删除。' : ''
         }`}
         danger
-        onConfirm={handleDeleteTemplate}
+        onConfirm={handleDelete}
         onCancel={() => setDeleteTarget(null)}
       />
     </div>

@@ -734,6 +734,7 @@ if (!ctxBr) {
     listVersions: (templateId: string) => ipcRenderer.invoke(IPC.PROMPT_VERSION_LIST, templateId),
     updateVersion: (id: string, updates: any) => ipcRenderer.invoke(IPC.PROMPT_VERSION_UPDATE, id, updates),
     setBaseline: (versionId: string) => ipcRenderer.invoke(IPC.PROMPT_VERSION_SET_BASELINE, versionId),
+    deleteVersion: (id: string) => ipcRenderer.invoke(IPC.PROMPT_VERSION_DELETE, id),
     // Testing
     runTest: (versionId: string, testInput: string, providerId?: string) =>
       ipcRenderer.invoke(IPC.PROMPT_RUN_TEST, versionId, testInput, providerId),
@@ -764,6 +765,13 @@ if (!ctxBr) {
       ipcRenderer.on(IPC.PROMPT_OPTIMIZATION_STATUS, (_e, status) => callback(status))
       return () => ipcRenderer.removeListener(IPC.PROMPT_OPTIMIZATION_STATUS, () => {})
     },
+  },
+
+  // ==================== Analyzer API ====================
+  analyzer: {
+    startAnalysis: (config: any) => ipcRenderer.invoke(IPC.ANALYZER_START, config),
+    getReport: (reportId: string) => ipcRenderer.invoke(IPC.ANALYZER_GET_REPORT, reportId),
+    getAllReports: () => ipcRenderer.invoke(IPC.ANALYZER_GET_ALL_REPORTS),
   },
 
   // ★ 渲染进程注册 API 就绪回调（避免轮询）

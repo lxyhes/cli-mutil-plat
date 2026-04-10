@@ -9,24 +9,11 @@ import React, { useState, useRef, useEffect, useCallback } from 'react'
 import { Plus, X, AlertCircle, ChevronLeft, ChevronRight, Clock, Copy, Hash } from 'lucide-react'
 import { useSessionStore } from '../../stores/sessionStore'
 import { useUIStore } from '../../stores/uiStore'
-import { STATUS_COLORS } from '../../../shared/constants'
+import { STATUS_COLORS, STATUS_LABELS } from '../../../shared/constants'
 import type { SessionStatus } from '../../../shared/types'
 import TerminalPanel from './TerminalPanel'
 import ConfirmDialog from '../common/ConfirmDialog'
 import ContextMenu, { MenuItem } from '../common/ContextMenu'
-
-
-const STATUS_LABELS: Record<SessionStatus, string> = {
-  starting: '启动中',
-  running: '运行中',
-  idle: '空闲',
-  waiting_input: '等待输入',
-  paused: '已暂停',
-  completed: '已完成',
-  error: '出错',
-  terminated: '已终止',
-  interrupted: '已中断'
-}
 
 // 右键菜单状态类型
 interface CtxMenuState {
@@ -173,9 +160,7 @@ const TerminalTabs: React.FC = () => {
 
   // 确认批量关闭其他会话
   const handleConfirmCloseOthers = async () => {
-    for (const sid of closingOtherSessionIds) {
-      await terminateSession(sid)
-    }
+    await Promise.all(closingOtherSessionIds.map(sid => terminateSession(sid)))
     setClosingOtherSessionIds([])
   }
 

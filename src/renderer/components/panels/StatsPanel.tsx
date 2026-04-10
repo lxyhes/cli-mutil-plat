@@ -7,7 +7,7 @@
 import { useState, useEffect } from 'react'
 import { Activity, AlertCircle, CheckCircle, Zap } from 'lucide-react'
 import { useSessionStore } from '../../stores/sessionStore'
-import { STATUS_COLORS } from '../../../shared/constants'
+import { STATUS_COLORS, STATUS_LABELS } from '../../../shared/constants'
 import type { ActivityEventType, SessionStatus } from '../../../shared/types'
 import type { FileText } from 'lucide-react'
 import {
@@ -16,19 +16,6 @@ import {
   HelpCircle, Sparkles, SquareCheck
 } from 'lucide-react'
 import UsageDashboard from '../usage/UsageDashboard'
-
-/** 状态中文标签 */
-const STATUS_LABELS: Record<SessionStatus, string> = {
-  starting: '启动中',
-  running: '运行中',
-  idle: '空闲',
-  waiting_input: '等待输入',
-  paused: '已暂停',
-  completed: '已完成',
-  error: '出错',
-  terminated: '已终止',
-  interrupted: '已中断'
-}
 
 const ACTIVITY_CONFIG: Record<string, {
   color: string

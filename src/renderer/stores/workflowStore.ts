@@ -98,8 +98,8 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
   fetchWorkflows: async () => {
     set({ loading: true })
     try {
-      const workflows = await (window as any).spectrAI.workflow.list()
-      set({ workflows: (workflows || []) as Workflow[], loading: false })
+      const result = await (window as any).spectrAI.workflow.list()
+      set({ workflows: (result.success ? (result.data || []) : []) as Workflow[], loading: false })
     } catch (err) {
       console.error('[WorkflowStore] fetchWorkflows error:', err)
       set({ loading: false })

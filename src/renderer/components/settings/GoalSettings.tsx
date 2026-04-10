@@ -7,6 +7,7 @@ import {
   ChevronRight, AlertCircle, CheckCircle2, X, StickyNote, BookmarkCheck, Bell, Eye
 } from 'lucide-react'
 import { useGoalStore, type Goal, type GoalActivity, type GoalPriority, type GoalActivityType } from '../../stores/goalStore'
+import ConfirmDialog from '../common/ConfirmDialog'
 
 const PRIORITY_LABELS: Record<GoalPriority, string> = {
   high: '高',
@@ -84,6 +85,10 @@ export default function GoalSettings() {
   const [quickActivityContent, setQuickActivityContent] = useState('')
   const [quickProgress, setQuickProgress] = useState('')
   const [addingActivity, setAddingActivity] = useState(false)
+
+  // 删除确认状态
+  const [deleteGoalConfirm, setDeleteGoalConfirm] = useState<{ goalId: string; name: string } | null>(null)
+  const [abandonGoalConfirm, setAbandonGoalConfirm] = useState<Goal | null>(null)
 
   // Edit goal state
   const [editingGoal, setEditingGoal] = useState<Goal | null>(null)
@@ -164,11 +169,12 @@ export default function GoalSettings() {
     }
   }
 
-  const handleDeleteGoal = async (goalId: string) => {
-    if (!confirm('确定删除此目标？此操作不可撤销。')) return
-    await deleteGoal(goalId)
+  const handleDeleteGoal = async () => {
+    if (!deleteGoalConfirm) return
+    await deleteGoal(deleteGoalConfirm.goalId)
     setActiveGoal(null)
     setActiveTab('list')
+    setDeleteGoalConfirm(null)
   }
 
   const handleSetAchieved = async (goal: Goal) => {
@@ -178,12 +184,13 @@ export default function GoalSettings() {
     }
   }
 
-  const handleSetAbandoned = async (goal: Goal) => {
-    if (!confirm('确定放弃此目标？')) return
-    await updateGoal(goal.id, { status: 'abandoned' })
-    if (activeGoal?.id === goal.id) {
-      setActiveGoal({ ...goal, status: 'abandoned' })
+  const handleSetAbandoned = async () => {
+    if (!abandonGoalConfirm) return
+    await updateGoal(abandonGoalConfirm.id, { status: 'abandoned' })
+    if (activeGoal?.id === abandonGoalConfirm.id) {
+      setActiveGoal({ ...abandonGoalConfirm, status: 'abandoned' })
     }
+    setAbandonGoalConfirm(null)
   }
 
   const handleAddActivity = async () => {
@@ -516,7 +523,7 @@ export default function GoalSettings() {
                       <CheckCircle2 className="w-4 h-4" />
                     </button>
                     <button
-                      onClick={(e) => { e.stopPropagation(); handleDeleteGoal(activeGoal.id) }}
+                      onClick={(e) => { e.stopPropagation(); setDeleteGoalConfirm({ goalId: activeGoal.id, name: activeGoal.title }) }}
                       className="p-1.5 text-text-muted hover:text-accent-red rounded btn-transition"
                     >
                       <Trash2 className="w-4 h-4" />
@@ -628,6 +635,25 @@ export default function GoalSettings() {
           )}
         </div>
       )}
+
+      {/* 删除目标确认 */}
+      <ConfirmDialog
+        open={!!deleteGoalConfirm}
+        title="删除目标"
+        message={`确定要永久删除目标「${deleteGoalConfirm?.name}」吗？此操作不可撤销。`}
+        danger
+        onConfirm={handleDeleteGoal}
+        onCancel={() => setDeleteGoalConfirm(null)}
+      />
+
+      {/* 放弃目标确认 */}
+      <ConfirmDialog
+        open={!!abandonGoalConfirm}
+        title="放弃目标"
+        message={`确定要放弃目标「${abandonGoalConfirm?.title}」吗？`}
+        onConfirm={handleSetAbandoned}
+        onCancel={() => setAbandonGoalConfirm(null)}
+      />
     </div>
   )
 }

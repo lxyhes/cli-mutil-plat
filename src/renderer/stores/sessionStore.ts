@@ -417,9 +417,8 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       const result: IpcResponse<void> = await safeAPI.session.delete(id)
       if (!result.success) {
         console.error('[sessionStore] deleteSession error:', result.error?.userMessage)
-        return
+        throw new Error(result.error?.userMessage || '删除会话失败')
       }
-      if (!result.success) throw new Error(result.error || '删除失败')
       // 若当前选中的是被删除会话，清除选中状态
       if (get().selectedSessionId === id) {
         set({ selectedSessionId: null })
