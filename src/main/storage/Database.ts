@@ -236,6 +236,125 @@ export class DatabaseManager implements MemoryManagedComponent {
    */
   private migrateSchema(): void {
     runMigrations(this.db, MIGRATIONS)
+    
+    // ★ 紧急修复：如果 team_instances 表不存在，手动创建（v31 迁移可能失败）
+    this.ensureTeamsTablesExist()
+  }
+
+  /**
+   * 确保 Agent Teams 表存在（紧急修复）
+   */
+  private ensureTeamsTablesExist(): void {
+    if (!this.db || !this.usingSqlite) return
+    
+    try {
+      const tables = this.db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name LIKE 'team_%'").all()
+      const existingTables = tables.map((t: any) => t.name)
+      
+      if (!existingTables.includes('team_instances')) {
+        console.log('[Database] Creating missing team_instances table...')
+        this.db.exec(`
+          CREATE TABLE IF NOT EXISTS team_instances (
+            id TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            template_id TEXT,
+            status TEXT NOT NULL DEFAULT 'pending',
+            work_dir TEXT NOT NULL,
+            session_id TEXT NOT NULL,
+            objective TEXT,
+            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            started_at DATETIME,
+            completed_at DATETIME
+          )
+        `)
+      }
+      
+      if (!existingTables.includes('team_members')) {
+        console.log('[Database] Creating missing team_members table...')
+        this.db.exec(`
+          CREATE TABLE IF NOT EXISTS team_members (
+            id TEXT PRIMARY KEY,
+            instance_id TEXT NOT NULL,
+            role_id TEXT NOT NULL,
+            role_name TEXT NOT NULL,
+            role_identifier TEXT NOT NULL,
+            role_icon TEXT,
+            role_color TEXT,
+            session_id TEXT NOT NULL,
+            status TEXT NOT NULL DEFAULT 'idle',
+            provider_id TEXT NOT NULL,
+            current_task_id TEXT,
+            joined_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            last_active_at DATETIME,
+            FOREIGN KEY (instance_id) REFERENCES team_instances(id) ON DELETE CASCADE
+          )
+        `)
+        this.db.exec('CREATE INDEX IF NOT EXISTS idx_team_members_instance ON team_members(instance_id)')
+      }
+      
+      if (!existingTables.includes('team_tasks')) {
+        console.log('[Database] Creating missing team_tasks table...')
+        this.db.exec(`
+          CREATE TABLE IF NOT EXISTS team_tasks (
+            id TEXT PRIMARY KEY,
+            instance_id TEXT NOT NULL,
+            title TEXT NOT NULL,
+            description TEXT,
+            status TEXT NOT NULL DEFAULT 'pending',
+            assigned_to TEXT,
+            claimed_by TEXT,
+            claimed_at DATETIME,
+            priority TEXT NOT NULL DEFAULT 'medium',
+            dependencies TEXT,
+            result TEXT,
+            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            completed_at DATETIME,
+            FOREIGN KEY (instance_id) REFERENCES team_instances(id) ON DELETE CASCADE
+          )
+        `)
+        this.db.exec('CREATE INDEX IF NOT EXISTS idx_team_tasks_instance_status ON team_tasks(instance_id, status)')
+      }
+      
+      if (!existingTables.includes('team_messages')) {
+        console.log('[Database] Creating missing team_messages table...')
+        this.db.exec(`
+          CREATE TABLE IF NOT EXISTS team_messages (
+            id TEXT PRIMARY KEY,
+            instance_id TEXT NOT NULL,
+            from_member_id TEXT NOT NULL,
+            to_member_id TEXT,
+            type TEXT NOT NULL DEFAULT 'role_message',
+            content TEXT NOT NULL,
+            timestamp DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (instance_id) REFERENCES team_instances(id) ON DELETE CASCADE
+          )
+        `)
+        this.db.exec('CREATE INDEX IF NOT EXISTS idx_team_messages_instance_timestamp ON team_messages(instance_id, timestamp DESC)')
+      }
+      
+      if (!existingTables.includes('team_templates')) {
+        console.log('[Database] Creating missing team_templates table...')
+        this.db.exec(`
+          CREATE TABLE IF NOT EXISTS team_templates (
+            id TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            description TEXT,
+            roles TEXT NOT NULL,
+            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+          )
+        `)
+      }
+      
+      // 更新 schema_version 到 31（如果低于 31）
+      const row = this.db.prepare('SELECT MAX(version) AS max_ver FROM schema_version').get() as any
+      const currentVersion = row?.max_ver ?? 0
+      if (currentVersion < 31) {
+        this.db.prepare('INSERT OR IGNORE INTO schema_version (version, description) VALUES (?, ?)').run(31, 'create Agent Teams tables (emergency fix)')
+        console.log('[Database] Updated schema_version to 31')
+      }
+    } catch (err) {
+      console.error('[Database] ensureTeamsTablesExist failed:', err)
+    }
   }
 
   // ==================== 委托方法（保持 API 完全不变）====================

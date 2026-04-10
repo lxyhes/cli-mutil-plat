@@ -27,6 +27,8 @@ export function runMigrations(db: any, migrations: Migration[]): void {
   const row = db.prepare('SELECT MAX(version) AS max_ver FROM schema_version').get() as any
   const currentVersion: number = row?.max_ver ?? 0
 
+  console.log(`[MigrationRunner] Current database version: ${currentVersion}, Total migrations: ${migrations.length}`)
+
   // 3) 过滤出需要执行的迁移
   const pending = migrations.filter(m => m.version > currentVersion)
   if (pending.length === 0) return
