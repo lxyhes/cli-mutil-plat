@@ -7,18 +7,20 @@
  */
 
 import { useState, useEffect } from 'react'
+import type { ReactNode } from 'react'
 import {
-  Users, MessageSquare, ListChecks, BarChart, Send, Plus,
-  CheckCircle, AlertTriangle, Clock, Activity, X, RefreshCw,
-  Settings, Pause, PlayCircle, XCircle, Download
+  Users, MessageSquare, ListChecks, BarChart,
+  CheckCircle, AlertTriangle, Activity, RefreshCw,
+  Settings, Pause, PlayCircle, XCircle, MonitorSmartphone
 } from 'lucide-react'
 import { useTeamStore, initTeamEventListeners } from '../../stores/teamStore'
 import TaskBoardView from './TaskBoardView'
 import MessagePanel from './MessagePanel'
 import TeamSettingsDialog from './TeamSettingsDialog'
 import CreateTeamDialog from './CreateTeamDialog'
+import TeamStudioView from './TeamStudioView'
 
-type TabType = 'conversation' | 'tasks' | 'messages' | 'status'
+type TabType = 'studio' | 'conversation' | 'tasks' | 'messages' | 'status'
 
 interface TeamHealthIssue {
   type: string
@@ -31,21 +33,17 @@ interface TeamHealthIssue {
 
 export default function TeamSessionView() {
   const {
-    activeTeamId, teams, teamTasks, teamMessages, teamHealth,
+    activeTeamId, teams, teamTasks, teamMessages, teamHealth, teamLogs,
     fetchTeamTasks, fetchTeamMessages, fetchTeamHealth, fetchTeams,
-    createTask, setActiveTeam, cancelTeam, pauseTeam, resumeTeam
+    setActiveTeam, cancelTeam, pauseTeam, resumeTeam
   } = useTeamStore()
-  const [activeTab, setActiveTab] = useState<TabType>('status')
-  const [selectedMember, setSelectedMember] = useState<any>(null)
-  const [showNewTaskDialog, setShowNewTaskDialog] = useState(false)
+  const [activeTab, setActiveTab] = useState<TabType>('studio')
+  const [selectedMemberId, setSelectedMemberId] = useState<string | null>(null)
   const [showSettings, setShowSettings] = useState(false)
   const [showChildTeamDialog, setShowChildTeamDialog] = useState(false)
-  const [newTaskTitle, setNewTaskTitle] = useState('')
-  const [newTaskDesc, setNewTaskDesc] = useState('')
-  const [newTaskPriority, setNewTaskPriority] = useState<'low' | 'medium' | 'high' | 'critical'>('medium')
-  const [isCreatingTask, setIsCreatingTask] = useState(false)
 
   const team = teams.find(t => t.id === activeTeamId)
+  const selectedMember = team?.members.find(member => member.id === selectedMemberId) || null
   const childTeams = teams.filter(t => t.parentTeamId === activeTeamId)
   const tasks = teamTasks[activeTeamId || ''] || []
   const messages = teamMessages[activeTeamId || ''] || []
@@ -68,33 +66,19 @@ export default function TeamSessionView() {
     }
   }, [activeTeamId])
 
-  // 创建任务
-  const handleCreateTask = async () => {
-    if (!activeTeamId || !newTaskTitle.trim()) return
-    setIsCreatingTask(true)
-    try {
-      await createTask(activeTeamId, {
-        title: newTaskTitle,
-        description: newTaskDesc,
-        priority: newTaskPriority,
-        status: 'pending',
-        dependencies: []
-      })
-      setShowNewTaskDialog(false)
-      setNewTaskTitle('')
-      setNewTaskDesc('')
-      setNewTaskPriority('medium')
-    } finally {
-      setIsCreatingTask(false)
+  useEffect(() => {
+    if (selectedMemberId && !team?.members.some(member => member.id === selectedMemberId)) {
+      setSelectedMemberId(null)
     }
-  }
+  }, [selectedMemberId, team])
 
   const completedTasks = tasks.filter(t => t.status === 'completed').length
   const inProgressTasks = tasks.filter(t => t.status === 'in_progress').length
   const pendingTasks = tasks.filter(t => t.status === 'pending').length
   const progressPercent = tasks.length > 0 ? Math.round((completedTasks / tasks.length) * 100) : 0
 
-  const tabs: { key: TabType; label: string; icon: React.ReactNode; badge?: number }[] = [
+  const tabs: { key: TabType; label: string; icon: ReactNode; badge?: number }[] = [
+    { key: 'studio', label: '工作室', icon: <MonitorSmartphone size={14} /> },
     { key: 'conversation', label: '角色', icon: <Users size={14} /> },
     { key: 'tasks', label: '任务', icon: <ListChecks size={14} />, badge: pendingTasks },
     { key: 'messages', label: '消息', icon: <MessageSquare size={14} />, badge: messages.length },
@@ -206,10 +190,10 @@ export default function TeamSessionView() {
           {team.members?.map((member: any) => (
             <button
               key={member.id}
-              onClick={() => setSelectedMember(selectedMember?.id === member.id ? null : member)}
+              onClick={() => setSelectedMemberId(selectedMemberId === member.id ? null : member.id)}
               className={`flex items-center gap-1.5 px-2 py-1 rounded-md text-xs whitespace-nowrap
                 transition-colors
-                ${selectedMember?.id === member.id
+                ${selectedMemberId === member.id
                   ? 'bg-accent-blue/15 text-accent-blue ring-1 ring-accent-blue/30'
                   : 'bg-bg-secondary text-text-secondary hover:bg-bg-hover'}`}
             >
@@ -251,6 +235,17 @@ export default function TeamSessionView() {
 
       {/* 内容区域 */}
       <div className="flex-1 overflow-y-auto">
+        {activeTab === 'studio' && (
+          <TeamStudioView
+            team={team}
+            tasks={tasks}
+            messages={messages}
+            teamLogs={teamLogs}
+            selectedMemberId={selectedMemberId}
+            onSelectMember={(member) => setSelectedMemberId(member.id)}
+          />
+        )}
+
         {activeTab === 'conversation' && (
           <div className="p-4">
             {selectedMember ? (

@@ -259,11 +259,21 @@ export const useTeamStore = create<TeamState>((set, get) => ({
         // 更新本地任务状态
         set((state) => {
           const tasks = state.teamTasks[teamId] || []
+          const completedTask = tasks.find(t => t.id === taskId)
+          const completedAt = new Date().toISOString()
           return {
+            teams: state.teams.map(team => team.id === teamId ? {
+              ...team,
+              members: team.members.map(member =>
+                member.id === completedTask?.claimedBy || member.currentTaskId === taskId
+                  ? { ...member, currentTaskId: undefined, lastActiveAt: completedAt }
+                  : member
+              )
+            } : team),
             teamTasks: {
               ...state.teamTasks,
               [teamId]: tasks.map(t =>
-                t.id === taskId ? { ...t, status: 'completed', result } : t
+                t.id === taskId ? { ...t, status: 'completed', result, completedAt } : t
               )
             }
           }
@@ -281,11 +291,20 @@ export const useTeamStore = create<TeamState>((set, get) => ({
     // 这个操作是通过 agents 内部完成的，这里只是更新本地状态
     set((state) => {
       const tasks = state.teamTasks[teamId] || []
+      const claimedAt = new Date().toISOString()
       return {
+        teams: state.teams.map(team => team.id === teamId ? {
+          ...team,
+          members: team.members.map(member =>
+            member.id === memberId
+              ? { ...member, currentTaskId: taskId, lastActiveAt: claimedAt }
+              : member
+          )
+        } : team),
         teamTasks: {
           ...state.teamTasks,
           [teamId]: tasks.map(t =>
-            t.id === taskId ? { ...t, status: 'in_progress', claimedBy: memberId } : t
+            t.id === taskId ? { ...t, status: 'in_progress', claimedBy: memberId, claimedAt } : t
           )
         }
       }
@@ -318,14 +337,28 @@ export const useTeamStore = create<TeamState>((set, get) => ({
     try {
       const result = await (window as any).spectrAI.team.cancelTask(teamId, taskId, reason)
       if (result.success) {
-        set((state) => ({
-          teamTasks: {
-            ...state.teamTasks,
-            [teamId]: (state.teamTasks[teamId] || []).map(t =>
-              t.id === taskId ? { ...t, status: 'cancelled' } : t
-            )
+        set((state) => {
+          const tasks = state.teamTasks[teamId] || []
+          const cancelledTask = tasks.find(task => task.id === taskId)
+          const updatedAt = new Date().toISOString()
+
+          return {
+            teams: state.teams.map(team => team.id === teamId ? {
+              ...team,
+              members: team.members.map(member =>
+                member.id === cancelledTask?.claimedBy || member.currentTaskId === taskId
+                  ? { ...member, currentTaskId: undefined, lastActiveAt: updatedAt }
+                  : member
+              )
+            } : team),
+            teamTasks: {
+              ...state.teamTasks,
+              [teamId]: tasks.map(t =>
+                t.id === taskId ? { ...t, status: 'cancelled' } : t
+              )
+            }
           }
-        }))
+        })
         return true
       }
       return false
@@ -599,7 +632,11 @@ export function initTeamEventListeners(): void {
     useTeamStore.setState((state) => ({
       teams: state.teams.map(t => t.id === teamId ? {
         ...t,
-        members: t.members.map(m => m.id === memberId ? { ...m, status } : m)
+        members: t.members.map(m => m.id === memberId ? {
+          ...m,
+          status,
+          lastActiveAt: new Date().toISOString(),
+        } : m)
       } : t)
     }))
   })
@@ -610,11 +647,20 @@ export function initTeamEventListeners(): void {
     console.log('[TeamStore] Task claimed:', teamId, taskId, memberId)
     useTeamStore.setState((state) => {
       const tasks = state.teamTasks[teamId] || []
+      const claimedAt = new Date().toISOString()
       return {
+        teams: state.teams.map(team => team.id === teamId ? {
+          ...team,
+          members: team.members.map(member =>
+            member.id === memberId
+              ? { ...member, currentTaskId: taskId, lastActiveAt: claimedAt }
+              : member
+          )
+        } : team),
         teamTasks: {
           ...state.teamTasks,
           [teamId]: tasks.map(t =>
-            t.id === taskId ? { ...t, status: 'in_progress', claimedBy: memberId } : t
+            t.id === taskId ? { ...t, status: 'in_progress', claimedBy: memberId, claimedAt } : t
           )
         }
       }
@@ -627,10 +673,20 @@ export function initTeamEventListeners(): void {
     console.log('[TeamStore] Task completed:', teamId, taskId)
     useTeamStore.setState((state) => {
       const tasks = state.teamTasks[teamId] || []
+      const completedTask = tasks.find(t => t.id === taskId)
+      const completedAt = new Date().toISOString()
       return {
+        teams: state.teams.map(team => team.id === teamId ? {
+          ...team,
+          members: team.members.map(member =>
+            member.id === completedTask?.claimedBy || member.currentTaskId === taskId
+              ? { ...member, currentTaskId: undefined, lastActiveAt: completedAt }
+              : member
+          )
+        } : team),
         teamTasks: {
           ...state.teamTasks,
-          [teamId]: tasks.map(t => t.id === taskId ? { ...t, status: 'completed' } : t)
+          [teamId]: tasks.map(t => t.id === taskId ? { ...t, status: 'completed', completedAt } : t)
         }
       }
     })
@@ -642,7 +698,18 @@ export function initTeamEventListeners(): void {
     console.log('[TeamStore] New team message:', teamId, message.type)
     useTeamStore.setState((state) => {
       const messages = appendUniqueMessage(state.teamMessages[teamId] || [], message)
-      return { teamMessages: { ...state.teamMessages, [teamId]: messages } }
+      const activeAt = new Date().toISOString()
+      return {
+        teams: state.teams.map(team => team.id === teamId ? {
+          ...team,
+          members: team.members.map(member =>
+            member.id === message.from || member.id === message.to
+              ? { ...member, lastActiveAt: activeAt }
+              : member
+          )
+        } : team),
+        teamMessages: { ...state.teamMessages, [teamId]: messages }
+      }
     })
   })
   teamEventCleanup.push(unsubMessage)
@@ -700,6 +767,14 @@ export function initTeamEventListeners(): void {
   // 任务取消
   const unsubTaskCancelled = api.onTaskCancelled((teamId: string, taskId: string) => {
     useTeamStore.setState((state) => ({
+      teams: state.teams.map(team => team.id === teamId ? {
+        ...team,
+        members: team.members.map(member =>
+          member.currentTaskId === taskId
+            ? { ...member, currentTaskId: undefined, lastActiveAt: new Date().toISOString() }
+            : member
+        )
+      } : team),
       teamTasks: {
         ...state.teamTasks,
         [teamId]: (state.teamTasks[teamId] || []).map(t =>

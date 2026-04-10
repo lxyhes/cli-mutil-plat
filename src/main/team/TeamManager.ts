@@ -319,6 +319,7 @@ export class TeamManager extends EventEmitter {
    */
   private async startMember(member: TeamMember, objective: string, bridgePort: number): Promise<void> {
     const { role } = member
+    teamLog.debug(`Starting member ${member.id} (${role.identifier}), workDir: ${member.workDir}`)
 
     // 构建系统 Prompt（注入团队上下文）
     const systemPrompt = this.buildMemberSystemPrompt(role, objective, member, bridgePort)
@@ -337,6 +338,7 @@ export class TeamManager extends EventEmitter {
 连接信息已注入系统环境变量，详情请查看你的 MCP 工具文档。`
 
     try {
+      teamLog.debug(`Creating session for member ${member.id} (${role.identifier})...`)
       // 通过 SessionManagerV2 创建成员会话
       const memberSessionId = this.sessionManager.createSession({
         id: member.sessionId,
@@ -351,14 +353,17 @@ export class TeamManager extends EventEmitter {
         worktreeBaseBranch: member.worktreeBaseBranch,
         initialPrompt: `你是团队「${this.activeTeams.get(member.instanceId)?.name}」的成员，角色是「${role.name}」${role.icon}。\n\n你的系统提示词：\n${systemPrompt}`,
       })
+      teamLog.debug(`Session created for member ${member.id} (${role.identifier}), sessionId: ${memberSessionId}`)
 
       member.status = 'running'
       this.teamRepo.updateMemberStatus(member.id, 'running')
       this.emit('team:member-joined', member.instanceId, member)
+      teamLog.debug(`Member ${member.id} (${role.identifier}) status updated to running`)
     } catch (err) {
-      console.error(`[TeamManager] Failed to start member ${member.id}:`, err)
+      console.error(`[TeamManager] Failed to start member ${member.id} (${role.identifier}):`, err)
       member.status = 'failed'
       this.teamRepo.updateMemberStatus(member.id, 'failed')
+      throw err // 重新抛出，让 createTeam 的 catch 处理
     }
   }
 

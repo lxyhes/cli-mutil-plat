@@ -89,9 +89,9 @@ export class DatabaseManager implements MemoryManagedComponent {
       this.db = new Database(dbPath)
       this.db.pragma('journal_mode = WAL')
       this.db.pragma('foreign_keys = ON')
+      this.usingSqlite = true
       this.initializeSchema()
       this.migrateSchema()
-      this.usingSqlite = true
       console.log('[Database] SQLite initialized at', dbPath)
     } catch (error) {
       console.warn('[Database] better-sqlite3 unavailable, using in-memory fallback:', (error as Error).message)
@@ -272,7 +272,7 @@ export class DatabaseManager implements MemoryManagedComponent {
    * 确保 Agent Teams 表存在（紧急修复）
    */
   private ensureTeamsTablesExist(): void {
-    if (!this.db || !this.usingSqlite) return
+    if (!this.db) return
     
     try {
       const tables = this.db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name LIKE 'team_%'").all()

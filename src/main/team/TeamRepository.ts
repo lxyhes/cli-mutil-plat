@@ -20,7 +20,28 @@ import type {
 
 /** 团队数据仓库 */
 export class TeamRepository {
+  private templatesTableEnsured = false
+
   constructor(private db: any, private usingSqlite: boolean) {}
+
+  private ensureTemplatesTable(): void {
+    if (!this.db || this.templatesTableEnsured) return
+
+    try {
+      this.db.exec(`
+        CREATE TABLE IF NOT EXISTS team_templates (
+          id TEXT PRIMARY KEY,
+          name TEXT NOT NULL,
+          description TEXT,
+          roles TEXT NOT NULL,
+          created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+        )
+      `)
+      this.templatesTableEnsured = true
+    } catch (err) {
+      console.error('[TeamRepository] ensureTemplatesTable error:', err)
+    }
+  }
 
   // ---- Team Instances ----
 
@@ -671,6 +692,7 @@ export class TeamRepository {
 
   getTemplates(): TeamTemplate[] {
     if (!this.db) return []
+    this.ensureTemplatesTable()
     try {
       const rows = this.db.prepare('SELECT * FROM team_templates ORDER BY created_at DESC').all()
       return rows.map((row: any) => ({
@@ -688,6 +710,7 @@ export class TeamRepository {
 
   getTemplate(templateId: string): TeamTemplate | undefined {
     if (!this.db) return undefined
+    this.ensureTemplatesTable()
     try {
       const row = this.db.prepare('SELECT * FROM team_templates WHERE id = ?').get(templateId)
       if (!row) return undefined
@@ -706,6 +729,7 @@ export class TeamRepository {
 
   createTemplate(template: TeamTemplate): void {
     if (!this.db) return
+    this.ensureTemplatesTable()
     try {
       this.db.prepare(`
         INSERT INTO team_templates (id, name, description, roles, created_at)
@@ -718,6 +742,7 @@ export class TeamRepository {
 
   updateTemplate(templateId: string, updates: Partial<Pick<TeamTemplate, 'name' | 'description' | 'roles'>>): void {
     if (!this.db) return
+    this.ensureTemplatesTable()
     try {
       const setParts: string[] = []
       const values: any[] = []
@@ -743,6 +768,7 @@ export class TeamRepository {
 
   deleteTemplate(templateId: string): void {
     if (!this.db) return
+    this.ensureTemplatesTable()
     try {
       // 防止删除内置模板
       if (templateId.startsWith('dev-') || templateId === 'dev-team') return
