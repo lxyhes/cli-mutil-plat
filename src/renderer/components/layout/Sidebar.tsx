@@ -15,6 +15,7 @@ import UnifiedSettingsModal from '../settings/UnifiedSettingsModal'
 import DashboardSidebarView from '../sidebar/DashboardSidebarView'
 import McpSidebarView from '../sidebar/McpSidebarView'
 import SkillsSidebarView from '../sidebar/SkillsSidebarView'
+import ToolboxView from '../sidebar/ToolboxView'
 import { TeamSidebarView } from '../team'
 import TimelinePanel from '../panels/TimelinePanel'
 import StatsPanel from '../panels/StatsPanel'
@@ -1055,9 +1056,11 @@ export default function Sidebar() {
     case 'stats':
       return <StatsPanel />
     case 'mcp':
-      return <McpSidebarView />
+      return <ToolboxView />
     case 'skills':
-      return <SkillsSidebarView />
+      return <ToolboxView />
+    case 'toolbox':
+      return <ToolboxView />
     case 'team':
       return <TeamSidebarView />
     case 'sessions':

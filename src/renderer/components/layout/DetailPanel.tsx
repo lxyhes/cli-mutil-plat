@@ -12,6 +12,7 @@ import StatsPanel from '../panels/StatsPanel'
 import { SessionsContent } from './Sidebar'
 import DashboardSidebarView from '../sidebar/DashboardSidebarView'
 import ComingSoonView from '../sidebar/ComingSoonView'
+import ToolboxView from '../sidebar/ToolboxView'
 import GitPanel from '../panels/GitPanel'
 
 
@@ -28,6 +29,9 @@ export default function DetailPanel() {
       case 'dashboard': return <DashboardSidebarView />
       case 'explorer':  return <ComingSoonView icon={FolderTree} label="文件资源管理器" />
       case 'git':       return <GitPanel />
+      case 'mcp':       return <ToolboxView />
+      case 'skills':    return <ToolboxView />
+      case 'toolbox':   return <ToolboxView />
       default:          return <TimelinePanel />
     }
   }

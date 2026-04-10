@@ -9,7 +9,7 @@ import type { ViewMode, LayoutMode, PaneContent } from '../../shared/types'
 import { THEMES, THEME_IDS, DEFAULT_THEME_ID } from '../../shared/constants'
 
 /** 统一面板 ID（左侧边栏和右侧面板均使用此类型） */
-export type PanelId = 'sessions' | 'explorer' | 'git' | 'dashboard' | 'team' | 'timeline' | 'stats' | 'mcp' | 'skills'
+export type PanelId = 'sessions' | 'explorer' | 'git' | 'dashboard' | 'team' | 'timeline' | 'stats' | 'mcp' | 'skills' | 'toolbox'
 
 /** 面板所在侧 */
 export type PanelSide = 'left' | 'right'
@@ -19,7 +19,7 @@ export type ActivityType = PanelId
 export type RightPanelView = PanelId
 
 /** 所有面板 ID（用于校验） */
-const ALL_PANEL_IDS: PanelId[] = ['sessions', 'explorer', 'git', 'dashboard', 'team', 'timeline', 'stats', 'mcp', 'skills']
+const ALL_PANEL_IDS: PanelId[] = ['sessions', 'explorer', 'git', 'dashboard', 'team', 'timeline', 'stats', 'mcp', 'skills', 'toolbox']
 
 /** 默认面板分配（left = 左侧边栏，right = 右侧面板） */
 const DEFAULT_PANEL_SIDES: Record<PanelId, PanelSide> = {
@@ -32,6 +32,7 @@ const DEFAULT_PANEL_SIDES: Record<PanelId, PanelSide> = {
   stats:     'right',
   mcp:       'left',
   skills:    'left',
+  toolbox:   'left',
 }
 
 /** 从 localStorage 读取面板分配 */
@@ -155,6 +156,8 @@ interface UIState {
   activePanelLeft: PanelId
   /** 当前右侧面板激活的面板 */
   activePanelRight: PanelId
+  /** 工具箱当前钻入的功能模块（null = 显示首页网格） */
+  toolboxFeature: string | null
 
   /** 中间区域布局模式 */
   layoutMode: LayoutMode
@@ -187,6 +190,8 @@ interface UIState {
   setActivePanelLeft: (panelId: PanelId) => void
   /** 激活右侧面板某面板 */
   setActivePanelRight: (panelId: PanelId) => void
+  /** 设置工具箱当前功能模块 */
+  setToolboxFeature: (feature: string | null) => void
   /** 切换中间区域布局模式 */
   setLayoutMode: (mode: LayoutMode) => void
   /** 设置窗格内容 */
@@ -217,6 +222,7 @@ export const useUIStore = create<UIState>((set) => ({
   panelSides: initialPanelSides,
   activePanelLeft: getInitialActivePanelLeft(initialPanelSides),
   activePanelRight: ALL_PANEL_IDS.find(id => initialPanelSides[id] === 'right') ?? 'timeline',
+  toolboxFeature: null,
   layoutMode: (localStorage.getItem('claudeops-layout-mode') as LayoutMode) || 'single',
   primaryPane: (localStorage.getItem('claudeops-pane-primary') as PaneContent) || 'sessions',
   secondaryPane: (localStorage.getItem('claudeops-pane-secondary') as PaneContent) || 'files',
@@ -349,6 +355,10 @@ export const useUIStore = create<UIState>((set) => ({
 
   setActivePanelRight: (panelId: PanelId) => {
     set({ activePanelRight: panelId })
+  },
+
+  setToolboxFeature: (feature: string | null) => {
+    set({ toolboxFeature: feature })
   },
 
   setLayoutMode: (mode: LayoutMode) => {

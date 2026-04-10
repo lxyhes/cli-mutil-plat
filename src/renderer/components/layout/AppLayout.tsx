@@ -32,11 +32,26 @@ export default function AppLayout() {
   const [showSettings, setShowSettings] = useState(false)
   const [settingsInitialTab, setSettingsInitialTab] = useState<string | undefined>()
 
+  // 工具箱功能 Tab → 路由到工具箱面板
+  const TOOLBOX_FEATURES = new Set([
+    'mcp', 'skills', 'workspace', 'scheduler', 'summary',
+    'planner', 'workflow', 'evaluation', 'goal', 'prompt-optimizer',
+  ])
+
   useEffect(() => {
     const handler = (e: Event) => {
       const tab = (e as CustomEvent<string>).detail
-      setSettingsInitialTab(tab)
-      setShowSettings(true)
+      if (TOOLBOX_FEATURES.has(tab)) {
+        // 功能类 Tab → 打开工具箱面板并定位到对应功能
+        const store = useUIStore.getState()
+        store.setActivePanelLeft('toolbox')
+        store.setToolboxFeature(tab)
+        if (store.sidebarCollapsed) store.toggleSidebar()
+      } else {
+        // 设置类 Tab → 打开设置弹窗
+        setSettingsInitialTab(tab)
+        setShowSettings(true)
+      }
     }
     window.addEventListener('open-settings-tab', handler)
     return () => window.removeEventListener('open-settings-tab', handler)

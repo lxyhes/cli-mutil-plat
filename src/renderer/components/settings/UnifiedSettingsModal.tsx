@@ -1,65 +1,46 @@
 /**
  * 统一设置面板
  *
- * 整合所有应用配置，通过顶部 Tab 导航分区管理：
+ * 精简 4 Tab 设计：
+ *   - 通用 (General)：代理、Worktree、自启、通知、更新
+ *   - 外观 (Appearance)：主题切换
+ *   - 集成 (Integrations)：Telegram / 飞书（子 Tab）
+ *   - 日志 (Logs)：主进程运行日志查看
  *
- * 【通用】
- *   - 通用：Git Worktree 隔离等全局开关
- *   - 主题：界面外观主题切换
- *   - 日志：主进程运行日志查看
- *
+ * 工作区、MCP、技能、调度等功能已迁移到工具箱侧边栏
  * @author weibin
  */
 
 import { useState, useEffect, useRef, useCallback } from 'react'
 import {
   X, FolderGit2, Globe, Bell, MonitorCheck,
-  Plus, Trash2, TestTube, RefreshCw, Check, AlertCircle, Loader2, Pencil,
-  Palette, ScrollText, ExternalLink, ShieldAlert, Info,
+  RefreshCw, Check, ShieldAlert,
+  Palette, ScrollText, ExternalLink,
+  Settings, Paintbrush, Link2, ScrollText as LogIcon,
 } from 'lucide-react'
 import { useSettingsStore } from '../../stores/settingsStore'
 import type { ProxyType } from '../../stores/settingsStore'
 import { useUIStore } from '../../stores/uiStore'
 import { THEMES, THEME_IDS } from '../../../shared/constants'
-import { WorkspaceTab } from './WorkspaceManager'
-import McpManager from './McpManager'
-import SkillManager from './SkillManager'
 import TelegramSettings from './TelegramSettings'
 import FeishuSettings from './FeishuSettings'
-import SchedulerSettings from './SchedulerSettings'
-import PlannerSettings from './PlannerSettings'
-import WorkflowSettings from './WorkflowSettings'
-import EvaluationSettings from './EvaluationSettings'
-import SummarySettings from './SummarySettings'
-import GoalSettings from './GoalSettings'
 
 // ──────────────────────────────────────────────
 // Tab 类型
 // ──────────────────────────────────────────────
-type TabId = 'general' | 'theme' | 'logs' | 'workspace' | 'mcp' | 'skills' | 'telegram' | 'feishu' | 'scheduler' | 'summary' | 'planner' | 'workflow' | 'evaluation' | 'goal'
-type TabGroup = 'app'
+type TabId = 'general' | 'appearance' | 'integrations' | 'logs'
 
 interface Tab {
   id: TabId
   label: string
-  group: TabGroup
+  icon: React.ElementType
 }
 
 const TABS: Tab[] = [
-  { id: 'general',   label: '通用',    group: 'app' },
-  { id: 'theme',     label: '主题',    group: 'app' },
-  { id: 'workspace', label: '工作区',  group: 'app' },
-  { id: 'mcp',       label: '🔌 MCP',  group: 'app' },
-  { id: 'skills',    label: '🎯 技能', group: 'app' },
-  { id: 'telegram',   label: '📱 Telegram',  group: 'app' },
-  { id: 'feishu',     label: '🚀 飞书',    group: 'app' },
-  { id: 'scheduler',  label: '⏰ 定时任务', group: 'app' },
-  { id: 'summary',    label: '📝 会话摘要', group: 'app' },
-  { id: 'planner',    label: '🧠 规划引擎', group: 'app' },
-  { id: 'workflow',   label: '⚙️ 工作流',    group: 'app' },
-  { id: 'evaluation', label: '🎯 任务评估', group: 'app' },
-  { id: 'goal',       label: '🎯 Goal Anchor', group: 'app' },
-  { id: 'logs',      label: '日志',    group: 'app' },
+  { id: 'general',      label: '通用',   icon: Settings },
+  { id: 'appearance',   label: '外观',   icon: Paintbrush },
+  { id: 'integrations', label: '集成',   icon: Link2 },
+  { id: 'logs',         label: '日志',   icon: LogIcon },
 ]
 
 // ──────────────────────────────────────────────
@@ -67,22 +48,22 @@ const TABS: Tab[] = [
 // ──────────────────────────────────────────────
 interface Props {
   onClose: () => void
-  /** 打开时默认定位到哪个 tab（默认 'general'） */
+  /** 打开时默认定位到哪个 tab */
   initialTab?: string
 }
 
 export default function UnifiedSettingsModal({ onClose, initialTab = 'general' }: Props) {
-  const [activeTab, setActiveTab] = useState<string>(initialTab ?? 'general')
+  const [activeTab, setActiveTab] = useState<TabId>(
+    (TABS.some(t => t.id === initialTab) ? initialTab : 'general') as TabId
+  )
   const { fetchSettings } = useSettingsStore()
 
   useEffect(() => {
-    fetchSettings()  // 确保代理设置最新
+    fetchSettings()
   }, [])
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
-    >
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
       <div
         className="bg-bg-secondary rounded-xl shadow-2xl w-full max-w-2xl border border-border max-h-[85vh] flex flex-col"
         onClick={(e) => e.stopPropagation()}
@@ -101,55 +82,42 @@ export default function UnifiedSettingsModal({ onClose, initialTab = 'general' }
         </div>
 
         {/* ── Tab 导航 ── */}
-        <div className="flex items-center border-b border-border px-4 shrink-0 overflow-x-auto">
-          {/* App 通用分组 */}
-          {TABS.filter((t) => t.group === 'app').map((t) => (
-            <TabButton key={t.id} id={t.id} label={t.label} active={activeTab} onClick={setActiveTab} />
-          ))}
+        <div className="flex items-center border-b border-border px-4 shrink-0">
+          {TABS.map((t) => {
+            const Icon = t.icon
+            return (
+              <button
+                key={t.id}
+                onClick={() => setActiveTab(t.id)}
+                className={[
+                  'flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium btn-transition border-b-2 whitespace-nowrap shrink-0',
+                  activeTab === t.id
+                    ? 'text-accent-blue border-accent-blue'
+                    : 'text-text-secondary border-transparent hover:text-text-primary',
+                ].join(' ')}
+              >
+                <Icon className="w-3.5 h-3.5" />
+                {t.label}
+              </button>
+            )
+          })}
         </div>
 
         {/* ── 内容区 ── */}
         <div className="flex-1 overflow-y-auto px-5 py-4">
-          {activeTab === 'general'   && <GeneralTab />}
-          {activeTab === 'theme'     && <ThemeTab />}
-          {activeTab === 'workspace' && <WorkspaceTab />}
-          {activeTab === 'mcp'       && <McpManager />}
-          {activeTab === 'skills'    && <SkillManager />}
-          {activeTab === 'telegram'   && <TelegramSettings />}
-          {activeTab === 'feishu'     && <FeishuSettings />}
-          {activeTab === 'scheduler'  && <SchedulerSettings />}
-          {activeTab === 'summary'    && <SummarySettings />}
-          {activeTab === 'planner'    && <PlannerSettings />}
-          {activeTab === 'workflow'   && <WorkflowSettings />}
-          {activeTab === 'evaluation' && <EvaluationSettings />}
-          {activeTab === 'goal'      && <GoalSettings />}
-          {activeTab === 'logs'      && <LogTab />}
+          {activeTab === 'general'      && <GeneralTab />}
+          {activeTab === 'appearance'   && <AppearanceTab />}
+          {activeTab === 'integrations' && <IntegrationsTab />}
+          {activeTab === 'logs'         && <LogTab />}
+        </div>
+
+        {/* ── 底部版本号 ── */}
+        <div className="px-5 py-2 border-t border-border text-[10px] text-text-muted shrink-0 flex items-center justify-between">
+          <span>SpectrAI</span>
+          <span>更多功能请在左侧工具箱中访问</span>
         </div>
       </div>
     </div>
-  )
-}
-
-// ──────────────────────────────────────────────
-// Tab 按钮
-// ──────────────────────────────────────────────
-function TabButton({
-  id, label, active, onClick,
-}: {
-  id: TabId; label: string; active: string; onClick: (id: string) => void
-}) {
-  return (
-    <button
-      onClick={() => onClick(id)}
-      className={[
-        'px-3 py-2.5 text-sm font-medium btn-transition border-b-2 whitespace-nowrap shrink-0',
-        active === id
-          ? 'text-accent-blue border-accent-blue'
-          : 'text-text-secondary border-transparent hover:text-text-primary',
-      ].join(' ')}
-    >
-      {label}
-    </button>
   )
 }
 
@@ -202,7 +170,6 @@ function GeneralTab() {
   const [updating, setUpdating] = useState(false)
 
   useEffect(() => {
-    // 检查 window.spectrAI 是否可用
     if (!window.spectrAI?.update) {
       console.warn('[GeneralTab] window.spectrAI.update not available')
       return
@@ -220,7 +187,7 @@ function GeneralTab() {
     }
 
     void loadState()
-    const unsubscribe = window.spectrAI.update.onStateChanged((state) => {
+    const unsubscribe = window.spectrAI.update.onStateChanged((state: any) => {
       setUpdateState(state)
     })
 
@@ -231,10 +198,7 @@ function GeneralTab() {
   }, [])
 
   const handleCheckUpdate = async () => {
-    if (!window.spectrAI?.update) {
-      console.warn('[GeneralTab] window.spectrAI.update not available')
-      return
-    }
+    if (!window.spectrAI?.update) return
     setUpdating(true)
     try {
       const result = await window.spectrAI.update.checkForUpdates(true)
@@ -245,10 +209,7 @@ function GeneralTab() {
   }
 
   const handleDownloadUpdate = async () => {
-    if (!window.spectrAI?.update) {
-      console.warn('[GeneralTab] window.spectrAI.update not available')
-      return
-    }
+    if (!window.spectrAI?.update) return
     setUpdating(true)
     try {
       const result = await window.spectrAI.update.downloadUpdate()
@@ -288,7 +249,7 @@ function GeneralTab() {
             ))}
           </div>
 
-          {/* 代理详情输入（非 none 时显示） */}
+          {/* 代理详情输入 */}
           {proxyType !== 'none' && (
             <>
               <div className="grid grid-cols-3 gap-2">
@@ -536,9 +497,9 @@ function GeneralTab() {
 }
 
 // ══════════════════════════════════════════════
-// ── 主题 Tab ──
+// ── 外观 Tab ──
 // ══════════════════════════════════════════════
-function ThemeTab() {
+function AppearanceTab() {
   const theme    = useUIStore((s) => s.theme)
   const setTheme = useUIStore((s) => s.setTheme)
 
@@ -620,6 +581,47 @@ function ThemeTab() {
 }
 
 // ══════════════════════════════════════════════
+// ── 集成 Tab ──
+// ══════════════════════════════════════════════
+function IntegrationsTab() {
+  const [subTab, setSubTab] = useState<'telegram' | 'feishu'>('telegram')
+
+  return (
+    <div className="space-y-4">
+      {/* 子 Tab */}
+      <div className="flex items-center gap-1 bg-bg-tertiary rounded-lg p-1 w-fit">
+        <button
+          onClick={() => setSubTab('telegram')}
+          className={[
+            'px-4 py-1.5 rounded-md text-xs font-medium transition-colors',
+            subTab === 'telegram'
+              ? 'bg-bg-primary text-text-primary shadow-sm'
+              : 'text-text-muted hover:text-text-secondary',
+          ].join(' ')}
+        >
+          Telegram
+        </button>
+        <button
+          onClick={() => setSubTab('feishu')}
+          className={[
+            'px-4 py-1.5 rounded-md text-xs font-medium transition-colors',
+            subTab === 'feishu'
+              ? 'bg-bg-primary text-text-primary shadow-sm'
+              : 'text-text-muted hover:text-text-secondary',
+          ].join(' ')}
+        >
+          飞书
+        </button>
+      </div>
+
+      {/* 子内容 */}
+      {subTab === 'telegram' && <TelegramSettings />}
+      {subTab === 'feishu'   && <FeishuSettings />}
+    </div>
+  )
+}
+
+// ══════════════════════════════════════════════
 // ── 日志 Tab ──
 // ══════════════════════════════════════════════
 type LogLevel = 'all' | 'error' | 'warn' | 'info' | 'debug'
@@ -670,7 +672,7 @@ function LogTab() {
     }
   }, [])
 
-  // 首次加载 + 每 5 秒自动刷新（标签页内，间隔可稍长）
+  // 首次加载 + 每 5 秒自动刷新
   useEffect(() => {
     fetchLogs()
     timerRef.current = setInterval(fetchLogs, 5000)
@@ -760,5 +762,3 @@ function LogTab() {
     </div>
   )
 }
-
-

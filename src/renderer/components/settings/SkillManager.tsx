@@ -380,7 +380,15 @@ function MarketplaceTab({ installedSkills, onInstalled }: { installedSkills: Ski
 }
 
 export default function SkillManager() {
-  const { skills, loading, error, fetchAll, create, update, remove, toggle, clearError } = useSkillStore()
+  const skills = useSkillStore(s => s.skills)
+  const loading = useSkillStore(s => s.loading)
+  const error = useSkillStore(s => s.error)
+  const fetchAll = useSkillStore(s => s.fetchAll)
+  const create = useSkillStore(s => s.create)
+  const update = useSkillStore(s => s.update)
+  const remove = useSkillStore(s => s.remove)
+  const toggle = useSkillStore(s => s.toggle)
+  const clearError = useSkillStore(s => s.clearError)
   const [mainTab, setMainTab] = useState<'mine' | 'market'>('mine')
   const [activeType, setActiveType] = useState('all')
   const [showEditor, setShowEditor] = useState(false)
@@ -389,7 +397,8 @@ export default function SkillManager() {
 
   useEffect(() => { fetchAll() }, [])
 
-  const filteredSkills = skills.filter(s => {
+  const skillsArray = Array.isArray(skills) ? skills : []
+  const filteredSkills = skillsArray.filter(s => {
     if (activeType === 'all')     return true
     if (activeType === 'builtin') return s.source === 'builtin'
     return s.type === activeType
