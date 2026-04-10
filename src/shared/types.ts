@@ -643,7 +643,7 @@ export interface SessionMetrics {
 
 // ---- SDK V2：Adapter 类型 ----
 
-export type AdapterType = 'claude-sdk' | 'codex-appserver' | 'gemini-headless' | 'iflow-acp' | 'opencode-sdk'
+export type AdapterType = 'claude-sdk' | 'codex-appserver' | 'gemini-headless' | 'iflow-acp' | 'opencode-sdk' | 'qwen-sdk'
 
 // ---- SDK V2：对话消息 ----
 

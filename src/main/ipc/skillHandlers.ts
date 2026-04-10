@@ -12,7 +12,7 @@ export function registerSkillHandlers(deps: IpcDependencies): void {
   // SKILL_GET_ALL: 获取所有技能
   ipcMain.handle(IPC.SKILL_GET_ALL, async () => {
     try {
-      return createSuccessResponse({ data: database.getAllSkills() })
+      return createSuccessResponse(database.getAllSkills())
     } catch (err) {
       console.error('[Skill] getAllSkills error:', err)
       return createErrorResponse(err, { operation: 'skill' })

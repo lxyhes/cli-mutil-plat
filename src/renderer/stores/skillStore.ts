@@ -45,7 +45,7 @@ export const useSkillStore = create<SkillState>((set, _get) => ({
     try {
       const result = await safeAPI.skill.create(skill)
       if (result.success) {
-        set(state => ({ skills: [...state.skills, result.data] }))
+        set(state => ({ skills: [...state.skills, result.data?.data ?? result.data] }))
         return result.data
       }
       set({ error: result.error })

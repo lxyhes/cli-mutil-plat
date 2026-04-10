@@ -193,7 +193,7 @@ function MarketplaceTab({ installedSkills, onInstalled }: { installedSkills: Ski
   const [filterCat, setFilterCat] = useState('all')
   const [searchQ, setSearchQ] = useState('')
 
-  const installedIds = new Set(installedSkills.map(s => s.id))
+  const installedIds = new Set((installedSkills ?? []).map(s => s.id))
 
   useEffect(() => {
     fetchMarket()
@@ -524,7 +524,7 @@ export default function SkillManager() {
       {/* 技能市场 Tab */}
       {mainTab === 'market' && (
         <MarketplaceTab
-          installedSkills={skills}
+          installedSkills={skillsArray}
           onInstalled={fetchAll}
         />
       )}
