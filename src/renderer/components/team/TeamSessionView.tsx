@@ -7,10 +7,10 @@
  */
 
 import { useState, useEffect } from 'react'
-import { Users, MessageSquare, ListChecks, BarChart, Eye, FileText, ChevronDown, Send } from 'lucide-react'
+import { Users, MessageSquare, ListChecks, BarChart, Eye, FileText, ChevronDown, Send, Plus, Play, CheckCircle, AlertTriangle } from 'lucide-react'
 import { useTeamStore } from '../../stores/teamStore'
 
-type TabType = 'conversation' | 'tasks' | 'messages' | 'status' | 'review' | 'office'
+type TabType = 'conversation' | 'tasks' | 'messages' | 'status'
 
 export default function TeamSessionView() {
   const { activeTeamId, teams, fetchTeamTasks, fetchTeamMessages } = useTeamStore()
@@ -42,8 +42,6 @@ export default function TeamSessionView() {
     { key: 'tasks', label: '任务', icon: <ListChecks size={14} /> },
     { key: 'messages', label: '消息', icon: <MessageSquare size={14} /> },
     { key: 'status', label: '状态总览', icon: <BarChart size={14} /> },
-    { key: 'review', label: '评审', icon: <Eye size={14} /> },
-    { key: 'office', label: '办公室', icon: <FileText size={14} /> },
   ]
 
   return (
@@ -53,11 +51,12 @@ export default function TeamSessionView() {
         <div className="flex items-center justify-between mb-2">
           <div className="flex items-center gap-2">
             <h2 className="text-sm font-semibold text-text-primary">{team.name}</h2>
-            <span className="text-xs px-2 py-0.5 rounded-full bg-accent-green/20 text-accent-green">
-              运行中
-            </span>
-            <span className="text-xs text-text-muted">
-              {team.members?.length || 0} 成员
+            <span className={`text-xs px-2 py-0.5 rounded-full ${
+              team.status === 'running' ? 'bg-accent-green/20 text-accent-green' :
+              team.status === 'completed' ? 'bg-accent-blue/20 text-accent-blue' :
+              'bg-text-muted/20 text-text-muted'
+            }`}>
+              {team.status === 'running' ? '运行中' : team.status === 'completed' ? '已完成' : '已停止'}
             </span>
           </div>
         </div>
@@ -71,7 +70,7 @@ export default function TeamSessionView() {
               className={`flex items-center gap-1.5 px-2 py-1 rounded-md text-xs whitespace-nowrap
                 transition-colors
                 ${selectedMember?.id === member.id
-                  ? 'bg-accent-blue/15 text-accent-blue'
+                  ? 'bg-accent-blue/15 text-accent-blue ring-1 ring-accent-blue/30'
                   : 'bg-bg-secondary text-text-secondary hover:bg-bg-hover'}`}
             >
               <span>{member.role?.icon || '👤'}</span>
@@ -122,20 +121,14 @@ export default function TeamSessionView() {
                     </span>
                   </div>
                 </div>
-                <div className="text-sm text-text-secondary whitespace-pre-wrap leading-relaxed">
+                <div className="text-sm text-text-secondary whitespace-pre-wrap leading-relaxed max-h-[400px] overflow-y-auto">
                   {selectedMember.role?.systemPrompt || '暂无角色描述'}
-                </div>
-                <div className="mt-3 pt-3 border-t border-border">
-                  <button className="flex items-center gap-1 text-xs text-accent-blue hover:text-accent-blue/70">
-                    <ChevronDown size={12} />
-                    <span>展开全部 ({selectedMember.role?.systemPrompt?.length || 0} 字)</span>
-                  </button>
                 </div>
               </div>
             ) : (
               <div className="text-center text-text-muted py-8">
                 <MessageSquare className="w-8 h-8 mx-auto mb-2 opacity-50" />
-                <p className="text-sm">选择一个成员查看对话</p>
+                <p className="text-sm">点击顶部成员卡片查看角色详情</p>
               </div>
             )}
           </div>
@@ -143,6 +136,13 @@ export default function TeamSessionView() {
 
         {activeTab === 'tasks' && (
           <div className="p-4">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-sm font-medium text-text-primary">任务列表</h3>
+              <button className="flex items-center gap-1 px-2 py-1 text-xs bg-accent-blue text-white rounded hover:bg-accent-blue/80">
+                <Plus size={12} />
+                新建任务
+              </button>
+            </div>
             {tasks.length === 0 ? (
               <div className="text-center text-text-muted py-8">
                 <ListChecks className="w-8 h-8 mx-auto mb-2 opacity-50" />
@@ -164,6 +164,10 @@ export default function TeamSessionView() {
                       </span>
                     </div>
                     <p className="text-xs text-text-muted">{task.description}</p>
+                    <div className="mt-2 flex items-center gap-2 text-[10px] text-text-muted">
+                      <span>状态: {task.status}</span>
+                      {task.claimedBy && <span>• 认领者: {task.claimedBy}</span>}
+                    </div>
                   </div>
                 ))}
               </div>
@@ -207,27 +211,24 @@ export default function TeamSessionView() {
 
         {activeTab === 'status' && (
           <div className="p-4">
-            <div className="text-center text-text-muted py-8">
-              <BarChart className="w-8 h-8 mx-auto mb-2 opacity-50" />
-              <p className="text-sm">状态总览开发中...</p>
-            </div>
-          </div>
-        )}
-
-        {activeTab === 'review' && (
-          <div className="p-4">
-            <div className="text-center text-text-muted py-8">
-              <Eye className="w-8 h-8 mx-auto mb-2 opacity-50" />
-              <p className="text-sm">评审功能开发中...</p>
-            </div>
-          </div>
-        )}
-
-        {activeTab === 'office' && (
-          <div className="p-4">
-            <div className="text-center text-text-muted py-8">
-              <FileText className="w-8 h-8 mx-auto mb-2 opacity-50" />
-              <p className="text-sm">办公室功能开发中...</p>
+            <h3 className="text-sm font-medium text-text-primary mb-4">团队状态</h3>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="p-4 bg-bg-secondary rounded-lg border border-border">
+                <div className="text-xs text-text-muted mb-1">总任务数</div>
+                <div className="text-2xl font-bold text-text-primary">{tasks.length}</div>
+              </div>
+              <div className="p-4 bg-bg-secondary rounded-lg border border-border">
+                <div className="text-xs text-text-muted mb-1">已完成</div>
+                <div className="text-2xl font-bold text-accent-green">{tasks.filter(t => t.status === 'completed').length}</div>
+              </div>
+              <div className="p-4 bg-bg-secondary rounded-lg border border-border">
+                <div className="text-xs text-text-muted mb-1">进行中</div>
+                <div className="text-2xl font-bold text-accent-blue">{tasks.filter(t => t.status === 'in_progress').length}</div>
+              </div>
+              <div className="p-4 bg-bg-secondary rounded-lg border border-border">
+                <div className="text-xs text-text-muted mb-1">待处理</div>
+                <div className="text-2xl font-bold text-yellow-500">{tasks.filter(t => t.status === 'pending').length}</div>
+              </div>
             </div>
           </div>
         )}

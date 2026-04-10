@@ -9,10 +9,12 @@
 import { useState, useEffect } from 'react'
 import { Users, Plus, Play, History, LayoutTemplate, CheckCircle, AlertTriangle, XCircle } from 'lucide-react'
 import { useTeamStore } from '../../stores/teamStore'
+import CreateTeamDialog from './CreateTeamDialog'
 
 export default function TeamSidebarView() {
   const { teams, activeTeamId, templates, loading, fetchTeams, fetchTemplates, setActiveTeam } = useTeamStore()
   const [showTemplates, setShowTemplates] = useState(false)
+  const [showCreateDialog, setShowCreateDialog] = useState(false)
 
   useEffect(() => {
     fetchTeams()
@@ -28,9 +30,8 @@ export default function TeamSidebarView() {
     }
   }
 
-  const handleCreateTeam = () => {
-    // TODO: 打开创建团队对话框
-    console.log('Create team clicked')
+  const handleCreateSuccess = () => {
+    fetchTeams()
   }
 
   return (
@@ -44,7 +45,7 @@ export default function TeamSidebarView() {
           </span>
         </div>
         <button
-          onClick={handleCreateTeam}
+          onClick={() => setShowCreateDialog(true)}
           title="创建新团队"
           className="p-1 rounded hover:bg-bg-hover text-text-muted hover:text-text-secondary transition-colors"
         >
@@ -81,6 +82,11 @@ export default function TeamSidebarView() {
               </div>
             </button>
           ))}
+          {teams.filter(t => t.status === 'running').length === 0 && (
+            <div className="px-2 py-4 text-center text-[10px] text-text-muted">
+              暂无运行中的团队
+            </div>
+          )}
         </div>
 
         {/* 历史记录 */}
@@ -105,6 +111,11 @@ export default function TeamSidebarView() {
               </div>
             </button>
           ))}
+          {teams.filter(t => t.status !== 'running').length === 0 && (
+            <div className="px-2 py-4 text-center text-[10px] text-text-muted">
+              暂无历史记录
+            </div>
+          )}
         </div>
 
         {/* 模板 */}
@@ -134,6 +145,14 @@ export default function TeamSidebarView() {
           ))}
         </div>
       </div>
+
+      {/* 创建团队对话框 */}
+      {showCreateDialog && (
+        <CreateTeamDialog
+          onClose={() => setShowCreateDialog(false)}
+          onSuccess={handleCreateSuccess}
+        />
+      )}
     </div>
   )
 }
