@@ -564,30 +564,102 @@ if (!ctxBr) {
     getMessages: (teamId: string, limit?: number) => ipcRenderer.invoke(IPC.TEAM_GET_MESSAGES, teamId, limit),
     createTask: (teamId: string, task: any) => ipcRenderer.invoke(IPC.TEAM_CREATE_TASK, teamId, task),
     completeTask: (teamId: string, taskId: string, result: string) => ipcRenderer.invoke(IPC.TEAM_COMPLETE_TASK, teamId, taskId, result),
+    updateTask: (teamId: string, taskId: string, updates: any) => ipcRenderer.invoke(IPC.TEAM_UPDATE_TASK, teamId, taskId, updates),
+    cancelTask: (teamId: string, taskId: string, reason?: string) => ipcRenderer.invoke(IPC.TEAM_CANCEL_TASK, teamId, taskId, reason),
+    reassignTask: (teamId: string, taskId: string, newMemberId: string) => ipcRenderer.invoke(IPC.TEAM_REASSIGN_TASK, teamId, taskId, newMemberId),
     getTemplates: () => ipcRenderer.invoke(IPC.TEAM_GET_TEMPLATES),
+    createTemplate: (template: any) => ipcRenderer.invoke(IPC.TEAM_CREATE_TEMPLATE, template),
+    updateTemplate: (templateId: string, updates: any) => ipcRenderer.invoke(IPC.TEAM_UPDATE_TEMPLATE, templateId, updates),
+    deleteTemplate: (templateId: string) => ipcRenderer.invoke(IPC.TEAM_DELETE_TEMPLATE, templateId),
     getHealth: (teamId: string) => ipcRenderer.invoke('team:get-health', teamId),
     cleanup: (teamId: string) => ipcRenderer.invoke('team:cleanup', teamId),
+    cancel: (teamId: string, reason?: string) => ipcRenderer.invoke(IPC.TEAM_CANCEL, teamId, reason),
+    pause: (teamId: string) => ipcRenderer.invoke(IPC.TEAM_PAUSE, teamId),
+    resume: (teamId: string) => ipcRenderer.invoke(IPC.TEAM_RESUME, teamId),
+    update: (teamId: string, updates: any) => ipcRenderer.invoke(IPC.TEAM_UPDATE, teamId, updates),
+    sendMessage: (teamId: string, toMemberId: string, content: string) => ipcRenderer.invoke(IPC.TEAM_SEND_MESSAGE, teamId, toMemberId, content),
+    broadcast: (teamId: string, content: string) => ipcRenderer.invoke(IPC.TEAM_UI_BROADCAST, teamId, content),
+    getTaskDAG: (teamId: string) => ipcRenderer.invoke(IPC.TEAM_GET_TASK_DAG, teamId),
+    validateDependencies: (teamId: string) => ipcRenderer.invoke(IPC.TEAM_VALIDATE_DEPENDENCIES, teamId),
+    exportTeam: (teamId: string) => ipcRenderer.invoke(IPC.TEAM_EXPORT, teamId),
+    importTeam: (snapshot: any) => ipcRenderer.invoke(IPC.TEAM_IMPORT, snapshot),
+    mergeWorktrees: (teamId: string, options?: any) => ipcRenderer.invoke(IPC.TEAM_MERGE_WORKTREES, teamId, options),
     // 事件监听
-    onStatusChange: (callback: (teamId: string, status: string) => void) =>
-      ipcRenderer.on(IPC.TEAM_STATUS_CHANGE, (_e, teamId, status) => callback(teamId, status)),
-    onMemberJoined: (callback: (teamId: string, member: any) => void) =>
-      ipcRenderer.on(IPC.TEAM_MEMBER_JOINED, (_e, teamId, member) => callback(teamId, member)),
-    onMemberStatusChange: (callback: (teamId: string, memberId: string, status: string) => void) =>
-      ipcRenderer.on(IPC.TEAM_MEMBER_STATUS_CHANGE, (_e, teamId, memberId, status) => callback(teamId, memberId, status)),
-    onTaskClaimed: (callback: (teamId: string, taskId: string, memberId: string) => void) =>
-      ipcRenderer.on(IPC.TEAM_TASK_CLAIMED, (_e, teamId, taskId, memberId) => callback(teamId, taskId, memberId)),
-    onTaskCompleted: (callback: (teamId: string, taskId: string) => void) =>
-      ipcRenderer.on(IPC.TEAM_TASK_COMPLETED, (_e, teamId, taskId) => callback(teamId, taskId)),
-    onMessage: (callback: (teamId: string, message: any) => void) =>
-      ipcRenderer.on(IPC.TEAM_MESSAGE, (_e, teamId, message) => callback(teamId, message)),
-    onCompleted: (callback: (teamId: string) => void) =>
-      ipcRenderer.on(IPC.TEAM_COMPLETED, (_e, teamId) => callback(teamId)),
-    onFailed: (callback: (teamId: string, reason: string) => void) =>
-      ipcRenderer.on(IPC.TEAM_FAILED, (_e, teamId, reason) => callback(teamId, reason)),
-    onHealthIssue: (callback: (teamId: string, issue: any) => void) =>
-      ipcRenderer.on('team:health-issue', (_e, teamId, issue) => callback(teamId, issue)),
-    onLog: (callback: (entry: any) => void) =>
-      ipcRenderer.on('team:log', (_e, entry) => callback(entry)),
+    onStatusChange: (callback: (teamId: string, status: string) => void) => {
+      const listener = (_e: IpcRendererEvent, teamId: string, status: string) => callback(teamId, status)
+      ipcRenderer.on(IPC.TEAM_STATUS_CHANGE, listener)
+      return () => ipcRenderer.removeListener(IPC.TEAM_STATUS_CHANGE, listener)
+    },
+    onMemberJoined: (callback: (teamId: string, member: any) => void) => {
+      const listener = (_e: IpcRendererEvent, teamId: string, member: any) => callback(teamId, member)
+      ipcRenderer.on(IPC.TEAM_MEMBER_JOINED, listener)
+      return () => ipcRenderer.removeListener(IPC.TEAM_MEMBER_JOINED, listener)
+    },
+    onMemberStatusChange: (callback: (teamId: string, memberId: string, status: string) => void) => {
+      const listener = (_e: IpcRendererEvent, teamId: string, memberId: string, status: string) => callback(teamId, memberId, status)
+      ipcRenderer.on(IPC.TEAM_MEMBER_STATUS_CHANGE, listener)
+      return () => ipcRenderer.removeListener(IPC.TEAM_MEMBER_STATUS_CHANGE, listener)
+    },
+    onTaskClaimed: (callback: (teamId: string, taskId: string, memberId: string) => void) => {
+      const listener = (_e: IpcRendererEvent, teamId: string, taskId: string, memberId: string) => callback(teamId, taskId, memberId)
+      ipcRenderer.on(IPC.TEAM_TASK_CLAIMED, listener)
+      return () => ipcRenderer.removeListener(IPC.TEAM_TASK_CLAIMED, listener)
+    },
+    onTaskCompleted: (callback: (teamId: string, taskId: string) => void) => {
+      const listener = (_e: IpcRendererEvent, teamId: string, taskId: string) => callback(teamId, taskId)
+      ipcRenderer.on(IPC.TEAM_TASK_COMPLETED, listener)
+      return () => ipcRenderer.removeListener(IPC.TEAM_TASK_COMPLETED, listener)
+    },
+    onTaskCancelled: (callback: (teamId: string, taskId: string) => void) => {
+      const listener = (_e: IpcRendererEvent, teamId: string, taskId: string) => callback(teamId, taskId)
+      ipcRenderer.on(IPC.TEAM_TASK_CANCELLED, listener)
+      return () => ipcRenderer.removeListener(IPC.TEAM_TASK_CANCELLED, listener)
+    },
+    onMessage: (callback: (teamId: string, message: any) => void) => {
+      const listener = (_e: IpcRendererEvent, teamId: string, message: any) => callback(teamId, message)
+      ipcRenderer.on(IPC.TEAM_MESSAGE, listener)
+      return () => ipcRenderer.removeListener(IPC.TEAM_MESSAGE, listener)
+    },
+    onCompleted: (callback: (teamId: string) => void) => {
+      const listener = (_e: IpcRendererEvent, teamId: string) => callback(teamId)
+      ipcRenderer.on(IPC.TEAM_COMPLETED, listener)
+      return () => ipcRenderer.removeListener(IPC.TEAM_COMPLETED, listener)
+    },
+    onFailed: (callback: (teamId: string, reason: string) => void) => {
+      const listener = (_e: IpcRendererEvent, teamId: string, reason: string) => callback(teamId, reason)
+      ipcRenderer.on(IPC.TEAM_FAILED, listener)
+      return () => ipcRenderer.removeListener(IPC.TEAM_FAILED, listener)
+    },
+    onCancelled: (callback: (teamId: string, reason: string) => void) => {
+      const listener = (_e: IpcRendererEvent, teamId: string, reason: string) => callback(teamId, reason)
+      ipcRenderer.on(IPC.TEAM_CANCELLED, listener)
+      return () => ipcRenderer.removeListener(IPC.TEAM_CANCELLED, listener)
+    },
+    onPaused: (callback: (teamId: string) => void) => {
+      const listener = (_e: IpcRendererEvent, teamId: string) => callback(teamId)
+      ipcRenderer.on(IPC.TEAM_PAUSED, listener)
+      return () => ipcRenderer.removeListener(IPC.TEAM_PAUSED, listener)
+    },
+    onResumed: (callback: (teamId: string) => void) => {
+      const listener = (_e: IpcRendererEvent, teamId: string) => callback(teamId)
+      ipcRenderer.on(IPC.TEAM_RESUMED, listener)
+      return () => ipcRenderer.removeListener(IPC.TEAM_RESUMED, listener)
+    },
+    onUpdated: (callback: (teamId: string, updates: any) => void) => {
+      const listener = (_e: IpcRendererEvent, teamId: string, updates: any) => callback(teamId, updates)
+      ipcRenderer.on(IPC.TEAM_UPDATED, listener)
+      return () => ipcRenderer.removeListener(IPC.TEAM_UPDATED, listener)
+    },
+    onHealthIssue: (callback: (teamId: string, issue: any) => void) => {
+      const listener = (_e: IpcRendererEvent, teamId: string, issue: any) => callback(teamId, issue)
+      ipcRenderer.on('team:health-issue', listener)
+      return () => ipcRenderer.removeListener('team:health-issue', listener)
+    },
+    onLog: (callback: (entry: any) => void) => {
+      const listener = (_e: IpcRendererEvent, entry: any) => callback(entry)
+      ipcRenderer.on('team:log', listener)
+      return () => ipcRenderer.removeListener('team:log', listener)
+    },
   },
 
   // ==================== Telegram API ====================
@@ -782,7 +854,7 @@ if (!ctxBr) {
   const _apiReadyCallbacks: (() => void)[] = []
 
   // 重新暴露回调注册给渲染进程（绕过 contextBridge）
-  ;(window as any).__spectrAIOnReady = (cb: () => void) => { _apiReadyCallbacks.push(cb) }
+  ;(globalThis as any).__spectrAIOnReady = (cb: () => void) => { _apiReadyCallbacks.push(cb) }
 
   console.log('[Preload] Calling exposeInMainWorld...')
   ctxBr.exposeInMainWorld('spectrAI', api)

@@ -5,7 +5,7 @@
  */
 import React, { useState, useEffect, useRef } from 'react'
 import { useMcpStore } from '../../stores/mcpStore'
-import type { McpServer } from '../../../shared/types'
+import type { McpInstallMethod, McpServer, McpSource } from '../../../shared/types'
 import { isMacPlatform } from '../../utils/shortcut'
 
 // 分类标签配置
@@ -608,10 +608,10 @@ function McpFormDialog({ server, onClose, onSave }: {
   const PROVIDERS = ['claude-code', 'codex', 'gemini-cli', 'iflow', 'opencode', 'qwen-coder']
 
   // 根据命令推断 installMethod
-  const inferInstallMethod = (cmd: string): McpServer['installMethod'] => {
+  const inferInstallMethod = (cmd: string): McpInstallMethod => {
     if (cmd === 'npx' || cmd === 'npm') return 'npm'
-    if (cmd === 'uvx' || cmd === 'pip') return 'manual'
-    return 'manual'
+    if (cmd === 'uvx' || cmd === 'pip') return 'binary'
+    return 'binary'
   }
 
   // npm 包名快速导入
@@ -700,7 +700,7 @@ function McpFormDialog({ server, onClose, onSave }: {
         : (Array.isArray(form.compatibleProviders) ? form.compatibleProviders : []),
       isInstalled:     false,
       installMethod:   form.installMethod,
-      source:          'custom',
+      source:          'local' as McpSource,
       isGlobalEnabled: true,
       id:              server?.id || `mcp-${Date.now()}`,
       createdAt:       server?.createdAt || now,

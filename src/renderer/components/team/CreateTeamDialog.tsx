@@ -1,31 +1,46 @@
 /**
  * Agent Teams - 创建团队对话框
- * 
+ *
  * @author weibin
  */
 
-import { useState } from 'react'
-import { X, Users, Send, Check } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { X, Users, Send, Check, GitBranch, Settings } from 'lucide-react'
 import { useTeamStore } from '../../stores/teamStore'
 import { useSessionStore } from '../../stores/sessionStore'
+import TemplateManagerDialog from './TemplateManagerDialog'
 
 interface CreateTeamDialogProps {
   onClose: () => void
   onSuccess: () => void
+  parentTeamId?: string
 }
 
-export default function CreateTeamDialog({ onClose, onSuccess }: CreateTeamDialogProps) {
-  const { templates, createTeam } = useTeamStore()
+export default function CreateTeamDialog({ onClose, onSuccess, parentTeamId }: CreateTeamDialogProps) {
+  const { teams, templates, createTeam, fetchTemplates } = useTeamStore()
   const sessions = useSessionStore(s => s.sessions)
-  
+
   const [name, setName] = useState(`开发团队-${new Date().toISOString().slice(0, 10)}`)
   const [objective, setObjective] = useState('')
   const [templateId, setTemplateId] = useState(templates[0]?.id || '')
   const [providerId, setProviderId] = useState('claude-code')
+  const [worktreeIsolation, setWorktreeIsolation] = useState(false)
   const [creating, setCreating] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [showTemplateManager, setShowTemplateManager] = useState(false)
+
+  useEffect(() => {
+    void fetchTemplates()
+  }, [fetchTemplates])
+
+  useEffect(() => {
+    if (!templateId && templates.length > 0) {
+      setTemplateId(templates[0].id)
+    }
+  }, [templateId, templates])
 
   const selectedTemplate = templates.find(t => t.id === templateId)
+  const parentTeam = teams.find(t => t.id === parentTeamId)
 
   const handleCreate = async () => {
     if (!name.trim() || !objective.trim()) {
@@ -37,7 +52,7 @@ export default function CreateTeamDialog({ onClose, onSuccess }: CreateTeamDialo
     setError(null)
     try {
       // 使用当前会话的工作目录
-      const workDir = sessions[0]?.config?.workingDirectory || ''
+      const workDir = parentTeam?.workDir || sessions[0]?.config?.workingDirectory || ''
       
       const result = await createTeam({
         name: name.trim(),
@@ -45,6 +60,8 @@ export default function CreateTeamDialog({ onClose, onSuccess }: CreateTeamDialo
         workDir,
         templateId,
         providerId,
+        worktreeIsolation,
+        parentTeamId,
       })
       
       if (result) {
@@ -122,9 +139,15 @@ export default function CreateTeamDialog({ onClose, onSuccess }: CreateTeamDialo
 
           {/* 选择模板 */}
           <div>
-            <label className="block text-xs font-medium text-text-secondary mb-1.5">
-              团队模板
-            </label>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="text-xs font-medium text-text-secondary">团队模板</label>
+              <button
+                onClick={() => setShowTemplateManager(true)}
+                className="text-[10px] text-accent-blue hover:underline flex items-center gap-1"
+              >
+                <Settings className="w-3 h-3" /> 管理模板
+              </button>
+            </div>
             <div className="space-y-2">
               {templates.map(template => (
                 <button
@@ -176,6 +199,26 @@ export default function CreateTeamDialog({ onClose, onSuccess }: CreateTeamDialo
             </select>
           </div>
 
+          {/* Worktree 隔离 */}
+          <div className="flex items-start gap-3 p-3 rounded-lg bg-bg-primary border border-border">
+            <input
+              type="checkbox"
+              id="worktree-isolation"
+              checked={worktreeIsolation}
+              onChange={e => setWorktreeIsolation(e.target.checked)}
+              className="mt-0.5 w-4 h-4 rounded accent-accent-blue flex-shrink-0"
+            />
+            <label htmlFor="worktree-isolation" className="cursor-pointer">
+              <div className="text-xs font-medium text-text-primary flex items-center gap-1.5">
+                <GitBranch className="w-3.5 h-3.5 text-accent-purple" />
+                启用 Worktree 隔离
+              </div>
+              <div className="text-[10px] text-text-muted mt-0.5 leading-relaxed">
+                为每个成员创建独立 Git Worktree（需工作目录为 Git 仓库），避免文件冲突，支持并行开发
+              </div>
+            </label>
+          </div>
+
           {/* 错误提示 */}
           {error && (
             <div className="px-3 py-2 rounded-lg bg-accent-red/10 border border-accent-red/30 text-xs text-accent-red">
@@ -224,6 +267,11 @@ export default function CreateTeamDialog({ onClose, onSuccess }: CreateTeamDialo
             </button>
           </div>
         </div>
+
+        {/* 模板管理弹窗 */}
+        {showTemplateManager && (
+          <TemplateManagerDialog onClose={() => { setShowTemplateManager(false); fetchTemplates() }} />
+        )}
       </div>
     </div>
   )

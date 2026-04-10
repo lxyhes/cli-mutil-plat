@@ -36,7 +36,7 @@ export default function SummarySettings() {
     getLatest,
   } = useSummaryStore()
 
-  const { sessions, currentSessionId } = useSessionStore()
+  const { sessions, selectedSessionId: currentSessionId } = useSessionStore()
 
   const [activeTab, setActiveTab] = useState<'session' | 'all'>('session')
   const [selectedSessionId, setSelectedSessionId] = useState<string>(currentSessionId || '')

@@ -19,6 +19,7 @@ export interface FeishuConfig {
   hasAppId: boolean
   hasWebhookUrl: boolean
   appId: string
+  appSecret?: string
   webhookUrl: string
   enabled: boolean
   notifyOnStart: boolean

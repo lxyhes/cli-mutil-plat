@@ -16,6 +16,7 @@ export interface TelegramMapping {
 
 export interface TelegramConfig {
   hasToken: boolean
+  botToken?: string
   enabled: boolean
   commandPrefix: string
   notifyOnStart: boolean

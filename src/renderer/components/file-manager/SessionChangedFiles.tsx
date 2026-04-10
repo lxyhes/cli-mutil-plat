@@ -94,7 +94,9 @@ export default function SessionChangedFiles({ files, onOpenFile }: Props) {
                   <Icon size={11} className={`flex-shrink-0 ${color}`} />
                   <span className="truncate text-text-secondary">{getDisplayName(file.filePath)}</span>
                   {file.concurrent && (
-                    <AlertTriangle size={10} className="flex-shrink-0 text-yellow-400 ml-auto" title="多会话并发改动" />
+                    <span className="ml-auto" title="多会话并发改动">
+                      <AlertTriangle size={10} className="flex-shrink-0 text-yellow-400" />
+                    </span>
                   )}
                 </button>
                 {expandedFile === file.filePath && (

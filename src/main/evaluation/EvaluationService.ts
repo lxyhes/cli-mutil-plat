@@ -178,7 +178,8 @@ export class EvaluationService extends EventEmitter {
       .map(m => {
         const role = m.role === 'user' ? 'User' : 'Assistant'
         const content = typeof m.content === 'string' ? m.content : JSON.stringify(m.content)
-        const thinking = m.thinking ? `\n[Thinking]: ${m.thinking}` : ''
+        const thinkingText = m.thinkingText || m.thinking
+        const thinking = thinkingText ? `\n[Thinking]: ${thinkingText}` : ''
         return `[${role}]\n${content}${thinking}`
       })
       .join('\n\n---\n\n')

@@ -220,7 +220,7 @@ export function registerMcpHandlers(deps: IpcDependencies): void {
         code: ErrorCode.NOT_FOUND,
         message: 'MCP server not found',
         userMessage: 'MCP 服务器不存在',
-        context: { serverId: id }
+        context: { serverId }
       })
 
       if (server.transport === 'stdio' && server.command) {
@@ -268,10 +268,10 @@ export function registerMcpHandlers(deps: IpcDependencies): void {
           const requiresPy310 = /mcp-server-(git|sqlite)\b/i.test(server.installCommand)
           const py = ensurePythonAndPip(requiresPy310 ? 10 : undefined)
           if (!py.ok) throw new SpectrAIError({
-          code: ErrorCode.INVALID_STATE,
-          message: 'Python environment check failed',
-          userMessage: py.error
-        })
+            code: ErrorCode.VALIDATION,
+            message: 'Python environment check failed',
+            userMessage: py.error
+          })
         }
 
         return createSuccessResponse({ message: `命令 '${server.command}' 已找到` })
@@ -295,11 +295,11 @@ export function registerMcpHandlers(deps: IpcDependencies): void {
       context: { serverId: id }
     })
 
-    return new Promise<{ success: boolean; error?: string }>((resolve) => {
+    return new Promise((resolve) => {
       const resolved = resolveInstallCommand(server.installCommand!)
       if (resolved.error) {
         sendToRenderer(IPC.MCP_INSTALL_PROGRESS, { id, line: `✗ ${resolved.error}`, type: 'error' })
-        resolve(createErrorResponse(new Error(resolved.error), { operation: "mcp-install" }))
+        resolve(createErrorResponse(new Error(resolved.error), { operation: 'mcp-install' }))
         return
       }
 
@@ -319,12 +319,12 @@ export function registerMcpHandlers(deps: IpcDependencies): void {
           resolve(createSuccessResponse({}))
         } else {
           sendToRenderer(IPC.MCP_INSTALL_PROGRESS, { id, line: `✗ 安装失败（退出码 ${code}）`, type: 'error' })
-          resolve(createErrorResponse(new Error(`退出码 ${code}`), { operation: "mcp-install" }))
+          resolve(createErrorResponse(new Error(`退出码 ${code}`), { operation: 'mcp-install' }))
         }
       })
       proc.on('error', (err: Error) => {
         sendToRenderer(IPC.MCP_INSTALL_PROGRESS, { id, line: `✗ ${err.message}`, type: 'error' })
-        resolve(createErrorResponse(err, { operation: "mcp-install" }))
+        resolve(createErrorResponse(err, { operation: 'mcp-install' }))
       })
     })
   })

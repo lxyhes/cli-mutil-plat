@@ -7,10 +7,32 @@
  */
 
 import { create } from 'zustand'
-import type { TeamInstance, TeamTask, TeamMessage, TeamTemplate } from '../../shared/types'
+import type {
+  DAGValidation,
+  MemberStatus,
+  TaskDAGNode,
+  TeamInstance,
+  TeamMessage,
+  TeamStatus,
+  TeamTask,
+  TeamTemplate,
+} from '../../shared/types'
 
 // 事件监听器引用（用于清理）
 let teamEventCleanup: (() => void)[] = []
+let teamEventsInitialized = false
+
+const EMPTY_DAG_VALIDATION: DAGValidation = {
+  valid: true,
+  cycles: [],
+  missingDependencies: [],
+  readyTasks: [],
+  blockedTasks: [],
+}
+
+function appendUniqueMessage(messages: TeamMessage[], message: TeamMessage): TeamMessage[] {
+  return messages.some(item => item.id === message.id) ? messages : [...messages, message]
+}
 
 export interface TeamLogEntry {
   id: string
@@ -20,7 +42,7 @@ export interface TeamLogEntry {
   data?: any
 }
 
-interface TeamHealthIssue {
+export interface TeamHealthIssue {
   type: string
   severity: string
   message: string
@@ -72,6 +94,32 @@ interface TeamState {
   createTask: (teamId: string, task: any) => Promise<TeamTask | null>
   completeTask: (teamId: string, taskId: string, result: string) => Promise<boolean>
   claimTask: (teamId: string, taskId: string, memberId: string) => Promise<boolean>
+  updateTask: (teamId: string, taskId: string, updates: any) => Promise<TeamTask | null>
+  cancelTask: (teamId: string, taskId: string, reason?: string) => Promise<boolean>
+  reassignTask: (teamId: string, taskId: string, newMemberId: string) => Promise<boolean>
+
+  // 团队生命周期
+  cancelTeam: (teamId: string, reason?: string) => Promise<boolean>
+  pauseTeam: (teamId: string) => Promise<boolean>
+  resumeTeam: (teamId: string) => Promise<boolean>
+  updateTeam: (teamId: string, updates: { name?: string; objective?: string }) => Promise<boolean>
+
+  // 模板管理
+  createTemplate: (template: any) => Promise<any>
+  updateTemplate: (templateId: string, updates: any) => Promise<any>
+  deleteTemplate: (templateId: string) => Promise<boolean>
+
+  // UI 消息
+  sendMessage: (teamId: string, toMemberId: string, content: string) => Promise<TeamMessage | null>
+  broadcastMessage: (teamId: string, content: string) => Promise<TeamMessage | null>
+
+  // DAG
+  fetchTaskDAG: (teamId: string) => Promise<{ dag: TaskDAGNode[]; validation: DAGValidation }>
+
+  // 导出
+  exportTeam: (teamId: string) => Promise<any>
+  importTeam: (snapshot: any) => Promise<TeamInstance | null>
+  mergeWorktrees: (teamId: string, options?: { cleanup?: boolean; squash?: boolean }) => Promise<any[]>
 
   // 清理
   cleanup: () => void
@@ -245,19 +293,292 @@ export const useTeamStore = create<TeamState>((set, get) => ({
     return true
   },
 
+  updateTask: async (teamId, taskId, updates) => {
+    try {
+      const result = await (window as any).spectrAI.team.updateTask(teamId, taskId, updates)
+      if (result.success && result.task) {
+        set((state) => ({
+          teamTasks: {
+            ...state.teamTasks,
+            [teamId]: (state.teamTasks[teamId] || []).map(t =>
+              t.id === taskId ? { ...t, ...result.task } : t
+            )
+          }
+        }))
+        return result.task
+      }
+      return null
+    } catch (err) {
+      console.error('[TeamStore] updateTask error:', err)
+      return null
+    }
+  },
+
+  cancelTask: async (teamId, taskId, reason) => {
+    try {
+      const result = await (window as any).spectrAI.team.cancelTask(teamId, taskId, reason)
+      if (result.success) {
+        set((state) => ({
+          teamTasks: {
+            ...state.teamTasks,
+            [teamId]: (state.teamTasks[teamId] || []).map(t =>
+              t.id === taskId ? { ...t, status: 'cancelled' } : t
+            )
+          }
+        }))
+        return true
+      }
+      return false
+    } catch (err) {
+      console.error('[TeamStore] cancelTask error:', err)
+      return false
+    }
+  },
+
+  reassignTask: async (teamId, taskId, newMemberId) => {
+    try {
+      const result = await (window as any).spectrAI.team.reassignTask(teamId, taskId, newMemberId)
+      return result.success
+    } catch (err) {
+      console.error('[TeamStore] reassignTask error:', err)
+      return false
+    }
+  },
+
+  cancelTeam: async (teamId, reason) => {
+    try {
+      const result = await (window as any).spectrAI.team.cancel(teamId, reason)
+      if (result.success) {
+        set((state) => ({
+          teams: state.teams.map(t =>
+            t.id === teamId ? { ...t, status: 'cancelled' } : t
+          )
+        }))
+        return true
+      }
+      return false
+    } catch (err) {
+      console.error('[TeamStore] cancelTeam error:', err)
+      return false
+    }
+  },
+
+  pauseTeam: async (teamId) => {
+    try {
+      const result = await (window as any).spectrAI.team.pause(teamId)
+      if (result.success) {
+        set((state) => ({
+          teams: state.teams.map(t =>
+            t.id === teamId ? { ...t, status: 'paused' } : t
+          )
+        }))
+        return true
+      }
+      return false
+    } catch (err) {
+      console.error('[TeamStore] pauseTeam error:', err)
+      return false
+    }
+  },
+
+  resumeTeam: async (teamId) => {
+    try {
+      const result = await (window as any).spectrAI.team.resume(teamId)
+      if (result.success) {
+        set((state) => ({
+          teams: state.teams.map(t =>
+            t.id === teamId ? { ...t, status: 'running' } : t
+          )
+        }))
+        return true
+      }
+      return false
+    } catch (err) {
+      console.error('[TeamStore] resumeTeam error:', err)
+      return false
+    }
+  },
+
+  updateTeam: async (teamId, updates) => {
+    try {
+      const result = await (window as any).spectrAI.team.update(teamId, updates)
+      if (result.success) {
+        set((state) => ({
+          teams: state.teams.map(t =>
+            t.id === teamId ? { ...t, ...updates } : t
+          )
+        }))
+        return true
+      }
+      return false
+    } catch (err) {
+      console.error('[TeamStore] updateTeam error:', err)
+      return false
+    }
+  },
+
+  createTemplate: async (template) => {
+    try {
+      const result = await (window as any).spectrAI.team.createTemplate(template)
+      if (result.success && result.template) {
+        set((state) => ({ templates: [...state.templates, result.template] }))
+        return result.template
+      }
+      return null
+    } catch (err) {
+      console.error('[TeamStore] createTemplate error:', err)
+      return null
+    }
+  },
+
+  updateTemplate: async (templateId, updates) => {
+    try {
+      const result = await (window as any).spectrAI.team.updateTemplate(templateId, updates)
+      if (result.success && result.template) {
+        set((state) => ({
+          templates: state.templates.map(t =>
+            t.id === templateId ? { ...t, ...result.template } : t
+          )
+        }))
+        return result.template
+      }
+      return null
+    } catch (err) {
+      console.error('[TeamStore] updateTemplate error:', err)
+      return null
+    }
+  },
+
+  deleteTemplate: async (templateId) => {
+    try {
+      const result = await (window as any).spectrAI.team.deleteTemplate(templateId)
+      if (result.success) {
+        set((state) => ({
+          templates: state.templates.filter(t => t.id !== templateId)
+        }))
+        return true
+      }
+      return false
+    } catch (err) {
+      console.error('[TeamStore] deleteTemplate error:', err)
+      return false
+    }
+  },
+
+  sendMessage: async (teamId, toMemberId, content) => {
+    try {
+      const result = await (window as any).spectrAI.team.sendMessage(teamId, toMemberId, content)
+      if (result.success && result.message) {
+        set((state) => ({
+          teamMessages: {
+            ...state.teamMessages,
+            [teamId]: appendUniqueMessage(state.teamMessages[teamId] || [], result.message)
+          }
+        }))
+        return result.message
+      }
+      return null
+    } catch (err) {
+      console.error('[TeamStore] sendMessage error:', err)
+      return null
+    }
+  },
+
+  broadcastMessage: async (teamId, content) => {
+    try {
+      const result = await (window as any).spectrAI.team.broadcast(teamId, content)
+      if (result.success && result.message) {
+        set((state) => ({
+          teamMessages: {
+            ...state.teamMessages,
+            [teamId]: appendUniqueMessage(state.teamMessages[teamId] || [], result.message)
+          }
+        }))
+        return result.message
+      }
+      return null
+    } catch (err) {
+      console.error('[TeamStore] broadcastMessage error:', err)
+      return null
+    }
+  },
+
+  fetchTaskDAG: async (teamId) => {
+    try {
+      const result = await (window as any).spectrAI.team.getTaskDAG(teamId)
+      if (result.success) {
+        return { dag: result.dag || [], validation: result.validation || EMPTY_DAG_VALIDATION }
+      }
+      return { dag: [], validation: EMPTY_DAG_VALIDATION }
+    } catch (err) {
+      console.error('[TeamStore] fetchTaskDAG error:', err)
+      return { dag: [], validation: EMPTY_DAG_VALIDATION }
+    }
+  },
+
+  exportTeam: async (teamId) => {
+    try {
+      const result = await (window as any).spectrAI.team.exportTeam(teamId)
+      if (result.success) return result.snapshot
+      return null
+    } catch (err) {
+      console.error('[TeamStore] exportTeam error:', err)
+      return null
+    }
+  },
+
+  importTeam: async (snapshot) => {
+    try {
+      const result = await (window as any).spectrAI.team.importTeam(snapshot)
+      if (result.success && result.team) {
+        set((state) => ({
+          teams: [result.team, ...state.teams],
+          teamTasks: { ...state.teamTasks, [result.team.id]: [] },
+          teamMessages: { ...state.teamMessages, [result.team.id]: [] }
+        }))
+        return result.team
+      }
+      return null
+    } catch (err) {
+      console.error('[TeamStore] importTeam error:', err)
+      return null
+    }
+  },
+
+  mergeWorktrees: async (teamId, options) => {
+    try {
+      const result = await (window as any).spectrAI.team.mergeWorktrees(teamId, options)
+      return result.success ? (result.results || []) : []
+    } catch (err) {
+      console.error('[TeamStore] mergeWorktrees error:', err)
+      return []
+    }
+  },
+
   cleanup: () => {
     teamEventCleanup.forEach(fn => fn())
     teamEventCleanup = []
+    teamEventsInitialized = false
   },
 }))
 
 // ★ 初始化团队事件监听（只需调用一次）
 export function initTeamEventListeners(): void {
+  if (teamEventsInitialized) return
+
   const api = (window as any).spectrAI?.team
   if (!api) {
     console.warn('[TeamStore] team API not available yet')
     return
   }
+  teamEventsInitialized = true
+
+  const unsubStatusChange = api.onStatusChange((teamId: string, status: TeamStatus) => {
+    useTeamStore.setState((state) => ({
+      teams: state.teams.map(t => t.id === teamId ? { ...t, status } : t)
+    }))
+  })
+  teamEventCleanup.push(unsubStatusChange)
 
   // 成员加入
   const unsubMemberJoined = api.onMemberJoined((teamId: string, member: any) => {
@@ -273,7 +594,7 @@ export function initTeamEventListeners(): void {
   teamEventCleanup.push(unsubMemberJoined)
 
   // 成员状态变更
-  const unsubMemberStatus = api.onMemberStatusChange((teamId: string, memberId: string, status: string) => {
+  const unsubMemberStatus = api.onMemberStatusChange((teamId: string, memberId: string, status: MemberStatus) => {
     console.log('[TeamStore] Member status changed:', teamId, memberId, status)
     useTeamStore.setState((state) => ({
       teams: state.teams.map(t => t.id === teamId ? {
@@ -320,7 +641,7 @@ export function initTeamEventListeners(): void {
   const unsubMessage = api.onMessage((teamId: string, message: any) => {
     console.log('[TeamStore] New team message:', teamId, message.type)
     useTeamStore.setState((state) => {
-      const messages = [...(state.teamMessages[teamId] || []), message]
+      const messages = appendUniqueMessage(state.teamMessages[teamId] || [], message)
       return { teamMessages: { ...state.teamMessages, [teamId]: messages } }
     })
   })
@@ -375,6 +696,51 @@ export function initTeamEventListeners(): void {
     useTeamStore.getState().addTeamLog(entry)
   })
   teamEventCleanup.push(unsubLog)
+
+  // 任务取消
+  const unsubTaskCancelled = api.onTaskCancelled((teamId: string, taskId: string) => {
+    useTeamStore.setState((state) => ({
+      teamTasks: {
+        ...state.teamTasks,
+        [teamId]: (state.teamTasks[teamId] || []).map(t =>
+          t.id === taskId ? { ...t, status: 'cancelled' } : t
+        )
+      }
+    }))
+  })
+  teamEventCleanup.push(unsubTaskCancelled)
+
+  // 团队取消
+  const unsubCancelled = api.onCancelled((teamId: string, _reason: string) => {
+    useTeamStore.setState((state) => ({
+      teams: state.teams.map(t => t.id === teamId ? { ...t, status: 'cancelled' } : t)
+    }))
+  })
+  teamEventCleanup.push(unsubCancelled)
+
+  // 团队暂停
+  const unsubPaused = api.onPaused((teamId: string) => {
+    useTeamStore.setState((state) => ({
+      teams: state.teams.map(t => t.id === teamId ? { ...t, status: 'paused' } : t)
+    }))
+  })
+  teamEventCleanup.push(unsubPaused)
+
+  // 团队恢复
+  const unsubResumed = api.onResumed((teamId: string) => {
+    useTeamStore.setState((state) => ({
+      teams: state.teams.map(t => t.id === teamId ? { ...t, status: 'running' } : t)
+    }))
+  })
+  teamEventCleanup.push(unsubResumed)
+
+  // 团队信息更新
+  const unsubUpdated = api.onUpdated((teamId: string, updates: any) => {
+    useTeamStore.setState((state) => ({
+      teams: state.teams.map(t => t.id === teamId ? { ...t, ...updates } : t)
+    }))
+  })
+  teamEventCleanup.push(unsubUpdated)
 
   console.log('[TeamStore] Team event listeners initialized')
 }

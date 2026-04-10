@@ -849,7 +849,7 @@ export class SessionManagerV2 extends EventEmitter implements MemoryManagedCompo
 
     // 释放会话相关的所有锁
     if (this.lockManager) {
-      await this.lockManager.releaseAllLocksForOwner(`session:${id}`).catch(err => {
+      await this.lockManager.releaseAllLocksForOwner(`session:${id}`).catch((err: unknown) => {
         console.warn(`[SessionManagerV2] Failed to release locks for session ${id}:`, err)
       })
     }
@@ -1110,10 +1110,10 @@ export class SessionManagerV2 extends EventEmitter implements MemoryManagedCompo
       name: this.name,
       itemCount: sessionCount,
       estimatedSize,
-      lastCleanup: this.lastCleanupTime,
+      lastCleanup: this.lastCleanupTime?.toISOString(),
       metadata: {
         activeSessions: Array.from(this.sessions.values()).filter(s =>
-          s.status === 'active' || s.status === 'waiting'
+          s.status === 'running' || s.status === 'waiting_input' || s.status === 'idle'
         ).length,
         completedSessions: Array.from(this.sessions.values()).filter(s =>
           s.status === 'completed' || s.status === 'terminated'

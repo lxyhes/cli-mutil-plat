@@ -7,6 +7,7 @@ import type { DatabaseManager } from '../storage/Database'
 import type { SessionManagerV2 } from '../session/SessionManagerV2'
 import { sendToRenderer } from '../ipc/shared'
 import { IPC } from '../../shared/constants'
+import type { PlanStatus, StepStatus } from '../storage/repositories/PlannerRepository'
 
 export type PlannerStatus = 'idle' | 'planning' | 'running' | 'completed' | 'failed'
 
@@ -233,7 +234,7 @@ export class PlannerService extends EventEmitter {
 
   updatePlan(planId: string, updates: {
     goal?: string
-    status?: string
+    status?: PlanStatus
   }): void {
     this.db.updatePlanSession(planId, updates)
     this.emit('plan-updated', { planId, updates })
@@ -341,7 +342,7 @@ export class PlannerService extends EventEmitter {
    * 更新步骤
    */
   updateStep(stepId: string, updates: {
-    status?: string
+    status?: StepStatus
     result?: string
   }): void {
     this.db.updateStep(stepId, updates)

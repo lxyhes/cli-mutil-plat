@@ -132,6 +132,12 @@ export class PromptOptimizerService extends EventEmitter {
     }
   }
 
+  deleteVersion(id: string): void {
+    this.repo.deleteVersion(id)
+    this.emit('version-deleted', { versionId: id })
+    sendToRenderer(IPC.PROMPT_OPTIMIZATION_STATUS, { type: 'version-deleted', versionId: id })
+  }
+
   setBaseline(versionId: string): void {
     this.repo.setBaseline(versionId)
     const version = this.repo.getVersion(versionId)

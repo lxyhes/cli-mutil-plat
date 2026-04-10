@@ -1392,4 +1392,31 @@ export const MIGRATIONS: Migration[] = [
       }
     },
   },
+
+  // ── v44: Agent Teams worktree/import/hierarchy fields ──
+  {
+    version: 44,
+    description: 'add team worktree metadata and hierarchical team support',
+    up(db) {
+      try {
+        if (tableExists(db, 'team_instances')) {
+          addColumnIfNotExists(db, 'team_instances', 'parent_team_id', 'TEXT')
+          addColumnIfNotExists(db, 'team_instances', 'worktree_isolation', 'INTEGER NOT NULL DEFAULT 0')
+        }
+
+        if (tableExists(db, 'team_members')) {
+          addColumnIfNotExists(db, 'team_members', 'work_dir', 'TEXT')
+          addColumnIfNotExists(db, 'team_members', 'worktree_path', 'TEXT')
+          addColumnIfNotExists(db, 'team_members', 'worktree_branch', 'TEXT')
+          addColumnIfNotExists(db, 'team_members', 'worktree_source_repo', 'TEXT')
+          addColumnIfNotExists(db, 'team_members', 'worktree_base_commit', 'TEXT')
+          addColumnIfNotExists(db, 'team_members', 'worktree_base_branch', 'TEXT')
+        }
+
+        console.log('[Migration v44] Agent Teams worktree fields added successfully')
+      } catch (err) {
+        console.error('[Migration v44] Failed to add Agent Teams worktree fields:', err)
+      }
+    },
+  },
 ]

@@ -8,6 +8,7 @@
  */
 
 import { EventEmitter } from 'events'
+import path from 'path'
 import { v4 as uuidv4 } from 'uuid'
 import { teamLog } from './debug'
 import type {
@@ -18,6 +19,10 @@ import type {
   TeamMessage,
   TeamRole,
   TeamTemplate,
+  TaskDAGNode,
+  DAGValidation,
+  TeamSnapshot,
+  TeamWorktreeMergeResult,
 } from './types'
 import type { TeamRepository } from './TeamRepository'
 import type { AgentManagerV2 } from '../agent/AgentManagerV2'
@@ -26,6 +31,7 @@ import type { DatabaseManager } from '../storage/Database'
 import { TeamHealthChecker } from './TeamHealthChecker'
 import { TeamMessageDelivery } from './TeamMessageDelivery'
 import { TeamBridge } from './TeamBridge'
+import { GitWorktreeService } from '../git/GitWorktreeService'
 
 /** 内置团队模板 */
 const BUILTIN_TEMPLATES: TeamTemplate[] = [
@@ -136,13 +142,19 @@ const BUILTIN_TEMPLATES: TeamTemplate[] = [
 export interface TeamEvents {
   'team:created': [team: TeamInstance]
   'team:started': [teamId: string]
+  'team:status-change': [teamId: string, status: TeamInstance['status']]
   'team:member-joined': [teamId: string, member: TeamMember]
   'team:member-status-change': [teamId: string, memberId: string, status: string]
   'team:task-claimed': [teamId: string, taskId: string, memberId: string]
   'team:task-completed': [teamId: string, taskId: string]
+  'team:task-cancelled': [teamId: string, taskId: string]
   'team:message': [teamId: string, message: TeamMessage]
   'team:completed': [teamId: string]
   'team:failed': [teamId: string, reason: string]
+  'team:cancelled': [teamId: string, reason: string]
+  'team:paused': [teamId: string]
+  'team:resumed': [teamId: string]
+  'team:updated': [teamId: string, updates: { name?: string; objective?: string }]
   'team:health-issue': [teamId: string, issue: any]
 }
 
@@ -157,7 +169,8 @@ export class TeamManager extends EventEmitter {
     private teamRepo: TeamRepository,
     private agentManager: AgentManagerV2,
     private sessionManager: SessionManagerV2,
-    private database: DatabaseManager
+    private database: DatabaseManager,
+    private gitService: GitWorktreeService = new GitWorktreeService()
   ) {
     super()
   }
@@ -166,7 +179,7 @@ export class TeamManager extends EventEmitter {
    * 创建并启动团队
    */
   async createTeam(request: CreateTeamRequest): Promise<TeamInstance> {
-    teamDebug(`createTeam called: name="${request.name}", templateId="${request.templateId}", workDir="${request.workDir}"`)
+    teamLog.debug(`createTeam called: name="${request.name}", templateId="${request.templateId}", workDir="${request.workDir}"`)
     const teamId = uuidv4()
     const sessionId = uuidv4()
 
@@ -182,7 +195,7 @@ export class TeamManager extends EventEmitter {
       // 默认使用开发团队模板
       roles = BUILTIN_TEMPLATES[0].roles
     }
-    teamDebug(`Using ${roles.length} roles: ${roles.map(r => r.identifier).join(', ')}`)
+    teamLog.debug(`Using ${roles.length} roles: ${roles.map(r => r.identifier).join(', ')}`)
 
     // 分配 Bridge 端口
     const bridgePort = this.bridgePort + (this.bridges.size % 100)
@@ -201,33 +214,61 @@ export class TeamManager extends EventEmitter {
       workDir: request.workDir,
       sessionId,
       objective: request.objective,
+      parentTeamId: request.parentTeamId,
+      worktreeIsolation: request.worktreeIsolation || false,
       members: [],
       createdAt: new Date().toISOString(),
     }
 
-    this.teamRepo.createTeamInstance(teamInstance)
+    const createdWorktrees: Array<{ repoPath: string; worktreePath: string; branchName?: string }> = []
+    try {
+      this.teamRepo.createTeamInstance(teamInstance)
 
-    // 为每个角色创建成员
-    for (const role of roles) {
-      const memberId = uuidv4()
-      const memberSessionId = uuidv4()
+      // 为每个角色创建成员
+      for (const role of roles) {
+        const memberId = uuidv4()
+        const memberSessionId = uuidv4()
+        const memberWorkspace = await this.prepareMemberWorkspace(teamId, request.workDir, role, request.worktreeIsolation)
+        if (memberWorkspace.worktreePath && memberWorkspace.worktreeSourceRepo) {
+          createdWorktrees.push({
+            repoPath: memberWorkspace.worktreeSourceRepo,
+            worktreePath: memberWorkspace.worktreePath,
+            branchName: memberWorkspace.worktreeBranch,
+          })
+        }
 
-      const member: TeamMember = {
-        id: memberId,
-        instanceId: teamId,
-        roleId: role.id,
-        role,
-        sessionId: memberSessionId,
-        status: 'idle',
-        providerId: request.providerId,
-        joinedAt: new Date().toISOString(),
+        const member: TeamMember = {
+          id: memberId,
+          instanceId: teamId,
+          roleId: role.id,
+          role,
+          sessionId: memberSessionId,
+          status: 'idle',
+          providerId: request.providerId,
+          workDir: memberWorkspace.workDir,
+          worktreePath: memberWorkspace.worktreePath,
+          worktreeBranch: memberWorkspace.worktreeBranch,
+          worktreeSourceRepo: memberWorkspace.worktreeSourceRepo,
+          worktreeBaseCommit: memberWorkspace.worktreeBaseCommit,
+          worktreeBaseBranch: memberWorkspace.worktreeBaseBranch,
+          joinedAt: new Date().toISOString(),
+        }
+
+        this.teamRepo.addTeamMember(member)
+        teamInstance.members.push(member)
       }
-
-      this.teamRepo.addTeamMember(member)
-      teamInstance.members.push(member)
+    } catch (err) {
+      for (const worktree of createdWorktrees.reverse()) {
+        await this.gitService.removeWorktree(worktree.repoPath, worktree.worktreePath, {
+          deleteBranch: true,
+          branchName: worktree.branchName,
+        }).catch(() => {})
+      }
+      this.teamRepo.deleteTeamInstance(teamId)
+      throw err
     }
 
-    teamDebug(`Team ${teamId} created, starting members...`)
+    teamLog.debug(`Team ${teamId} created, starting members...`)
     this.activeTeams.set(teamId, teamInstance)
     this.emit('team:created', teamInstance)
 
@@ -247,6 +288,7 @@ export class TeamManager extends EventEmitter {
     team.status = 'running'
     team.startedAt = new Date().toISOString()
     this.teamRepo.updateTeamStatus(teamId, 'running')
+    this.emit('team:status-change', teamId, 'running')
 
     // 启动健康检查器
     const healthChecker = new TeamHealthChecker(
@@ -300,8 +342,13 @@ export class TeamManager extends EventEmitter {
         id: member.sessionId,
         name: `TeamMember:${member.role.identifier}`,
         providerId: member.providerId,
-        workingDirectory: this.activeTeams.get(member.instanceId)?.workDir || '',
+        workingDirectory: member.workDir || this.activeTeams.get(member.instanceId)?.workDir || '',
         autoAccept: true,
+        worktreePath: member.worktreePath,
+        worktreeBranch: member.worktreeBranch,
+        worktreeSourceRepo: member.worktreeSourceRepo,
+        worktreeBaseCommit: member.worktreeBaseCommit,
+        worktreeBaseBranch: member.worktreeBaseBranch,
         initialPrompt: `你是团队「${this.activeTeams.get(member.instanceId)?.name}」的成员，角色是「${role.name}」${role.icon}。\n\n你的系统提示词：\n${systemPrompt}`,
       })
 
@@ -322,6 +369,11 @@ export class TeamManager extends EventEmitter {
     const team = this.activeTeams.get(member.instanceId)
     if (!team) return role.systemPrompt
 
+    const parentTeam = team.parentTeamId ? this.teamRepo.getTeamInstance(team.parentTeamId) : undefined
+    const parentMessages = parentTeam
+      ? this.teamRepo.getTeamMessages(parentTeam.id, 5)
+      : []
+
     // 注入团队成员信息
     const memberList = team.members
       .map(m => `- ${m.role.icon} ${m.role.name}（${m.role.identifier}）${m.role.isLeader ? '👑 Leader' : ''}`)
@@ -335,6 +387,13 @@ export class TeamManager extends EventEmitter {
 团队成员：
 ${memberList}
 
+## 父团队上下文
+${parentTeam ? `当前团队是父团队「${parentTeam.name}」(${parentTeam.id}) 的子团队。
+父团队目标：${parentTeam.objective || '未设置'}
+最近上下文：
+${parentMessages.length > 0 ? parentMessages.map(msg => `- [${msg.type}] ${msg.content}`).join('\n') : '- 暂无父团队消息摘要'}
+请在汇报时同步关键决策与进展，并保持与父团队目标一致。` : '当前团队为顶层团队。'}
+
 ## 团队通信工具
 你可以使用以下 MCP 工具与团队沟通：
 - team_message_role(role, message) - 向特定角色发送消息
@@ -346,7 +405,51 @@ ${memberList}
 TeamBridge WebSocket 端口：${bridgePort}
 实例 ID：${member.instanceId}
 成员 ID：${member.id}
+当前工作目录：${member.workDir || team.workDir}
 请在连接到 TeamBridge 后发送 register 消息注册你的成员身份。`
+  }
+
+  private async prepareMemberWorkspace(
+    teamId: string,
+    baseWorkDir: string,
+    role: TeamRole,
+    worktreeIsolation?: boolean
+  ): Promise<{
+    workDir: string
+    worktreePath?: string
+    worktreeBranch?: string
+    worktreeSourceRepo?: string
+    worktreeBaseCommit?: string
+    worktreeBaseBranch?: string
+  }> {
+    if (!worktreeIsolation || role.isLeader) {
+      return { workDir: baseWorkDir }
+    }
+
+    const isGitRepo = await this.gitService.isGitRepo(baseWorkDir)
+    if (!isGitRepo) {
+      throw new Error('启用 Worktree 隔离时，团队工作目录必须位于 Git 仓库内')
+    }
+
+    const repoRoot = await this.gitService.getRepoRoot(baseWorkDir)
+    const baseBranch = await this.gitService.getCurrentBranch(repoRoot)
+    const baseCommit = await this.gitService.getHeadCommit(repoRoot)
+    const relativeDir = path.relative(repoRoot, baseWorkDir)
+    const taskId = `${teamId}-${role.identifier}`
+    const branch = `team/${teamId}/${role.identifier}`
+    const { worktreePath } = await this.gitService.createWorktree(repoRoot, branch, taskId)
+    const resolvedWorkDir = relativeDir && relativeDir !== '.'
+      ? path.join(worktreePath, relativeDir)
+      : worktreePath
+
+    return {
+      workDir: resolvedWorkDir,
+      worktreePath,
+      worktreeBranch: branch,
+      worktreeSourceRepo: repoRoot,
+      worktreeBaseCommit: baseCommit,
+      worktreeBaseBranch: baseBranch,
+    }
   }
 
   /**
@@ -413,6 +516,17 @@ TeamBridge WebSocket 端口：${bridgePort}
       ...task,
       createdAt: new Date().toISOString(),
     }
+    const validation = this.teamRepo.validateTaskDependenciesForTasks([
+      ...this.teamRepo.getTeamTasks(teamId),
+      newTask,
+    ])
+    if (!validation.valid || validation.missingDependencies.length > 0) {
+      throw new Error(
+        validation.missingDependencies.length > 0
+          ? `存在缺失依赖: ${validation.missingDependencies.join(', ')}`
+          : `存在循环依赖: ${validation.cycles.map(c => c.join(' → ')).join('; ')}`
+      )
+    }
     this.teamRepo.createTask(newTask)
     return newTask
   }
@@ -421,7 +535,13 @@ TeamBridge WebSocket 端口：${bridgePort}
    * 完成任务
    */
   completeTask(teamId: string, taskId: string, result: string): void {
+    const task = this.teamRepo.getTask(taskId)
     this.teamRepo.completeTask(taskId, result)
+    if (task?.claimedBy) {
+      this.teamRepo.updateMemberTask(task.claimedBy, null)
+      this.teamRepo.updateMemberStatus(task.claimedBy, 'idle')
+      this.emit('team:member-status-change', teamId, task.claimedBy, 'idle')
+    }
     this.emit('team:task-completed', teamId, taskId)
 
     // 检查团队是否完成
@@ -429,15 +549,541 @@ TeamBridge WebSocket 端口：${bridgePort}
   }
 
   /**
-   * 认领任务
+   * 认领任务（带依赖验证）
    */
   claimTask(teamId: string, taskId: string, memberId: string): { success: boolean; task?: TeamTask; error?: string } {
+    // 依赖检查
+    const validation = this.validateTaskClaim(teamId, taskId)
+    if (!validation.success) return { success: false, error: validation.error }
+
     const result = this.teamRepo.claimTask(taskId, memberId)
     if (result.success) {
       this.teamRepo.updateMemberTask(memberId, taskId)
+      this.teamRepo.updateMemberStatus(memberId, 'running')
+      this.emit('team:member-status-change', teamId, memberId, 'running')
       this.emit('team:task-claimed', teamId, taskId, memberId)
     }
     return result
+  }
+
+  /**
+   * 验证任务是否可以认领（依赖是否满足）
+   */
+  validateTaskClaim(teamId: string, taskId: string): { success: boolean; error?: string } {
+    const team = this.activeTeams.get(teamId) ?? this.teamRepo.getTeamInstance(teamId)
+    if (!team) return { success: false, error: '团队不存在' }
+    if (team.status !== 'running') {
+      return { success: false, error: `团队当前状态为 ${team.status}，无法认领任务` }
+    }
+
+    const task = this.teamRepo.getTask(taskId)
+    if (!task) return { success: false, error: '任务不存在' }
+    if (task.status !== 'pending') return { success: false, error: `任务状态为 ${task.status}，无法认领` }
+
+    // 检查所有依赖是否已完成
+    for (const depId of task.dependencies) {
+      const dep = this.teamRepo.getTask(depId)
+      if (!dep) return { success: false, error: `依赖任务 "${depId}" 不存在` }
+      if (dep.status !== 'completed' && dep.status !== 'cancelled' && dep.status !== 'failed') {
+        return { success: false, error: `依赖任务 "${dep.title}" 尚未完成` }
+      }
+    }
+    return { success: true }
+  }
+
+  /**
+   * 记录团队消息并通知 UI。
+   */
+  recordMessage(teamId: string, message: TeamMessage): void {
+    this.teamRepo.addMessage(message)
+    this.emit('team:message', teamId, message)
+  }
+
+  // ---- DAG 查询 ----
+
+  /**
+   * 获取任务 DAG（拓扑排序 + 执行波次）
+   */
+  getTaskDAG(teamId: string): TaskDAGNode[] {
+    return this.teamRepo.getTaskDAG(teamId)
+  }
+
+  /**
+   * 验证任务依赖
+   */
+  validateTaskDependencies(teamId: string): DAGValidation {
+    return this.teamRepo.validateTaskDependencies(teamId)
+  }
+
+  // ---- 任务编辑（阶段 3）----
+
+  /**
+   * 更新任务（仅 pending 状态可编辑）
+   */
+  updateTask(teamId: string, taskId: string, updates: Partial<Pick<TeamTask, 'title' | 'description' | 'priority' | 'dependencies'>>): TeamTask | null {
+    const task = this.teamRepo.getTask(taskId)
+    if (!task) return null
+    if (task.status !== 'pending') {
+      throw new Error('只能编辑 pending 状态的任务')
+    }
+    if (updates.dependencies !== undefined) {
+      const nextTask: TeamTask = { ...task, ...updates }
+      const validation = this.teamRepo.validateTaskDependenciesForTasks(
+        this.teamRepo.getTeamTasks(teamId).map(item => item.id === taskId ? nextTask : item)
+      )
+      if (!validation.valid || validation.missingDependencies.length > 0) {
+        if (validation.missingDependencies.length > 0) {
+          throw new Error(`存在缺失依赖: ${validation.missingDependencies.join(', ')}`)
+        }
+        throw new Error(`存在循环依赖: ${validation.cycles.map(c => c.join(' → ')).join('; ')}`)
+      }
+    }
+
+    this.teamRepo.updateTaskFull(taskId, updates)
+    return this.teamRepo.getTask(taskId) ?? null
+  }
+
+  /**
+   * 取消任务
+   */
+  cancelTask(teamId: string, taskId: string, reason?: string): void {
+    const task = this.teamRepo.getTask(taskId)
+    if (!task) return
+    if (!['pending', 'in_progress'].includes(task.status)) {
+      throw new Error('当前状态无法取消任务')
+    }
+    this.teamRepo.updateTaskFull(taskId, { status: 'cancelled', result: reason || '用户取消' })
+    if (task.claimedBy) {
+      this.teamRepo.updateMemberTask(task.claimedBy, null)
+      this.teamRepo.updateMemberStatus(task.claimedBy, 'idle')
+      this.emit('team:member-status-change', teamId, task.claimedBy, 'idle')
+    }
+    this.emit('team:task-cancelled', teamId, taskId)
+  }
+
+  /**
+   * 转派任务
+   */
+  reassignTask(teamId: string, taskId: string, newMemberId: string): void {
+    const task = this.teamRepo.getTask(taskId)
+    if (!task) return
+    const newMember = this.teamRepo.getMemberById(newMemberId)
+    if (!newMember || newMember.instanceId !== teamId) {
+      throw new Error('目标成员不存在')
+    }
+    if (task.claimedBy) {
+      this.teamRepo.updateMemberTask(task.claimedBy, null)
+      this.teamRepo.updateMemberStatus(task.claimedBy, 'idle')
+      this.emit('team:member-status-change', teamId, task.claimedBy, 'idle')
+    }
+    this.teamRepo.updateTaskFull(taskId, { claimedBy: newMemberId, assignedTo: newMemberId })
+    this.teamRepo.updateMemberTask(newMemberId, taskId)
+    this.teamRepo.updateMemberStatus(newMemberId, 'running')
+    this.emit('team:member-status-change', teamId, newMemberId, 'running')
+  }
+
+  // ---- 团队生命周期控制（阶段 2）----
+
+  /**
+   * 取消团队
+   */
+  cancelTeam(teamId: string, reason?: string): void {
+    const team = this.activeTeams.get(teamId)
+    if (!team) return
+
+    // 取消所有进行中/待办任务
+    const tasks = this.teamRepo.getTeamTasks(teamId)
+    for (const task of tasks) {
+      if (task.status === 'in_progress' || task.status === 'pending') {
+        this.teamRepo.updateTaskFull(task.id, { status: 'cancelled', result: '团队被取消' })
+        if (task.claimedBy) {
+          this.teamRepo.updateMemberTask(task.claimedBy, null)
+        }
+      }
+    }
+
+    // 标记团队为已取消
+    team.status = 'cancelled'
+    this.teamRepo.updateTeamStatus(teamId, 'cancelled')
+    this.emit('team:status-change', teamId, 'cancelled')
+
+    // 终止所有成员会话
+    for (const member of team.members) {
+      try {
+        this.sessionManager.terminateSession(member.sessionId).catch(() => {})
+        this.teamRepo.updateMemberStatus(member.id, 'failed')
+      } catch { /* ignore */ }
+    }
+
+    this.cleanupTeam(teamId)
+    this.emit('team:cancelled', teamId, reason || '用户取消')
+  }
+
+  /**
+   * 暂停团队
+   */
+  pauseTeam(teamId: string): void {
+    const team = this.activeTeams.get(teamId)
+    if (!team) return
+    if (team.status !== 'running') return
+    team.status = 'paused'
+    this.teamRepo.updateTeamStatus(teamId, 'paused')
+    this.emit('team:status-change', teamId, 'paused')
+    const bridge = this.bridges.get(teamId)
+    if (bridge) {
+      bridge.broadcastToAll('[系统] 团队已被暂停，等待用户恢复。', 'system')
+    }
+    this.emit('team:paused', teamId)
+  }
+
+  /**
+   * 恢复团队
+   */
+  resumeTeam(teamId: string): void {
+    const team = this.activeTeams.get(teamId)
+    if (!team || team.status !== 'paused') return
+    team.status = 'running'
+    this.teamRepo.updateTeamStatus(teamId, 'running')
+    this.emit('team:status-change', teamId, 'running')
+    const bridge = this.bridges.get(teamId)
+    if (bridge) {
+      bridge.broadcastToAll('[系统] 团队已恢复，请继续执行待办任务。', 'system')
+    }
+    this.emit('team:resumed', teamId)
+  }
+
+  /**
+   * 更新团队信息
+   */
+  updateTeam(teamId: string, updates: { name?: string; objective?: string }): void {
+    if (updates.name) {
+      this.teamRepo.updateTeamName(teamId, updates.name)
+      const team = this.activeTeams.get(teamId)
+      if (team) team.name = updates.name
+    }
+    if (updates.objective) {
+      this.teamRepo.updateTeamObjective(teamId, updates.objective)
+      const team = this.activeTeams.get(teamId)
+      if (team) team.objective = updates.objective
+    }
+    this.emit('team:updated', teamId, updates)
+  }
+
+  // ---- 模板 CRUD（阶段 4）----
+
+  /**
+   * 创建自定义模板
+   */
+  createTemplate(request: Omit<TeamTemplate, 'id' | 'createdAt'> & { id: string }): TeamTemplate {
+    const template: TeamTemplate = {
+      ...request,
+      createdAt: new Date().toISOString(),
+    }
+    this.teamRepo.createTemplate(template)
+    return template
+  }
+
+  /**
+   * 更新模板
+   */
+  updateTemplate(templateId: string, updates: Partial<Pick<TeamTemplate, 'name' | 'description' | 'roles'>>): TeamTemplate | null {
+    if (templateId.startsWith('dev-') || templateId === 'dev-team') {
+      throw new Error('内置模板不可修改')
+    }
+    this.teamRepo.updateTemplate(templateId, updates)
+    return this.teamRepo.getTemplate(templateId) ?? null
+  }
+
+  /**
+   * 删除模板
+   */
+  deleteTemplate(templateId: string): boolean {
+    if (templateId.startsWith('dev-') || templateId === 'dev-team') {
+      throw new Error('内置模板不可删除')
+    }
+    this.teamRepo.deleteTemplate(templateId)
+    return true
+  }
+
+  /**
+   * 获取完整模板列表（内置 + 自定义）
+   */
+  getFullTemplates(): TeamTemplate[] {
+    return [...this.getBuiltinTemplates(), ...this.teamRepo.getTemplates()]
+  }
+
+  // ---- UI 直接发消息（阶段 5）----
+
+  /**
+   * 从 UI 向特定成员发送消息
+   */
+  sendUIMessage(teamId: string, toMemberId: string, content: string): TeamMessage {
+    const message: TeamMessage = {
+      id: uuidv4(),
+      instanceId: teamId,
+      from: 'ui-user',
+      to: toMemberId,
+      type: 'role_message',
+      content,
+      timestamp: new Date().toISOString(),
+    }
+    this.recordMessage(teamId, message)
+
+    // 通过 Bridge 转发给成员
+    const bridge = this.bridges.get(teamId)
+    if (bridge) {
+      bridge.sendToMember(toMemberId, `[团队协调员]: ${content}`)
+    }
+
+    // 直接注入到会话上下文（兜底）
+    const member = this.teamRepo.getMemberById(toMemberId)
+    if (member) {
+      this.sessionManager.sendMessage(member.sessionId, `[团队协调员]: ${content}`).catch(() => {})
+    }
+
+    return message
+  }
+
+  /**
+   * 从 UI 向所有成员广播
+   */
+  broadcastFromUI(teamId: string, content: string): TeamMessage {
+    const message: TeamMessage = {
+      id: uuidv4(),
+      instanceId: teamId,
+      from: 'ui-user',
+      type: 'broadcast',
+      content,
+      timestamp: new Date().toISOString(),
+    }
+    this.recordMessage(teamId, message)
+
+    const bridge = this.bridges.get(teamId)
+    if (bridge) {
+      bridge.broadcastToAll(`[团队协调员广播]: ${content}`, 'ui-user')
+    }
+
+    return message
+  }
+
+  // ---- 导出（阶段 7）----
+
+  /**
+   * 导出团队快照
+   */
+  exportTeam(teamId: string): TeamSnapshot {
+    const team = this.teamRepo.getTeamInstance(teamId)
+    if (!team) throw new Error('团队不存在')
+    const tasks = this.teamRepo.getTeamTasks(teamId)
+    const messages = this.teamRepo.getTeamMessages(teamId, 500)
+    const memberById = new Map(team.members.map(m => [m.id, m]))
+    return {
+      version: 2,
+      exportedAt: new Date().toISOString(),
+      team: {
+        id: team.id,
+        name: team.name,
+        objective: team.objective,
+        status: team.status,
+        workDir: team.workDir,
+        parentTeamId: team.parentTeamId,
+        worktreeIsolation: team.worktreeIsolation,
+      },
+      members: team.members.map(m => ({ id: m.id, roleId: m.roleId, role: m.role, status: m.status })),
+      tasks: tasks.map(t => ({
+        id: t.id,
+        title: t.title,
+        description: t.description,
+        status: t.status,
+        priority: t.priority,
+        dependencies: t.dependencies,
+        assignedRoleId: t.assignedTo ? memberById.get(t.assignedTo)?.roleId : undefined,
+        claimedRoleId: t.claimedBy ? memberById.get(t.claimedBy)?.roleId : undefined,
+        result: t.result,
+      })),
+      messages: messages.map(m => ({
+        from: m.from,
+        fromRoleId: memberById.get(m.from)?.roleId,
+        to: m.to,
+        toRoleId: m.to ? memberById.get(m.to)?.roleId : undefined,
+        type: m.type,
+        content: m.content,
+        timestamp: m.timestamp,
+      })),
+    }
+  }
+
+  async importTeam(snapshot: TeamSnapshot): Promise<TeamInstance> {
+    const customRoles = snapshot.members.map(member => member.role)
+    const parentTeam = snapshot.team.parentTeamId ? this.teamRepo.getTeamInstance(snapshot.team.parentTeamId) : undefined
+    const providerId = parentTeam?.members?.[0]?.providerId || 'claude-code'
+    const team = await this.createTeam({
+      name: `${snapshot.team.name} (Imported)`,
+      objective: snapshot.team.objective,
+      workDir: snapshot.team.workDir || parentTeam?.workDir || process.cwd(),
+      customRoles,
+      providerId,
+      worktreeIsolation: snapshot.team.worktreeIsolation,
+      parentTeamId: snapshot.team.parentTeamId,
+    })
+
+    const imported = this.teamRepo.getTeamInstance(team.id)
+    if (!imported) return team
+
+    const roleToMemberId = new Map(imported.members.map(member => [member.roleId, member.id]))
+    const taskIdMap = new Map<string, string>()
+
+    for (const task of snapshot.tasks) {
+      const created = this.createTask(team.id, {
+        title: task.title,
+        description: task.description,
+        status: 'pending',
+        priority: task.priority,
+        dependencies: [],
+        assignedTo: task.assignedRoleId ? roleToMemberId.get(task.assignedRoleId) : undefined,
+      })
+      taskIdMap.set(task.id, created.id)
+    }
+
+    for (const task of snapshot.tasks) {
+      const newTaskId = taskIdMap.get(task.id)
+      if (!newTaskId) continue
+      const mappedDependencies = task.dependencies.map(depId => taskIdMap.get(depId)).filter(Boolean) as string[]
+      const claimedBy = task.claimedRoleId ? roleToMemberId.get(task.claimedRoleId) : undefined
+      this.teamRepo.updateTaskFull(newTaskId, {
+        dependencies: mappedDependencies,
+        status: task.status,
+        assignedTo: task.assignedRoleId ? roleToMemberId.get(task.assignedRoleId) : undefined,
+        claimedBy,
+        result: task.result,
+      })
+      if (claimedBy) {
+        this.teamRepo.updateMemberTask(claimedBy, newTaskId)
+      }
+    }
+
+    for (const message of snapshot.messages) {
+      const from = message.fromRoleId ? roleToMemberId.get(message.fromRoleId) || message.from : message.from
+      const to = message.toRoleId ? roleToMemberId.get(message.toRoleId) || message.to : message.to
+      this.teamRepo.addMessage({
+        id: uuidv4(),
+        instanceId: team.id,
+        from,
+        to,
+        type: message.type,
+        content: message.content,
+        timestamp: message.timestamp,
+      })
+    }
+
+    if (snapshot.team.status === 'paused') {
+      this.pauseTeam(team.id)
+    } else if (['completed', 'failed', 'cancelled'].includes(snapshot.team.status)) {
+      imported.status = snapshot.team.status
+      this.teamRepo.updateTeamStatus(team.id, snapshot.team.status)
+      this.emit('team:status-change', team.id, snapshot.team.status)
+      this.activeTeams.delete(team.id)
+    }
+
+    return this.teamRepo.getTeamInstance(team.id) || team
+  }
+
+  getChildTeams(parentTeamId: string): TeamInstance[] {
+    return this.getAllTeams().filter(team => team.parentTeamId === parentTeamId)
+  }
+
+  async mergeTeamWorktrees(
+    teamId: string,
+    options?: { cleanup?: boolean; targetBranch?: string; squash?: boolean }
+  ): Promise<TeamWorktreeMergeResult[]> {
+    const team = this.teamRepo.getTeamInstance(teamId)
+    if (!team) throw new Error('团队不存在')
+
+    const results: TeamWorktreeMergeResult[] = []
+    for (const member of team.members) {
+      if (!member.worktreeSourceRepo || !member.worktreeBranch) {
+        results.push({
+          memberId: member.id,
+          roleId: member.roleId,
+          branch: member.worktreeBranch || '',
+          repoPath: member.worktreeSourceRepo || '',
+          merged: false,
+          skipped: true,
+          reason: '成员未启用 worktree',
+        })
+        continue
+      }
+
+      try {
+        if (!member.worktreePath) {
+          results.push({
+            memberId: member.id,
+            roleId: member.roleId,
+            branch: member.worktreeBranch,
+            repoPath: member.worktreeSourceRepo,
+            merged: false,
+            skipped: true,
+            reason: '缺少 worktree 路径',
+          })
+          continue
+        }
+
+        const mergeCheck = await this.gitService.checkMerge(
+          member.worktreeSourceRepo,
+          member.worktreePath,
+          options?.targetBranch || member.worktreeBaseBranch
+        )
+        if (!mergeCheck.canMerge) {
+          results.push({
+            memberId: member.id,
+            roleId: member.roleId,
+            branch: member.worktreeBranch,
+            repoPath: member.worktreeSourceRepo,
+            merged: false,
+            skipped: true,
+            reason: `存在冲突文件: ${mergeCheck.conflictingFiles.join(', ')}`,
+          })
+          continue
+        }
+
+        const mergeResult = await this.gitService.mergeToMain(member.worktreeSourceRepo, member.worktreeBranch, {
+          cleanup: false,
+          squash: options?.squash ?? true,
+          targetBranch: options?.targetBranch || member.worktreeBaseBranch,
+          message: `Merge team ${team.name} member ${member.role.name}`,
+        })
+
+        if (options?.cleanup && member.worktreePath) {
+          await this.gitService.removeWorktree(member.worktreeSourceRepo, member.worktreePath, {
+            deleteBranch: true,
+            branchName: member.worktreeBranch,
+          })
+        }
+
+        results.push({
+          memberId: member.id,
+          roleId: member.roleId,
+          branch: member.worktreeBranch,
+          repoPath: member.worktreeSourceRepo,
+          merged: true,
+          cleanup: options?.cleanup,
+          mainBranch: mergeResult.mainBranch,
+          linesAdded: mergeResult.linesAdded,
+          linesRemoved: mergeResult.linesRemoved,
+        })
+      } catch (err) {
+        results.push({
+          memberId: member.id,
+          roleId: member.roleId,
+          branch: member.worktreeBranch,
+          repoPath: member.worktreeSourceRepo,
+          merged: false,
+          reason: err instanceof Error ? err.message : String(err),
+        })
+      }
+    }
+
+    return results
   }
 
   /**
@@ -449,6 +1095,7 @@ TeamBridge WebSocket 端口：${bridgePort}
 
     if (allCompleted) {
       this.teamRepo.updateTeamStatus(teamId, 'completed')
+      this.emit('team:status-change', teamId, 'completed')
       this.emit('team:completed', teamId)
 
       // 停止健康检查
@@ -515,10 +1162,15 @@ TeamBridge WebSocket 端口：${bridgePort}
     if (!team) return
 
     for (const member of team.members) {
-      try {
-        this.sessionManager.terminateSession(member.sessionId)
-      } catch {
-        // ignore
+      void this.sessionManager.terminateSession(member.sessionId).catch(() => {})
+      if (member.worktreePath && member.worktreeSourceRepo) {
+        void this.gitService.removeWorktree(
+          member.worktreeSourceRepo,
+          member.worktreePath,
+          { deleteBranch: true, branchName: member.worktreeBranch }
+        ).catch(err => {
+          teamLog.warn('cleanup worktree failed', { teamId, memberId: member.id, error: String(err) })
+        })
       }
     }
 

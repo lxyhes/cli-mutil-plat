@@ -202,8 +202,9 @@ export const usePlannerStore = create<PlannerState>((set, get) => ({
   skipTask: async (taskId) => {
     try {
       const result = await (window as any).spectrAI.planner.skipTask(taskId)
-      if (result.success && get().activePlan) {
-        await get().fetchTasks(get().activePlan.id)
+      const activePlan = get().activePlan
+      if (result.success && activePlan) {
+        await get().fetchTasks(activePlan.id)
       }
       return result
     } catch (err: any) {

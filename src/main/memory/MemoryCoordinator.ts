@@ -28,6 +28,7 @@ export interface ComponentMemoryInfo {
   estimatedSize: number
   itemCount: number
   lastCleanup?: string
+  metadata?: Record<string, unknown>
 }
 
 /**

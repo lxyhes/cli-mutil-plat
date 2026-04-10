@@ -420,7 +420,7 @@ export function registerSessionHandlers(deps: IpcDependencies): void {
 
       // 查询 Provider（数据库中可能存在无效 provider，需验证 adapterType）
       const providerId = config.providerId || 'claude-code'
-      let provider: AIProvider = database.getProvider(providerId)
+      let provider: AIProvider | undefined = database.getProvider(providerId)
       if (!provider || !provider.adapterType) {
         provider = BUILTIN_CLAUDE_PROVIDER
       }

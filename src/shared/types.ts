@@ -275,6 +275,12 @@ export interface SessionConfig {
   worktreeBranch?: string
   /** worktree 来源仓库根路径（用于清理时定位） */
   worktreeSourceRepo?: string
+  /** worktree 创建时记录的基准 commit，用于后续 diff/merge */
+  worktreeBaseCommit?: string
+  /** worktree 创建时记录的基准分支 */
+  worktreeBaseBranch?: string
+  /** worktree 分支 HEAD commit，用于分支删除后继续查看差异 */
+  worktreeBranchCommit?: string
   /** 关联的工作区 ID（新建会话时选择工作区模式时传入） */
   workspaceId?: string
   /** 工作区内除主仓库外的其他仓库路径（传递给 SDK additionalDirectories，让 AI 可访问多个目录） */
@@ -670,10 +676,14 @@ export interface ConversationMessage {
   isError?: boolean
   /** 思考内容 */
   thinkingText?: string
+  /** 兼容旧字段名 */
+  thinking?: string
   /** Token 用量 */
   usage?: { inputTokens: number; outputTokens: number }
   /** 工具调用 ID（关联 tool_use 和 tool_result） */
   toolUseId?: string
+  /** 一条消息内聚合的工具调用信息 */
+  toolUses?: Array<{ id?: string; name: string; input?: Record<string, unknown> }>
   /** 是否为增量消息（text_delta，前端需要追加而非替换） */
   isDelta?: boolean
   /** 文件变更信息（由 SpectrAI MCP 文件操作工具生成） */
@@ -822,7 +832,7 @@ export interface McpServer {
 // Skill 技能模板类型
 // ─────────────────────────────────────────────────────────────
 
-export type SkillType = 'prompt' | 'native'
+export type SkillType = 'prompt' | 'native' | 'orchestration'
 export type SkillSource = 'builtin' | 'marketplace' | 'local' | 'custom'
 
 export interface SkillVariable {
@@ -852,6 +862,11 @@ export interface Skill {
   nativeConfig?: {
     providerId: string
     rawContent: string
+  }
+  orchestrationConfig?: {
+    mode?: string
+    steps?: Array<Record<string, unknown>>
+    [key: string]: unknown
   }
   /** 使用此 Skill 所需的 MCP ID 列表 */
   requiredMcps?: string[]
@@ -899,7 +914,7 @@ export interface ProviderCapability {
 
 // ─── Agent Teams 类型 ───────────────────────────────────────────────
 
-export type TeamStatus = 'pending' | 'running' | 'completed' | 'failed' | 'cancelled'
+export type TeamStatus = 'pending' | 'running' | 'completed' | 'failed' | 'cancelled' | 'paused'
 export type MemberStatus = 'idle' | 'running' | 'waiting' | 'completed' | 'failed'
 export type TeamTaskStatus = 'pending' | 'in_progress' | 'completed' | 'failed' | 'cancelled'
 export type MessageType = 'role_message' | 'broadcast' | 'system' | 'task_update'
@@ -924,6 +939,12 @@ export interface TeamMember {
   status: MemberStatus
   providerId: string
   currentTaskId?: string
+  workDir?: string
+  worktreePath?: string
+  worktreeBranch?: string
+  worktreeSourceRepo?: string
+  worktreeBaseCommit?: string
+  worktreeBaseBranch?: string
   joinedAt: string
   lastActiveAt?: string
 }
@@ -940,6 +961,8 @@ export interface TeamInstance {
   startedAt?: string
   completedAt?: string
   objective: string
+  parentTeamId?: string
+  worktreeIsolation?: boolean
 }
 
 export interface TeamTask {
@@ -976,3 +999,94 @@ export interface TeamTemplate {
   createdAt: string
 }
 
+export interface TaskDAGNode {
+  taskId: string
+  title: string
+  status: TeamTaskStatus
+  priority: 'low' | 'medium' | 'high' | 'critical'
+  dependsOn: string[]
+  dependents: string[]
+  executionOrder: number
+  executionWave: number
+  isBlocked: boolean
+  blockedBy: string[]
+}
+
+export interface DAGValidation {
+  valid: boolean
+  cycles: string[][]
+  missingDependencies: string[]
+  readyTasks: string[]
+  blockedTasks: string[]
+}
+
+export interface CreateTeamRequest {
+  name: string
+  objective: string
+  workDir: string
+  templateId?: string
+  customRoles?: TeamRole[]
+  providerId: string
+  worktreeIsolation?: boolean
+  parentTeamId?: string
+}
+
+export interface TaskClaimResult {
+  success: boolean
+  task?: TeamTask
+  error?: string
+}
+
+export interface TeamSnapshot {
+  version: number
+  exportedAt: string
+  team: {
+    id: string
+    name: string
+    objective: string
+    status: TeamStatus
+    workDir?: string
+    parentTeamId?: string
+    worktreeIsolation?: boolean
+  }
+  members: Array<{
+    id?: string
+    roleId: string
+    role: TeamRole
+    status: MemberStatus
+  }>
+  tasks: Array<{
+    id: string
+    title: string
+    description: string
+    status: TeamTaskStatus
+    priority: 'low' | 'medium' | 'high' | 'critical'
+    dependencies: string[]
+    assignedRoleId?: string
+    claimedRoleId?: string
+    result?: string
+  }>
+  messages: Array<{
+    from: string
+    fromRoleId?: string
+    type: MessageType
+    content: string
+    timestamp: string
+    to?: string
+    toRoleId?: string
+  }>
+}
+
+export interface TeamWorktreeMergeResult {
+  memberId: string
+  roleId: string
+  branch: string
+  repoPath: string
+  merged: boolean
+  skipped?: boolean
+  reason?: string
+  cleanup?: boolean
+  mainBranch?: string
+  linesAdded?: number
+  linesRemoved?: number
+}

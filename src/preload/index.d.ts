@@ -4,6 +4,8 @@
  */
 
 export interface SpectrAIAPI {
+  [key: string]: any
+
   clipboard: {
     readText: () => string
     writeText: (text: string) => void
@@ -46,20 +48,21 @@ export interface SpectrAIAPI {
   }
 
   session: {
-    create: (config: any) => Promise<{ success: boolean; sessionId?: string; ready?: boolean; status?: string; error?: string }>
-    terminate: (sessionId: string) => Promise<{ success: boolean; error?: string }>
-    sendInput: (sessionId: string, input: string) => Promise<{ success: boolean }>
-    confirm: (sessionId: string, confirmed: boolean) => Promise<{ success: boolean }>
-    resize: (sessionId: string, cols: number, rows: number) => Promise<{ success: boolean }>
+    [key: string]: any
+    create: (config: any) => Promise<any>
+    terminate: (sessionId: string) => Promise<any>
+    sendInput: (sessionId: string, input: string) => Promise<any>
+    confirm: (sessionId: string, confirmed: boolean) => Promise<any>
+    resize: (sessionId: string, cols: number, rows: number) => Promise<any>
     getOutput: (sessionId: string) => Promise<string[]>
     getAll: () => Promise<any[]>
     getHistory: () => Promise<any[]>
     getActivities: (sessionId: string, limit?: number) => Promise<any[]>
-    resume: (oldSessionId: string) => Promise<{ success: boolean; sessionId?: string; error?: string }>
+    resume: (oldSessionId: string) => Promise<any>
     getLogs: (sessionId: string) => Promise<string[]>
-    rename: (sessionId: string, newName: string) => Promise<{ success: boolean; error?: string }>
-    aiRename: (sessionId: string) => Promise<{ success: boolean; name?: string; error?: string }>
-    delete: (sessionId: string) => Promise<{ success: boolean; error?: string }>
+    rename: (sessionId: string, newName: string) => Promise<any>
+    aiRename: (sessionId: string) => Promise<any>
+    delete: (sessionId: string) => Promise<any>
     getStats: (sessionId: string) => Promise<{
       tokenCount: number
       duration: number
@@ -73,49 +76,43 @@ export interface SpectrAIAPI {
     onRefresh: (callback: () => void) => () => void  // 会话列表刷新（远程创建/终止会话时触发）
 
     // SDK V2 扩展方法
-    sendMessage?: (sessionId: string, text: string) => Promise<{
-      success: boolean
-      error?: string
-      dispatch?: {
-        dispatched: boolean
-        scheduled: boolean
-        strategy?: 'interrupt_now' | 'queue_after_turn'
-        queueLength?: number
-        reason?: 'session_starting' | 'session_running'
-      }
-    }>
-    getConversation?: (sessionId: string) => Promise<any[]>
-    abortSession?: (sessionId: string) => Promise<{ success: boolean; error?: string }>
-    respondPermission?: (sessionId: string, accept: boolean) => Promise<{ success: boolean; error?: string }>
-    answerQuestion?: (sessionId: string, answers: Record<string, string>) => Promise<{ success: boolean; error?: string }>
-    approvePlan?: (sessionId: string, approved: boolean) => Promise<{ success: boolean; error?: string }>
-    getQueue?: (sessionId: string) => Promise<{ success: boolean; messages?: Array<{ id: string; text: string; queuedAt: string; strategy?: string }>; error?: string }>
-    clearQueue?: (sessionId: string) => Promise<{ success: boolean; cleared?: number; error?: string }>
-    onConversationMessage?: (callback: (sessionId: string, msg: any) => void) => () => void
-    onInitData?: (callback: (sessionId: string, data: any) => void) => () => void
-    onTokenUpdate?: (callback: (sessionId: string, usage: any) => void) => () => void
+    sendMessage: (sessionId: string, text: string) => Promise<any>
+    getConversation: (sessionId: string) => Promise<any[]>
+    abortSession: (sessionId: string) => Promise<any>
+    respondPermission: (sessionId: string, accept: boolean) => Promise<any>
+    answerQuestion: (sessionId: string, answers: Record<string, string>) => Promise<any>
+    approvePlan: (sessionId: string, approved: boolean) => Promise<any>
+    getQueue: (sessionId: string) => Promise<any>
+    clearQueue: (sessionId: string) => Promise<any>
+    onConversationMessage: (callback: (sessionId: string, msg: any) => void) => () => void
+    onInitData: (callback: (sessionId: string, data: any) => void) => () => void
+    onAuthRequired: (callback: (sessionId: string, data: any) => void) => () => void
+    onTokenUpdate: (callback: (sessionId: string, usage: any) => void) => () => void
   }
 
   task: {
-    create: (task: any) => Promise<{ success: boolean; taskId?: string }>
-    update: (taskId: string, updates: any) => Promise<{ success: boolean }>
-    delete: (taskId: string) => Promise<{ success: boolean }>
+    [key: string]: any
+    create: (task: any) => Promise<any>
+    update: (taskId: string, updates: any) => Promise<any>
+    delete: (taskId: string) => Promise<any>
     getAll: () => Promise<any[]>
-    startSession: (taskId: string, config?: any) => Promise<{ success: boolean; sessionId?: string; reused?: boolean; error?: string }>
+    startSession: (taskId: string, config?: any) => Promise<any>
     onStatusChange: (callback: (taskId: string, updates: any) => void) => () => void
   }
 
 
   provider: {
+    [key: string]: any
     getAll: () => Promise<any[]>
     get: (id: string) => Promise<any | null>
-    create: (provider: any) => Promise<{ success: boolean; provider?: any; error?: string }>
-    update: (id: string, updates: any) => Promise<{ success: boolean; error?: string }>
-    delete: (id: string) => Promise<{ success: boolean; error?: string }>
+    create: (provider: any) => Promise<any>
+    update: (id: string, updates: any) => Promise<any>
+    delete: (id: string) => Promise<any>
+    reorder: (ids: string[]) => Promise<any>
     /** 检测 CLI 命令是否已安装，返回安装路径 */
-    checkCli: (command: string) => Promise<{ found: boolean; path: string | null }>
+    checkCli: (command: string) => Promise<any>
     /** 测试 Claude Code 可执行文件（cli.js）是否可用，支持自动检测或验证指定路径 */
-    testExecutable: (executablePath?: string) => Promise<{ found: boolean; path: string | null; error?: string }>
+    testExecutable: (executablePath?: string) => Promise<any>
   }
 
   nvm: {
@@ -219,16 +216,30 @@ export interface SpectrAIAPI {
   }
 
   git: {
+    [key: string]: any
     isRepo: (dirPath: string) => Promise<boolean>
     getBranches: (repoPath: string) => Promise<string[]>
     getCurrentBranch: (repoPath: string) => Promise<string | null>
     detectMainBranch: (repoPath: string) => Promise<string | null>
+    getRepoRoot: (dirPath: string) => Promise<string | null>
+    isDirty: (dirPath: string) => Promise<boolean>
+    getStatus: (repoPath: string) => Promise<any>
+    getFileDiff: (repoPath: string, filePath: string, staged?: boolean, commitHash?: string) => Promise<any>
+    stage: (repoPath: string, filePaths: string[]) => Promise<any>
+    unstage: (repoPath: string, filePaths: string[]) => Promise<any>
+    discard: (repoPath: string, filePaths: string[]) => Promise<any>
+    stageAll: (repoPath: string) => Promise<any>
+    commit: (repoPath: string, message: string) => Promise<any>
+    pull: (repoPath: string) => Promise<any>
+    push: (repoPath: string) => Promise<any>
+    getLog: (repoPath: string, limit?: number) => Promise<any>
     getRemoteStatus: (repoPath: string) => Promise<{
       hasUpstream: boolean
       upstream: string | null
       ahead: number
       behind: number
     }>
+    getCommitFiles: (repoPath: string, hash: string) => Promise<any>
   }
 
   worktree: {
@@ -298,20 +309,42 @@ export interface SpectrAIAPI {
     getMessages: (teamId: string, limit?: number) => Promise<{ success: boolean; messages?: any[]; error?: string }>
     createTask: (teamId: string, task: any) => Promise<{ success: boolean; task?: any; error?: string }>
     completeTask: (teamId: string, taskId: string, result: string) => Promise<{ success: boolean; error?: string }>
+    updateTask: (teamId: string, taskId: string, updates: any) => Promise<{ success: boolean; task?: any; error?: string }>
+    cancelTask: (teamId: string, taskId: string, reason?: string) => Promise<{ success: boolean; error?: string }>
+    reassignTask: (teamId: string, taskId: string, newMemberId: string) => Promise<{ success: boolean; error?: string }>
     getTemplates: () => Promise<{ success: boolean; templates?: any[]; error?: string }>
+    createTemplate: (template: any) => Promise<{ success: boolean; template?: any; error?: string }>
+    updateTemplate: (templateId: string, updates: any) => Promise<{ success: boolean; template?: any; error?: string }>
+    deleteTemplate: (templateId: string) => Promise<{ success: boolean; error?: string }>
     getHealth: (teamId: string) => Promise<{ success: boolean; health?: any; error?: string }>
     cleanup: (teamId: string) => Promise<{ success: boolean; error?: string }>
+    cancel: (teamId: string, reason?: string) => Promise<{ success: boolean; error?: string }>
+    pause: (teamId: string) => Promise<{ success: boolean; error?: string }>
+    resume: (teamId: string) => Promise<{ success: boolean; error?: string }>
+    update: (teamId: string, updates: any) => Promise<{ success: boolean; error?: string }>
+    sendMessage: (teamId: string, toMemberId: string, content: string) => Promise<{ success: boolean; message?: any; error?: string }>
+    broadcast: (teamId: string, content: string) => Promise<{ success: boolean; message?: any; error?: string }>
+    getTaskDAG: (teamId: string) => Promise<{ success: boolean; dag?: any[]; validation?: any; error?: string }>
+    validateDependencies: (teamId: string) => Promise<{ success: boolean; validation?: any; error?: string }>
+    exportTeam: (teamId: string) => Promise<{ success: boolean; snapshot?: any; error?: string }>
+    importTeam: (snapshot: any) => Promise<{ success: boolean; team?: any; error?: string }>
+    mergeWorktrees: (teamId: string, options?: any) => Promise<{ success: boolean; results?: any[]; error?: string }>
     // 事件监听
-    onStatusChange: (callback: (teamId: string, status: string) => void) => void
-    onMemberJoined: (callback: (teamId: string, member: any) => void) => void
-    onMemberStatusChange: (callback: (teamId: string, memberId: string, status: string) => void) => void
-    onTaskClaimed: (callback: (teamId: string, taskId: string, memberId: string) => void) => void
-    onTaskCompleted: (callback: (teamId: string, taskId: string) => void) => void
-    onMessage: (callback: (teamId: string, message: any) => void) => void
-    onCompleted: (callback: (teamId: string) => void) => void
-    onFailed: (callback: (teamId: string, reason: string) => void) => void
-    onHealthIssue: (callback: (teamId: string, issue: any) => void) => void
-    onLog: (callback: (entry: any) => void) => void
+    onStatusChange: (callback: (teamId: string, status: string) => void) => () => void
+    onMemberJoined: (callback: (teamId: string, member: any) => void) => () => void
+    onMemberStatusChange: (callback: (teamId: string, memberId: string, status: string) => void) => () => void
+    onTaskClaimed: (callback: (teamId: string, taskId: string, memberId: string) => void) => () => void
+    onTaskCompleted: (callback: (teamId: string, taskId: string) => void) => () => void
+    onTaskCancelled: (callback: (teamId: string, taskId: string) => void) => () => void
+    onMessage: (callback: (teamId: string, message: any) => void) => () => void
+    onCompleted: (callback: (teamId: string) => void) => () => void
+    onFailed: (callback: (teamId: string, reason: string) => void) => () => void
+    onCancelled: (callback: (teamId: string, reason: string) => void) => () => void
+    onPaused: (callback: (teamId: string) => void) => () => void
+    onResumed: (callback: (teamId: string) => void) => () => void
+    onUpdated: (callback: (teamId: string, updates: any) => void) => () => void
+    onHealthIssue: (callback: (teamId: string, issue: any) => void) => () => void
+    onLog: (callback: (entry: any) => void) => () => void
   }
 
   evaluation: {

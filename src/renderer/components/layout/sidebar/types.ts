@@ -81,7 +81,7 @@ export interface TimeGroupCardProps {
 }
 
 /** 目录分组卡片 Props */
-export interface DirGroupCardProps extends TimeGroupCardProps {
+export interface DirGroupCardProps extends Omit<TimeGroupCardProps, 'group'> {
   group: DirGroup
   onOpenPicker: () => void
   onDirContextMenu: (e: React.MouseEvent, workDir: string) => void

@@ -158,7 +158,7 @@ export const useGitStore = create<GitState>((set, get) => ({
           return {
             repoInfoMap: {
               ...s.repoInfoMap,
-              [key]: { ...existing, branch, isDirty, remoteStatus },
+              [key]: { ...existing, branch: branch || existing.branch, isDirty, remoteStatus },
             },
           }
         })

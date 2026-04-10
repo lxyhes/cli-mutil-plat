@@ -313,6 +313,10 @@ export class LockManager {
     }
   }
 
+  async releaseAllLocksForOwner(owner: string): Promise<number> {
+    return this.releaseAllByOwner(owner)
+  }
+
   /**
    * 使用锁执行操作（自动获取和释放）
    *

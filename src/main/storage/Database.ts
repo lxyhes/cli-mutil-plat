@@ -589,6 +589,7 @@ export class DatabaseManager implements MemoryManagedComponent {
   getPlanStep = (id: string) => this.plannerRepo.getStep(id)
   createPlanStep = (step: Parameters<PlannerRepository['createStep']>[0]) => this.plannerRepo.createStep(step)
   updatePlanStep = (id: string, updates: Parameters<PlannerRepository['updateStep']>[1]) => this.plannerRepo.updateStep(id, updates)
+  updateStep = (id: string, updates: Parameters<PlannerRepository['updateStep']>[1]) => this.plannerRepo.updateStep(id, updates)
   deletePlanStep = (id: string) => this.plannerRepo.deleteStep(id)
 
   // ─── Workflow 操作 ───
@@ -605,7 +606,7 @@ export class DatabaseManager implements MemoryManagedComponent {
   updateWorkflowExecution = (id: string, updates: Parameters<WorkflowRepository['updateExecution']>[1]) => this.workflowRepo.updateExecution(id, updates)
 
   createWorkflowRun = (run: Parameters<WorkflowRepository['createRun']>[0]) => this.workflowRepo.createRun(run)
-  updateWorkflowRun = (id: string, updates: Parameters<WorkflowRepository['updateRun']>[1]) => this.workflowRepo.updateWorkflowRun(id, updates)
+  updateWorkflowRun = (id: string, updates: Parameters<WorkflowRepository['updateRun']>[1]) => this.workflowRepo.updateRun(id, updates)
   getWorkflowRuns = (executionId: string) => this.workflowRepo.getRunsByExecution(executionId)
 
   // ─── Telegram 操作 ───
@@ -663,6 +664,7 @@ export class DatabaseManager implements MemoryManagedComponent {
   getPromptVersion = (...args: Parameters<PromptOptimizerRepository['getVersion']>) => this.promptOptimizerRepo.getVersion(...args)
   listPromptVersions = (...args: Parameters<PromptOptimizerRepository['listVersions']>) => this.promptOptimizerRepo.listVersions(...args)
   updatePromptVersion = (...args: Parameters<PromptOptimizerRepository['updateVersion']>) => this.promptOptimizerRepo.updateVersion(...args)
+  deletePromptVersion = (...args: Parameters<PromptOptimizerRepository['deleteVersion']>) => this.promptOptimizerRepo.deleteVersion(...args)
   setPromptBaseline = (...args: Parameters<PromptOptimizerRepository['setBaseline']>) => this.promptOptimizerRepo.setBaseline(...args)
   getBestPromptVersion = (...args: Parameters<PromptOptimizerRepository['getBestVersion']>) => this.promptOptimizerRepo.getBestVersion(...args)
 
@@ -698,6 +700,18 @@ export class DatabaseManager implements MemoryManagedComponent {
    */
   getLockManager(): LockManager {
     return this.lockManager
+  }
+
+  getDb(): any {
+    return this.db
+  }
+
+  isUsingSqlite(): boolean {
+    return this.usingSqlite
+  }
+
+  getPromptOptimizerRepository(): PromptOptimizerRepository {
+    return this.promptOptimizerRepo
   }
 
   // ============================================================

@@ -231,7 +231,7 @@ export class FileChangeTracker extends EventEmitter implements MemoryManagedComp
     sessionId: string,
     mainRepoPath: string,
     files: Array<{ path: string; changeType: FileChangeType }>
-  ): void {
+  ): Promise<void> {
 
     const timestamp = Date.now()
     const changes: TrackedFileChange[] = files.map(f => ({
@@ -286,6 +286,7 @@ export class FileChangeTracker extends EventEmitter implements MemoryManagedComp
     console.log(
       `[FileChangeTracker] recorded ${changes.length} worktree file changes for session ${sessionId} (source: git-diff)`
     )
+    return Promise.resolve()
   }
 
   /**
@@ -575,7 +576,7 @@ export class FileChangeTracker extends EventEmitter implements MemoryManagedComp
     changeType: FileChangeType,
     timestamp: number,
     concurrent: boolean
-  ): void {
+  ): Promise<void> {
     if (!this.changeBuffers.has(sessionId)) {
       this.changeBuffers.set(sessionId, new Map())
     }
@@ -583,7 +584,7 @@ export class FileChangeTracker extends EventEmitter implements MemoryManagedComp
     const buffer = this.changeBuffers.get(sessionId)!
 
     // 限制每个会话最多 MAX_FILES_PER_SESSION 个文件
-    if (!buffer.has(filePath) && buffer.size >= MAX_FILES_PER_SESSION) return
+    if (!buffer.has(filePath) && buffer.size >= MAX_FILES_PER_SESSION) return Promise.resolve()
 
     const change: TrackedFileChange = { filePath, changeType, timestamp, sessionId, concurrent }
     buffer.set(filePath, change)
@@ -591,6 +592,7 @@ export class FileChangeTracker extends EventEmitter implements MemoryManagedComp
     // ★ 实时通知渲染进程（不等待 session idle 才 flush）
     // 让文件树蓝点在 AI 改动文件时立即出现，而非等待会话结束
     this.emit('files-updated', sessionId, [change])
+    return Promise.resolve()
   }
 
   /**

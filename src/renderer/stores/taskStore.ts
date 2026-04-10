@@ -34,12 +34,13 @@ export const useTaskStore = create<TaskState>((set, get) => ({
       return
     }
     try {
-      const result: IpcResponse<TaskCard[]> = await window.spectrAI.task.getAll()
-      if (!result.success) {
+      const result: any = await window.spectrAI.task.getAll()
+      if (result && !Array.isArray(result) && result.success === false) {
         console.error('[TaskStore] Failed to fetch tasks:', result.error?.userMessage)
         return
       }
-      set({ tasks: result.data || [] })
+      const tasks = Array.isArray(result) ? result : (result?.data || [])
+      set({ tasks })
     } catch (error) {
       console.error('[TaskStore] Failed to fetch tasks:', error)
     }
@@ -52,8 +53,8 @@ export const useTaskStore = create<TaskState>((set, get) => ({
       throw new Error('window.spectrAI.task not available')
     }
     try {
-      const result: IpcResponse<void> = await window.spectrAI.task.create(task)
-      if (!result.success) {
+      const result = await window.spectrAI.task.create(task)
+      if (result?.success === false) {
         throw new Error(result.error?.userMessage || 'Failed to create task')
       }
       await get().fetchTasks()
@@ -70,8 +71,8 @@ export const useTaskStore = create<TaskState>((set, get) => ({
       throw new Error('window.spectrAI.task not available')
     }
     try {
-      const result: IpcResponse<void> = await window.spectrAI.task.update(id, updates)
-      if (!result.success) {
+      const result = await window.spectrAI.task.update(id, updates)
+      if (result?.success === false) {
         throw new Error(result.error?.userMessage || 'Failed to update task')
       }
       await get().fetchTasks()
@@ -88,8 +89,8 @@ export const useTaskStore = create<TaskState>((set, get) => ({
       throw new Error('window.spectrAI.task not available')
     }
     try {
-      const result: IpcResponse<void> = await window.spectrAI.task.delete(id)
-      if (!result.success) {
+      const result = await window.spectrAI.task.delete(id)
+      if (result?.success === false) {
         throw new Error(result.error?.userMessage || 'Failed to delete task')
       }
       await get().fetchTasks()

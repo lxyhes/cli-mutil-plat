@@ -95,7 +95,7 @@ export function registerSystemHandlers(deps: IpcDependencies): void {
         components
       })
     } catch (err) {
-      return createErrorResponse(err, 'get memory report')
+      return createErrorResponse(err, { operation: 'get memory report' })
     }
   })
 
@@ -115,7 +115,7 @@ export function registerSystemHandlers(deps: IpcDependencies): void {
         message: `内存清理完成 (${mode} 模式)`
       })
     } catch (err) {
-      return createErrorResponse(err, 'force memory cleanup')
+      return createErrorResponse(err, { operation: 'force memory cleanup' })
     }
   })
 }

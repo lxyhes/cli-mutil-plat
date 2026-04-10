@@ -38,6 +38,7 @@ interface SessionState {
   // 状态
   sessions: Session[]
   selectedSessionId: string | null
+  currentSessionId: string | null
   activities: Record<string, ActivityEvent[]>  // sessionId → 活动事件列表
   lastActivities: Record<string, ActivityEvent>  // sessionId → 最新活动
   agents: Record<string, AgentInfo[]>  // parentSessionId → Agent 列表
@@ -112,6 +113,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
   // 初始状态
   sessions: [],
   selectedSessionId: null,
+  currentSessionId: null,
   activities: {},
   lastActivities: {},
   agents: {},
@@ -482,7 +484,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
 
   // 选择会话（同时从数据库加载该会话的历史事件）
   selectSession: (id: string | null) => {
-    set({ selectedSessionId: id })
+    set({ selectedSessionId: id, currentSessionId: id })
 
     if (id) {
       // ★ 用专用 Set 判断是否已从 DB 加载过，而非用 activities.length
@@ -958,6 +960,14 @@ export const useSessionStore = create<SessionState>((set, get) => ({
         }
       }
     }))
+  },
+
+  setAuthRequiredData: (data) => {
+    set({ authRequiredData: data })
+  },
+
+  clearAuthRequiredData: () => {
+    set({ authRequiredData: null })
   },
 
   // 加载指定父会话的 Agent 列表

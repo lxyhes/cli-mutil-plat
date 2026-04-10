@@ -206,8 +206,15 @@ export class TeamBridge {
       return
     }
 
-    // 记录消息到数据库
-    this.teamRepo.addMessage({ id: uuidv4(), instanceId: conn.instanceId!, from: conn.memberId, to: targetMember.id, type: "role_message", content: msg.content, timestamp: new Date().toISOString() })
+    this.teamManager.recordMessage(conn.instanceId, {
+      id: uuidv4(),
+      instanceId: conn.instanceId,
+      from: conn.memberId,
+      to: targetMember.id,
+      type: 'role_message',
+      content: msg.content,
+      timestamp: new Date().toISOString(),
+    })
 
     // 发送到目标成员
     this.sendToMember(targetMember.id, `[来自 ${conn.memberId}] ${msg.content}`)
@@ -232,8 +239,14 @@ export class TeamBridge {
       return
     }
 
-    // 记录到数据库
-    this.teamRepo.addMessage({ id: uuidv4(), instanceId: conn.instanceId!, from: conn.memberId, type: "broadcast", content: msg.content, timestamp: new Date().toISOString() })
+    this.teamManager.recordMessage(conn.instanceId, {
+      id: uuidv4(),
+      instanceId: conn.instanceId,
+      from: conn.memberId,
+      type: 'broadcast',
+      content: msg.content,
+      timestamp: new Date().toISOString(),
+    })
 
     // 广播给所有其他成员
     this.broadcastToAll(msg.content, conn.memberId)
@@ -260,7 +273,7 @@ export class TeamBridge {
       return
     }
 
-    const result = this.teamRepo.claimTask(msg.taskId, conn.memberId!)
+    const result = this.teamManager.claimTask(conn.instanceId, msg.taskId, conn.memberId!)
     if (result.success && result.task) {
       // 更新成员当前任务
       this.teamRepo.updateMemberTask(conn.memberId!, msg.taskId)
@@ -289,9 +302,7 @@ export class TeamBridge {
       return
     }
 
-    this.teamRepo.completeTask(msg.taskId, msg.result || '')
-    this.teamRepo.updateMemberTask(conn.memberId!, null)
-    this.teamRepo.updateMemberStatus(conn.memberId!, 'completed')
+    this.teamManager.completeTask(conn.instanceId, msg.taskId, msg.result || '')
 
     // 通知其他成员
     const members = this.teamRepo.getTeamMembers(conn.instanceId!)

@@ -8,28 +8,45 @@
 
 import { useState, useEffect } from 'react'
 import {
-  Users, MessageSquare, ListChecks, BarChart, Send, Plus, Play,
-  CheckCircle, AlertTriangle, Clock, Activity, X, RefreshCw
+  Users, MessageSquare, ListChecks, BarChart, Send, Plus,
+  CheckCircle, AlertTriangle, Clock, Activity, X, RefreshCw,
+  Settings, Pause, PlayCircle, XCircle, Download
 } from 'lucide-react'
 import { useTeamStore, initTeamEventListeners } from '../../stores/teamStore'
+import TaskBoardView from './TaskBoardView'
+import MessagePanel from './MessagePanel'
+import TeamSettingsDialog from './TeamSettingsDialog'
+import CreateTeamDialog from './CreateTeamDialog'
 
 type TabType = 'conversation' | 'tasks' | 'messages' | 'status'
+
+interface TeamHealthIssue {
+  type: string
+  severity: string
+  message: string
+  affectedEntity: string
+  timestamp: string
+  autoFixed?: boolean
+}
 
 export default function TeamSessionView() {
   const {
     activeTeamId, teams, teamTasks, teamMessages, teamHealth,
-    fetchTeamTasks, fetchTeamMessages, fetchTeamHealth,
-    createTask, setActiveTeam
+    fetchTeamTasks, fetchTeamMessages, fetchTeamHealth, fetchTeams,
+    createTask, setActiveTeam, cancelTeam, pauseTeam, resumeTeam
   } = useTeamStore()
   const [activeTab, setActiveTab] = useState<TabType>('status')
   const [selectedMember, setSelectedMember] = useState<any>(null)
   const [showNewTaskDialog, setShowNewTaskDialog] = useState(false)
+  const [showSettings, setShowSettings] = useState(false)
+  const [showChildTeamDialog, setShowChildTeamDialog] = useState(false)
   const [newTaskTitle, setNewTaskTitle] = useState('')
   const [newTaskDesc, setNewTaskDesc] = useState('')
   const [newTaskPriority, setNewTaskPriority] = useState<'low' | 'medium' | 'high' | 'critical'>('medium')
   const [isCreatingTask, setIsCreatingTask] = useState(false)
 
   const team = teams.find(t => t.id === activeTeamId)
+  const childTeams = teams.filter(t => t.parentTeamId === activeTeamId)
   const tasks = teamTasks[activeTeamId || ''] || []
   const messages = teamMessages[activeTeamId || ''] || []
   const health = teamHealth[activeTeamId || '']
@@ -105,21 +122,69 @@ export default function TeamSessionView() {
               team.status === 'running' ? 'bg-accent-green/20 text-accent-green' :
               team.status === 'completed' ? 'bg-accent-blue/20 text-accent-blue' :
               team.status === 'failed' ? 'bg-accent-red/20 text-accent-red' :
+              team.status === 'paused' ? 'bg-yellow-500/20 text-yellow-400' :
+              team.status === 'cancelled' ? 'bg-text-muted/20 text-text-muted' :
               'bg-text-muted/20 text-text-muted'
             }`}>
               {team.status === 'running' && <Activity size={10} />}
               {team.status === 'running' ? '运行中' :
                team.status === 'completed' ? '已完成' :
-               team.status === 'failed' ? '已失败' : '已停止'}
+               team.status === 'failed' ? '已失败' :
+               team.status === 'paused' ? '已暂停' :
+               team.status === 'cancelled' ? '已取消' : '已停止'}
             </span>
           </div>
-          <button
-            onClick={() => fetchTeamHealth(activeTeamId!)}
-            className="p-1.5 text-text-muted hover:text-text-secondary hover:bg-bg-hover rounded transition-colors"
-            title="刷新状态"
-          >
-            <RefreshCw size={14} />
-          </button>
+          <div className="flex items-center gap-1">
+            {/* 生命周期控制按钮 */}
+            {team.status === 'running' && (
+              <>
+                <button
+                  onClick={() => pauseTeam(team.id)}
+                  title="暂停团队"
+                  className="p-1.5 text-text-muted hover:text-yellow-500 hover:bg-yellow-500/10 rounded transition-colors"
+                >
+                  <Pause size={14} />
+                </button>
+                <button
+                  onClick={() => { if (confirm('确定要取消该团队吗？')) cancelTeam(team.id) }}
+                  title="取消团队"
+                  className="p-1.5 text-text-muted hover:text-red-400 hover:bg-red-500/10 rounded transition-colors"
+                >
+                  <XCircle size={14} />
+                </button>
+              </>
+            )}
+            {team.status === 'paused' && (
+              <button
+                onClick={() => resumeTeam(team.id)}
+                title="恢复团队"
+                className="p-1.5 text-text-muted hover:text-accent-green hover:bg-accent-green/10 rounded transition-colors"
+              >
+                <PlayCircle size={14} />
+              </button>
+            )}
+            <button
+              onClick={fetchTeamHealth.bind(null, activeTeamId!)}
+              className="p-1.5 text-text-muted hover:text-text-secondary hover:bg-bg-hover rounded transition-colors"
+              title="刷新状态"
+            >
+              <RefreshCw size={14} />
+            </button>
+            <button
+              onClick={() => setShowSettings(true)}
+              className="p-1.5 text-text-muted hover:text-text-secondary hover:bg-bg-hover rounded transition-colors"
+              title="团队设置"
+            >
+              <Settings size={14} />
+            </button>
+            <button
+              onClick={() => setShowChildTeamDialog(true)}
+              className="p-1.5 text-text-muted hover:text-text-secondary hover:bg-bg-hover rounded transition-colors"
+              title="创建子团队"
+            >
+              <Users size={14} />
+            </button>
+          </div>
         </div>
 
         {/* 进度条 */}
@@ -239,188 +304,21 @@ export default function TeamSessionView() {
         )}
 
         {activeTab === 'tasks' && (
-          <div className="p-4">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-2">
-                <h3 className="text-sm font-medium text-text-primary">任务列表</h3>
-                <span className="text-xs text-text-muted">({pendingTasks} 待办, {inProgressTasks} 进行中)</span>
-              </div>
-              <button
-                onClick={() => setShowNewTaskDialog(true)}
-                className="flex items-center gap-1 px-2 py-1 text-xs bg-accent-blue text-white rounded hover:bg-accent-blue/80 transition-colors"
-              >
-                <Plus size={12} />
-                新建任务
-              </button>
-            </div>
-
-            {/* 新建任务对话框 */}
-            {showNewTaskDialog && (
-              <div className="mb-4 p-4 bg-bg-secondary rounded-lg border border-accent-blue/30">
-                <div className="flex items-center justify-between mb-3">
-                  <span className="text-sm font-medium text-text-primary">新建任务</span>
-                  <button onClick={() => setShowNewTaskDialog(false)} className="text-text-muted hover:text-text-secondary">
-                    <X size={14} />
-                  </button>
-                </div>
-                <div className="space-y-3">
-                  <input
-                    type="text"
-                    value={newTaskTitle}
-                    onChange={e => setNewTaskTitle(e.target.value)}
-                    placeholder="任务标题"
-                    className="w-full px-3 py-2 text-xs rounded bg-bg-tertiary border border-border text-text-primary placeholder:text-text-muted focus:outline-none focus:border-accent-blue"
-                  />
-                  <textarea
-                    value={newTaskDesc}
-                    onChange={e => setNewTaskDesc(e.target.value)}
-                    placeholder="任务描述（可选）"
-                    rows={2}
-                    className="w-full px-3 py-2 text-xs rounded bg-bg-tertiary border border-border text-text-primary placeholder:text-text-muted focus:outline-none focus:border-accent-blue resize-none"
-                  />
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs text-text-muted">优先级:</span>
-                    {(['low', 'medium', 'high', 'critical'] as const).map(p => (
-                      <button
-                        key={p}
-                        onClick={() => setNewTaskPriority(p)}
-                        className={`px-2 py-0.5 text-xs rounded transition-colors ${
-                          newTaskPriority === p
-                            ? p === 'critical' ? 'bg-red-500/20 text-red-500 ring-1 ring-red-500/50' :
-                              p === 'high' ? 'bg-orange-500/20 text-orange-500 ring-1 ring-orange-500/50' :
-                              p === 'medium' ? 'bg-yellow-500/20 text-yellow-500 ring-1 ring-yellow-500/50' :
-                              'bg-green-500/20 text-green-500 ring-1 ring-green-500/50'
-                            : 'bg-bg-tertiary text-text-muted hover:text-text-secondary'
-                        }`}
-                      >
-                        {p}
-                      </button>
-                    ))}
-                  </div>
-                  <button
-                    onClick={handleCreateTask}
-                    disabled={isCreatingTask || !newTaskTitle.trim()}
-                    className="w-full px-3 py-2 text-xs bg-accent-blue text-white rounded hover:bg-accent-blue/80 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                  >
-                    {isCreatingTask ? '创建中...' : '创建任务'}
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {tasks.length === 0 ? (
-              <div className="text-center text-text-muted py-8">
-                <ListChecks className="w-8 h-8 mx-auto mb-2 opacity-50" />
-                <p className="text-sm">暂无任务</p>
-                <button
-                  onClick={() => setShowNewTaskDialog(true)}
-                  className="mt-2 text-xs text-accent-blue hover:underline"
-                >
-                  创建第一个任务
-                </button>
-              </div>
-            ) : (
-              <div className="space-y-2">
-                {tasks.map(task => {
-                  const assignee = team.members?.find(m => m.id === task.claimedBy)
-                  return (
-                    <div key={task.id} className={`p-3 bg-bg-secondary rounded-lg border ${
-                      task.status === 'completed' ? 'border-accent-green/30 opacity-75' :
-                      task.status === 'in_progress' ? 'border-accent-blue/30' :
-                      'border-border'
-                    }`}>
-                      <div className="flex items-center justify-between mb-1">
-                        <div className="flex items-center gap-2">
-                          {task.status === 'completed' && <CheckCircle size={14} className="text-accent-green" />}
-                          {task.status === 'in_progress' && <Play size={14} className="text-accent-blue" />}
-                          {task.status === 'pending' && <Clock size={14} className="text-text-muted" />}
-                          <span className={`text-sm font-medium ${
-                            task.status === 'completed' ? 'text-text-muted line-through' : 'text-text-primary'
-                          }`}>
-                            {task.title}
-                          </span>
-                        </div>
-                        <span className={`text-xs px-2 py-0.5 rounded ${
-                          task.priority === 'critical' ? 'bg-red-500/20 text-red-500' :
-                          task.priority === 'high' ? 'bg-orange-500/20 text-orange-500' :
-                          task.priority === 'medium' ? 'bg-yellow-500/20 text-yellow-500' :
-                          'bg-green-500/20 text-green-500'
-                        }`}>
-                          {task.priority}
-                        </span>
-                      </div>
-                      {task.description && (
-                        <p className="text-xs text-text-muted mb-2">{task.description}</p>
-                      )}
-                      {assignee && (
-                        <div className="flex items-center gap-2 text-[10px] text-text-muted">
-                          <span>{assignee.role?.icon}</span>
-                          <span>{assignee.role?.name}</span>
-                          {task.claimedAt && (
-                            <span>• {new Date(task.claimedAt).toLocaleTimeString()}</span>
-                          )}
-                        </div>
-                      )}
-                      {task.result && (
-                        <div className="mt-2 p-2 bg-bg-tertiary rounded text-xs text-text-secondary">
-                          结果: {task.result}
-                        </div>
-                      )}
-                    </div>
-                  )
-                })}
-              </div>
-            )}
+          <div className="flex-1 overflow-hidden">
+            <TaskBoardView
+              teamId={activeTeamId!}
+              tasks={tasks}
+              members={team.members || []}
+            />
           </div>
         )}
 
         {activeTab === 'messages' && (
-          <div className="flex flex-col h-full">
-            <div className="flex-1 overflow-y-auto p-4 space-y-3">
-              {messages.length === 0 ? (
-                <div className="text-center text-text-muted py-8">
-                  <MessageSquare className="w-8 h-8 mx-auto mb-2 opacity-50" />
-                  <p className="text-sm">暂无消息</p>
-                  <p className="text-xs mt-1 opacity-70">团队成员之间的通信消息会显示在这里</p>
-                </div>
-              ) : (
-                messages.map(msg => {
-                  const sender = team.members?.find(m => m.id === msg.from)
-                  return (
-                    <div key={msg.id} className={`flex gap-2 ${msg.type === 'broadcast' ? 'flex-col' : ''}`}>
-                      {msg.type !== 'broadcast' && sender && (
-                        <div className="flex-shrink-0 w-8 h-8 rounded-full bg-bg-tertiary flex items-center justify-center text-sm">
-                          {sender.role?.icon || '👤'}
-                        </div>
-                      )}
-                      <div className={`flex-1 ${msg.type === 'broadcast' ? '' : ''}`}>
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className="text-xs font-medium text-text-primary">
-                            {msg.type === 'broadcast' ? '📢 广播' : sender?.role?.name || '未知'}
-                          </span>
-                          <span className="text-[10px] text-text-muted">
-                            {new Date(msg.timestamp).toLocaleTimeString()}
-                          </span>
-                        </div>
-                        <div className={`p-3 rounded-lg ${
-                          msg.type === 'broadcast'
-                            ? 'bg-accent-purple/10 border border-accent-purple/30'
-                            : 'bg-bg-secondary'
-                        }`}>
-                          <p className="text-xs text-text-secondary whitespace-pre-wrap">{msg.content}</p>
-                        </div>
-                      </div>
-                    </div>
-                  )
-                })
-              )}
-            </div>
-            <div className="p-4 border-t border-border">
-              <div className="text-center text-[10px] text-text-muted">
-                消息由团队成员通过 team_message_role / team_broadcast 工具发送
-              </div>
-            </div>
-          </div>
+          <MessagePanel
+            teamId={activeTeamId!}
+            messages={messages}
+            members={team.members || []}
+          />
         )}
 
         {activeTab === 'status' && (
@@ -522,6 +420,18 @@ export default function TeamSessionView() {
                 <span className="text-text-muted">团队名称</span>
                 <span className="text-text-primary">{team.name}</span>
               </div>
+              {team.parentTeamId && (
+                <div className="flex justify-between">
+                  <span className="text-text-muted">父团队</span>
+                  <span className="text-text-primary max-w-[200px] truncate" title={team.parentTeamId}>
+                    {team.parentTeamId}
+                  </span>
+                </div>
+              )}
+              <div className="flex justify-between">
+                <span className="text-text-muted">工作隔离</span>
+                <span className="text-text-primary">{team.worktreeIsolation ? 'Worktree' : '共享目录'}</span>
+              </div>
               <div className="flex justify-between">
                 <span className="text-text-muted">目标</span>
                 <span className="text-text-primary max-w-[200px] truncate" title={team.objective}>
@@ -545,9 +455,45 @@ export default function TeamSessionView() {
                 </div>
               )}
             </div>
+
+            {childTeams.length > 0 && (
+              <>
+                <h3 className="text-sm font-medium text-text-primary mt-6 mb-3">子团队</h3>
+                <div className="space-y-2">
+                  {childTeams.map(child => (
+                    <button
+                      key={child.id}
+                      onClick={() => setActiveTeam(child.id)}
+                      className="w-full text-left p-3 bg-bg-secondary rounded-lg border border-border hover:border-accent-blue/30 transition-colors"
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-text-primary">{child.name}</span>
+                        <span className="text-[10px] text-text-muted">{child.status}</span>
+                      </div>
+                      <div className="text-xs text-text-muted mt-1 truncate" title={child.objective}>
+                        {child.objective || '无目标描述'}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
           </div>
         )}
       </div>
+
+      {/* 团队设置弹窗 */}
+      {showSettings && <TeamSettingsDialog team={team} onClose={() => setShowSettings(false)} />}
+      {showChildTeamDialog && (
+        <CreateTeamDialog
+          parentTeamId={team.id}
+          onClose={() => setShowChildTeamDialog(false)}
+          onSuccess={() => {
+            setShowChildTeamDialog(false)
+            fetchTeams()
+          }}
+        />
+      )}
     </div>
   )
 }

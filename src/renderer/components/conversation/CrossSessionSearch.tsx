@@ -17,7 +17,7 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { Search, X, ArrowRight, Copy, MessageSquare, Clock, ChevronDown, Layers, AlignLeft } from 'lucide-react'
 import { useSessionStore } from '../../stores/sessionStore'
-import type { ConversationMessage } from '../../../../shared/types'
+import type { ConversationMessage } from '../../../shared/types'
 import { isPrimaryModifierPressed, toPlatformShortcutLabel } from '../../utils/shortcut'
 
 // ---- 工具函数 ----

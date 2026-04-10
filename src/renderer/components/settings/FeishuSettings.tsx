@@ -2,7 +2,7 @@
  * 飞书设置面板 - 飞书集成配置
  */
 import { useState, useEffect } from 'react'
-import { Send, Loader2, Check, X, Plus, Zap, MessageSquare } from 'lucide-react'
+import { Send, Loader2, Check, X, Plus, Zap, MessageSquare, Trash2 } from 'lucide-react'
 import { useFeishuStore } from '../../stores/feishuStore'
 import { useSessionStore } from '../../stores/sessionStore'
 

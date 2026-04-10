@@ -6,6 +6,7 @@ import { IPC } from '../../shared/constants'
 import { createErrorResponse, createSuccessResponse } from '../../shared/errors'
 import type { IpcDependencies } from './index'
 import type { PlannerService } from '../planner/PlannerService'
+import type { PlanStatus, StepStatus } from '../storage/repositories/PlannerRepository'
 
 export function registerPlannerHandlers(deps: IpcDependencies): void {
   const { database } = deps
@@ -45,7 +46,7 @@ export function registerPlannerHandlers(deps: IpcDependencies): void {
   // UPDATE 规划
   ipcMain.handle(IPC.PLAN_UPDATE, async (_event, planId: string, updates: {
     goal?: string
-    status?: string
+    status?: PlanStatus
   }) => {
     try {
       if (!plannerService) {
@@ -109,7 +110,7 @@ export function registerPlannerHandlers(deps: IpcDependencies): void {
 
   // UPDATE 步骤
   ipcMain.handle(IPC.PLAN_STEP_UPDATE, async (_event, stepId: string, updates: {
-    status?: string
+    status?: StepStatus
     result?: string
   }) => {
     try {

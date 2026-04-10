@@ -12,9 +12,10 @@ import type { SessionStatus } from '../../shared/types'
  */
 const VALID_TRANSITIONS: Record<SessionStatus, SessionStatus[]> = {
   'starting': ['running', 'idle', 'error', 'terminated'],
-  'running': ['idle', 'waiting_input', 'completed', 'error', 'terminated'],
-  'idle': ['running', 'completed', 'terminated', 'error'],
-  'waiting_input': ['running', 'idle', 'completed', 'error', 'terminated'],
+  'running': ['idle', 'waiting_input', 'paused', 'completed', 'error', 'terminated'],
+  'idle': ['running', 'paused', 'completed', 'terminated', 'error'],
+  'waiting_input': ['running', 'idle', 'paused', 'completed', 'error', 'terminated'],
+  'paused': ['running', 'idle', 'terminated', 'error'],
   'completed': ['terminated'], // 完成后只能被终止（清理资源）
   'error': ['terminated'], // 错误后只能被终止
   'terminated': [], // 终态，不可转换
@@ -29,7 +30,7 @@ const FINAL_STATES: Set<SessionStatus> = new Set(['completed', 'error', 'termina
 /**
  * 活跃状态集合（会话正在运行或等待输入）
  */
-const ACTIVE_STATES: Set<SessionStatus> = new Set(['starting', 'running', 'idle', 'waiting_input'])
+const ACTIVE_STATES: Set<SessionStatus> = new Set(['starting', 'running', 'idle', 'waiting_input', 'paused'])
 
 /**
  * 验证状态转换是否合法

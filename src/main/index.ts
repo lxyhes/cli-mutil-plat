@@ -886,7 +886,7 @@ app.whenReady().then(() => {
 
   // Prompt Optimizer 提示词优化服务
   if (database) {
-    promptOptimizerService = new PromptOptimizerService(database, database.promptOptimizerRepo, sessionManagerV2 ?? undefined)
+    promptOptimizerService = new PromptOptimizerService(database, database.getPromptOptimizerRepository(), sessionManagerV2 ?? undefined)
   }
 
   // ★ 注册 team_* 方法处理器到 AgentBridge，使 agents 可以调用团队工具

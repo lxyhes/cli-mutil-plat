@@ -105,6 +105,7 @@ interface PromptOptimizerState {
   fetchVersions: (templateId: string) => Promise<void>
   createVersion: (templateId: string, data: Partial<PromptVersion>) => Promise<any>
   updateVersion: (id: string, updates: Partial<PromptVersion>) => Promise<any>
+  deleteVersion: (id: string) => Promise<any>
   setBaseline: (versionId: string) => Promise<any>
   setActiveVersion: (version: PromptVersion | null) => void
 
@@ -200,7 +201,7 @@ export const usePromptOptimizerStore = create<PromptOptimizerState>((set, get) =
     }
   },
 
-  deleteVersion: async (id) => {
+  deleteVersion: async (id: string) => {
     try {
       const result = await (window as any).spectrAI.promptOptimizer.deleteVersion(id)
       if (result.success && result.data?.templateId) {

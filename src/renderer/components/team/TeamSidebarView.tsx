@@ -7,14 +7,15 @@
  */
 
 import { useState, useEffect } from 'react'
-import { Users, Plus, Play, History, LayoutTemplate, CheckCircle, AlertTriangle, XCircle } from 'lucide-react'
+import { Users, Plus, Play, History, LayoutTemplate, CheckCircle, AlertTriangle, XCircle, Upload } from 'lucide-react'
 import { useTeamStore } from '../../stores/teamStore'
 import CreateTeamDialog from './CreateTeamDialog'
 
 export default function TeamSidebarView() {
-  const { teams, activeTeamId, templates, loading, fetchTeams, fetchTemplates, setActiveTeam } = useTeamStore()
+  const { teams, activeTeamId, templates, loading, fetchTeams, fetchTemplates, setActiveTeam, importTeam } = useTeamStore()
   const [showTemplates, setShowTemplates] = useState(false)
   const [showCreateDialog, setShowCreateDialog] = useState(false)
+  const [importError, setImportError] = useState<string | null>(null)
 
   useEffect(() => {
     fetchTeams()
@@ -34,6 +35,30 @@ export default function TeamSidebarView() {
     fetchTeams()
   }
 
+  const handleImport = async () => {
+    setImportError(null)
+    const filePath = await window.spectrAI.app.selectFile()
+    if (!filePath) return
+    const result = await window.spectrAI.fileManager.readFile(filePath)
+    if (!result.content) {
+      setImportError(result.error || '无法读取团队快照文件')
+      return
+    }
+    try {
+      const snapshot = JSON.parse(result.content)
+      const team = await importTeam(snapshot)
+      if (team) {
+        fetchTeams()
+        setActiveTeam(team.id)
+      } else {
+        setImportError('导入失败，未能创建团队')
+      }
+    } catch (err) {
+      console.error('[TeamSidebarView] import failed:', err)
+      setImportError(err instanceof Error ? err.message : '快照格式无效')
+    }
+  }
+
   return (
     <div className="flex flex-col h-full overflow-hidden select-none bg-bg-primary">
       {/* 标题栏 */}
@@ -51,10 +76,22 @@ export default function TeamSidebarView() {
         >
           <Plus className="w-3.5 h-3.5" />
         </button>
+        <button
+          onClick={() => { void handleImport() }}
+          title="导入团队快照"
+          className="p-1 rounded hover:bg-bg-hover text-text-muted hover:text-text-secondary transition-colors"
+        >
+          <Upload className="w-3.5 h-3.5" />
+        </button>
       </div>
 
       {/* 列表区域 */}
       <div className="flex-1 overflow-y-auto">
+        {importError && (
+          <div className="mx-2 mt-2 px-2 py-1.5 rounded-md bg-red-500/10 border border-red-500/20 text-[10px] text-red-400">
+            {importError}
+          </div>
+        )}
         {/* 运行中 */}
         <div className="px-2 py-1">
           <div className="flex items-center gap-1.5 px-1 py-1 text-[10px] text-text-muted uppercase">
@@ -76,6 +113,9 @@ export default function TeamSidebarView() {
                 {statusIcon(team.status)}
                 <span className="truncate">{team.name}</span>
               </div>
+              {team.parentTeamId && (
+                <span className="text-[10px] text-text-muted px-1 py-0.5 rounded bg-bg-secondary">子团队</span>
+              )}
               <div className="flex items-center gap-0.5 text-[10px] text-text-muted">
                 <Users size={10} />
                 <span>{team.members?.length || 0}</span>

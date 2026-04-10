@@ -8,7 +8,7 @@ import type { DatabaseManager } from '../storage/Database'
 import type { SessionManagerV2 } from '../session/SessionManagerV2'
 import { sendToRenderer } from '../ipc/shared'
 import { IPC } from '../../shared/constants'
-import type { WorkflowStep } from '../storage/repositories/WorkflowRepository'
+import type { WorkflowStatus, WorkflowStep } from '../storage/repositories/WorkflowRepository'
 
 export type WorkflowServiceStatus = 'stopped' | 'running'
 
@@ -411,7 +411,7 @@ export class WorkflowService extends EventEmitter {
     description?: string
     steps?: WorkflowStep[]
     variables?: Record<string, any>
-    status?: string
+    status?: WorkflowStatus
   }): void {
     this.db.updateWorkflow(workflowId, updates)
     sendToRenderer(IPC.WORKFLOW_STATUS, { type: 'workflow-updated', workflowId })
