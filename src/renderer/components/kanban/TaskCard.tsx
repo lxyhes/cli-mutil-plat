@@ -251,6 +251,7 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, sessions = [] }) => {
                   {activeSession.providerId === 'claude-code' ? 'Claude' :
                    activeSession.providerId === 'codex' ? 'Codex' :
                    activeSession.providerId === 'gemini-cli' ? 'Gemini' :
+                   activeSession.providerId === 'qwen-coder' ? 'Qwen' :
                    activeSession.providerId}
                 </span>
               )}

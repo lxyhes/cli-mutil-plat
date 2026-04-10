@@ -13,6 +13,8 @@ import type { TrayManager } from '../tray/TrayManager'
 import type { SessionManagerV2 } from '../session/SessionManagerV2'
 import type { FileChangeTracker } from '../tracker/FileChangeTracker'
 import type { MemoryCoordinator } from '../memory/MemoryCoordinator'
+import type { TelegramBotService } from '../telegram/TelegramBotService'
+import type { FeishuService } from '../feishu/FeishuService'
 import { sendToRenderer, aiRenamingLocks, performAiRename } from './shared'
 import type { IpcDependencies } from './index'
 import { createErrorResponse, createSuccessResponse, ErrorCode, SpectrAIError } from '../../shared/errors'
@@ -131,6 +133,8 @@ export function wireSessionManagerV2Events(
   notificationManager: NotificationManager,
   trayManager: TrayManager,
   fileChangeTracker?: FileChangeTracker,
+  telegramBotService?: TelegramBotService,
+  feishuService?: FeishuService,
 ): void {
   // ── delta 批量发送：将 30ms 内的连续 token 合并为一次 IPC，降低跨进程通信频率 ──
   const deltaBuffers = new Map<string, { text: string; lastMsg: any }>()
@@ -202,6 +206,18 @@ export function wireSessionManagerV2Events(
         trayManager.decrementBadge(clearedCount)
       }
 
+      // ★ Telegram 状态通知
+      if (telegramBotService) {
+        const event = status === 'error' ? 'error' : 'completed'
+        telegramBotService.pushSessionEventToChat(sessionId, event)
+      }
+
+      // ★ 飞书状态通知
+      if (feishuService) {
+        const event = status === 'error' ? 'error' : 'completed'
+        feishuService.pushSessionEventToChat(sessionId, event)
+      }
+
       if (!database.isSessionNameLocked(sessionId)) {
         setTimeout(async () => {
           if (database.isSessionNameLocked(sessionId) || aiRenamingLocks.has(sessionId)) return
@@ -267,6 +283,12 @@ export function wireSessionManagerV2Events(
           timestamp: new Date().toISOString()
         })
       } catch (_err) { /* ignore */ }
+
+      // ★ Telegram AI 回复推送
+      telegramBotService?.pushAiMessageToChat(sessionId, message.content)
+
+      // ★ 飞书 AI 回复推送
+      feishuService?.pushAiMessageToChat(sessionId, message.content)
     }
   })
 

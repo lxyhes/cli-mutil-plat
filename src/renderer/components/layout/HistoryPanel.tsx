@@ -252,6 +252,7 @@ export default function HistoryPanel() {
                             {session.providerId === 'claude-code' ? 'Claude' :
                              session.providerId === 'codex' ? 'Codex' :
                              session.providerId === 'gemini-cli' ? 'Gemini' :
+                             session.providerId === 'qwen-coder' ? 'Qwen' :
                              session.providerId.slice(0, 6)}
                           </span>
                         )}

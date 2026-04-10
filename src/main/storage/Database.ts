@@ -26,6 +26,14 @@ import { SettingsRepository } from './repositories/SettingsRepository'
 import { WorkspaceRepository } from './repositories/WorkspaceRepository'
 import { McpRepository } from './repositories/McpRepository'
 import { SkillRepository } from './repositories/SkillRepository'
+import { TelegramRepository } from './repositories/TelegramRepository'
+import { FeishuRepository } from './repositories/FeishuRepository'
+import { SchedulerRepository } from './repositories/SchedulerRepository'
+import { EvaluationRepository } from './repositories/EvaluationRepository'
+import { PlannerRepository } from './repositories/PlannerRepository'
+import { WorkflowRepository } from './repositories/WorkflowRepository'
+import { SummaryRepository } from './repositories/SummaryRepository'
+import { GoalRepository } from './repositories/GoalRepository'
 import { LockManager } from '../concurrency/LockManager'
 import type { MemoryManagedComponent, ComponentMemoryInfo } from '../memory/MemoryCoordinator'
 
@@ -54,6 +62,14 @@ export class DatabaseManager implements MemoryManagedComponent {
   private workspaceRepo!: WorkspaceRepository
   private mcpRepo!: McpRepository
   private skillRepo!: SkillRepository
+  private telegramRepo!: TelegramRepository
+  private feishuRepo!: FeishuRepository
+  private schedulerRepo!: SchedulerRepository
+  private evaluationRepo!: EvaluationRepository
+  private plannerRepo!: PlannerRepository
+  private workflowRepo!: WorkflowRepository
+  private summaryRepo!: SummaryRepository
+  private goalRepo!: GoalRepository
 
 
   constructor(dbPath: string) {
@@ -93,6 +109,14 @@ export class DatabaseManager implements MemoryManagedComponent {
     this.workspaceRepo = new WorkspaceRepository(this.db, this.usingSqlite)
     this.mcpRepo = new McpRepository(this.db, this.usingSqlite)
     this.skillRepo = new SkillRepository(this.db, this.usingSqlite)
+    this.telegramRepo = new TelegramRepository(this.db, this.usingSqlite)
+    this.feishuRepo = new FeishuRepository(this.db, this.usingSqlite)
+    this.schedulerRepo = new SchedulerRepository(this.db, this.usingSqlite)
+    this.evaluationRepo = new EvaluationRepository(this.db, this.usingSqlite)
+    this.plannerRepo = new PlannerRepository(this.db, this.usingSqlite)
+    this.workflowRepo = new WorkflowRepository(this.db, this.usingSqlite)
+    this.summaryRepo = new SummaryRepository(this.db, this.usingSqlite)
+    this.goalRepo = new GoalRepository(this.db, this.usingSqlite)
 
     // 初始化 LockManager
     this.lockManager = new LockManager(this.db)
@@ -267,8 +291,30 @@ export class DatabaseManager implements MemoryManagedComponent {
             completed_at DATETIME
           )
         `)
+      } else {
+        // 修复已存在但缺少列的表
+        const cols = this.db.prepare('PRAGMA table_info(team_instances)').all().map((r: any) => r.name)
+        console.log('[Database] team_instances columns before fix:', cols)
+        if (!cols.includes('created_at')) {
+          console.log('[Database] Adding created_at column...')
+          this.db.exec('ALTER TABLE team_instances ADD COLUMN created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP')
+        }
+        if (!cols.includes('started_at')) {
+          console.log('[Database] Adding started_at column...')
+          this.db.exec('ALTER TABLE team_instances ADD COLUMN started_at DATETIME')
+        }
+        if (!cols.includes('completed_at')) {
+          console.log('[Database] Adding completed_at column...')
+          this.db.exec('ALTER TABLE team_instances ADD COLUMN completed_at DATETIME')
+        }
+        if (!cols.includes('objective')) {
+          console.log('[Database] Adding objective column...')
+          this.db.exec('ALTER TABLE team_instances ADD COLUMN objective TEXT')
+        }
+        const colsAfter = this.db.prepare('PRAGMA table_info(team_instances)').all().map((r: any) => r.name)
+        console.log('[Database] team_instances columns after fix:', colsAfter)
       }
-      
+
       if (!existingTables.includes('team_members')) {
         console.log('[Database] Creating missing team_members table...')
         this.db.exec(`
@@ -290,8 +336,16 @@ export class DatabaseManager implements MemoryManagedComponent {
           )
         `)
         this.db.exec('CREATE INDEX IF NOT EXISTS idx_team_members_instance ON team_members(instance_id)')
+      } else {
+        const cols = this.db.prepare('PRAGMA table_info(team_members)').all().map((r: any) => r.name)
+        if (!cols.includes('role_name')) this.db.exec('ALTER TABLE team_members ADD COLUMN role_name TEXT NOT NULL')
+        if (!cols.includes('role_identifier')) this.db.exec('ALTER TABLE team_members ADD COLUMN role_identifier TEXT NOT NULL')
+        if (!cols.includes('role_icon')) this.db.exec('ALTER TABLE team_members ADD COLUMN role_icon TEXT')
+        if (!cols.includes('role_color')) this.db.exec('ALTER TABLE team_members ADD COLUMN role_color TEXT')
+        if (!cols.includes('current_task_id')) this.db.exec('ALTER TABLE team_members ADD COLUMN current_task_id TEXT')
+        if (!cols.includes('last_active_at')) this.db.exec('ALTER TABLE team_members ADD COLUMN last_active_at DATETIME')
       }
-      
+
       if (!existingTables.includes('team_tasks')) {
         console.log('[Database] Creating missing team_tasks table...')
         this.db.exec(`
@@ -313,8 +367,16 @@ export class DatabaseManager implements MemoryManagedComponent {
           )
         `)
         this.db.exec('CREATE INDEX IF NOT EXISTS idx_team_tasks_instance_status ON team_tasks(instance_id, status)')
+      } else {
+        const cols = this.db.prepare('PRAGMA table_info(team_tasks)').all().map((r: any) => r.name)
+        if (!cols.includes('claimed_by')) this.db.exec('ALTER TABLE team_tasks ADD COLUMN claimed_by TEXT')
+        if (!cols.includes('claimed_at')) this.db.exec('ALTER TABLE team_tasks ADD COLUMN claimed_at DATETIME')
+        if (!cols.includes('priority')) this.db.exec('ALTER TABLE team_tasks ADD COLUMN priority TEXT NOT NULL DEFAULT \'medium\'')
+        if (!cols.includes('dependencies')) this.db.exec('ALTER TABLE team_tasks ADD COLUMN dependencies TEXT')
+        if (!cols.includes('result')) this.db.exec('ALTER TABLE team_tasks ADD COLUMN result TEXT')
+        if (!cols.includes('completed_at')) this.db.exec('ALTER TABLE team_tasks ADD COLUMN completed_at DATETIME')
       }
-      
+
       if (!existingTables.includes('team_messages')) {
         console.log('[Database] Creating missing team_messages table...')
         this.db.exec(`
@@ -330,6 +392,9 @@ export class DatabaseManager implements MemoryManagedComponent {
           )
         `)
         this.db.exec('CREATE INDEX IF NOT EXISTS idx_team_messages_instance_timestamp ON team_messages(instance_id, timestamp DESC)')
+      } else {
+        const cols = this.db.prepare('PRAGMA table_info(team_messages)').all().map((r: any) => r.name)
+        if (!cols.includes('timestamp')) this.db.exec('ALTER TABLE team_messages ADD COLUMN timestamp DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP')
       }
       
       if (!existingTables.includes('team_templates')) {
@@ -453,6 +518,135 @@ export class DatabaseManager implements MemoryManagedComponent {
   deleteSkill(id: string) { return this.skillRepo.delete(id) }
   toggleSkill(id: string, enabled: boolean) { return this.skillRepo.toggleEnabled(id, enabled) }
   getCompatibleSkills(providerId: string) { return this.skillRepo.getCompatibleWith(providerId) }
+
+  // ─── Feishu 操作 ───
+
+  getFeishuIntegration = () => this.feishuRepo.getIntegration()
+  saveFeishuIntegration = (config: Parameters<FeishuRepository['saveIntegration']>[0]) => this.feishuRepo.saveIntegration(config)
+  getFeishuAccessToken = () => this.feishuRepo.getAccessToken()
+  setFeishuAccessToken = (token: string, expiresInSecs: number) => this.feishuRepo.setAccessToken(token, expiresInSecs)
+  clearFeishuAccessToken = () => this.feishuRepo.clearAccessToken()
+  getFeishuMappings = () => this.feishuRepo.getAllMappings()
+  getFeishuMappingsBySessionId = (sessionId: string) => this.feishuRepo.getMappingsBySessionId(sessionId)
+  getFeishuMappingsByChatId = (chatId: string) => this.feishuRepo.getMappingsByChatId(chatId)
+  createFeishuMapping = (mapping: Parameters<FeishuRepository['createMapping']>[0]) => this.feishuRepo.createMapping(mapping)
+  deleteFeishuMapping = (id: string) => this.feishuRepo.deleteMapping(id)
+  deleteFeishuMappingsBySessionId = (sessionId: string) => this.feishuRepo.deleteMappingsBySessionId(sessionId)
+
+  // ─── Scheduler 操作 ───
+
+  getAllScheduledTasks = () => this.schedulerRepo.getAllTasks()
+  getScheduledTask = (id: string) => this.schedulerRepo.getTask(id)
+  getEnabledScheduledTasks = () => this.schedulerRepo.getEnabledTasks()
+  getScheduledTasksDueNext = () => this.schedulerRepo.getTasksDueNext()
+  createScheduledTask = (task: Parameters<SchedulerRepository['createTask']>[0]) => this.schedulerRepo.createTask(task)
+  updateScheduledTask = (id: string, updates: Parameters<SchedulerRepository['updateTask']>[1]) => this.schedulerRepo.updateTask(id, updates)
+  deleteScheduledTask = (id: string) => this.schedulerRepo.deleteTask(id)
+  createTaskRun = (run: Parameters<SchedulerRepository['createTaskRun']>[0]) => this.schedulerRepo.createTaskRun(run)
+  updateTaskRun = (id: string, updates: Parameters<SchedulerRepository['updateTaskRun']>[1]) => this.schedulerRepo.updateTaskRun(id, updates)
+  getTaskRuns = (scheduledTaskId: string, limit?: number) => this.schedulerRepo.getTaskRuns(scheduledTaskId, limit)
+  getRunningTaskRuns = () => this.schedulerRepo.getRunningTasks()
+  getRecentTaskRuns = (limit?: number) => this.schedulerRepo.getRecentRuns(limit)
+  getConsecutiveFailures = (taskId: string) => this.schedulerRepo.getConsecutiveFailures(taskId)
+
+  // ─── Evaluation 操作 ───
+
+  createEvaluationTemplate = (template: Parameters<EvaluationRepository['createTemplate']>[0]) => this.evaluationRepo.createTemplate(template)
+  getEvaluationTemplate = (id: string) => this.evaluationRepo.getTemplate(id)
+  listEvaluationTemplates = () => this.evaluationRepo.listTemplates()
+  updateEvaluationTemplate = (id: string, updates: Parameters<EvaluationRepository['updateTemplate']>[1]) => this.evaluationRepo.updateTemplate(id, updates)
+  deleteEvaluationTemplate = (id: string) => this.evaluationRepo.deleteTemplate(id)
+
+  createEvaluationRun = (run: Parameters<EvaluationRepository['createRun']>[0]) => this.evaluationRepo.createRun(run)
+  getEvaluationRun = (id: string) => this.evaluationRepo.getRun(id)
+  listEvaluationRuns = (limit?: number) => this.evaluationRepo.listRuns(limit)
+  listEvaluationRunsBySession = (sessionId: string, limit?: number) => this.evaluationRepo.listRunsBySession(sessionId, limit)
+  listEvaluationRunsByTemplate = (templateId: string, limit?: number) => this.evaluationRepo.listRunsByTemplate(templateId, limit)
+  updateEvaluationRun = (id: string, updates: Parameters<EvaluationRepository['updateRun']>[1]) => this.evaluationRepo.updateRun(id, updates)
+
+  createEvaluationResult = (result: Parameters<EvaluationRepository['createResult']>[0]) => this.evaluationRepo.createResult(result)
+  getEvaluationResultsByRun = (evaluationRunId: string) => this.evaluationRepo.getResultsByRun(evaluationRunId)
+  getEvaluationTemplateStats = (templateId: string) => this.evaluationRepo.getTemplateStats(templateId)
+
+  // ─── Planner 操作 ───
+
+  getAllPlanSessions = () => this.plannerRepo.getAllSessions()
+  getPlanSession = (id: string) => this.plannerRepo.getSession(id)
+  createPlanSession = (session: Parameters<PlannerRepository['createSession']>[0]) => this.plannerRepo.createSession(session)
+  updatePlanSession = (id: string, updates: Parameters<PlannerRepository['updateSession']>[1]) => this.plannerRepo.updateSession(id, updates)
+  deletePlanSession = (id: string) => this.plannerRepo.deleteSession(id)
+
+  getPlanTasks = (planSessionId: string) => this.plannerRepo.getTasksBySession(planSessionId)
+  getPlanTask = (id: string) => this.plannerRepo.getTask(id)
+  createPlanTask = (task: Parameters<PlannerRepository['createTask']>[0]) => this.plannerRepo.createTask(task)
+  updatePlanTask = (id: string, updates: Parameters<PlannerRepository['updateTask']>[1]) => this.plannerRepo.updateTask(id, updates)
+  deletePlanTask = (id: string) => this.plannerRepo.deleteTask(id)
+
+  getPlanSteps = (planTaskId: string) => this.plannerRepo.getStepsByTask(planTaskId)
+  getPlanStep = (id: string) => this.plannerRepo.getStep(id)
+  createPlanStep = (step: Parameters<PlannerRepository['createStep']>[0]) => this.plannerRepo.createStep(step)
+  updatePlanStep = (id: string, updates: Parameters<PlannerRepository['updateStep']>[1]) => this.plannerRepo.updateStep(id, updates)
+  deletePlanStep = (id: string) => this.plannerRepo.deleteStep(id)
+
+  // ─── Workflow 操作 ───
+
+  getAllWorkflows = () => this.workflowRepo.getAllWorkflows()
+  getWorkflow = (id: string) => this.workflowRepo.getWorkflow(id)
+  createWorkflow = (workflow: Parameters<WorkflowRepository['createWorkflow']>[0]) => this.workflowRepo.createWorkflow(workflow)
+  updateWorkflow = (id: string, updates: Parameters<WorkflowRepository['updateWorkflow']>[1]) => this.workflowRepo.updateWorkflow(id, updates)
+  deleteWorkflow = (id: string) => this.workflowRepo.deleteWorkflow(id)
+
+  getWorkflowExecution = (id: string) => this.workflowRepo.getExecution(id)
+  getWorkflowExecutions = (workflowId: string, limit?: number) => this.workflowRepo.getExecutionsByWorkflow(workflowId, limit)
+  createWorkflowExecution = (execution: Parameters<WorkflowRepository['createExecution']>[0]) => this.workflowRepo.createExecution(execution)
+  updateWorkflowExecution = (id: string, updates: Parameters<WorkflowRepository['updateExecution']>[1]) => this.workflowRepo.updateExecution(id, updates)
+
+  createWorkflowRun = (run: Parameters<WorkflowRepository['createRun']>[0]) => this.workflowRepo.createRun(run)
+  updateWorkflowRun = (id: string, updates: Parameters<WorkflowRepository['updateRun']>[1]) => this.workflowRepo.updateWorkflowRun(id, updates)
+  getWorkflowRuns = (executionId: string) => this.workflowRepo.getRunsByExecution(executionId)
+
+  // ─── Telegram 操作 ───
+
+  setTelegramBotToken = (token: string) => this.telegramRepo.setBotToken(token)
+  getTelegramBotToken = () => this.telegramRepo.getBotToken()
+  clearTelegramBotToken = () => this.telegramRepo.clearBotToken()
+  getTelegramIntegrationConfig = () => this.telegramRepo.getIntegrationConfig()
+  saveTelegramIntegrationConfig = (config: Parameters<TelegramRepository['saveIntegrationConfig']>[0]) => this.telegramRepo.saveIntegrationConfig(config)
+  getTelegramMappings = () => this.telegramRepo.getAllMappings()
+  getTelegramMappingsByChatId = (integrationId: string, chatId: string) => this.telegramRepo.getMappingsByChatId(integrationId, chatId)
+  getTelegramMappingsBySessionId = (sessionId: string) => this.telegramRepo.getMappingsBySessionId(sessionId)
+  createTelegramMapping = (mapping: Parameters<TelegramRepository['createMapping']>[0]) => this.telegramRepo.createMapping(mapping)
+  deleteTelegramMapping = (id: string) => this.telegramRepo.deleteMapping(id)
+  deleteTelegramMappingsBySessionId = (sessionId: string) => this.telegramRepo.deleteMappingsBySessionId(sessionId)
+
+  // ─── Summary 操作 ───
+
+  addSummary = (data: Parameters<SummaryRepository['addSummary']>[0]) => this.summaryRepo.addSummary(data)
+  updateSummary = (id: number, updates: Parameters<SummaryRepository['updateSummary']>[1]) => this.summaryRepo.updateSummary(id, updates)
+  getSummary = (id: number) => this.summaryRepo.getSummary(id)
+  getSessionLatestSummary = (sessionId: string) => this.summaryRepo.getLatestSummary(sessionId)
+  listSummaries = (sessionId: string, limit?: number) => this.summaryRepo.listSummaries(sessionId, limit)
+  listAllLatestSummaries = (limit?: number) => this.summaryRepo.listAllLatestSummaries(limit)
+  deleteSummary = (id: number) => this.summaryRepo.deleteSummary(id)
+  deleteSessionSummaries = (sessionId: string) => this.summaryRepo.deleteSessionSummaries(sessionId)
+
+  // ─── Goal 操作 ───
+
+  createGoal = (data: Parameters<GoalRepository['createGoal']>[0]) => this.goalRepo.createGoal(data)
+  getGoal = (id: string) => this.goalRepo.getGoal(id)
+  listGoals = (status?: Parameters<GoalRepository['listGoals']>[0]) => this.goalRepo.listGoals(status)
+  updateGoal = (id: string, updates: Parameters<GoalRepository['updateGoal']>[1]) => this.goalRepo.updateGoal(id, updates)
+  deleteGoal = (id: string) => this.goalRepo.deleteGoal(id)
+  addGoalActivity = (data: Parameters<GoalRepository['addActivity']>[0]) => this.goalRepo.addActivity(data)
+  listGoalActivities = (goalId: string, limit?: number) => this.goalRepo.listActivities(goalId, limit)
+  getGoalProgress = (goalId: string) => this.goalRepo.getGoalProgress(goalId)
+  linkGoalSession = (data: Parameters<GoalRepository['linkSession']>[0]) => this.goalRepo.linkSession(data)
+  unlinkGoalSession = (goalId: string, sessionId: string) => this.goalRepo.unlinkSession(goalId, sessionId)
+  getGoalSessions = (goalId: string) => this.goalRepo.getSessionsByGoal(goalId)
+  getGoalsBySession = (sessionId: string) => this.goalRepo.getGoalsBySession(sessionId)
+  getGoalsDueSoon = (days?: number) => this.goalRepo.getGoalsDueSoon(days)
+  getActiveGoals = () => this.goalRepo.getActiveGoals()
+  getGoalStats = () => this.goalRepo.getGoalStats()
 
   // ─── 内置数据初始化 ───
 

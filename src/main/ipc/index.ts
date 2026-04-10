@@ -41,6 +41,14 @@ export interface IpcDependencies {
   updateManager?: UpdateManager
   memoryCoordinator?: any  // MemoryCoordinator（可选）
   teamManager?: any  // TeamManager（可选）
+  telegramBotService?: any  // TelegramBotService（可选）
+  feishuService?: any  // FeishuService（可选）
+  schedulerService?: any  // SchedulerService（可选）
+  evaluationService?: any  // EvaluationService（可选）
+  plannerService?: any  // PlannerService（可选）
+  workflowService?: any  // WorkflowService（可选）
+  summaryService?: any  // SummaryService（可选）
+  goalService?: any  // GoalService（可选）
 }
 
 // 各子模块 handler 注册函数
@@ -58,6 +66,14 @@ import { registerRegistryHandlers } from './registryHandlers'
 import { registerUpdateHandlers } from './updateHandlers'
 import { registerAnalyzerHandlers } from './analyzerHandlers'
 import { registerTeamHandlers } from './teamHandlers'
+import { registerTelegramHandlers } from './telegramHandlers'
+import { registerFeishuHandlers } from './feishuHandlers'
+import { registerSchedulerHandlers } from './schedulerHandlers'
+import { registerPlannerHandlers } from './plannerHandlers'
+import { registerWorkflowHandlers } from './workflowHandlers'
+import { registerEvaluationHandlers } from './evaluationHandlers'
+import { registerSummaryHandlers } from './summaryHandlers'
+import { registerGoalHandlers } from './goalHandlers'
 import type { FileChangeTracker } from '../tracker/FileChangeTracker'
 
 // re-export wireSessionManagerV2Events from systemHandlers
@@ -82,6 +98,14 @@ export function registerIpcHandlers(deps: IpcDependencies, fileChangeTracker?: F
   registerRegistryHandlers(deps)
   registerAnalyzerHandlers(deps)
   registerTeamHandlers({ teamManager: deps.teamManager! })
+  registerTelegramHandlers(deps)
+  registerFeishuHandlers(deps)
+  registerSchedulerHandlers(deps)
+  registerPlannerHandlers(deps)
+  registerWorkflowHandlers(deps)
+  registerEvaluationHandlers(deps)
+  registerSummaryHandlers(deps)
+  registerGoalHandlers(deps)
   if (deps.updateManager) {
     registerUpdateHandlers(deps.updateManager)
   }

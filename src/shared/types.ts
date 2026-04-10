@@ -202,6 +202,40 @@ export const BUILTIN_IFLOW_PROVIDER: AIProvider = {
   sessionIdDetection: 'none',
 }
 
+/** 内置 Qwen Coder CLI Provider 预设 */
+export const BUILTIN_QWEN_PROVIDER: AIProvider = {
+  id: 'qwen-coder',
+  name: 'Qwen Coder CLI',
+  command: 'qwen',
+  isBuiltin: true,
+  icon: 'qwen',
+  adapterType: 'claude-sdk',
+  defaultArgs: [],
+  autoAcceptArg: '--yes',
+  resumeArg: '--resume',
+  promptPassMode: 'positional',
+  printModeArgs: ['-p'],
+  sessionIdDetection: 'none',
+  promptMarkerPatterns: ['❯', '>\s', '>>>'],
+  confirmationConfig: {
+    highPatterns: [
+      'Confirm\?\s*\(y\/n\)',
+      'Proceed\?\s*\(Y\/n\)',
+    ],
+    mediumPatterns: [
+      'Do you want to (?:continue|proceed|run)',
+      'Shall I (?:continue|proceed)',
+    ],
+  },
+  stateConfig: {
+    startupPattern: 'Qwen|qwen',
+    idleTimeoutMs: 5000,
+    possibleStuckMs: 60000,
+    stuckInterventionMs: 300000,
+    startupStuckMs: 30000,
+  },
+}
+
 /** 所有内置 Provider 列表 */
 export const BUILTIN_PROVIDERS: AIProvider[] = [
   BUILTIN_CLAUDE_PROVIDER,
@@ -209,6 +243,7 @@ export const BUILTIN_PROVIDERS: AIProvider[] = [
   BUILTIN_GEMINI_PROVIDER,
   BUILTIN_IFLOW_PROVIDER,
   BUILTIN_OPENCODE_PROVIDER,
+  BUILTIN_QWEN_PROVIDER,
 ]
 
 // ---- 会话相关 ----

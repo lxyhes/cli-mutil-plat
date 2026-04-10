@@ -35,7 +35,7 @@ const PROVIDER_COLORS: Record<string, string> = {
   'iflow':       '#A78BFA',
   'codex':       '#F97316',
   'gemini-cli':  '#34D399',
-
+  'qwen-coder':  '#A855F7',
 }
 
 function getProviderColor(providerId?: string): string {

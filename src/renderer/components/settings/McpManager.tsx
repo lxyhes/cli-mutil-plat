@@ -54,7 +54,7 @@ const PROVIDER_BADGE_CONFIG: Record<string, { badgeClass: string; tooltip: strin
 }
 
 // 全部 Provider 顺序
-const ALL_PROVIDER_IDS = ['claude-code', 'codex', 'iflow', 'gemini-cli', 'opencode']
+const ALL_PROVIDER_IDS = ['claude-code', 'codex', 'iflow', 'gemini-cli', 'opencode', 'qwen-coder']
 
 // 分类图标映射
 const CATEGORY_ICONS: Record<string, string> = {
@@ -605,7 +605,7 @@ function McpFormDialog({ server, onClose, onSave }: {
   const [importError, setImportError] = useState<string | null>(null)
   const [detectedEnv, setDetectedEnv] = useState<Record<string, string> | null>(null)
 
-  const PROVIDERS = ['claude-code', 'codex', 'gemini-cli', 'iflow', 'opencode']
+  const PROVIDERS = ['claude-code', 'codex', 'gemini-cli', 'iflow', 'opencode', 'qwen-coder']
 
   // 根据命令推断 installMethod
   const inferInstallMethod = (cmd: string): McpServer['installMethod'] => {

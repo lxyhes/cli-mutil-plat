@@ -53,7 +53,8 @@ function getProviderInfo(providerId?: string): { label: string; color: string } 
       return { label: 'Codex', color: '#F97316' }
     case 'gemini-cli':
       return { label: 'Gemini', color: '#34D399' }
-
+    case 'qwen-coder':
+      return { label: 'Qwen Coder', color: '#A855F7' }
     default:
       return { label: providerId?.slice(0, 8) || 'Unknown', color: '#6B7280' }
   }

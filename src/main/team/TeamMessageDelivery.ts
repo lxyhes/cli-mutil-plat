@@ -1,11 +1,13 @@
 /**
- * Team 消息重试机制
+ * Team 消息传递器（带重试机制）
  * 确保团队成员间的消息可靠传递
  * @author weibin
  */
 
 import type { AgentManagerV2 } from '../agent/AgentManagerV2'
-import type { DatabaseManager } from '../storage/Database'
+import type { SessionManagerV2 } from '../session/SessionManagerV2'
+import type { TeamRepository } from './TeamRepository'
+import type { TeamMessage, TeamMember } from './types'
 
 export interface MessageDeliveryResult {
   success: boolean
@@ -33,16 +35,19 @@ const DEFAULT_RETRY_CONFIG: RetryConfig = {
  */
 export class TeamMessageDelivery {
   private agentManager: AgentManagerV2
-  private database: DatabaseManager
+  private sessionManager: SessionManagerV2
+  private teamRepo: TeamRepository
   private config: RetryConfig
 
   constructor(
     agentManager: AgentManagerV2,
-    database: DatabaseManager,
+    sessionManager: SessionManagerV2,
+    teamRepo: TeamRepository,
     config: Partial<RetryConfig> = {}
   ) {
     this.agentManager = agentManager
-    this.database = database
+    this.sessionManager = sessionManager
+    this.teamRepo = teamRepo
     this.config = { ...DEFAULT_RETRY_CONFIG, ...config }
   }
 
@@ -51,8 +56,8 @@ export class TeamMessageDelivery {
    */
   async sendMessage(
     instanceId: string,
-    from: string,
-    to: string,
+    fromMemberId: string,
+    toRole: string,
     content: string
   ): Promise<MessageDeliveryResult> {
     let lastError: Error | undefined
@@ -61,50 +66,27 @@ export class TeamMessageDelivery {
     for (let attempt = 1; attempt <= this.config.maxRetries; attempt++) {
       try {
         // 查找目标成员
-        const member = await this.database.team.getMemberByRole(instanceId, to)
+        const member = this.teamRepo.getMemberByRole(instanceId, toRole)
         if (!member) {
-          throw new Error(`Member with role ${to} not found in instance ${instanceId}`)
+          throw new Error(`Member with role ${toRole} not found in instance ${instanceId}`)
         }
 
         // 检查成员会话是否存活
-        const session = this.agentManager.getSession?.(member.sessionId)
+        const session = this.sessionManager.getSession(member.sessionId)
         if (!session) {
-          throw new Error(`Session ${member.sessionId} for member ${to} not found`)
+          throw new Error(`Session ${member.sessionId} for member ${toRole} not found`)
         }
 
-        if (session.status === 'error' || session.status === 'terminated') {
-          throw new Error(`Session ${member.sessionId} for member ${to} is ${session.status}`)
-        }
-
-        // 发送消息到 Agent
-        await this.agentManager.sendToAgent(member.sessionId, content)
-
-        // 记录消息到数据库
-        await this.database.team.addMessage({
-          instanceId,
-          from,
-          to,
-          content,
-          timestamp: new Date().toISOString()
-        })
-
-        console.log(
-          `[TeamMessageDelivery] Message delivered from ${from} to ${to} (attempt ${attempt})`
-        )
+        // 通过 SessionManagerV2 发送消息
+        await this.sessionManager.sendMessage(member.sessionId, content)
 
         return {
           success: true,
           attempts: attempt,
           deliveredAt: new Date().toISOString()
         }
-      } catch (error) {
-        lastError = error as Error
-        console.error(
-          `[TeamMessageDelivery] Attempt ${attempt}/${this.config.maxRetries} failed:`,
-          error
-        )
-
-        // 如果还有重试机会，等待后重试
+      } catch (err) {
+        lastError = err instanceof Error ? err : new Error(String(err))
         if (attempt < this.config.maxRetries) {
           await this.sleep(delay)
           delay = Math.min(delay * this.config.backoffMultiplier, this.config.maxDelayMs)
@@ -112,45 +94,27 @@ export class TeamMessageDelivery {
       }
     }
 
-    // 所有重试都失败
-    console.error(
-      `[TeamMessageDelivery] Failed to deliver message from ${from} to ${to} after ${this.config.maxRetries} attempts`
-    )
-
     return {
       success: false,
       attempts: this.config.maxRetries,
-      error: lastError?.message || 'Unknown error'
+      error: lastError?.message
     }
   }
 
   /**
-   * 广播消息（带重试）
+   * 广播消息给所有团队成员
    */
   async broadcastMessage(
     instanceId: string,
-    from: string,
+    fromMemberId: string,
     content: string
-  ): Promise<Map<string, MessageDeliveryResult>> {
-    const members = await this.database.team.getMembers(instanceId)
-    const results = new Map<string, MessageDeliveryResult>()
-
-    // 并行发送到所有成员
-    const promises = members
-      .filter(m => m.roleId !== from) // 不发送给自己
-      .map(async member => {
-        const result = await this.sendMessage(instanceId, from, member.roleId, content)
-        results.set(member.roleId, result)
-      })
-
-    await Promise.all(promises)
-
-    const successCount = Array.from(results.values()).filter(r => r.success).length
-    console.log(
-      `[TeamMessageDelivery] Broadcast from ${from}: ${successCount}/${results.size} delivered`
+  ): Promise<void> {
+    const members = this.teamRepo.getTeamMembers(instanceId)
+    await Promise.all(
+      members
+        .filter((m: TeamMember) => m.id !== fromMemberId)
+        .map((m: TeamMember) => this.sendMessage(instanceId, fromMemberId, m.role.identifier, content))
     )
-
-    return results
   }
 
   private sleep(ms: number): Promise<void> {

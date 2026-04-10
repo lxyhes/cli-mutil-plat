@@ -290,6 +290,43 @@ export interface SpectrAIAPI {
     showInFolder: (filePath: string) => Promise<{ success: boolean; error?: string }>
   }
 
+  team: {
+    create: (request: any) => Promise<{ success: boolean; team?: any; error?: string }>
+    getAll: (status?: string) => Promise<{ success: boolean; teams?: any[]; error?: string }>
+    get: (teamId: string) => Promise<{ success: boolean; team?: any; error?: string }>
+    getTasks: (teamId: string, status?: string) => Promise<{ success: boolean; tasks?: any[]; error?: string }>
+    getMessages: (teamId: string, limit?: number) => Promise<{ success: boolean; messages?: any[]; error?: string }>
+    createTask: (teamId: string, task: any) => Promise<{ success: boolean; task?: any; error?: string }>
+    completeTask: (teamId: string, taskId: string, result: string) => Promise<{ success: boolean; error?: string }>
+    getTemplates: () => Promise<{ success: boolean; templates?: any[]; error?: string }>
+    getHealth: (teamId: string) => Promise<{ success: boolean; health?: any; error?: string }>
+    cleanup: (teamId: string) => Promise<{ success: boolean; error?: string }>
+    // 事件监听
+    onStatusChange: (callback: (teamId: string, status: string) => void) => void
+    onMemberJoined: (callback: (teamId: string, member: any) => void) => void
+    onMemberStatusChange: (callback: (teamId: string, memberId: string, status: string) => void) => void
+    onTaskClaimed: (callback: (teamId: string, taskId: string, memberId: string) => void) => void
+    onTaskCompleted: (callback: (teamId: string, taskId: string) => void) => void
+    onMessage: (callback: (teamId: string, message: any) => void) => void
+    onCompleted: (callback: (teamId: string) => void) => void
+    onFailed: (callback: (teamId: string, reason: string) => void) => void
+    onHealthIssue: (callback: (teamId: string, issue: any) => void) => void
+    onLog: (callback: (entry: any) => void) => void
+  }
+
+  evaluation: {
+    createTemplate: (data: any) => Promise<{ success: boolean; template?: any; error?: string }>
+    listTemplates: () => Promise<{ success: boolean; templates?: any[]; error?: string }>
+    getTemplate: (templateId: string) => Promise<{ success: boolean; template?: any; error?: string }>
+    updateTemplate: (templateId: string, updates: any) => Promise<{ success: boolean; templateId?: string; error?: string }>
+    deleteTemplate: (templateId: string) => Promise<{ success: boolean; error?: string }>
+    startRun: (sessionId: string, templateId: string) => Promise<{ success: boolean; runId?: string; error?: string }>
+    listRuns: (limit?: number) => Promise<{ success: boolean; runs?: any[]; error?: string }>
+    getRun: (runId: string) => Promise<{ success: boolean; run?: any; error?: string }>
+    getResults: (runId: string) => Promise<{ success: boolean; results?: any[]; error?: string }>
+    onRunStatus: (callback: (status: any) => void) => () => void
+  }
+
 }
 
 declare global {

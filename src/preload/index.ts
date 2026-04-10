@@ -293,17 +293,47 @@ if (!ctxBr) {
   // Legacy - 保持向后兼容
   getUsageSummary: () => ipcRenderer.invoke(IPC.USAGE_GET_SUMMARY),
 
-  // ==================== Summary API（跨会话上下文） ====================
+  // ==================== Summary API ====================
   summary: {
+    // 生成会话摘要（AI 驱动）
+    generate: (sessionId: string, options?: {
+      type?: 'auto' | 'manual' | 'key_points'
+      includeKeyPoints?: boolean
+      providerId?: string
+      model?: string
+    }) => ipcRenderer.invoke(IPC.SUMMARY_GENERATE, sessionId, options),
+
+    // 获取单个摘要
+    getSummary: (id: number) =>
+      ipcRenderer.invoke(IPC.SUMMARY_GET, id),
+
+    // 获取会话的摘要列表
+    listSummaries: (sessionId: string, limit?: number) =>
+      ipcRenderer.invoke(IPC.SUMMARY_LIST, sessionId, limit),
+
+    // 获取所有会话的最新摘要
+    listAllSummaries: (limit?: number) =>
+      ipcRenderer.invoke(IPC.SUMMARY_LIST_ALL, limit),
+
+    // 更新摘要
+    updateSummary: (id: number, updates: {
+      summary?: string
+      keyPoints?: string
+      qualityScore?: number
+      summaryType?: 'auto' | 'manual' | 'key_points'
+    }) => ipcRenderer.invoke(IPC.SUMMARY_UPDATE, id, updates),
+
+    // 删除摘要
+    deleteSummary: (id: number) =>
+      ipcRenderer.invoke(IPC.SUMMARY_DELETE, id),
+
+    // 获取会话最新摘要（兼容旧接口）
     getLatest: (sessionId: string) =>
       ipcRenderer.invoke('summary:get-latest', sessionId),
 
-    getAll: (sessionId: string, limit?: number) =>
-      ipcRenderer.invoke('summary:get-all', sessionId, limit),
-
-    getAllSessions: () =>
-      ipcRenderer.invoke('summary:get-all-sessions'),
-
+    // 获取所有会话摘要（兼容旧接口）
+    getAllSessions: (limit?: number) =>
+      ipcRenderer.invoke('summary:get-all-sessions', limit),
   },
 
   // ==================== Agent API ====================
@@ -522,6 +552,160 @@ if (!ctxBr) {
     createTask: (teamId: string, task: any) => ipcRenderer.invoke(IPC.TEAM_CREATE_TASK, teamId, task),
     completeTask: (teamId: string, taskId: string, result: string) => ipcRenderer.invoke(IPC.TEAM_COMPLETE_TASK, teamId, taskId, result),
     getTemplates: () => ipcRenderer.invoke(IPC.TEAM_GET_TEMPLATES),
+    getHealth: (teamId: string) => ipcRenderer.invoke('team:get-health', teamId),
+    cleanup: (teamId: string) => ipcRenderer.invoke('team:cleanup', teamId),
+    // 事件监听
+    onStatusChange: (callback: (teamId: string, status: string) => void) =>
+      ipcRenderer.on(IPC.TEAM_STATUS_CHANGE, (_e, teamId, status) => callback(teamId, status)),
+    onMemberJoined: (callback: (teamId: string, member: any) => void) =>
+      ipcRenderer.on(IPC.TEAM_MEMBER_JOINED, (_e, teamId, member) => callback(teamId, member)),
+    onMemberStatusChange: (callback: (teamId: string, memberId: string, status: string) => void) =>
+      ipcRenderer.on(IPC.TEAM_MEMBER_STATUS_CHANGE, (_e, teamId, memberId, status) => callback(teamId, memberId, status)),
+    onTaskClaimed: (callback: (teamId: string, taskId: string, memberId: string) => void) =>
+      ipcRenderer.on(IPC.TEAM_TASK_CLAIMED, (_e, teamId, taskId, memberId) => callback(teamId, taskId, memberId)),
+    onTaskCompleted: (callback: (teamId: string, taskId: string) => void) =>
+      ipcRenderer.on(IPC.TEAM_TASK_COMPLETED, (_e, teamId, taskId) => callback(teamId, taskId)),
+    onMessage: (callback: (teamId: string, message: any) => void) =>
+      ipcRenderer.on(IPC.TEAM_MESSAGE, (_e, teamId, message) => callback(teamId, message)),
+    onCompleted: (callback: (teamId: string) => void) =>
+      ipcRenderer.on(IPC.TEAM_COMPLETED, (_e, teamId) => callback(teamId)),
+    onFailed: (callback: (teamId: string, reason: string) => void) =>
+      ipcRenderer.on(IPC.TEAM_FAILED, (_e, teamId, reason) => callback(teamId, reason)),
+    onHealthIssue: (callback: (teamId: string, issue: any) => void) =>
+      ipcRenderer.on('team:health-issue', (_e, teamId, issue) => callback(teamId, issue)),
+    onLog: (callback: (entry: any) => void) =>
+      ipcRenderer.on('team:log', (_e, entry) => callback(entry)),
+  },
+
+  // ==================== Telegram API ====================
+  telegram: {
+    getConfig: () => ipcRenderer.invoke(IPC.TELEGRAM_GET_CONFIG),
+    setConfig: (config: any) => ipcRenderer.invoke(IPC.TELEGRAM_SET_CONFIG, config),
+    deleteConfig: () => ipcRenderer.invoke(IPC.TELEGRAM_DELETE_CONFIG),
+    getStatus: () => ipcRenderer.invoke(IPC.TELEGRAM_GET_STATUS),
+    testConnection: (token: string) => ipcRenderer.invoke(IPC.TELEGRAM_TEST_CONNECTION, token),
+    getMappings: () => ipcRenderer.invoke(IPC.TELEGRAM_GET_MAPPINGS),
+    addMapping: (mapping: any) => ipcRenderer.invoke(IPC.TELEGRAM_ADD_MAPPING, mapping),
+    removeMapping: (id: string) => ipcRenderer.invoke(IPC.TELEGRAM_REMOVE_MAPPING, id),
+    onStatusChanged: (callback: (status: string) => void) => {
+      ipcRenderer.on(IPC.TELEGRAM_STATUS_CHANGED, (_e, status) => callback(status))
+      return () => ipcRenderer.removeListener(IPC.TELEGRAM_STATUS_CHANGED, () => {})
+    },
+    onMessageSent: (callback: (chatId: string, msg: string) => void) => {
+      ipcRenderer.on(IPC.TELEGRAM_MESSAGE_SENT, (_e, chatId, msg) => callback(chatId, msg))
+      return () => ipcRenderer.removeListener(IPC.TELEGRAM_MESSAGE_SENT, () => {})
+    },
+  },
+
+  // ==================== Feishu API ====================
+  feishu: {
+    getConfig: () => ipcRenderer.invoke(IPC.FEISHU_GET_CONFIG),
+    setConfig: (config: any) => ipcRenderer.invoke(IPC.FEISHU_SET_CONFIG, config),
+    deleteConfig: () => ipcRenderer.invoke(IPC.FEISHU_DELETE_CONFIG),
+    getStatus: () => ipcRenderer.invoke(IPC.FEISHU_GET_STATUS),
+    testConnection: (config: any) => ipcRenderer.invoke(IPC.FEISHU_TEST_CONNECTION, config),
+    getMappings: () => ipcRenderer.invoke(IPC.FEISHU_GET_MAPPINGS),
+    addMapping: (mapping: any) => ipcRenderer.invoke(IPC.FEISHU_ADD_MAPPING, mapping),
+    removeMapping: (id: string) => ipcRenderer.invoke(IPC.FEISHU_REMOVE_MAPPING, id),
+    onStatusChanged: (callback: (status: string) => void) => {
+      ipcRenderer.on(IPC.FEISHU_STATUS_CHANGED, (_e, status) => callback(status))
+      return () => ipcRenderer.removeListener(IPC.FEISHU_STATUS_CHANGED, () => {})
+    },
+  },
+
+  // ==================== Scheduler API ====================
+  scheduler: {
+    getTasks: () => ipcRenderer.invoke(IPC.SCHEDULER_GET_TASKS),
+    getTask: (taskId: string) => ipcRenderer.invoke(IPC.SCHEDULER_GET_TASK, taskId),
+    createTask: (data: any) => ipcRenderer.invoke(IPC.SCHEDULER_CREATE_TASK, data),
+    updateTask: (taskId: string, updates: any) => ipcRenderer.invoke(IPC.SCHEDULER_UPDATE_TASK, taskId, updates),
+    deleteTask: (taskId: string) => ipcRenderer.invoke(IPC.SCHEDULER_DELETE_TASK, taskId),
+    triggerRun: (taskId: string) => ipcRenderer.invoke(IPC.SCHEDULER_TRIGGER_RUN, taskId),
+    getRuns: (taskId: string, limit?: number) => ipcRenderer.invoke(IPC.SCHEDULER_GET_RUNS, taskId, limit),
+    getRecentRuns: (limit?: number) => ipcRenderer.invoke(IPC.SCHEDULER_GET_RECENT_RUNS, limit),
+    validateCron: (expression: string) => ipcRenderer.invoke('scheduler:validate-cron', expression),
+    onTaskStatus: (callback: (status: any) => void) => {
+      ipcRenderer.on(IPC.SCHEDULER_TASK_STATUS, (_e, status) => callback(status))
+      return () => ipcRenderer.removeListener(IPC.SCHEDULER_TASK_STATUS, () => {})
+    },
+  },
+
+  // ==================== Planner API ====================
+  planner: {
+    list: () => ipcRenderer.invoke(IPC.PLAN_LIST),
+    get: (planId: string) => ipcRenderer.invoke(IPC.PLAN_GET, planId),
+    create: (data: any) => ipcRenderer.invoke(IPC.PLAN_CREATE, data),
+    update: (planId: string, updates: any) => ipcRenderer.invoke(IPC.PLAN_UPDATE, planId, updates),
+    delete: (planId: string) => ipcRenderer.invoke(IPC.PLAN_DELETE, planId),
+    start: (planId: string, sessionId: string) => ipcRenderer.invoke(IPC.PLAN_START, planId, sessionId),
+    getTasks: (planId: string) => ipcRenderer.invoke('plan:get-tasks', planId),
+    getSteps: (taskId: string) => ipcRenderer.invoke(IPC.PLAN_GET_STEPS, taskId),
+    executeStep: (stepId: string, sessionId: string, providerId?: string) =>
+      ipcRenderer.invoke(IPC.PLAN_STEP_EXECUTE, stepId, sessionId, providerId),
+    updateStep: (stepId: string, updates: any) => ipcRenderer.invoke(IPC.PLAN_STEP_UPDATE, stepId, updates),
+    skipTask: (taskId: string) => ipcRenderer.invoke('plan:skip-task', taskId),
+    skipStep: (stepId: string) => ipcRenderer.invoke('plan:skip-step', stepId),
+    getStatus: () => ipcRenderer.invoke(IPC.PLAN_STATUS),
+    onStatus: (callback: (status: any) => void) => {
+      ipcRenderer.on(IPC.PLAN_STATUS, (_e, status) => callback(status))
+      return () => ipcRenderer.removeListener(IPC.PLAN_STATUS, () => {})
+    },
+  },
+
+  // ==================== Workflow API ====================
+  workflow: {
+    list: () => ipcRenderer.invoke(IPC.WORKFLOW_LIST),
+    get: (workflowId: string) => ipcRenderer.invoke(IPC.WORKFLOW_GET, workflowId),
+    create: (data: any) => ipcRenderer.invoke(IPC.WORKFLOW_CREATE, data),
+    update: (workflowId: string, updates: any) => ipcRenderer.invoke(IPC.WORKFLOW_UPDATE, workflowId, updates),
+    delete: (workflowId: string) => ipcRenderer.invoke(IPC.WORKFLOW_DELETE, workflowId),
+    execute: (workflowId: string, triggerBy?: string, context?: any) =>
+      ipcRenderer.invoke(IPC.WORKFLOW_EXECUTE, workflowId, triggerBy, context),
+    pause: (executionId: string) => ipcRenderer.invoke(IPC.WORKFLOW_PAUSE, executionId),
+    resume: (executionId: string) => ipcRenderer.invoke(IPC.WORKFLOW_RESUME, executionId),
+    getRuns: (executionId: string) => ipcRenderer.invoke(IPC.WORKFLOW_GET_RUNS, executionId),
+    getExecution: (executionId: string) => ipcRenderer.invoke(IPC.WORKFLOW_GET_EXECUTION, executionId),
+    getExecutions: (workflowId: string, limit?: number) => ipcRenderer.invoke(IPC.WORKFLOW_GET_EXECUTIONS, workflowId, limit),
+    onStatus: (callback: (status: any) => void) => {
+      ipcRenderer.on(IPC.WORKFLOW_STATUS, (_e, status) => callback(status))
+      return () => ipcRenderer.removeListener(IPC.WORKFLOW_STATUS, () => {})
+    },
+  },
+
+  // ==================== Evaluation API ====================
+  evaluation: {
+    createTemplate: (data: any) => ipcRenderer.invoke(IPC.EVAL_CREATE_TEMPLATE, data),
+    listTemplates: () => ipcRenderer.invoke(IPC.EVAL_LIST_TEMPLATES),
+    getTemplate: (templateId: string) => ipcRenderer.invoke(IPC.EVAL_GET_TEMPLATE, templateId),
+    updateTemplate: (templateId: string, updates: any) => ipcRenderer.invoke(IPC.EVAL_UPDATE_TEMPLATE, templateId, updates),
+    deleteTemplate: (templateId: string) => ipcRenderer.invoke(IPC.EVAL_DELETE_TEMPLATE, templateId),
+    startRun: (sessionId: string, templateId: string) => ipcRenderer.invoke(IPC.EVAL_RUN_START, sessionId, templateId),
+    listRuns: (limit?: number) => ipcRenderer.invoke(IPC.EVAL_LIST_RUNS, limit),
+    getRun: (runId: string) => ipcRenderer.invoke(IPC.EVAL_GET_RUN, runId),
+    getResults: (runId: string) => ipcRenderer.invoke(IPC.EVAL_GET_RESULTS, runId),
+    onRunStatus: (callback: (status: any) => void) => {
+      ipcRenderer.on(IPC.EVAL_RUN_STATUS, (_e, status) => callback(status))
+      return () => ipcRenderer.removeListener(IPC.EVAL_RUN_STATUS, () => {})
+    },
+  },
+
+  // ==================== Goal API ====================
+  goal: {
+    create: (data: any) => ipcRenderer.invoke(IPC.GOAL_CREATE, data),
+    list: (status?: string) => ipcRenderer.invoke(IPC.GOAL_LIST, status),
+    get: (goalId: string) => ipcRenderer.invoke(IPC.GOAL_GET, goalId),
+    update: (goalId: string, updates: any) => ipcRenderer.invoke(IPC.GOAL_UPDATE, goalId, updates),
+    delete: (goalId: string) => ipcRenderer.invoke(IPC.GOAL_DELETE, goalId),
+    addActivity: (data: any) => ipcRenderer.invoke(IPC.GOAL_ADD_ACTIVITY, data),
+    getActivities: (goalId: string, limit?: number) => ipcRenderer.invoke(IPC.GOAL_GET_ACTIVITIES, goalId, limit),
+    linkSession: (goalId: string, sessionId: string, isPrimary?: boolean) =>
+      ipcRenderer.invoke(IPC.GOAL_LINK_SESSION, goalId, sessionId, isPrimary),
+    getSessions: (goalId: string) => ipcRenderer.invoke(IPC.GOAL_GET_SESSIONS, goalId),
+    getStats: () => ipcRenderer.invoke(IPC.GOAL_GET_STATS),
+    onStatus: (callback: (status: any) => void) => {
+      ipcRenderer.on(IPC.GOAL_STATUS, (_e, status) => callback(status))
+      return () => ipcRenderer.removeListener(IPC.GOAL_STATUS, () => {})
+    },
   },
 
   // ★ 渲染进程注册 API 就绪回调（避免轮询）

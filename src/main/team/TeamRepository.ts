@@ -6,13 +6,14 @@
  * @author weibin
  */
 
-import type { 
-  TeamInstance, 
-  TeamMember, 
-  TeamTask, 
-  TeamMessage, 
+import type {
+  TeamInstance,
+  TeamMember,
+  TeamTask,
+  TeamMessage,
   TeamTemplate,
   TeamRole,
+  TaskClaimResult,
 } from './types'
 
 /** 团队数据仓库 */
@@ -47,13 +48,18 @@ export class TeamRepository {
     try {
       const row = this.db.prepare('SELECT * FROM team_instances WHERE id = ?').get(instanceId)
       if (!row) return undefined
-      
+
       const members = this.getTeamMembers(instanceId)
       return { ...row, members }
     } catch (err) {
       console.error('[TeamRepository] getTeamInstance error:', err)
       return undefined
     }
+  }
+
+  /** Alias for getTeamInstance for compatibility with TeamHealthChecker */
+  getInstance(instanceId: string): TeamInstance | undefined {
+    return this.getTeamInstance(instanceId)
   }
 
   getAllTeamInstances(status?: string): TeamInstance[] {
@@ -155,6 +161,33 @@ export class TeamRepository {
     }
   }
 
+  updateMember(memberId: string, updates: Partial<Pick<TeamMember, 'status' | 'currentTaskId' | 'lastActiveAt'>>): void {
+    if (!this.db) return
+    try {
+      const setParts: string[] = []
+      const values: any[] = []
+      if (updates.status !== undefined) {
+        setParts.push('status = ?')
+        values.push(updates.status)
+      }
+      if (updates.currentTaskId !== undefined) {
+        setParts.push('current_task_id = ?')
+        values.push(updates.currentTaskId)
+      }
+      if (updates.lastActiveAt !== undefined) {
+        setParts.push('last_active_at = ?')
+        values.push(updates.lastActiveAt)
+      }
+      if (setParts.length === 0) return
+      values.push(memberId)
+      this.db.prepare(
+        `UPDATE team_members SET ${setParts.join(', ')}, last_active_at = ? WHERE id = ?`
+      ).run(...values.slice(0, -1), new Date().toISOString(), memberId)
+    } catch (err) {
+      console.error('[TeamRepository] updateMember error:', err)
+    }
+  }
+
   updateMemberTask(memberId: string, taskId: string | null): void {
     if (!this.db) return
     try {
@@ -166,9 +199,77 @@ export class TeamRepository {
     }
   }
 
+  getMemberByRole(instanceId: string, roleIdentifier: string): TeamMember | undefined {
+    if (!this.db) return undefined
+    try {
+      const row = this.db.prepare(
+        'SELECT * FROM team_members WHERE instance_id = ? AND role_identifier = ?'
+      ).get(instanceId, roleIdentifier)
+      if (!row) return undefined
+      const r: any = row
+      return {
+        id: r.id,
+        instanceId: r.instance_id,
+        roleId: r.role_id,
+        role: {
+          id: r.role_id,
+          name: r.role_name,
+          identifier: r.role_identifier,
+          icon: r.role_icon,
+          color: r.role_color,
+          description: '',
+          systemPrompt: '',
+          isLeader: r.role_identifier === 'leader',
+        },
+        sessionId: r.session_id,
+        status: r.status,
+        providerId: r.provider_id,
+        currentTaskId: r.current_task_id,
+        joinedAt: r.joined_at,
+        lastActiveAt: r.last_active_at,
+      }
+    } catch (err) {
+      console.error('[TeamRepository] getMemberByRole error:', err)
+      return undefined
+    }
+  }
+
+  getMemberById(memberId: string): TeamMember | undefined {
+    if (!this.db) return undefined
+    try {
+      const row = this.db.prepare('SELECT * FROM team_members WHERE id = ?').get(memberId)
+      if (!row) return undefined
+      const r: any = row
+      return {
+        id: r.id,
+        instanceId: r.instance_id,
+        roleId: r.role_id,
+        role: {
+          id: r.role_id,
+          name: r.role_name,
+          identifier: r.role_identifier,
+          icon: r.role_icon,
+          color: r.role_color,
+          description: '',
+          systemPrompt: '',
+          isLeader: r.role_identifier === 'leader',
+        },
+        sessionId: r.session_id,
+        status: r.status,
+        providerId: r.provider_id,
+        currentTaskId: r.current_task_id,
+        joinedAt: r.joined_at,
+        lastActiveAt: r.last_active_at,
+      }
+    } catch (err) {
+      console.error('[TeamRepository] getMemberById error:', err)
+      return undefined
+    }
+  }
+
   // ---- Team Tasks ----
 
-  createTask(task: Omit<TeamTask, 'createdAt'>): void {
+  createTask(task: TeamTask): void {
     if (!this.db) return
     try {
       this.db.prepare(`
@@ -250,6 +351,37 @@ export class TeamRepository {
     }
   }
 
+  updateTask(taskId: string, updates: Partial<Pick<TeamTask, 'status' | 'claimedBy' | 'claimedAt' | 'result'>>): void {
+    if (!this.db) return
+    try {
+      const setParts: string[] = []
+      const values: any[] = []
+      if (updates.status !== undefined) {
+        setParts.push('status = ?')
+        values.push(updates.status)
+      }
+      if (updates.claimedBy !== undefined) {
+        setParts.push('claimed_by = ?')
+        values.push(updates.claimedBy)
+      }
+      if (updates.claimedAt !== undefined) {
+        setParts.push('claimed_at = ?')
+        values.push(updates.claimedAt)
+      }
+      if (updates.result !== undefined) {
+        setParts.push('result = ?')
+        values.push(updates.result)
+      }
+      if (setParts.length === 0) return
+      values.push(taskId)
+      this.db.prepare(
+        `UPDATE team_tasks SET ${setParts.join(', ')} WHERE id = ?`
+      ).run(...values)
+    } catch (err) {
+      console.error('[TeamRepository] updateTask error:', err)
+    }
+  }
+
   private mapTaskRow(row: any): TeamTask {
     return {
       id: row.id,
@@ -270,7 +402,7 @@ export class TeamRepository {
 
   // ---- Team Messages ----
 
-  addMessage(message: Omit<TeamMessage, 'timestamp'>): void {
+  addMessage(message: TeamMessage): void {
     if (!this.db) return
     try {
       this.db.prepare(`

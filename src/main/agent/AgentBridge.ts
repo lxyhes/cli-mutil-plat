@@ -12,6 +12,7 @@ export class AgentBridge extends EventEmitter {
   private wss: WebSocketServer | null = null
   private connections: Map<string, WebSocket> = new Map() // sessionId → ws
   private port: number = 0
+  private teamBridgeHandler?: (request: BridgeRequest) => Promise<{ result?: any; error?: string }>
 
   /**
    * 启动 WebSocket 服务
@@ -45,7 +46,7 @@ export class AgentBridge extends EventEmitter {
             return
           }
 
-          // 请求消息：转发到 AgentManager 处理
+          // 请求消息：转发到 AgentManager 处理（team_* 方法由 TeamBridge 处理）
           if (msg.type === 'request') {
             const request: BridgeRequest = {
               id: msg.id,
@@ -53,6 +54,29 @@ export class AgentBridge extends EventEmitter {
               method: msg.method,
               params: msg.params || {}
             }
+
+            // ★ team_* 方法由 TeamBridge 处理
+            if (
+              this.teamBridgeHandler &&
+              (request.method === 'team_message_role' ||
+                request.method === 'team_broadcast' ||
+                request.method === 'team_claim_task' ||
+                request.method === 'team_complete_task' ||
+                request.method === 'team_get_tasks' ||
+                request.method === 'team_get_members')
+            ) {
+              this.teamBridgeHandler(request).then(result => {
+                if (ws.readyState === WebSocket.OPEN) {
+                  ws.send(JSON.stringify({ type: 'response', id: request.id, result: result.result, error: result.error }))
+                }
+              }).catch(err => {
+                if (ws.readyState === WebSocket.OPEN) {
+                  ws.send(JSON.stringify({ type: 'response', id: request.id, error: err.message }))
+                }
+              })
+              return
+            }
+
             this.emit('request', request, (response: BridgeResponse) => {
               if (ws.readyState === WebSocket.OPEN) {
                 ws.send(JSON.stringify({ type: 'response', ...response }))
@@ -81,6 +105,15 @@ export class AgentBridge extends EventEmitter {
     })
 
     console.log(`[AgentBridge] WebSocket server started on 127.0.0.1:${port}`)
+  }
+
+  /**
+   * 注册团队通信处理器（TeamManager 初始化后调用）
+   */
+  setTeamBridgeHandler(
+    handler: (request: BridgeRequest) => Promise<{ result?: any; error?: string }>
+  ): void {
+    this.teamBridgeHandler = handler
   }
 
   /**

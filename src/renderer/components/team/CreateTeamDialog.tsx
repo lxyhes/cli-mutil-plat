@@ -171,6 +171,7 @@ export default function CreateTeamDialog({ onClose, onSuccess }: CreateTeamDialo
               <option value="iflow">⚡ iFlow</option>
               <option value="opencode">🔓 OpenCode</option>
               <option value="gemini-cli">💎 Gemini CLI</option>
+              <option value="qwen-coder">🔮 Qwen Coder</option>
               <option value="codex">📝 Codex</option>
             </select>
           </div>

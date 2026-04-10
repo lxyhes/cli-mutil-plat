@@ -24,11 +24,19 @@ import { THEMES, THEME_IDS } from '../../../shared/constants'
 import { WorkspaceTab } from './WorkspaceManager'
 import McpManager from './McpManager'
 import SkillManager from './SkillManager'
+import TelegramSettings from './TelegramSettings'
+import FeishuSettings from './FeishuSettings'
+import SchedulerSettings from './SchedulerSettings'
+import PlannerSettings from './PlannerSettings'
+import WorkflowSettings from './WorkflowSettings'
+import EvaluationSettings from './EvaluationSettings'
+import SummarySettings from './SummarySettings'
+import GoalSettings from './GoalSettings'
 
 // ──────────────────────────────────────────────
 // Tab 类型
 // ──────────────────────────────────────────────
-type TabId = 'general' | 'theme' | 'logs' | 'workspace' | 'mcp' | 'skills'
+type TabId = 'general' | 'theme' | 'logs' | 'workspace' | 'mcp' | 'skills' | 'telegram' | 'feishu' | 'scheduler' | 'summary' | 'planner' | 'workflow' | 'evaluation' | 'goal'
 type TabGroup = 'app'
 
 interface Tab {
@@ -43,6 +51,14 @@ const TABS: Tab[] = [
   { id: 'workspace', label: '工作区',  group: 'app' },
   { id: 'mcp',       label: '🔌 MCP',  group: 'app' },
   { id: 'skills',    label: '🎯 技能', group: 'app' },
+  { id: 'telegram',   label: '📱 Telegram',  group: 'app' },
+  { id: 'feishu',     label: '🚀 飞书',    group: 'app' },
+  { id: 'scheduler',  label: '⏰ 定时任务', group: 'app' },
+  { id: 'summary',    label: '📝 会话摘要', group: 'app' },
+  { id: 'planner',    label: '🧠 规划引擎', group: 'app' },
+  { id: 'workflow',   label: '⚙️ 工作流',    group: 'app' },
+  { id: 'evaluation', label: '🎯 任务评估', group: 'app' },
+  { id: 'goal',       label: '🎯 Goal Anchor', group: 'app' },
   { id: 'logs',      label: '日志',    group: 'app' },
 ]
 
@@ -99,6 +115,14 @@ export default function UnifiedSettingsModal({ onClose, initialTab = 'general' }
           {activeTab === 'workspace' && <WorkspaceTab />}
           {activeTab === 'mcp'       && <McpManager />}
           {activeTab === 'skills'    && <SkillManager />}
+          {activeTab === 'telegram'   && <TelegramSettings />}
+          {activeTab === 'feishu'     && <FeishuSettings />}
+          {activeTab === 'scheduler'  && <SchedulerSettings />}
+          {activeTab === 'summary'    && <SummarySettings />}
+          {activeTab === 'planner'    && <PlannerSettings />}
+          {activeTab === 'workflow'   && <WorkflowSettings />}
+          {activeTab === 'evaluation' && <EvaluationSettings />}
+          {activeTab === 'goal'      && <GoalSettings />}
           {activeTab === 'logs'      && <LogTab />}
         </div>
       </div>

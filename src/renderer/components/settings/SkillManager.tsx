@@ -658,7 +658,7 @@ function SkillEditorDialog({ skill, onClose, onSave }: {
   // textarea ref，用于光标位置插入
   const templateRef = useRef<HTMLTextAreaElement>(null)
 
-  const PROVIDERS = ['claude-code', 'codex', 'gemini-cli', 'iflow', 'opencode']
+  const PROVIDERS = ['claude-code', 'codex', 'gemini-cli', 'iflow', 'opencode', 'qwen-coder']
 
   /** 在光标处插入变量占位符 */
   const insertVariable = (varName: string) => {

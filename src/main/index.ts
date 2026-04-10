@@ -30,6 +30,14 @@ import { GitWorktreeService } from './git/GitWorktreeService'
 import { registerIpcHandlers, wireSessionManagerV2Events, sendToRenderer } from './ipc'
 import { TeamManager } from './team/TeamManager'
 import { TeamRepository } from './team/TeamRepository'
+import { setRendererLogger } from './team/debug'
+import { TelegramBotService } from './telegram/TelegramBotService'
+import { FeishuService } from './feishu/FeishuService'
+import { SchedulerService } from './scheduler/SchedulerService'
+import { EvaluationService } from './evaluation/EvaluationService'
+import { WorkflowService } from './workflow/WorkflowService'
+import { SummaryService } from './summary/SummaryService'
+import { GoalService } from './goal/GoalService'
 import { FileChangeTracker } from './tracker/FileChangeTracker'
 import { migrateFromLegacyUserData, migrateApiKeyEncryption } from './migration'
 import { IPC, THEMES } from '../shared/constants'
@@ -142,6 +150,13 @@ let agentManagerV2: AgentManagerV2
 let fileChangeTracker: FileChangeTracker
 // 内存管理
 let memoryCoordinator: MemoryCoordinator
+let telegramBotService: TelegramBotService | null = null
+let feishuService: FeishuService | null = null
+let schedulerService: SchedulerService | null = null
+let evaluationService: EvaluationService | null = null
+let workflowService: WorkflowService | null = null
+let summaryService: SummaryService | null = null
+let goalService: GoalService | null = null
 
 /**
  * 创建主窗口
@@ -272,7 +287,7 @@ function initializeManagers(): void {
   sessionManager = new SessionManager()
 
   // 3. 并发控制
-  concurrencyGuard = new ConcurrencyGuard({ maxSessions: 9 })
+  concurrencyGuard = new ConcurrencyGuard({ maxSessions: 6 })
 
   // 4. 输出解析引擎
   outputParser = new OutputParser()
@@ -402,9 +417,9 @@ function initializeManagers(): void {
 
   // 12. 内存管理协调器
   memoryCoordinator = new MemoryCoordinator({
-    warning: 500,   // 500 MB
-    critical: 800,  // 800 MB
-    maximum: 1024   // 1 GB
+    warning: 1024,   // 1 GB
+    critical: 2048,  // 2 GB
+    maximum: 3072    // 3 GB
   })
 
   // 监听内存事件
@@ -816,13 +831,121 @@ app.whenReady().then(() => {
   memoryCoordinator.registerComponent(fileChangeTracker)
 
   // Agent Teams 团队管理器
-  const teamRepo = (database as any).usingSqlite !== undefined 
+  const teamRepo = (database as any).usingSqlite !== undefined
     ? new TeamRepository((database as any).db, (database as any).usingSqlite)
     : new TeamRepository(null, false)
-  const teamManager = new TeamManager(teamRepo, agentManagerV2!, sessionManagerV2!)
+  const teamManager = new TeamManager(teamRepo, agentManagerV2!, sessionManagerV2!, database)
 
-  // 注册到内存管理协调器
-  memoryCoordinator.registerComponent(teamManager)
+  // ★ 设置 Team Debug 日志转发到渲染进程（UI 日志面板）
+  setRendererLogger(sendToRenderer)
+
+  // Telegram 远程控制服务
+  if (database) {
+    telegramBotService = new TelegramBotService(database, sessionManagerV2!)
+  }
+
+  // 飞书集成服务
+  if (database) {
+    feishuService = new FeishuService(database)
+  }
+
+  // 定时任务调度服务
+  if (database && sessionManagerV2) {
+    schedulerService = new SchedulerService(database, sessionManagerV2)
+    schedulerService.start()
+  }
+
+  // 任务评估服务
+  if (database && sessionManagerV2) {
+    evaluationService = new EvaluationService(database, sessionManagerV2)
+  }
+
+  // 工作流编排服务
+  if (database) {
+    workflowService = new WorkflowService(database, sessionManagerV2 || undefined)
+    workflowService.start()
+  }
+
+  // 会话摘要服务
+  if (database && sessionManagerV2) {
+    summaryService = new SummaryService(database, sessionManagerV2)
+  }
+
+  // Goal Anchor 目标锚点服务
+  if (database) {
+    goalService = new GoalService(database)
+  }
+
+  // ★ 注册 team_* 方法处理器到 AgentBridge，使 agents 可以调用团队工具
+  agentBridge.setTeamBridgeHandler(async (request) => {
+    const { id, sessionId, method, params } = request
+    try {
+      switch (method) {
+        case 'team_message_role': {
+          const { toRole, content } = params
+          const instanceId = teamManager.getAllTeams().find(t =>
+            t.members.some(m => m.sessionId === sessionId)
+          )?.id
+          if (!instanceId) return { error: 'Not in a team session' }
+          const memberId = teamManager.getTeam(instanceId)?.members.find(m => m.sessionId === sessionId)?.id
+          if (!memberId) return { error: 'Member not found' }
+          const sent = await teamManager.sendMessageToMember(instanceId, memberId, toRole, content)
+          return { result: { success: sent } }
+        }
+        case 'team_broadcast': {
+          const { content } = params
+          const instanceId = teamManager.getAllTeams().find(t =>
+            t.members.some(m => m.sessionId === sessionId)
+          )?.id
+          if (!instanceId) return { error: 'Not in a team session' }
+          const memberId = teamManager.getTeam(instanceId)?.members.find(m => m.sessionId === sessionId)?.id
+          if (!memberId) return { error: 'Member not found' }
+          await teamManager.broadcastMessage(instanceId, memberId, content)
+          return { result: { success: true } }
+        }
+        case 'team_claim_task': {
+          const { taskId } = params
+          const instanceId = teamManager.getAllTeams().find(t =>
+            t.members.some(m => m.sessionId === sessionId)
+          )?.id
+          if (!instanceId) return { error: 'Not in a team session' }
+          const memberId = teamManager.getTeam(instanceId)?.members.find(m => m.sessionId === sessionId)?.id
+          if (!memberId) return { error: 'Member not found' }
+          const result = teamManager.claimTask(instanceId, taskId, memberId)
+          return { result }
+        }
+        case 'team_complete_task': {
+          const { taskId, result } = params
+          const instanceId = teamManager.getAllTeams().find(t =>
+            t.members.some(m => m.sessionId === sessionId)
+          )?.id
+          if (!instanceId) return { error: 'Not in a team session' }
+          teamManager.completeTask(instanceId, taskId, result || '')
+          return { result: { success: true } }
+        }
+        case 'team_get_tasks': {
+          const instanceId = teamManager.getAllTeams().find(t =>
+            t.members.some(m => m.sessionId === sessionId)
+          )?.id
+          if (!instanceId) return { error: 'Not in a team session' }
+          const tasks = teamManager.getTeamTasks(instanceId)
+          return { result: { tasks } }
+        }
+        case 'team_get_members': {
+          const instanceId = teamManager.getAllTeams().find(t =>
+            t.members.some(m => m.sessionId === sessionId)
+          )?.id
+          if (!instanceId) return { error: 'Not in a team session' }
+          const team = teamManager.getTeam(instanceId)
+          return { result: { members: team?.members || [] } }
+        }
+        default:
+          return { error: `Unknown team method: ${method}` }
+      }
+    } catch (err) {
+      return { error: err instanceof Error ? err.message : String(err) }
+    }
+  })
 
   // 连接 V1 PTY sessionManager → fileChangeTracker
   if (sessionManager) {
@@ -875,6 +998,13 @@ app.whenReady().then(() => {
     updateManager,
     memoryCoordinator,
     teamManager,
+    telegramBotService,
+    feishuService,
+    schedulerService,
+    evaluationService,
+    workflowService,
+    summaryService,
+    goalService,
   }, fileChangeTracker)
 
   // 连接事件流
@@ -882,7 +1012,7 @@ app.whenReady().then(() => {
 
   // SDK V2 event forwarding (with TaskSessionCoordinator integration)
   // ★ 补传 fileChangeTracker，修复 V2 会话文件改动追踪失效 bug
-  wireSessionManagerV2Events(sessionManagerV2, database, concurrencyGuard, notificationManager, trayManager, fileChangeTracker)
+  wireSessionManagerV2Events(sessionManagerV2, database, concurrencyGuard, notificationManager, trayManager, fileChangeTracker, telegramBotService ?? undefined, feishuService ?? undefined)
 
   // 启动状态推断引擎
   stateInference.start()
@@ -983,6 +1113,24 @@ app.on('before-quit', () => {
   agentManager.cleanup()
   agentBridge.close()
   MCPConfigGenerator.cleanupAll()
+
+  // 停止 Telegram Bot
+  telegramBotService?.stop()
+
+  // 停止飞书服务
+  feishuService?.stop()
+
+  // 停止定时任务调度服务
+  schedulerService?.stop()
+
+  // 停止工作流编排服务
+  workflowService?.stop()
+
+  // 停止任务评估服务
+  evaluationService?.removeAllListeners()
+
+  // 停止 Goal Anchor 服务
+  goalService?.removeAllListeners()
 
   // ★ 在 cleanup 之前提前捕获 SDK V2 会话状态
   // 必须在 sessionManagerV2.dispose() 之前拿快照，否则 dispose() 会将所有会话

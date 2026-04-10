@@ -17,7 +17,7 @@ const PROVIDER_ICON_MAP: Record<string, { icon: typeof Terminal; color: string }
   claude: { icon: Terminal, color: 'text-accent-blue' },
   codex: { icon: Code2, color: 'text-green-400' },
   gemini: { icon: Sparkles, color: 'text-yellow-400' },
-
+  qwen: { icon: Sparkles, color: 'text-purple-400' },
   opencode: { icon: Zap, color: 'text-orange-400' },
   custom: { icon: Cpu, color: 'text-text-muted' },
 }

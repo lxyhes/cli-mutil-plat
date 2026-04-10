@@ -1,14 +1,15 @@
 /**
  * Agent Teams - 团队管理器
- * 
+ *
  * 团队实例生命周期协调器
  * 负责创建团队、启动成员 Agent、监控进度、宣告完成
- * 
+ *
  * @author weibin
  */
 
 import { EventEmitter } from 'events'
 import { v4 as uuidv4 } from 'uuid'
+import { teamLog } from './debug'
 import type {
   CreateTeamRequest,
   TeamInstance,
@@ -16,13 +17,18 @@ import type {
   TeamTask,
   TeamMessage,
   TeamRole,
+  TeamTemplate,
 } from './types'
 import type { TeamRepository } from './TeamRepository'
 import type { AgentManagerV2 } from '../agent/AgentManagerV2'
 import type { SessionManagerV2 } from '../session/SessionManagerV2'
+import type { DatabaseManager } from '../storage/Database'
+import { TeamHealthChecker } from './TeamHealthChecker'
+import { TeamMessageDelivery } from './TeamMessageDelivery'
+import { TeamBridge } from './TeamBridge'
 
 /** 内置团队模板 */
-export const BUILTIN_TEMPLATES: TeamTemplate[] = [
+const BUILTIN_TEMPLATES: TeamTemplate[] = [
   {
     id: 'dev-team',
     name: '开发团队',
@@ -137,16 +143,21 @@ export interface TeamEvents {
   'team:message': [teamId: string, message: TeamMessage]
   'team:completed': [teamId: string]
   'team:failed': [teamId: string, reason: string]
+  'team:health-issue': [teamId: string, issue: any]
 }
 
 /** 团队管理器 */
 export class TeamManager extends EventEmitter {
   private activeTeams: Map<string, TeamInstance> = new Map()
+  private healthCheckers: Map<string, TeamHealthChecker> = new Map()
+  private bridges: Map<string, TeamBridge> = new Map()
+  private bridgePort = 63800 // TeamBridge 起始端口
 
   constructor(
     private teamRepo: TeamRepository,
     private agentManager: AgentManagerV2,
-    private sessionManager: SessionManagerV2
+    private sessionManager: SessionManagerV2,
+    private database: DatabaseManager
   ) {
     super()
   }
@@ -155,6 +166,7 @@ export class TeamManager extends EventEmitter {
    * 创建并启动团队
    */
   async createTeam(request: CreateTeamRequest): Promise<TeamInstance> {
+    teamDebug(`createTeam called: name="${request.name}", templateId="${request.templateId}", workDir="${request.workDir}"`)
     const teamId = uuidv4()
     const sessionId = uuidv4()
 
@@ -170,6 +182,15 @@ export class TeamManager extends EventEmitter {
       // 默认使用开发团队模板
       roles = BUILTIN_TEMPLATES[0].roles
     }
+    teamDebug(`Using ${roles.length} roles: ${roles.map(r => r.identifier).join(', ')}`)
+
+    // 分配 Bridge 端口
+    const bridgePort = this.bridgePort + (this.bridges.size % 100)
+
+    // 创建团队 Bridge
+    const bridge = new TeamBridge(bridgePort, this, this.sessionManager, this.teamRepo)
+    bridge.start()
+    this.bridges.set(teamId, bridge)
 
     // 创建团队实例
     const teamInstance: TeamInstance = {
@@ -206,11 +227,12 @@ export class TeamManager extends EventEmitter {
       teamInstance.members.push(member)
     }
 
+    teamDebug(`Team ${teamId} created, starting members...`)
     this.activeTeams.set(teamId, teamInstance)
     this.emit('team:created', teamInstance)
 
     // 启动团队
-    await this.startTeam(teamId, request.objective)
+    await this.startTeam(teamId, request.objective, bridgePort)
 
     return teamInstance
   }
@@ -218,7 +240,7 @@ export class TeamManager extends EventEmitter {
   /**
    * 启动团队（为每个成员启动 Agent）
    */
-  private async startTeam(teamId: string, objective: string): Promise<void> {
+  private async startTeam(teamId: string, objective: string, bridgePort: number): Promise<void> {
     const team = this.activeTeams.get(teamId)
     if (!team) throw new Error(`Team not found: ${teamId}`)
 
@@ -226,9 +248,25 @@ export class TeamManager extends EventEmitter {
     team.startedAt = new Date().toISOString()
     this.teamRepo.updateTeamStatus(teamId, 'running')
 
+    // 启动健康检查器
+    const healthChecker = new TeamHealthChecker(
+      this.database,
+      this.sessionManager,
+      this.agentManager,
+      this.teamRepo
+    )
+    healthChecker.on('health-issue', (instanceId: string, issue: any) => {
+      this.emit('team:health-issue', instanceId, issue)
+    })
+    healthChecker.on('member-failed', (instanceId: string, memberId: string) => {
+      this.emit('team:member-status-change', instanceId, memberId, 'failed')
+    })
+    healthChecker.startMonitoring(teamId)
+    this.healthCheckers.set(teamId, healthChecker)
+
     // 为每个成员启动 Agent 会话
     for (const member of team.members) {
-      await this.startMember(member, objective)
+      await this.startMember(member, objective, bridgePort)
     }
 
     this.emit('team:started', teamId)
@@ -237,11 +275,11 @@ export class TeamManager extends EventEmitter {
   /**
    * 启动单个成员 Agent
    */
-  private async startMember(member: TeamMember, objective: string): Promise<void> {
+  private async startMember(member: TeamMember, objective: string, bridgePort: number): Promise<void> {
     const { role } = member
 
     // 构建系统 Prompt（注入团队上下文）
-    const systemPrompt = this.buildMemberSystemPrompt(role, objective, member)
+    const systemPrompt = this.buildMemberSystemPrompt(role, objective, member, bridgePort)
 
     // 初始 Prompt：告知成员其角色和目标
     const initialPrompt = `团队目标：${objective}
@@ -252,16 +290,19 @@ export class TeamManager extends EventEmitter {
 - team_message_role：向特定角色发送消息
 - team_broadcast：向所有成员广播消息
 - team_claim_task：认领待办任务
-- team_complete_task：完成任务并汇报结果`
+- team_complete_task：完成任务并汇报结果
+
+连接信息已注入系统环境变量，详情请查看你的 MCP 工具文档。`
 
     try {
       // 通过 SessionManagerV2 创建成员会话
-      await this.sessionManager.createSession(member.sessionId, {
+      const memberSessionId = this.sessionManager.createSession({
+        id: member.sessionId,
+        name: `TeamMember:${member.role.identifier}`,
         providerId: member.providerId,
-        workingDirectory: member.instanceId ? (this.activeTeams.get(member.instanceId)?.workDir || '') : '',
-        systemPrompt,
-        initialPrompt,
+        workingDirectory: this.activeTeams.get(member.instanceId)?.workDir || '',
         autoAccept: true,
+        initialPrompt: `你是团队「${this.activeTeams.get(member.instanceId)?.name}」的成员，角色是「${role.name}」${role.icon}。\n\n你的系统提示词：\n${systemPrompt}`,
       })
 
       member.status = 'running'
@@ -277,7 +318,7 @@ export class TeamManager extends EventEmitter {
   /**
    * 构建成员系统 Prompt
    */
-  private buildMemberSystemPrompt(role: TeamRole, objective: string, member: TeamMember): string {
+  private buildMemberSystemPrompt(role: TeamRole, objective: string, member: TeamMember, bridgePort: number): string {
     const team = this.activeTeams.get(member.instanceId)
     if (!team) return role.systemPrompt
 
@@ -299,7 +340,38 @@ ${memberList}
 - team_message_role(role, message) - 向特定角色发送消息
 - team_broadcast(message) - 向所有成员广播
 - team_claim_task() - 认领任务
-- team_complete_task(taskId, result) - 完成任务`
+- team_complete_task(taskId, result) - 完成任务
+
+## 连接信息
+TeamBridge WebSocket 端口：${bridgePort}
+实例 ID：${member.instanceId}
+成员 ID：${member.id}
+请在连接到 TeamBridge 后发送 register 消息注册你的成员身份。`
+  }
+
+  /**
+   * 向特定成员发送消息
+   */
+  async sendMessageToMember(instanceId: string, fromMemberId: string, toRole: string, content: string): Promise<boolean> {
+    const bridge = this.bridges.get(instanceId)
+    if (bridge) {
+      const targetMember = this.teamRepo.getMemberByRole(instanceId, toRole)
+      if (targetMember) {
+        bridge.sendToMember(targetMember.id, `[来自成员 ${fromMemberId}] ${content}`)
+        return true
+      }
+    }
+    return false
+  }
+
+  /**
+   * 广播消息
+   */
+  async broadcastMessage(instanceId: string, fromMemberId: string, content: string): Promise<void> {
+    const bridge = this.bridges.get(instanceId)
+    if (bridge) {
+      bridge.broadcastToAll(content, fromMemberId)
+    }
   }
 
   /**
@@ -357,6 +429,18 @@ ${memberList}
   }
 
   /**
+   * 认领任务
+   */
+  claimTask(teamId: string, taskId: string, memberId: string): { success: boolean; task?: TeamTask; error?: string } {
+    const result = this.teamRepo.claimTask(taskId, memberId)
+    if (result.success) {
+      this.teamRepo.updateMemberTask(memberId, taskId)
+      this.emit('team:task-claimed', teamId, taskId, memberId)
+    }
+    return result
+  }
+
+  /**
    * 检查团队是否完成
    */
   private checkTeamCompletion(teamId: string): void {
@@ -366,7 +450,32 @@ ${memberList}
     if (allCompleted) {
       this.teamRepo.updateTeamStatus(teamId, 'completed')
       this.emit('team:completed', teamId)
+
+      // 停止健康检查
+      const healthChecker = this.healthCheckers.get(teamId)
+      if (healthChecker) {
+        healthChecker.stopMonitoring(teamId)
+        this.healthCheckers.delete(teamId)
+      }
+
+      // 关闭 Bridge
+      const bridge = this.bridges.get(teamId)
+      if (bridge) {
+        bridge.stop()
+        this.bridges.delete(teamId)
+      }
     }
+  }
+
+  /**
+   * 获取团队健康状态
+   */
+  async getHealthStatus(teamId: string) {
+    const healthChecker = this.healthCheckers.get(teamId)
+    if (healthChecker) {
+      return healthChecker.getHealthStatus(teamId)
+    }
+    return null
   }
 
   /**
@@ -387,10 +496,24 @@ ${memberList}
    * 清理团队资源
    */
   cleanupTeam(teamId: string): void {
+    // 停止健康检查
+    const healthChecker = this.healthCheckers.get(teamId)
+    if (healthChecker) {
+      healthChecker.stopMonitoring(teamId)
+      this.healthCheckers.delete(teamId)
+    }
+
+    // 关闭 Bridge
+    const bridge = this.bridges.get(teamId)
+    if (bridge) {
+      bridge.stop()
+      this.bridges.delete(teamId)
+    }
+
+    // 终止所有成员会话
     const team = this.activeTeams.get(teamId)
     if (!team) return
 
-    // 终止所有成员会话
     for (const member of team.members) {
       try {
         this.sessionManager.terminateSession(member.sessionId)
@@ -406,6 +529,16 @@ ${memberList}
    * 清理所有团队
    */
   cleanup(): void {
+    for (const [instanceId, healthChecker] of this.healthCheckers) {
+      healthChecker.stopMonitoring(instanceId)
+    }
+    this.healthCheckers.clear()
+
+    for (const [instanceId, bridge] of this.bridges) {
+      bridge.stop()
+    }
+    this.bridges.clear()
+
     for (const teamId of this.activeTeams.keys()) {
       this.cleanupTeam(teamId)
     }

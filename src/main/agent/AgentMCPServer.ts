@@ -915,6 +915,88 @@ async function main(): Promise<void> {
             required: ['file_path'],
           },
         },
+
+        // ==================== Agent Teams 团队协作工具 ====================
+        {
+          name: 'team_message_role',
+          description: '向团队中的特定角色发送消息。用于与团队成员进行一对一的通信，例如向 leader 汇报进展、向 architect 请教架构问题。',
+          inputSchema: {
+            type: 'object' as const,
+            properties: {
+              role: {
+                type: 'string',
+                description: '目标角色的 identifier，如 "leader"、"architect"、"backend"、"frontend"、"tester"'
+              },
+              message: {
+                type: 'string',
+                description: '要发送的消息内容'
+              },
+            },
+            required: ['role', 'message']
+          }
+        },
+        {
+          name: 'team_broadcast',
+          description: '向团队中的所有成员广播消息。用于发布全局公告、任务分配通知、会议召集等需要全员知晓的信息。',
+          inputSchema: {
+            type: 'object' as const,
+            properties: {
+              message: {
+                type: 'string',
+                description: '要广播的消息内容'
+              },
+            },
+            required: ['message']
+          }
+        },
+        {
+          name: 'team_claim_task',
+          description: '从团队任务队列中认领一个任务。通过原子操作确保只有一个成员能成功认领，防止任务被多人重复处理。',
+          inputSchema: {
+            type: 'object' as const,
+            properties: {
+              taskId: {
+                type: 'string',
+                description: '要认领的任务 ID'
+              },
+            },
+            required: ['taskId']
+          }
+        },
+        {
+          name: 'team_complete_task',
+          description: '标记团队任务为已完成，并附带任务执行结果。完成后的任务会通知团队所有成员。',
+          inputSchema: {
+            type: 'object' as const,
+            properties: {
+              taskId: {
+                type: 'string',
+                description: '要完成的任务 ID'
+              },
+              result: {
+                type: 'string',
+                description: '任务执行结果或总结'
+              },
+            },
+            required: ['taskId']
+          }
+        },
+        {
+          name: 'team_get_tasks',
+          description: '获取当前团队的所有任务列表，包括待办、进行中和已完成的任务。用于了解团队整体进度和任务分配情况。',
+          inputSchema: {
+            type: 'object' as const,
+            properties: {}
+          }
+        },
+        {
+          name: 'team_get_members',
+          description: '获取当前团队的所有成员信息，包括角色名称、状态、当前任务等。',
+          inputSchema: {
+            type: 'object' as const,
+            properties: {}
+          }
+        },
     ]
 
     // 按 SESSION_MODE 过滤工具，减少上下文占用

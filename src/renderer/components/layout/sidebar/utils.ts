@@ -28,7 +28,7 @@ export function getProviderColor(providerId: string): string {
     case 'iflow-cli': return '#A78BFA'
     case 'codex': return '#F97316'
     case 'gemini-cli': return '#34D399'
-
+    case 'qwen-coder': return '#A855F7'
     default: return '#6B7280'
   }
 }
@@ -41,7 +41,7 @@ export function getProviderLabel(providerId: string, providers?: AIProvider[]): 
     case 'iflow-cli': return 'iFlow'
     case 'codex': return 'Codex'
     case 'gemini-cli': return 'Gemini'
-
+    case 'qwen-coder': return 'Qwen'
     default: return providers?.find(p => p.id === providerId)?.name?.slice(0, 6) || providerId.slice(0, 6)
   }
 }

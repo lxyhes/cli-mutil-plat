@@ -313,33 +313,4 @@ export function registerProviderHandlers(deps: IpcDependencies): void {
     return createSuccessResponse({})
   })
 
-  // ==================== Session Summary 相关 ====================
-
-  ipcMain.handle('summary:get-latest', async (_event, sessionId: string) => {
-    try {
-      return database.getLatestSummary(sessionId)
-    } catch (error) {
-      console.error('[IPC] summary:get-latest error:', error)
-      return null
-    }
-  })
-
-  ipcMain.handle('summary:get-all', async (_event, sessionId: string, limit?: number) => {
-    try {
-      return database.getSessionSummaries(sessionId, limit || 20)
-    } catch (error) {
-      console.error('[IPC] summary:get-all error:', error)
-      return []
-    }
-  })
-
-  ipcMain.handle('summary:get-all-sessions', async () => {
-    try {
-      return database.getAllSessionLatestSummaries()
-    } catch (error) {
-      console.error('[IPC] summary:get-all-sessions error:', error)
-      return []
-    }
-  })
-
 }

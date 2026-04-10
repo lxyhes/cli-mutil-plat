@@ -8,6 +8,7 @@ import { EventEmitter } from 'events'
 import type { DatabaseManager } from '../storage/Database'
 import type { SessionManagerV2 } from '../session/SessionManagerV2'
 import type { AgentManagerV2 } from '../agent/AgentManagerV2'
+import type { TeamRepository } from './TeamRepository'
 
 export interface TeamHealthStatus {
   instanceId: string
@@ -64,6 +65,7 @@ export class TeamHealthChecker extends EventEmitter {
   private database: DatabaseManager
   private sessionManager: SessionManagerV2
   private agentManager: AgentManagerV2
+  private teamRepo: TeamRepository
   private config: HealthCheckConfig
   private checkTimers = new Map<string, NodeJS.Timeout>()
   private lastProgressTime = new Map<string, number>()
@@ -72,12 +74,14 @@ export class TeamHealthChecker extends EventEmitter {
     database: DatabaseManager,
     sessionManager: SessionManagerV2,
     agentManager: AgentManagerV2,
+    teamRepo: TeamRepository,
     config: Partial<HealthCheckConfig> = {}
   ) {
     super()
     this.database = database
     this.sessionManager = sessionManager
     this.agentManager = agentManager
+    this.teamRepo = teamRepo
     this.config = { ...DEFAULT_CONFIG, ...config }
   }
 
@@ -128,7 +132,7 @@ export class TeamHealthChecker extends EventEmitter {
     const now = Date.now()
 
     // 检查团队实例是否存在
-    const instance = await this.database.team.getInstance(instanceId)
+    const instance = await this.teamRepo.getInstance(instanceId)
     if (!instance) {
       console.warn(`[TeamHealthChecker] Instance ${instanceId} not found, stopping monitoring`)
       this.stopMonitoring(instanceId)
@@ -174,7 +178,7 @@ export class TeamHealthChecker extends EventEmitter {
     }
 
     // 检查成员状态
-    const members = await this.database.team.getMembers(instanceId)
+    const members = await this.teamRepo.getTeamMembers(instanceId)
     let activeMembers = 0
     let failedMembers = 0
 
@@ -195,7 +199,7 @@ export class TeamHealthChecker extends EventEmitter {
 
         // 自动修复：标记成员为失败
         if (this.config.autoFix && member.status !== 'failed') {
-          await this.database.team.updateMember(member.id, { status: 'failed' })
+          await this.teamRepo.updateMember(member.id, { status: 'failed' })
           issue.autoFixed = true
           this.emit('member-failed', instanceId, member.id)
           console.log(`[TeamHealthChecker] Auto-fixed: marked member ${member.roleId} as failed`)
@@ -206,7 +210,7 @@ export class TeamHealthChecker extends EventEmitter {
     }
 
     // 检查任务状态
-    const allTasks = await this.database.team.getTasks(instanceId)
+    const allTasks = await this.teamRepo.getTeamTasks(instanceId)
     const inProgressTasks = allTasks.filter(t => t.status === 'in_progress')
     const completedTasks = allTasks.filter(t => t.status === 'completed')
     let stuckTasks = 0
@@ -231,10 +235,8 @@ export class TeamHealthChecker extends EventEmitter {
 
         // 自动修复：释放卡住的任务
         if (this.config.autoFix) {
-          await this.database.team.updateTask(task.id, {
-            status: 'pending',
-            claimedBy: null,
-            claimedAt: null
+          await this.teamRepo.updateTask(task.id, {
+            status: 'pending', claimedBy: undefined, claimedAt: undefined
           })
           issue.autoFixed = true
           this.emit('task-stuck', instanceId, task.id)
