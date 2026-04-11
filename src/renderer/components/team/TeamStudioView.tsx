@@ -500,6 +500,7 @@ export default function TeamStudioView({
 }: TeamStudioViewProps) {
   const [sessionLogLines, setSessionLogLines] = useState<string[]>([])
   const [logsLoading, setLogsLoading] = useState(false)
+  const [activeEdgeId, setActiveEdgeId] = useState<string | null>(null)
 
   const memberStates = useMemo<MemberStudioState[]>(() => {
     return (team.members || []).map(member => {
@@ -532,17 +533,52 @@ export default function TeamStudioView({
   const waitingCount = memberStates.filter(state => state.member.status === 'waiting' || state.member.status === 'idle').length
   const selectedState = memberStates.find(state => state.member.id === selectedMemberId) || memberStates[0]
 
-  const timelineItems = useMemo(
-    () => selectedState
-      ? buildTimeline(selectedState.member, tasks, messages, teamLogs)
-      : [],
-    [messages, selectedState, tasks, teamLogs],
-  )
-
   const collaborationEdges = useMemo(
     () => buildCollaborationEdges(team.members || [], messages, tasks),
     [messages, tasks, team.members],
   )
+  const activeEdge = collaborationEdges.find(edge => edge.id === activeEdgeId) || null
+
+  const timelineItems = useMemo(() => {
+    if (activeEdge) {
+      const relatedIds = new Set([activeEdge.fromId, activeEdge.toId])
+      const scopedMessages = messages.filter(message =>
+        relatedIds.has(message.from) && (!message.to || relatedIds.has(message.to)),
+      )
+      const scopedTasks = tasks.filter(task => {
+        if (task.claimedBy && relatedIds.has(task.claimedBy)) return true
+        if (task.assignedTo && relatedIds.has(task.assignedTo)) return true
+        return task.dependencies.some(depId => {
+          const depTask = tasks.find(item => item.id === depId)
+          return !!depTask?.claimedBy && relatedIds.has(depTask.claimedBy)
+        })
+      })
+      const scopedLogs = teamLogs.filter(entry => {
+        const payload = `${entry.msg} ${JSON.stringify(entry.data || [])}`.toLowerCase()
+        return Array.from(relatedIds).some(id => payload.includes(id.toLowerCase()))
+      })
+
+      return Array.from(relatedIds)
+        .flatMap(memberId => {
+          const member = team.members.find(item => item.id === memberId)
+          return member ? buildTimeline(member, scopedTasks, scopedMessages, scopedLogs).slice(0, 5) : []
+        })
+        .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+        .slice(0, 12)
+    }
+
+    return selectedState
+      ? buildTimeline(selectedState.member, tasks, messages, teamLogs)
+      : []
+  }, [activeEdge, messages, selectedState, tasks, team.members, teamLogs])
+
+  const collaborationMessages = useMemo(() => {
+    if (!activeEdge) return []
+    return messages.filter(message =>
+      (message.from === activeEdge.fromId && message.to === activeEdge.toId)
+      || (message.from === activeEdge.toId && message.to === activeEdge.fromId),
+    ).slice(-8)
+  }, [activeEdge, messages])
 
   const nodePositions = useMemo(() => {
     const members = team.members || []
@@ -730,7 +766,9 @@ export default function TeamStudioView({
                     </div>
                   )) : (
                     <div className="rounded-xl border border-dashed border-border bg-bg-primary/40 p-4 text-xs text-text-muted">
-                      暂时还没有足够的执行轨迹，成员开始认领任务或发送消息后，这里会自动出现时间轴。
+                      {activeEdge
+                        ? '这条协作边暂时还没有更细的轨迹数据。'
+                        : '暂时还没有足够的执行轨迹，成员开始认领任务或发送消息后，这里会自动出现时间轴。'}
                     </div>
                   )}
                 </div>
@@ -838,6 +876,8 @@ export default function TeamStudioView({
                             strokeDasharray={edge.handoffCount > 0 ? '0' : '5 5'}
                             strokeLinecap="round"
                             opacity={highlight ? 1 : 0.8}
+                            className="cursor-pointer"
+                            onClick={() => setActiveEdgeId(current => current === edge.id ? null : edge.id)}
                           />
                         </g>
                       )
@@ -896,11 +936,14 @@ export default function TeamStudioView({
                     return (
                       <div
                         key={edge.id}
+                        onClick={() => setActiveEdgeId(current => current === edge.id ? null : edge.id)}
                         className={`rounded-xl border p-3 transition-colors ${
-                          highlight
+                          activeEdgeId === edge.id
+                            ? 'border-emerald-400/30 bg-emerald-500/10'
+                            : highlight
                             ? 'border-accent-blue/30 bg-accent-blue/10'
                             : 'border-white/6 bg-bg-primary/50'
-                        }`}
+                        } cursor-pointer`}
                       >
                         <div className="flex items-center justify-between gap-3">
                           <div className="flex items-center gap-2 text-sm text-text-primary">
@@ -926,6 +969,45 @@ export default function TeamStudioView({
                   )}
                 </div>
               </div>
+
+              {activeEdge && (
+                <div className="mt-4 rounded-2xl border border-emerald-400/20 bg-emerald-500/5 p-4">
+                  <div className="mb-3 flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2">
+                      <ArrowRightLeft size={14} className="text-emerald-300" />
+                      <h4 className="text-sm font-medium text-text-primary">协作边聚焦</h4>
+                    </div>
+                    <button
+                      onClick={() => setActiveEdgeId(null)}
+                      className="text-[11px] text-text-muted hover:text-text-primary"
+                    >
+                      清除过滤
+                    </button>
+                  </div>
+
+                  <div className="space-y-2">
+                    {collaborationMessages.length > 0 ? collaborationMessages.map(message => {
+                      const fromMember = team.members.find(member => member.id === message.from)
+                      const toMember = team.members.find(member => member.id === message.to)
+                      return (
+                        <div key={message.id} className="rounded-xl border border-white/6 bg-bg-primary/50 p-3">
+                          <div className="flex items-center justify-between gap-3 text-xs">
+                            <div className="text-text-primary">
+                              {fromMember?.role.icon} {fromMember?.role.name} → {toMember?.role.icon} {toMember?.role.name}
+                            </div>
+                            <div className="text-text-muted">{formatRelativeTime(message.timestamp)}</div>
+                          </div>
+                          <div className="mt-1 text-xs text-text-secondary">{message.content}</div>
+                        </div>
+                      )
+                    }) : (
+                      <div className="rounded-xl border border-dashed border-border bg-bg-primary/40 p-4 text-xs text-text-muted">
+                        这条协作边目前还没有直接消息记录，可能主要是通过任务依赖接力协作。
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         )}

@@ -41,6 +41,7 @@ export default function CreateTeamDialog({ onClose, onSuccess, parentTeamId }: C
 
   const selectedTemplate = templates.find(t => t.id === templateId)
   const parentTeam = teams.find(t => t.id === parentTeamId)
+  const isBuiltinTemplate = !!selectedTemplate && (selectedTemplate.id === 'dev-team' || selectedTemplate.id.startsWith('dev-'))
 
   const handleCreate = async () => {
     if (!name.trim() || !objective.trim()) {
@@ -58,7 +59,8 @@ export default function CreateTeamDialog({ onClose, onSuccess, parentTeamId }: C
         name: name.trim(),
         objective: objective.trim(),
         workDir,
-        templateId,
+        templateId: isBuiltinTemplate ? undefined : templateId,
+        customRoles: isBuiltinTemplate ? selectedTemplate?.roles : undefined,
         providerId,
         worktreeIsolation,
         parentTeamId,

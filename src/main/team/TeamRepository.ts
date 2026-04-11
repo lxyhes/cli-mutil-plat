@@ -65,6 +65,7 @@ export class TeamRepository {
       )
     } catch (err) {
       console.error('[TeamRepository] createTeamInstance error:', err)
+      throw err
     }
   }
 
@@ -185,6 +186,7 @@ export class TeamRepository {
       )
     } catch (err) {
       console.error('[TeamRepository] addTeamMember error:', err)
+      throw err
     }
   }
 
@@ -377,6 +379,7 @@ export class TeamRepository {
       )
     } catch (err) {
       console.error('[TeamRepository] createTask error:', err)
+      throw err
     }
   }
 

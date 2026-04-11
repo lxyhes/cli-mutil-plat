@@ -291,13 +291,19 @@ export class DatabaseManager implements MemoryManagedComponent {
             objective TEXT,
             created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
             started_at DATETIME,
-            completed_at DATETIME
+            completed_at DATETIME,
+            parent_team_id TEXT,
+            worktree_isolation INTEGER NOT NULL DEFAULT 0
           )
         `)
       } else {
         // 修复已存在但缺少列的表
         const cols = this.db.prepare('PRAGMA table_info(team_instances)').all().map((r: any) => r.name)
         console.log('[Database] team_instances columns before fix:', cols)
+        if (!cols.includes('template_id')) {
+          console.log('[Database] Adding template_id column...')
+          this.db.exec('ALTER TABLE team_instances ADD COLUMN template_id TEXT')
+        }
         if (!cols.includes('created_at')) {
           console.log('[Database] Adding created_at column...')
           this.db.exec('ALTER TABLE team_instances ADD COLUMN created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP')
@@ -313,6 +319,14 @@ export class DatabaseManager implements MemoryManagedComponent {
         if (!cols.includes('objective')) {
           console.log('[Database] Adding objective column...')
           this.db.exec('ALTER TABLE team_instances ADD COLUMN objective TEXT')
+        }
+        if (!cols.includes('parent_team_id')) {
+          console.log('[Database] Adding parent_team_id column...')
+          this.db.exec('ALTER TABLE team_instances ADD COLUMN parent_team_id TEXT')
+        }
+        if (!cols.includes('worktree_isolation')) {
+          console.log('[Database] Adding worktree_isolation column...')
+          this.db.exec('ALTER TABLE team_instances ADD COLUMN worktree_isolation INTEGER NOT NULL DEFAULT 0')
         }
         const colsAfter = this.db.prepare('PRAGMA table_info(team_instances)').all().map((r: any) => r.name)
         console.log('[Database] team_instances columns after fix:', colsAfter)
@@ -333,6 +347,12 @@ export class DatabaseManager implements MemoryManagedComponent {
             status TEXT NOT NULL DEFAULT 'idle',
             provider_id TEXT NOT NULL,
             current_task_id TEXT,
+            work_dir TEXT,
+            worktree_path TEXT,
+            worktree_branch TEXT,
+            worktree_source_repo TEXT,
+            worktree_base_commit TEXT,
+            worktree_base_branch TEXT,
             joined_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
             last_active_at DATETIME,
             FOREIGN KEY (instance_id) REFERENCES team_instances(id) ON DELETE CASCADE
@@ -341,11 +361,18 @@ export class DatabaseManager implements MemoryManagedComponent {
         this.db.exec('CREATE INDEX IF NOT EXISTS idx_team_members_instance ON team_members(instance_id)')
       } else {
         const cols = this.db.prepare('PRAGMA table_info(team_members)').all().map((r: any) => r.name)
+        if (!cols.includes('role_id')) this.db.exec('ALTER TABLE team_members ADD COLUMN role_id TEXT')
         if (!cols.includes('role_name')) this.db.exec('ALTER TABLE team_members ADD COLUMN role_name TEXT NOT NULL')
         if (!cols.includes('role_identifier')) this.db.exec('ALTER TABLE team_members ADD COLUMN role_identifier TEXT NOT NULL')
         if (!cols.includes('role_icon')) this.db.exec('ALTER TABLE team_members ADD COLUMN role_icon TEXT')
         if (!cols.includes('role_color')) this.db.exec('ALTER TABLE team_members ADD COLUMN role_color TEXT')
         if (!cols.includes('current_task_id')) this.db.exec('ALTER TABLE team_members ADD COLUMN current_task_id TEXT')
+        if (!cols.includes('work_dir')) this.db.exec('ALTER TABLE team_members ADD COLUMN work_dir TEXT')
+        if (!cols.includes('worktree_path')) this.db.exec('ALTER TABLE team_members ADD COLUMN worktree_path TEXT')
+        if (!cols.includes('worktree_branch')) this.db.exec('ALTER TABLE team_members ADD COLUMN worktree_branch TEXT')
+        if (!cols.includes('worktree_source_repo')) this.db.exec('ALTER TABLE team_members ADD COLUMN worktree_source_repo TEXT')
+        if (!cols.includes('worktree_base_commit')) this.db.exec('ALTER TABLE team_members ADD COLUMN worktree_base_commit TEXT')
+        if (!cols.includes('worktree_base_branch')) this.db.exec('ALTER TABLE team_members ADD COLUMN worktree_base_branch TEXT')
         if (!cols.includes('last_active_at')) this.db.exec('ALTER TABLE team_members ADD COLUMN last_active_at DATETIME')
       }
 

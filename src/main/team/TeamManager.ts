@@ -186,7 +186,7 @@ export class TeamManager extends EventEmitter {
     // 获取角色列表（从模板或自定义）
     let roles: TeamRole[]
     if (request.templateId) {
-      const template = this.teamRepo.getTemplate(request.templateId)
+      const template = this.resolveTemplate(request.templateId)
       if (!template) throw new Error(`Template not found: ${request.templateId}`)
       roles = template.roles
     } else if (request.customRoles) {
@@ -1142,6 +1142,11 @@ TeamBridge WebSocket 端口：${bridgePort}
    */
   getBuiltinTemplates(): TeamTemplate[] {
     return BUILTIN_TEMPLATES
+  }
+
+  private resolveTemplate(templateId: string): TeamTemplate | undefined {
+    return BUILTIN_TEMPLATES.find(template => template.id === templateId)
+      ?? this.teamRepo.getTemplate(templateId)
   }
 
   /**

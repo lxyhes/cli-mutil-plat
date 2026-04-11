@@ -226,10 +226,10 @@ export const useTeamStore = create<TeamState>((set, get) => ({
         }))
         return result.team
       }
-      return null
+      throw new Error(result.error || '创建团队失败')
     } catch (err) {
       console.error('[TeamStore] createTeam error:', err)
-      return null
+      throw err instanceof Error ? err : new Error(String(err))
     }
   },
 
