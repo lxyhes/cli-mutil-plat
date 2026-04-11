@@ -300,6 +300,18 @@ export class DatabaseManager implements MemoryManagedComponent {
         // 修复已存在但缺少列的表
         const cols = this.db.prepare('PRAGMA table_info(team_instances)').all().map((r: any) => r.name)
         console.log('[Database] team_instances columns before fix:', cols)
+        if (!cols.includes('work_dir')) {
+          console.log('[Database] Adding work_dir column...')
+          this.db.exec('ALTER TABLE team_instances ADD COLUMN work_dir TEXT')
+        }
+        if (!cols.includes('session_id')) {
+          console.log('[Database] Adding session_id column...')
+          this.db.exec('ALTER TABLE team_instances ADD COLUMN session_id TEXT')
+        }
+        if (!cols.includes('status')) {
+          console.log('[Database] Adding status column...')
+          this.db.exec("ALTER TABLE team_instances ADD COLUMN status TEXT NOT NULL DEFAULT 'pending'")
+        }
         if (!cols.includes('template_id')) {
           console.log('[Database] Adding template_id column...')
           this.db.exec('ALTER TABLE team_instances ADD COLUMN template_id TEXT')
@@ -362,10 +374,13 @@ export class DatabaseManager implements MemoryManagedComponent {
       } else {
         const cols = this.db.prepare('PRAGMA table_info(team_members)').all().map((r: any) => r.name)
         if (!cols.includes('role_id')) this.db.exec('ALTER TABLE team_members ADD COLUMN role_id TEXT')
-        if (!cols.includes('role_name')) this.db.exec('ALTER TABLE team_members ADD COLUMN role_name TEXT NOT NULL')
-        if (!cols.includes('role_identifier')) this.db.exec('ALTER TABLE team_members ADD COLUMN role_identifier TEXT NOT NULL')
+        if (!cols.includes('role_name')) this.db.exec("ALTER TABLE team_members ADD COLUMN role_name TEXT DEFAULT ''")
+        if (!cols.includes('role_identifier')) this.db.exec("ALTER TABLE team_members ADD COLUMN role_identifier TEXT DEFAULT ''")
         if (!cols.includes('role_icon')) this.db.exec('ALTER TABLE team_members ADD COLUMN role_icon TEXT')
         if (!cols.includes('role_color')) this.db.exec('ALTER TABLE team_members ADD COLUMN role_color TEXT')
+        if (!cols.includes('session_id')) this.db.exec('ALTER TABLE team_members ADD COLUMN session_id TEXT')
+        if (!cols.includes('status')) this.db.exec("ALTER TABLE team_members ADD COLUMN status TEXT NOT NULL DEFAULT 'idle'")
+        if (!cols.includes('provider_id')) this.db.exec("ALTER TABLE team_members ADD COLUMN provider_id TEXT DEFAULT ''")
         if (!cols.includes('current_task_id')) this.db.exec('ALTER TABLE team_members ADD COLUMN current_task_id TEXT')
         if (!cols.includes('work_dir')) this.db.exec('ALTER TABLE team_members ADD COLUMN work_dir TEXT')
         if (!cols.includes('worktree_path')) this.db.exec('ALTER TABLE team_members ADD COLUMN worktree_path TEXT')
@@ -373,6 +388,7 @@ export class DatabaseManager implements MemoryManagedComponent {
         if (!cols.includes('worktree_source_repo')) this.db.exec('ALTER TABLE team_members ADD COLUMN worktree_source_repo TEXT')
         if (!cols.includes('worktree_base_commit')) this.db.exec('ALTER TABLE team_members ADD COLUMN worktree_base_commit TEXT')
         if (!cols.includes('worktree_base_branch')) this.db.exec('ALTER TABLE team_members ADD COLUMN worktree_base_branch TEXT')
+        if (!cols.includes('joined_at')) this.db.exec('ALTER TABLE team_members ADD COLUMN joined_at DATETIME')
         if (!cols.includes('last_active_at')) this.db.exec('ALTER TABLE team_members ADD COLUMN last_active_at DATETIME')
       }
 

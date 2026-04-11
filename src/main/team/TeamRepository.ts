@@ -13,6 +13,8 @@ import type {
   TeamMessage,
   TeamTemplate,
   TeamRole,
+  TeamStatus,
+  MemberStatus,
   TaskClaimResult,
   TaskDAGNode,
   DAGValidation,
@@ -21,8 +23,32 @@ import type {
 /** 团队数据仓库 */
 export class TeamRepository {
   private templatesTableEnsured = false
+  private tableColumnsCache = new Map<string, Set<string>>()
 
   constructor(private db: any, private usingSqlite: boolean) {}
+
+  private getTableColumns(tableName: string): Set<string> {
+    if (!this.db) return new Set()
+    const cached = this.tableColumnsCache.get(tableName)
+    if (cached) return cached
+
+    try {
+      const cols = this.db.prepare(`PRAGMA table_info(${tableName})`).all().map((row: any) => row.name)
+      const set = new Set<string>(cols)
+      this.tableColumnsCache.set(tableName, set)
+      return set
+    } catch (err) {
+      console.error(`[TeamRepository] getTableColumns(${tableName}) error:`, err)
+      return new Set()
+    }
+  }
+
+  private getRowValue<T = any>(row: any, ...keys: string[]): T | undefined {
+    for (const key of keys) {
+      if (row && row[key] !== undefined && row[key] !== null) return row[key] as T
+    }
+    return undefined
+  }
 
   private ensureTemplatesTable(): void {
     if (!this.db || this.templatesTableEnsured) return
@@ -48,21 +74,34 @@ export class TeamRepository {
   createTeamInstance(instance: Omit<TeamInstance, 'members'>): void {
     if (!this.db) return
     try {
+      const cols = this.getTableColumns('team_instances')
+      const valuesByColumn: Record<string, any> = {
+        id: instance.id,
+        team_id: instance.id,
+        name: instance.name,
+        template_id: instance.templateId || null,
+        status: instance.status,
+        work_dir: instance.workDir,
+        working_directory: instance.workDir,
+        session_id: instance.sessionId,
+        parent_session_id: instance.sessionId,
+        objective: instance.objective,
+        task: instance.objective,
+        created_at: instance.createdAt,
+        started_at: instance.startedAt || instance.createdAt,
+        completed_at: instance.completedAt || null,
+        ended_at: instance.completedAt || null,
+        parent_team_id: instance.parentTeamId || null,
+        worktree_isolation: instance.worktreeIsolation ? 1 : 0,
+        reviewer_agent_id: null,
+        goal_round: 0,
+      }
+      const insertColumns = Object.keys(valuesByColumn).filter(column => cols.has(column))
+      const placeholders = insertColumns.map(() => '?').join(', ')
       this.db.prepare(`
-        INSERT INTO team_instances (id, name, template_id, status, work_dir, session_id, objective, created_at, parent_team_id, worktree_isolation)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `).run(
-        instance.id,
-        instance.name,
-        instance.templateId || null,
-        instance.status,
-        instance.workDir,
-        instance.sessionId,
-        instance.objective,
-        instance.createdAt,
-        instance.parentTeamId || null,
-        instance.worktreeIsolation ? 1 : 0
-      )
+        INSERT INTO team_instances (${insertColumns.join(', ')})
+        VALUES (${placeholders})
+      `).run(...insertColumns.map(column => valuesByColumn[column]))
     } catch (err) {
       console.error('[TeamRepository] createTeamInstance error:', err)
       throw err
@@ -79,16 +118,16 @@ export class TeamRepository {
       return {
         id: row.id,
         name: row.name,
-        templateId: row.template_id || undefined,
-        status: row.status,
-        workDir: row.work_dir,
-        sessionId: row.session_id,
-        objective: row.objective,
-        createdAt: row.created_at,
-        startedAt: row.started_at || undefined,
-        completedAt: row.completed_at || undefined,
-        parentTeamId: row.parent_team_id || undefined,
-        worktreeIsolation: row.worktree_isolation === 1,
+        templateId: this.getRowValue<string>(row, 'template_id'),
+        status: (this.getRowValue<string>(row, 'status') || 'pending') as TeamStatus,
+        workDir: this.getRowValue<string>(row, 'work_dir', 'working_directory') || '',
+        sessionId: this.getRowValue<string>(row, 'session_id', 'parent_session_id') || '',
+        objective: this.getRowValue<string>(row, 'objective', 'task') || '',
+        createdAt: this.getRowValue<string>(row, 'created_at') || new Date().toISOString(),
+        startedAt: this.getRowValue<string>(row, 'started_at') || undefined,
+        completedAt: this.getRowValue<string>(row, 'completed_at', 'ended_at') || undefined,
+        parentTeamId: this.getRowValue<string>(row, 'parent_team_id') || undefined,
+        worktreeIsolation: this.getRowValue<number>(row, 'worktree_isolation') === 1,
         members,
       }
     } catch (err) {
@@ -112,16 +151,16 @@ export class TeamRepository {
       return rows.map((row: any) => ({
         id: row.id,
         name: row.name,
-        templateId: row.template_id || undefined,
-        status: row.status,
-        workDir: row.work_dir,
-        sessionId: row.session_id,
-        objective: row.objective,
-        createdAt: row.created_at,
-        startedAt: row.started_at || undefined,
-        completedAt: row.completed_at || undefined,
-        parentTeamId: row.parent_team_id || undefined,
-        worktreeIsolation: row.worktree_isolation === 1,
+        templateId: this.getRowValue<string>(row, 'template_id'),
+        status: (this.getRowValue<string>(row, 'status') || 'pending') as TeamStatus,
+        workDir: this.getRowValue<string>(row, 'work_dir', 'working_directory') || '',
+        sessionId: this.getRowValue<string>(row, 'session_id', 'parent_session_id') || '',
+        objective: this.getRowValue<string>(row, 'objective', 'task') || '',
+        createdAt: this.getRowValue<string>(row, 'created_at') || new Date().toISOString(),
+        startedAt: this.getRowValue<string>(row, 'started_at') || undefined,
+        completedAt: this.getRowValue<string>(row, 'completed_at', 'ended_at') || undefined,
+        parentTeamId: this.getRowValue<string>(row, 'parent_team_id') || undefined,
+        worktreeIsolation: this.getRowValue<number>(row, 'worktree_isolation') === 1,
         members: this.getTeamMembers(row.id)
       }))
     } catch (err) {
@@ -158,32 +197,42 @@ export class TeamRepository {
   addTeamMember(member: Omit<TeamMember, 'role'> & { role: TeamRole }): void {
     if (!this.db) return
     try {
+      const cols = this.getTableColumns('team_members')
+      const valuesByColumn: Record<string, any> = {
+        id: member.id,
+        instance_id: member.instanceId,
+        role_id: member.roleId,
+        role_name: member.role.name,
+        display_name: member.role.name,
+        role_identifier: member.role.identifier,
+        role_icon: member.role.icon,
+        role_color: member.role.color,
+        color: member.role.color,
+        agent_id: member.id,
+        child_session_id: member.sessionId,
+        session_id: member.sessionId,
+        status: member.status,
+        provider_id: member.providerId,
+        goal_round: 1,
+        retry_count: 0,
+        max_retries: 2,
+        failure_reason: null,
+        current_task_id: member.currentTaskId || null,
+        work_dir: member.workDir || null,
+        worktree_path: member.worktreePath || null,
+        worktree_branch: member.worktreeBranch || null,
+        worktree_source_repo: member.worktreeSourceRepo || null,
+        worktree_base_commit: member.worktreeBaseCommit || null,
+        worktree_base_branch: member.worktreeBaseBranch || null,
+        joined_at: member.joinedAt,
+        last_active_at: member.lastActiveAt || null,
+      }
+      const insertColumns = Object.keys(valuesByColumn).filter(column => cols.has(column))
+      const placeholders = insertColumns.map(() => '?').join(', ')
       this.db.prepare(`
-        INSERT INTO team_members (
-          id, instance_id, role_id, role_name, role_identifier, role_icon, role_color,
-          session_id, status, provider_id, work_dir, worktree_path, worktree_branch,
-          worktree_source_repo, worktree_base_commit, worktree_base_branch, joined_at
-        )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `).run(
-        member.id,
-        member.instanceId,
-        member.roleId,
-        member.role.name,
-        member.role.identifier,
-        member.role.icon,
-        member.role.color,
-        member.sessionId,
-        member.status,
-        member.providerId,
-        member.workDir || null,
-        member.worktreePath || null,
-        member.worktreeBranch || null,
-        member.worktreeSourceRepo || null,
-        member.worktreeBaseCommit || null,
-        member.worktreeBaseBranch || null,
-        member.joinedAt
-      )
+        INSERT INTO team_members (${insertColumns.join(', ')})
+        VALUES (${placeholders})
+      `).run(...insertColumns.map(column => valuesByColumn[column]))
     } catch (err) {
       console.error('[TeamRepository] addTeamMember error:', err)
       throw err
@@ -199,29 +248,29 @@ export class TeamRepository {
       return rows.map((row: any) => ({
         id: row.id,
         instanceId: row.instance_id,
-        roleId: row.role_id,
+        roleId: this.getRowValue<string>(row, 'role_id') || '',
         role: {
-          id: row.role_id,
-          name: row.role_name,
-          identifier: row.role_identifier,
-          icon: row.role_icon,
-          color: row.role_color,
+          id: this.getRowValue<string>(row, 'role_id') || '',
+          name: this.getRowValue<string>(row, 'role_name') || '',
+          identifier: this.getRowValue<string>(row, 'role_identifier') || '',
+          icon: this.getRowValue<string>(row, 'role_icon') || '',
+          color: this.getRowValue<string>(row, 'role_color') || '',
           description: '',
           systemPrompt: '',
-          isLeader: row.role_identifier === 'leader',
+          isLeader: this.getRowValue<string>(row, 'role_identifier') === 'leader',
         },
-        sessionId: row.session_id,
-        status: row.status,
-        providerId: row.provider_id,
-        currentTaskId: row.current_task_id,
-        workDir: row.work_dir || undefined,
-        worktreePath: row.worktree_path || undefined,
-        worktreeBranch: row.worktree_branch || undefined,
-        worktreeSourceRepo: row.worktree_source_repo || undefined,
-        worktreeBaseCommit: row.worktree_base_commit || undefined,
-        worktreeBaseBranch: row.worktree_base_branch || undefined,
-        joinedAt: row.joined_at,
-        lastActiveAt: row.last_active_at,
+        sessionId: this.getRowValue<string>(row, 'session_id') || '',
+        status: this.getRowValue<string>(row, 'status') || 'idle',
+        providerId: this.getRowValue<string>(row, 'provider_id') || '',
+        currentTaskId: this.getRowValue<string>(row, 'current_task_id'),
+        workDir: this.getRowValue<string>(row, 'work_dir') || undefined,
+        worktreePath: this.getRowValue<string>(row, 'worktree_path') || undefined,
+        worktreeBranch: this.getRowValue<string>(row, 'worktree_branch') || undefined,
+        worktreeSourceRepo: this.getRowValue<string>(row, 'worktree_source_repo') || undefined,
+        worktreeBaseCommit: this.getRowValue<string>(row, 'worktree_base_commit') || undefined,
+        worktreeBaseBranch: this.getRowValue<string>(row, 'worktree_base_branch') || undefined,
+        joinedAt: this.getRowValue<string>(row, 'joined_at') || new Date().toISOString(),
+        lastActiveAt: this.getRowValue<string>(row, 'last_active_at'),
       }))
     } catch (err) {
       console.error('[TeamRepository] getTeamMembers error:', err)
@@ -289,29 +338,29 @@ export class TeamRepository {
       return {
         id: r.id,
         instanceId: r.instance_id,
-        roleId: r.role_id,
+        roleId: this.getRowValue<string>(r, 'role_id') || '',
         role: {
-          id: r.role_id,
-          name: r.role_name,
-          identifier: r.role_identifier,
-          icon: r.role_icon,
-          color: r.role_color,
+          id: this.getRowValue<string>(r, 'role_id') || '',
+          name: this.getRowValue<string>(r, 'role_name') || '',
+          identifier: this.getRowValue<string>(r, 'role_identifier') || '',
+          icon: this.getRowValue<string>(r, 'role_icon') || '',
+          color: this.getRowValue<string>(r, 'role_color') || '',
           description: '',
           systemPrompt: '',
-          isLeader: r.role_identifier === 'leader',
+          isLeader: this.getRowValue<string>(r, 'role_identifier') === 'leader',
         },
-        sessionId: r.session_id,
-        status: r.status,
-        providerId: r.provider_id,
-        currentTaskId: r.current_task_id,
-        workDir: r.work_dir || undefined,
-        worktreePath: r.worktree_path || undefined,
-        worktreeBranch: r.worktree_branch || undefined,
-        worktreeSourceRepo: r.worktree_source_repo || undefined,
-        worktreeBaseCommit: r.worktree_base_commit || undefined,
-        worktreeBaseBranch: r.worktree_base_branch || undefined,
-        joinedAt: r.joined_at,
-        lastActiveAt: r.last_active_at,
+        sessionId: this.getRowValue<string>(r, 'session_id') || '',
+        status: (this.getRowValue<string>(r, 'status') || 'idle') as MemberStatus,
+        providerId: this.getRowValue<string>(r, 'provider_id') || '',
+        currentTaskId: this.getRowValue<string>(r, 'current_task_id'),
+        workDir: this.getRowValue<string>(r, 'work_dir') || undefined,
+        worktreePath: this.getRowValue<string>(r, 'worktree_path') || undefined,
+        worktreeBranch: this.getRowValue<string>(r, 'worktree_branch') || undefined,
+        worktreeSourceRepo: this.getRowValue<string>(r, 'worktree_source_repo') || undefined,
+        worktreeBaseCommit: this.getRowValue<string>(r, 'worktree_base_commit') || undefined,
+        worktreeBaseBranch: this.getRowValue<string>(r, 'worktree_base_branch') || undefined,
+        joinedAt: this.getRowValue<string>(r, 'joined_at') || new Date().toISOString(),
+        lastActiveAt: this.getRowValue<string>(r, 'last_active_at'),
       }
     } catch (err) {
       console.error('[TeamRepository] getMemberByRole error:', err)
@@ -328,29 +377,29 @@ export class TeamRepository {
       return {
         id: r.id,
         instanceId: r.instance_id,
-        roleId: r.role_id,
+        roleId: this.getRowValue<string>(r, 'role_id') || '',
         role: {
-          id: r.role_id,
-          name: r.role_name,
-          identifier: r.role_identifier,
-          icon: r.role_icon,
-          color: r.role_color,
+          id: this.getRowValue<string>(r, 'role_id') || '',
+          name: this.getRowValue<string>(r, 'role_name') || '',
+          identifier: this.getRowValue<string>(r, 'role_identifier') || '',
+          icon: this.getRowValue<string>(r, 'role_icon') || '',
+          color: this.getRowValue<string>(r, 'role_color') || '',
           description: '',
           systemPrompt: '',
-          isLeader: r.role_identifier === 'leader',
+          isLeader: this.getRowValue<string>(r, 'role_identifier') === 'leader',
         },
-        sessionId: r.session_id,
-        status: r.status,
-        providerId: r.provider_id,
-        currentTaskId: r.current_task_id,
-        workDir: r.work_dir || undefined,
-        worktreePath: r.worktree_path || undefined,
-        worktreeBranch: r.worktree_branch || undefined,
-        worktreeSourceRepo: r.worktree_source_repo || undefined,
-        worktreeBaseCommit: r.worktree_base_commit || undefined,
-        worktreeBaseBranch: r.worktree_base_branch || undefined,
-        joinedAt: r.joined_at,
-        lastActiveAt: r.last_active_at,
+        sessionId: this.getRowValue<string>(r, 'session_id') || '',
+        status: (this.getRowValue<string>(r, 'status') || 'idle') as MemberStatus,
+        providerId: this.getRowValue<string>(r, 'provider_id') || '',
+        currentTaskId: this.getRowValue<string>(r, 'current_task_id'),
+        workDir: this.getRowValue<string>(r, 'work_dir') || undefined,
+        worktreePath: this.getRowValue<string>(r, 'worktree_path') || undefined,
+        worktreeBranch: this.getRowValue<string>(r, 'worktree_branch') || undefined,
+        worktreeSourceRepo: this.getRowValue<string>(r, 'worktree_source_repo') || undefined,
+        worktreeBaseCommit: this.getRowValue<string>(r, 'worktree_base_commit') || undefined,
+        worktreeBaseBranch: this.getRowValue<string>(r, 'worktree_base_branch') || undefined,
+        joinedAt: this.getRowValue<string>(r, 'joined_at') || new Date().toISOString(),
+        lastActiveAt: this.getRowValue<string>(r, 'last_active_at'),
       }
     } catch (err) {
       console.error('[TeamRepository] getMemberById error:', err)
