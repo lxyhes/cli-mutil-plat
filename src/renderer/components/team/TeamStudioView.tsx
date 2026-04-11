@@ -30,6 +30,8 @@ interface TeamStudioViewProps {
 
 type StudioTab = 'timeline' | 'logs' | 'collaboration'
 type MemberFilter = 'all' | 'focused' | 'watch' | 'error' | 'done'
+type TimelineFilter = 'all' | 'task' | 'message' | 'handoff' | 'log'
+type TimelineScope = 'team' | 'focus' | 'linked'
 
 interface TimelineItem {
   id: string
@@ -103,6 +105,19 @@ interface MonitorDeskState {
   lines: string[]
   loading: boolean
   error?: string
+}
+
+interface ExecutionTimelineEvent {
+  id: string
+  timestamp: string
+  title: string
+  detail: string
+  tone: TimelineItem['tone']
+  category: Exclude<TimelineFilter, 'all'>
+  actorMemberId?: string
+  peerMemberId?: string
+  actorLabel?: string
+  taskId?: string
 }
 
 function formatRelativeTime(timestamp?: string): string {
@@ -569,6 +584,131 @@ function buildQuickCommandTemplates(
   return templates.slice(0, 5)
 }
 
+function resolveMemberLabel(member?: TeamMember): string | undefined {
+  return member ? member.role.name : undefined
+}
+
+function buildExecutionTimeline(
+  members: TeamMember[],
+  tasks: TeamTask[],
+  messages: TeamMessage[],
+  teamLogs: TeamLogEntry[],
+): ExecutionTimelineEvent[] {
+  const events: ExecutionTimelineEvent[] = []
+  const memberMap = new Map(members.map(member => [member.id, member]))
+  const taskMap = new Map(tasks.map(task => [task.id, task]))
+
+  for (const task of tasks) {
+    const actor = task.claimedBy ? memberMap.get(task.claimedBy) : undefined
+    const assignee = task.assignedTo ? memberMap.get(task.assignedTo) : undefined
+
+    if (task.claimedAt && task.claimedBy) {
+      events.push({
+        id: `exec-claim-${task.id}`,
+        timestamp: task.claimedAt,
+        title: '任务开始执行',
+        detail: `${resolveMemberLabel(actor) || '未知成员'} 接手了「${task.title}」`,
+        tone: 'focused',
+        category: 'task',
+        actorMemberId: actor?.id,
+        actorLabel: resolveMemberLabel(actor),
+        taskId: task.id,
+      })
+    }
+
+    if (task.status === 'completed' && task.completedAt) {
+      events.push({
+        id: `exec-complete-${task.id}`,
+        timestamp: task.completedAt,
+        title: '任务完成',
+        detail: `${resolveMemberLabel(actor || assignee) || '未知成员'} 完成了「${task.title}」`,
+        tone: 'done',
+        category: 'task',
+        actorMemberId: (actor || assignee)?.id,
+        actorLabel: resolveMemberLabel(actor || assignee),
+        taskId: task.id,
+      })
+    }
+
+    if (task.status === 'cancelled') {
+      events.push({
+        id: `exec-cancel-${task.id}`,
+        timestamp: task.completedAt || task.claimedAt || task.createdAt,
+        title: '任务取消',
+        detail: `「${task.title}」被取消，需要重新确认后续推进方式`,
+        tone: 'error',
+        category: 'task',
+        actorMemberId: actor?.id || assignee?.id,
+        actorLabel: resolveMemberLabel(actor || assignee),
+        taskId: task.id,
+      })
+    }
+
+    for (const dependencyId of task.dependencies) {
+      const dependencyTask = taskMap.get(dependencyId)
+      if (!dependencyTask) continue
+      const fromMember = dependencyTask.claimedBy ? memberMap.get(dependencyTask.claimedBy) : undefined
+      const toMember = task.claimedBy ? memberMap.get(task.claimedBy) : assignee
+      if (!fromMember || !toMember || fromMember.id === toMember.id) continue
+
+      events.push({
+        id: `exec-handoff-${dependencyTask.id}-${task.id}`,
+        timestamp:
+          task.claimedAt ||
+          dependencyTask.completedAt ||
+          dependencyTask.claimedAt ||
+          task.createdAt,
+        title: '任务交接',
+        detail: `${fromMember.role.name} 的「${dependencyTask.title}」支撑 ${toMember.role.name} 推进「${task.title}」`,
+        tone: 'waiting',
+        category: 'handoff',
+        actorMemberId: fromMember.id,
+        peerMemberId: toMember.id,
+        actorLabel: fromMember.role.name,
+        taskId: task.id,
+      })
+    }
+  }
+
+  for (const message of messages) {
+    const fromMember = memberMap.get(message.from)
+    const toMember = message.to ? memberMap.get(message.to) : undefined
+    const isBroadcast = message.type === 'broadcast'
+
+    events.push({
+      id: `exec-message-${message.id}`,
+      timestamp: message.timestamp,
+      title: isBroadcast ? '团队广播' : '成员消息',
+      detail: isBroadcast
+        ? `${resolveMemberLabel(fromMember) || '未知成员'} 广播：${truncate(message.content, 60)}`
+        : `${resolveMemberLabel(fromMember) || '未知成员'} → ${resolveMemberLabel(toMember) || '未知成员'}：${truncate(message.content, 60)}`,
+      tone: isBroadcast ? 'info' : 'waiting',
+      category: 'message',
+      actorMemberId: fromMember?.id,
+      peerMemberId: toMember?.id,
+      actorLabel: resolveMemberLabel(fromMember),
+    })
+  }
+
+  for (const entry of teamLogs) {
+    const actor = members.find(member => matchesMemberLog(entry, member))
+    events.push({
+      id: `exec-log-${entry.id}`,
+      timestamp: entry.time,
+      title: entry.level === 'error' ? '团队异常日志' : entry.level === 'warn' ? '团队预警日志' : '团队调试日志',
+      detail: truncate(entry.msg, 90),
+      tone: entry.level === 'error' ? 'error' : entry.level === 'warn' ? 'waiting' : 'info',
+      category: 'log',
+      actorMemberId: actor?.id,
+      actorLabel: resolveMemberLabel(actor),
+    })
+  }
+
+  return events
+    .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+    .slice(0, 40)
+}
+
 function MemberRow({
   state,
   active,
@@ -700,6 +840,8 @@ export default function TeamStudioView({
   const [memberFilter, setMemberFilter] = useState<MemberFilter>('all')
   const [memberSearch, setMemberSearch] = useState('')
   const [activeEdgeId, setActiveEdgeId] = useState<string | null>(null)
+  const [timelineFilter, setTimelineFilter] = useState<TimelineFilter>('all')
+  const [timelineScope, setTimelineScope] = useState<TimelineScope>('team')
   const [sessionLogLines, setSessionLogLines] = useState<string[]>([])
   const [streamingLogLines, setStreamingLogLines] = useState<string[]>([])
   const [logsLoading, setLogsLoading] = useState(false)
@@ -775,6 +917,10 @@ export default function TeamStudioView({
     () => (selectedState ? buildTimeline(selectedState.member, tasks, messages, teamLogs) : []),
     [messages, selectedState, tasks, teamLogs],
   )
+  const executionTimeline = useMemo(
+    () => buildExecutionTimeline(team.members || [], tasks, messages, teamLogs),
+    [messages, tasks, team.members, teamLogs],
+  )
   const collaborationMessages = useMemo(() => {
     if (!activeEdge) return []
     return messages.filter(message =>
@@ -822,6 +968,36 @@ export default function TeamStudioView({
           member.id === (activeEdge.fromId === selectedState.member.id ? activeEdge.toId : activeEdge.fromId),
         ) || null
       : null
+  const timelineLinkedIds = useMemo(() => {
+    const ids = new Set<string>()
+    if (selectedState) ids.add(selectedState.member.id)
+    if (activeEdge) {
+      ids.add(activeEdge.fromId)
+      ids.add(activeEdge.toId)
+    }
+    if (collaborationPartner) ids.add(collaborationPartner.id)
+    return ids
+  }, [activeEdge, collaborationPartner, selectedState])
+  const filteredExecutionTimeline = useMemo(() => {
+    return executionTimeline.filter(event => {
+      const filterMatch = timelineFilter === 'all' || event.category === timelineFilter
+      const scopeMatch =
+        timelineScope === 'team'
+          ? true
+          : timelineScope === 'focus'
+            ? !!selectedState && (event.actorMemberId === selectedState.member.id || event.peerMemberId === selectedState.member.id)
+            : (event.actorMemberId && timelineLinkedIds.has(event.actorMemberId)) ||
+              (event.peerMemberId && timelineLinkedIds.has(event.peerMemberId))
+
+      return filterMatch && scopeMatch
+    })
+  }, [executionTimeline, timelineFilter, timelineLinkedIds, timelineScope, selectedState])
+  const executionTimelineStats = useMemo(() => ({
+    task: executionTimeline.filter(item => item.category === 'task').length,
+    handoff: executionTimeline.filter(item => item.category === 'handoff').length,
+    message: executionTimeline.filter(item => item.category === 'message').length,
+    log: executionTimeline.filter(item => item.category === 'log' && item.tone === 'error').length,
+  }), [executionTimeline])
   const monitorStates = useMemo(() => {
     const picked: MemberStudioState[] = []
     const seen = new Set<string>()
@@ -1240,6 +1416,29 @@ export default function TeamStudioView({
       tone: 'info',
       title: `已切换到 ${member.role.name} 的终端`,
       detail: '右侧主窗格会继续显示该成员的完整会话输出。',
+      createdAt: Date.now(),
+    })
+  }
+
+  const handleExecutionEventFocus = (event: ExecutionTimelineEvent) => {
+    const targetId = event.peerMemberId || event.actorMemberId
+    if (!targetId) return
+    const member = team.members.find(item => item.id === targetId)
+    if (!member) return
+    setAutoFocusRisk(false)
+    onSelectMember(member)
+    if (event.category === 'handoff' || event.category === 'message') {
+      setActiveTab('collaboration')
+      if (event.actorMemberId && event.peerMemberId) {
+        const edgeId = `${event.actorMemberId}->${event.peerMemberId}`
+        const reverseEdgeId = `${event.peerMemberId}->${event.actorMemberId}`
+        setActiveEdgeId(collaborationEdges.some(edge => edge.id === edgeId) ? edgeId : reverseEdgeId)
+      }
+    }
+    setActionFeedback({
+      tone: 'info',
+      title: `已定位到 ${member.role.name}`,
+      detail: `${event.title} · ${truncate(event.detail, 64)}`,
       createdAt: Date.now(),
     })
   }
@@ -1784,28 +1983,148 @@ export default function TeamStudioView({
                 </div>
 
                 {activeTab === 'timeline' && (
-                  <div className="min-h-0 flex-1 space-y-3 overflow-y-auto pr-1">
-                    {timelineItems.length > 0 ? timelineItems.map(item => (
-                      <div key={item.id} className="flex gap-3">
-                        <div className="flex flex-col items-center">
-                          <div className={`mt-0.5 flex h-7 w-7 items-center justify-center rounded-full border ${getStatusTone(item.tone)}`}>
-                            {getActivityIcon(item.tone)}
+                  <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
+                    <div className="flex min-h-0 flex-col rounded-2xl border border-white/6 bg-bg-secondary/55 p-3">
+                      <div className="mb-3 flex items-center justify-between gap-3">
+                        <div>
+                          <div className="text-sm font-medium text-text-primary">当前成员轨迹</div>
+                          <div className="mt-1 text-[11px] text-text-muted">
+                            聚焦 {selectedState.member.role.name} 的个人推进脉络。
                           </div>
-                          <div className="mt-1 h-full w-px bg-border" />
                         </div>
-                        <div className="flex-1 rounded-2xl border border-white/6 bg-bg-secondary/70 p-3">
-                          <div className="flex items-center justify-between gap-3">
-                            <div className="text-sm text-text-primary">{item.title}</div>
-                            <div className="text-[11px] text-text-muted">{formatRelativeTime(item.timestamp)}</div>
-                          </div>
-                          <div className="mt-1 text-xs text-text-secondary">{item.description}</div>
+                        <div className="rounded-full border border-white/10 bg-bg-primary/55 px-2.5 py-1 text-[10px] text-text-muted">
+                          {timelineItems.length} 条
                         </div>
                       </div>
-                    )) : (
-                      <div className="rounded-2xl border border-dashed border-border bg-bg-secondary/40 p-4 text-xs text-text-muted">
-                        暂时还没有足够的执行轨迹数据。
+                      <div className="min-h-0 flex-1 space-y-3 overflow-y-auto pr-1">
+                        {timelineItems.length > 0 ? timelineItems.map(item => (
+                          <div key={item.id} className="flex gap-3">
+                            <div className="flex flex-col items-center">
+                              <div className={`mt-0.5 flex h-7 w-7 items-center justify-center rounded-full border ${getStatusTone(item.tone)}`}>
+                                {getActivityIcon(item.tone)}
+                              </div>
+                              <div className="mt-1 h-full w-px bg-border" />
+                            </div>
+                            <div className="flex-1 rounded-2xl border border-white/6 bg-bg-secondary/70 p-3">
+                              <div className="flex items-center justify-between gap-3">
+                                <div className="text-sm text-text-primary">{item.title}</div>
+                                <div className="text-[11px] text-text-muted">{formatRelativeTime(item.timestamp)}</div>
+                              </div>
+                              <div className="mt-1 text-xs text-text-secondary">{item.description}</div>
+                            </div>
+                          </div>
+                        )) : (
+                          <div className="rounded-2xl border border-dashed border-border bg-bg-secondary/40 p-4 text-xs text-text-muted">
+                            暂时还没有足够的个人轨迹数据。
+                          </div>
+                        )}
                       </div>
-                    )}
+                    </div>
+
+                    <div className="flex min-h-0 flex-col rounded-2xl border border-white/6 bg-bg-secondary/55 p-3">
+                      <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                          <div className="text-sm font-medium text-text-primary">团队执行时间轴</div>
+                          <div className="mt-1 text-[11px] text-text-muted">
+                            把任务、交接、消息和日志收成一条可定位的指挥时间线。
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2 text-[10px] text-text-muted md:grid-cols-4">
+                          <div className="rounded-xl border border-white/8 bg-bg-primary/45 px-2 py-1.5">
+                            <div className="text-text-primary">{executionTimelineStats.task}</div>
+                            <div>任务事件</div>
+                          </div>
+                          <div className="rounded-xl border border-white/8 bg-bg-primary/45 px-2 py-1.5">
+                            <div className="text-text-primary">{executionTimelineStats.handoff}</div>
+                            <div>交接事件</div>
+                          </div>
+                          <div className="rounded-xl border border-white/8 bg-bg-primary/45 px-2 py-1.5">
+                            <div className="text-text-primary">{executionTimelineStats.message}</div>
+                            <div>消息事件</div>
+                          </div>
+                          <div className="rounded-xl border border-white/8 bg-bg-primary/45 px-2 py-1.5">
+                            <div className="text-text-primary">{executionTimelineStats.log}</div>
+                            <div>异常日志</div>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="mb-3 flex flex-wrap gap-2">
+                        {[
+                          { key: 'all', label: '全部' },
+                          { key: 'task', label: '任务' },
+                          { key: 'handoff', label: '交接' },
+                          { key: 'message', label: '消息' },
+                          { key: 'log', label: '日志' },
+                        ].map(item => (
+                          <button
+                            key={item.key}
+                            onClick={() => setTimelineFilter(item.key as TimelineFilter)}
+                            className={`rounded-full border px-2.5 py-1 text-[10px] ${
+                              timelineFilter === item.key
+                                ? 'border-accent-blue/30 bg-accent-blue/12 text-accent-blue'
+                                : 'border-white/8 bg-bg-primary/50 text-text-muted'
+                            }`}
+                          >
+                            {item.label}
+                          </button>
+                        ))}
+                        {[
+                          { key: 'team', label: '全队' },
+                          { key: 'focus', label: '当前成员' },
+                          { key: 'linked', label: '当前链路' },
+                        ].map(item => (
+                          <button
+                            key={item.key}
+                            onClick={() => setTimelineScope(item.key as TimelineScope)}
+                            className={`rounded-full border px-2.5 py-1 text-[10px] ${
+                              timelineScope === item.key
+                                ? 'border-violet-500/30 bg-violet-500/12 text-violet-300'
+                                : 'border-white/8 bg-bg-primary/50 text-text-muted'
+                            }`}
+                          >
+                            {item.label}
+                          </button>
+                        ))}
+                      </div>
+
+                      <div className="min-h-0 flex-1 space-y-2 overflow-y-auto pr-1">
+                        {filteredExecutionTimeline.length > 0 ? filteredExecutionTimeline.map(event => (
+                          <button
+                            key={event.id}
+                            onClick={() => handleExecutionEventFocus(event)}
+                            className="w-full rounded-2xl border border-white/6 bg-bg-primary/45 p-3 text-left transition-colors hover:bg-bg-hover"
+                          >
+                            <div className="flex items-start justify-between gap-3">
+                              <div className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] ${getStatusTone(event.tone)}`}>
+                                {getActivityIcon(event.tone)}
+                                <span>
+                                  {event.category === 'task'
+                                    ? '任务'
+                                    : event.category === 'handoff'
+                                      ? '交接'
+                                      : event.category === 'message'
+                                        ? '消息'
+                                        : '日志'}
+                                </span>
+                              </div>
+                              <div className="text-[10px] text-text-muted">{formatRelativeTime(event.timestamp)}</div>
+                            </div>
+                            <div className="mt-2 text-sm text-text-primary">{event.title}</div>
+                            <div className="mt-1 text-xs text-text-secondary">{event.detail}</div>
+                            {(event.actorLabel || event.peerMemberId) && (
+                              <div className="mt-2 text-[10px] text-text-muted">
+                                {event.actorLabel ? `主角：${event.actorLabel}` : '可点击定位相关成员'}
+                              </div>
+                            )}
+                          </button>
+                        )) : (
+                          <div className="rounded-2xl border border-dashed border-border bg-bg-primary/40 p-4 text-xs text-text-muted">
+                            当前筛选条件下没有匹配的执行事件。
+                          </div>
+                        )}
+                      </div>
+                    </div>
                   </div>
                 )}
 

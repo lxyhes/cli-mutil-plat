@@ -124,7 +124,7 @@ export default function McpManager() {
         </div>
         <button
           onClick={() => { setEditingServer(null); setShowAddDialog(true) }}
-          className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded-md transition-colors"
+          className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs rounded-md transition-colors"
         >
           + 添加 MCP
         </button>
@@ -209,7 +209,7 @@ export default function McpManager() {
             <div className="w-12 h-12 rounded-xl bg-bg-tertiary flex items-center justify-center mb-3">
               <span className="text-3xl">🔌</span>
             </div>
-            <div className="text-sm">暂无 MCP 服务器</div>
+            <div className="text-xs">暂无 MCP 服务器</div>
             <div className="text-xs mt-1">点击"添加 MCP"开始配置</div>
           </div>
         ) : (

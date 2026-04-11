@@ -384,7 +384,7 @@ export default function EvaluationSettings() {
           {templates.length === 0 ? (
             <div className="py-8 text-center">
               <Target className="w-8 h-8 text-text-muted mx-auto mb-2" />
-              <p className="text-sm text-text-muted">暂无评估模板</p>
+              <p className="text-xs text-text-muted">暂无评估模板</p>
               <p className="text-xs text-text-muted mt-1">点击上方「新建模板」创建第一个评估模板</p>
             </div>
           ) : (
@@ -437,7 +437,7 @@ export default function EvaluationSettings() {
           {runs.length === 0 ? (
             <div className="py-8 text-center">
               <BarChart3 className="w-8 h-8 text-text-muted mx-auto mb-2" />
-              <p className="text-sm text-text-muted">暂无评估记录</p>
+              <p className="text-xs text-text-muted">暂无评估记录</p>
               <p className="text-xs text-text-muted mt-1">选择会话和模板后开始评估</p>
             </div>
           ) : (

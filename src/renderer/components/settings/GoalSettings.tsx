@@ -384,7 +384,7 @@ export default function GoalSettings() {
           {filteredGoals.length === 0 ? (
             <div className="py-8 text-center">
               <Target className="w-8 h-8 text-text-muted mx-auto mb-2" />
-              <p className="text-sm text-text-muted">暂无目标</p>
+              <p className="text-xs text-text-muted">暂无目标</p>
               <p className="text-xs text-text-muted mt-1">点击上方「创建目标」添加第一个目标</p>
             </div>
           ) : (

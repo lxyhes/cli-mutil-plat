@@ -336,7 +336,7 @@ export default function SchedulerSettings() {
           {tasks.length === 0 ? (
             <div className="py-8 text-center">
               <Clock className="w-8 h-8 text-text-muted mx-auto mb-2" />
-              <p className="text-sm text-text-muted">暂无定时任务</p>
+              <p className="text-xs text-text-muted">暂无定时任务</p>
               <p className="text-xs text-text-muted mt-1">点击上方「新建任务」创建第一个定时任务</p>
             </div>
           ) : (
@@ -444,7 +444,7 @@ export default function SchedulerSettings() {
           {recentRuns.length === 0 ? (
             <div className="py-8 text-center">
               <AlertCircle className="w-8 h-8 text-text-muted mx-auto mb-2" />
-              <p className="text-sm text-text-muted">暂无执行记录</p>
+              <p className="text-xs text-text-muted">暂无执行记录</p>
             </div>
           ) : (
             recentRuns.map(run => {

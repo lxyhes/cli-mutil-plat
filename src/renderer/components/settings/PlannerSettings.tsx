@@ -215,7 +215,7 @@ export default function PlannerSettings() {
           {plans.length === 0 && !showCreateForm ? (
             <div className="py-12 text-center">
               <Brain className="w-10 h-10 text-text-muted mx-auto mb-3" />
-              <p className="text-sm text-text-muted">暂无规划</p>
+              <p className="text-xs text-text-muted">暂无规划</p>
               <p className="text-xs text-text-muted mt-1">输入目标，AI 将自动分解为可执行的任务</p>
               <button
                 onClick={() => setShowCreateForm(true)}
@@ -360,7 +360,7 @@ export default function PlannerSettings() {
         {activeTasks.length === 0 ? (
           <div className="py-8 text-center">
             <Brain className="w-8 h-8 text-text-muted mx-auto mb-2" />
-            <p className="text-sm text-text-muted">暂无任务</p>
+            <p className="text-xs text-text-muted">暂无任务</p>
           </div>
         ) : (
           activeTasks.map(task => (

@@ -76,7 +76,7 @@ export function WorkspaceTab() {
       ) : workspaces.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-10 text-text-muted gap-2">
           <FolderSearch className="w-10 h-10 opacity-30" />
-          <p className="text-sm">还没有工作区，点击「新建工作区」开始配置</p>
+          <p className="text-xs">还没有工作区，点击「新建工作区」开始配置</p>
         </div>
       ) : (
         <div className="space-y-2">

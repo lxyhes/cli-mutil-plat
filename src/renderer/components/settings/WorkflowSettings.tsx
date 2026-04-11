@@ -318,7 +318,7 @@ export default function WorkflowSettings() {
           {workflows.length === 0 ? (
             <div className="py-8 text-center">
               <Zap className="w-8 h-8 text-text-muted mx-auto mb-2" />
-              <p className="text-sm text-text-muted">暂无工作流</p>
+              <p className="text-xs text-text-muted">暂无工作流</p>
               <p className="text-xs text-text-muted mt-1">点击上方「新建工作流」创建第一个工作流</p>
             </div>
           ) : (
@@ -464,7 +464,7 @@ export default function WorkflowSettings() {
           {workflows.length === 0 ? (
             <div className="py-8 text-center">
               <AlertCircle className="w-8 h-8 text-text-muted mx-auto mb-2" />
-              <p className="text-sm text-text-muted">暂无执行记录</p>
+              <p className="text-xs text-text-muted">暂无执行记录</p>
               <p className="text-xs text-text-muted mt-1">执行工作流后将显示执行历史</p>
             </div>
           ) : (

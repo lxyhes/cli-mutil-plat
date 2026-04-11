@@ -304,7 +304,7 @@ export default function SummarySettings() {
           ) : summaries.length === 0 ? (
             <div className="py-8 text-center">
               <FileText className="w-8 h-8 text-text-muted mx-auto mb-2" />
-              <p className="text-sm text-text-muted">暂无摘要</p>
+              <p className="text-xs text-text-muted">暂无摘要</p>
               <p className="text-xs text-text-muted mt-1">选择会话并点击「生成」创建摘要</p>
             </div>
           ) : (
@@ -321,7 +321,7 @@ export default function SummarySettings() {
           ) : allSummaries.length === 0 ? (
             <div className="py-8 text-center">
               <FileText className="w-8 h-8 text-text-muted mx-auto mb-2" />
-              <p className="text-sm text-text-muted">暂无摘要记录</p>
+              <p className="text-xs text-text-muted">暂无摘要记录</p>
             </div>
           ) : (
             allSummaries.map(renderSummaryCard)

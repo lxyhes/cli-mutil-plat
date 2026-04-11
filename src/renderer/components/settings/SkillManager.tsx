@@ -603,7 +603,7 @@ export default function SkillManager() {
                   <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
                 </svg>
               </div>
-              <div className="text-sm text-text-secondary mb-1">暂无技能</div>
+              <div className="text-xs text-text-secondary mb-1">暂无技能</div>
               <div className="text-xs text-text-muted text-center max-w-xs mb-4 leading-relaxed">
                 点击「新建技能」创建，或前往「技能市场」一键安装
               </div>
@@ -709,11 +709,11 @@ function SkillCard({ skill, onToggle, onEdit, onDelete }: {
           </span>
         </div>
         <div className="text-xs text-text-muted leading-relaxed line-clamp-1">{skill.description || <span className="text-text-muted italic">暂无描述</span>}</div>
-        <div className="flex items-center gap-1.5 text-xs text-text-muted mt-0.5">
+        <div className="flex items-center gap-1.5 text-xs text-text-muted mt-0.5 min-w-0">
           <svg className="w-3 h-3 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
           </svg>
-          <span className="text-xs text-text-muted truncate max-w-full">
+          <span className="text-xs text-text-muted truncate min-w-0 flex-1">
             {skill.compatibleProviders === 'all'
               ? '所有 Provider'
               : Array.isArray(skill.compatibleProviders) && skill.compatibleProviders.length > 0

@@ -429,7 +429,7 @@ export default function PromptOptimizer() {
             {(store.templates ?? []).length === 0 ? (
               <div className="py-12 text-center">
                 <BookOpen className="w-10 h-10 text-text-muted mx-auto mb-3" />
-                <p className="text-sm text-text-muted mb-1">暂无提示词模板</p>
+                <p className="text-xs text-text-muted mb-1">暂无提示词模板</p>
                 <p className="text-xs text-text-muted">点击右上角「新建模板」创建第一个提示词模板</p>
               </div>
             ) : (
