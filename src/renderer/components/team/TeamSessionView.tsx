@@ -96,7 +96,7 @@ export default function TeamSessionView() {
   }
 
   return (
-    <div className="flex flex-col h-full bg-bg-primary">
+    <div className="flex h-full min-h-0 flex-col bg-bg-primary">
       {/* 团队头部 */}
       <div className="px-4 py-3 border-b border-border">
         <div className="flex items-center justify-between mb-3">
@@ -234,16 +234,18 @@ export default function TeamSessionView() {
       </div>
 
       {/* 内容区域 */}
-      <div className="flex-1 overflow-y-auto">
+      <div className={activeTab === 'studio' ? 'flex-1 min-h-0 overflow-hidden' : 'flex-1 overflow-y-auto'}>
         {activeTab === 'studio' && (
-          <TeamStudioView
-            team={team}
-            tasks={tasks}
-            messages={messages}
-            teamLogs={teamLogs}
-            selectedMemberId={selectedMemberId}
-            onSelectMember={(member) => setSelectedMemberId(member.id)}
-          />
+          <div className="h-full min-h-0">
+            <TeamStudioView
+              team={team}
+              tasks={tasks}
+              messages={messages}
+              teamLogs={teamLogs}
+              selectedMemberId={selectedMemberId}
+              onSelectMember={(member) => setSelectedMemberId(member.id)}
+            />
+          </div>
         )}
 
         {activeTab === 'conversation' && (

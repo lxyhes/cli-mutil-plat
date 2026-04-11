@@ -312,7 +312,7 @@ export default function PlannerSettings() {
 
   // ── 规划详情 Tab ──
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 p-4 min-w-0">
       {/* 顶部导航 */}
       <div className="flex items-center gap-2">
         <button

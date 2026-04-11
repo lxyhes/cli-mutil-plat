@@ -232,7 +232,7 @@ export default function GoalSettings() {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 p-4 min-w-0">
       {/* 统计概览 */}
       <div className="grid grid-cols-4 gap-3">
         {[
@@ -492,7 +492,7 @@ export default function GoalSettings() {
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
                     <div className="flex items-center gap-2 mb-1">
-                      <h3 className="text-base font-semibold text-text-primary">{activeGoal.title}</h3>
+                      <h3 className="text-sm font-semibold text-text-primary">{activeGoal.title}</h3>
                       <span className={`px-1.5 py-0.5 rounded text-xs ${STATUS_COLORS[activeGoal.status]} bg-bg-secondary`}>
                         {STATUS_LABELS[activeGoal.status]}
                       </span>

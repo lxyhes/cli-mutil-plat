@@ -355,7 +355,7 @@ export default function PromptOptimizer() {
   ]
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full p-4 min-w-0">
       {/* Header */}
       <div className="flex items-center justify-between mb-4 shrink-0">
         <div className="flex items-center gap-2">
@@ -363,7 +363,7 @@ export default function PromptOptimizer() {
             <Sparkles className="w-4 h-4 text-accent-purple" />
           </div>
           <div>
-            <h2 className="text-sm font-semibold text-text-primary">提示词优化器</h2>
+            <h2 className="text-base font-semibold text-text-primary">提示词优化器</h2>
             <p className="text-xs text-text-muted">管理和优化 AI 提示词模板</p>
           </div>
         </div>
@@ -407,7 +407,7 @@ export default function PromptOptimizer() {
                   <BookOpen className="w-3.5 h-3.5 text-accent-blue" />
                   <span className="text-xs text-text-secondary font-medium">模板总数</span>
                 </div>
-                <p className="text-xl font-bold text-text-primary">{store.templates.length}</p>
+                <p className="text-xl font-bold text-text-primary">{(store.templates ?? []).length}</p>
               </div>
               <div className="flex-1 p-3 bg-bg-tertiary rounded-xl border border-border">
                 <div className="flex items-center gap-2 mb-1">
@@ -426,7 +426,7 @@ export default function PromptOptimizer() {
             </div>
 
             {/* Template list */}
-            {store.templates.length === 0 ? (
+            {(store.templates ?? []).length === 0 ? (
               <div className="py-12 text-center">
                 <BookOpen className="w-10 h-10 text-text-muted mx-auto mb-3" />
                 <p className="text-sm text-text-muted mb-1">暂无提示词模板</p>
@@ -434,7 +434,7 @@ export default function PromptOptimizer() {
               </div>
             ) : (
               <div className="space-y-2">
-                {store.templates.map(t => (
+                {(store.templates ?? []).map(t => (
                   <TemplateCard
                     key={t.id}
                     template={t}

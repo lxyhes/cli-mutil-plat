@@ -201,6 +201,10 @@ if (!ctxBr) {
     clearQueue: (sessionId: string) =>
       ipcRenderer.invoke(IPC.SESSION_CLEAR_QUEUE, sessionId),
 
+    // SDK V2: iFlow 预热（提前完成握手，发送消息时无需等待初始化）
+    prewarm: (config: any) =>
+      ipcRenderer.invoke(IPC.SESSION_PREWARM, config),
+
     // SDK V2: 对话消息事件监听
     onConversationMessage: (callback: (sessionId: string, msg: any) => void) => {
       const listener = (_event: IpcRendererEvent, sessionId: string, msg: any) => {

@@ -441,6 +441,18 @@ export class DatabaseManager implements MemoryManagedComponent {
       } else {
         const cols = this.db.prepare('PRAGMA table_info(team_messages)').all().map((r: any) => r.name)
         if (!cols.includes('timestamp')) this.db.exec('ALTER TABLE team_messages ADD COLUMN timestamp DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP')
+        if (!cols.includes('from_member_id')) this.db.exec('ALTER TABLE team_messages ADD COLUMN from_member_id TEXT')
+        if (!cols.includes('to_member_id')) this.db.exec('ALTER TABLE team_messages ADD COLUMN to_member_id TEXT')
+        if (!cols.includes('type')) this.db.exec('ALTER TABLE team_messages ADD COLUMN type TEXT NOT NULL DEFAULT \'role_message\'')
+
+        // 兼容旧 schema: from_role/to_role/message_type → from_member_id/to_member_id/type
+        this.db.exec(`
+          UPDATE team_messages
+          SET
+            from_member_id = COALESCE(from_member_id, from_role),
+            to_member_id = COALESCE(to_member_id, to_role),
+            type = COALESCE(type, message_type, 'role_message')
+        `)
       }
       
       if (!existingTables.includes('team_templates')) {

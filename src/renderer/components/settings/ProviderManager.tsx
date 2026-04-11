@@ -329,7 +329,7 @@ export default function ProviderManager({ onClose }: ProviderManagerProps) {
         {/* 头部 */}
         <div className="flex items-center justify-between p-4 border-b border-border flex-shrink-0">
           <div>
-            <h2 className="text-lg font-semibold text-text-primary">AI 提供者管理</h2>
+            <h2 className="text-base font-semibold text-text-primary">AI 提供者管理</h2>
             <p className="text-[11px] text-text-muted mt-0.5">拖动左侧图标可调整显示顺序</p>
           </div>
           <button onClick={onClose} className="text-text-muted hover:text-text-primary btn-transition">

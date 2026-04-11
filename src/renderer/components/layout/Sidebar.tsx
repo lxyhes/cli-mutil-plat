@@ -324,6 +324,8 @@ export function SessionsContent() {
         providerId,
         enableAgent: supervisorMode,
         supervisorMode,
+        // ★ iFlow: 预热模式，创建时即完成握手，后续发消息无需等待 60 秒
+        prewarm: providerId === 'iflow',
       })
       setShowNewSessionDialog(false)
     } catch (error: any) {

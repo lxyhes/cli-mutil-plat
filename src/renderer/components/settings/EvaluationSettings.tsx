@@ -179,7 +179,7 @@ export default function EvaluationSettings() {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 p-4 min-w-0">
       {/* 状态栏 */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2 px-3 py-2 bg-bg-tertiary rounded-lg">

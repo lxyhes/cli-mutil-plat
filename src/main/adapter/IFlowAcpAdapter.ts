@@ -434,6 +434,194 @@ export class IFlowAcpAdapter extends BaseProviderAdapter {
   }
 
   /**
+   * 预热 iFlow 会话
+   *
+   * 与 startSession 不同，预热完成后：
+   * - 不发送 initialPrompt（由用户发第一条消息时触发 session/prompt）
+   * - 立即返回预热后的会话信息，前端可以显示"预热完成"
+   * - 发送消息时调用 sendMessage() → session/prompt，无需再等待 60 秒初始化
+   */
+  async prewarmSession(sessionId: string, config: AdapterSessionConfig): Promise<{
+    sessionId: string
+    iflowSessionId: string
+    status: string
+  }> {
+    const args = ['--experimental-acp']
+    if (config.autoAccept) args.push('--yolo')
+    if (config.model) args.push('--model', config.model)
+
+    const { command: iflowCmd, extraArgs: iflowPrefix, useShell: iflowShell } = findIFlowLaunchConfig(config.command, config.nodeVersion)
+    const finalArgs = [...iflowPrefix, ...args]
+    const env = prependNodeVersionToEnvPath(
+      { ...process.env, ...config.envOverrides },
+      config.nodeVersion
+    )
+
+    console.log(`[IFlowAcpAdapter] Prewarming iflow:`, iflowCmd, finalArgs, { shell: iflowShell, cwd: config.workingDirectory })
+    const proc = spawn(iflowCmd, finalArgs, {
+      cwd: config.workingDirectory,
+      stdio: ['pipe', 'pipe', 'pipe'],
+      shell: iflowShell,
+      env,
+    })
+
+    const session: IFlowSession = {
+      adapter: {
+        sessionId,
+        status: 'starting',
+        messages: [],
+        createdAt: new Date().toISOString(),
+        totalUsage: { inputTokens: 0, outputTokens: 0 },
+      },
+      config,
+      process: proc,
+      requestId: 0,
+      pendingRequests: new Map(),
+      currentText: '',
+      activeToolCalls: new Map(),
+    }
+
+    this.sessions.set(sessionId, session)
+
+    // ---- 监听 stdout（ACP NDJSON 行）----
+    const rl = createInterface({ input: proc.stdout! })
+    rl.on('line', (line) => this.handleLine(sessionId, line.trim()))
+
+    // ---- stderr 日志 ----
+    let stderrBuffer = ''
+    proc.stderr?.on('data', (data: Buffer) => {
+      const text = data.toString().trim()
+      if (!text) return
+      stderrBuffer += text + '\n'
+      if (stderrBuffer.length > 2048) stderrBuffer = stderrBuffer.slice(-2048)
+      if (text.includes('[ERROR]') || text.includes('Error:') || text.includes('FATAL') || text.includes('error:')) {
+        console.error(`[IFlowAcpAdapter][${sessionId}] stderr:`, text)
+      } else {
+        console.log(`[IFlowAcpAdapter][${sessionId}] stderr:`, text)
+      }
+    })
+
+    // ---- 进程退出处理 ----
+    proc.on('exit', (code) => {
+      const s = this.sessions.get(sessionId)
+      if (!s) return
+      rl.close()
+      if (code !== 0) {
+        const errSnippet = stderrBuffer.trim().slice(0, 800)
+        const content = errSnippet
+          ? `⚠️ iFlow 进程异常退出 (exit ${code}):\n${errSnippet}`
+          : `⚠️ iFlow 进程异常退出 (exit ${code})`
+        const errMsg = {
+          id: uuidv4(),
+          sessionId,
+          role: 'system' as const,
+          content,
+          timestamp: new Date().toISOString(),
+        }
+        s.adapter.messages.push(errMsg)
+        this.emit('conversation-message', sessionId, errMsg)
+      }
+      s.adapter.status = 'completed'
+      this.emit('status-change', sessionId, 'completed')
+      this.emitEvent(sessionId, {
+        type: 'session_complete',
+        sessionId,
+        timestamp: new Date().toISOString(),
+        data: { exitCode: code ?? 0 },
+      })
+      for (const [, p] of s.pendingRequests) p.reject(new Error(`iFlow process exited with code ${code}`))
+      s.pendingRequests.clear()
+    })
+
+    proc.on('error', (err) => {
+      const s = this.sessions.get(sessionId)
+      if (!s) return
+      console.error(`[IFlowAcpAdapter] Process error for ${sessionId}:`, err)
+      s.adapter.status = 'error'
+      this.emit('status-change', sessionId, 'error')
+      this.emitEvent(sessionId, {
+        type: 'error',
+        sessionId,
+        timestamp: new Date().toISOString(),
+        data: { text: `iFlow 启动失败: ${err.message}` },
+      })
+      for (const [, p] of s.pendingRequests) p.reject(err)
+      s.pendingRequests.clear()
+    })
+
+    this.emit('status-change', sessionId, 'starting')
+
+    // ---- ACP 握手（与 startSession 相同，但不发送 initialPrompt）----
+    try {
+      // 1. initialize（response 中包含 authMethods）
+      const initResult = await this.rpc(sessionId, ACP_METHOD.initialize, {
+        protocolVersion: 1,
+        clientCapabilities: { fs: { readTextFile: true, writeTextFile: true } },
+      })
+
+      // 2. authenticate
+      const authMethods: Array<{ id: string; name: string }> = initResult?.authMethods || []
+      const methodId = authMethods[0]?.id ?? 'iflow'
+      await this.rpc(sessionId, ACP_METHOD.authenticate, { methodId })
+
+      // 3. session/new（预热模式）
+      const resumeSessionId = this.pendingResumeIds.get(sessionId)
+      if (resumeSessionId) this.pendingResumeIds.delete(sessionId)
+
+      const sessionNewParams = {
+        cwd: config.workingDirectory,
+        mcpServers: this.loadMcpServersForAcp(config),
+        ...(resumeSessionId ? { sessionId: resumeSessionId } : {}),
+        ...(config.systemPrompt ? { settings: { systemPrompt: config.systemPrompt } } : {}),
+      }
+      console.log(`[IFlowAcpAdapter][${sessionId}] prewarm session/new params:`, JSON.stringify(sessionNewParams, null, 2).slice(0, 500))
+
+      const sessionResult = await this.rpc(sessionId, ACP_METHOD.session_new, sessionNewParams)
+      console.log(`[IFlowAcpAdapter][${sessionId}] prewarm session/new response:`, JSON.stringify(sessionResult, null, 2).slice(0, 500))
+
+      session.iflowSessionId = sessionResult?.sessionId
+      session.adapter.status = 'waiting_input'
+      session.adapter.providerSessionId = session.iflowSessionId
+
+      // ★ 预热完成：发出 waiting_input，让前端知道可以开始交互
+      this.emit('status-change', sessionId, 'waiting_input')
+
+      if (session.iflowSessionId) {
+        this.emit('provider-session-id', sessionId, session.iflowSessionId)
+        console.log(`[IFlowAcpAdapter] Prewarmed provider-session-id for ${sessionId}: ${session.iflowSessionId}`)
+      }
+
+      // ★ 发出 session-init-data（与 startSession 相同）
+      this.emit('session-init-data', sessionId, {
+        model: config.model || 'default',
+        tools: [],
+        mcpServers: [],
+        skills: [],
+        plugins: [],
+        availableModels: this.getAvailableModels(),
+      })
+
+      console.log(`[IFlowAcpAdapter][${sessionId}] Prewarm completed successfully (iflowSessionId: ${session.iflowSessionId})`)
+      return {
+        sessionId,
+        iflowSessionId: session.iflowSessionId || '',
+        status: 'prewarmed',
+      }
+    } catch (err: any) {
+      console.error(`[IFlowAcpAdapter] Prewarm failed for ${sessionId}:`, err)
+      session.adapter.status = 'error'
+      this.emit('status-change', sessionId, 'error')
+      this.emitEvent(sessionId, {
+        type: 'error',
+        sessionId,
+        timestamp: new Date().toISOString(),
+        data: { text: `iFlow prewarm failed: ${err.message}` },
+      })
+      throw err
+    }
+  }
+
+  /**
    * 读取 MCP 配置文件并转换为 ACP session/new 所需的数组格式。
    *
    * Claude Code 的 MCP 配置格式（JSON）：

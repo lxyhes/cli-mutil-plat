@@ -50,6 +50,24 @@ export class TeamRepository {
     return undefined
   }
 
+  private updateByExistingColumns(
+    tableName: string,
+    whereClause: string,
+    whereValues: any[],
+    valuesByColumn: Record<string, any>,
+  ): void {
+    if (!this.db) return
+    const cols = this.getTableColumns(tableName)
+    const updateColumns = Object.keys(valuesByColumn).filter(column => cols.has(column))
+    if (updateColumns.length === 0) return
+
+    const setClause = updateColumns.map(column => `${column} = ?`).join(', ')
+    const values = updateColumns.map(column => valuesByColumn[column])
+    this.db.prepare(
+      `UPDATE ${tableName} SET ${setClause} WHERE ${whereClause}`,
+    ).run(...values, ...whereValues)
+  }
+
   private ensureTemplatesTable(): void {
     if (!this.db || this.templatesTableEnsured) return
 
@@ -175,9 +193,11 @@ export class TeamRepository {
       const completedAt = (status === 'completed' || status === 'failed' || status === 'cancelled')
         ? new Date().toISOString()
         : null
-      this.db.prepare(
-        'UPDATE team_instances SET status = ?, completed_at = COALESCE(?, completed_at) WHERE id = ?'
-      ).run(status, completedAt, instanceId)
+      this.updateByExistingColumns('team_instances', 'id = ?', [instanceId], {
+        status,
+        completed_at: completedAt,
+        ended_at: completedAt,
+      })
     } catch (err) {
       console.error('[TeamRepository] updateTeamStatus error:', err)
     }
@@ -281,9 +301,10 @@ export class TeamRepository {
   updateMemberStatus(memberId: string, status: string): void {
     if (!this.db) return
     try {
-      this.db.prepare(
-        'UPDATE team_members SET status = ?, last_active_at = ? WHERE id = ?'
-      ).run(status, new Date().toISOString(), memberId)
+      this.updateByExistingColumns('team_members', 'id = ?', [memberId], {
+        status,
+        last_active_at: new Date().toISOString(),
+      })
     } catch (err) {
       console.error('[TeamRepository] updateMemberStatus error:', err)
     }
@@ -292,25 +313,11 @@ export class TeamRepository {
   updateMember(memberId: string, updates: Partial<Pick<TeamMember, 'status' | 'currentTaskId' | 'lastActiveAt'>>): void {
     if (!this.db) return
     try {
-      const setParts: string[] = []
-      const values: any[] = []
-      if (updates.status !== undefined) {
-        setParts.push('status = ?')
-        values.push(updates.status)
-      }
-      if (updates.currentTaskId !== undefined) {
-        setParts.push('current_task_id = ?')
-        values.push(updates.currentTaskId)
-      }
-      if (updates.lastActiveAt !== undefined) {
-        setParts.push('last_active_at = ?')
-        values.push(updates.lastActiveAt)
-      }
-      if (setParts.length === 0) return
-      values.push(memberId)
-      this.db.prepare(
-        `UPDATE team_members SET ${setParts.join(', ')}, last_active_at = ? WHERE id = ?`
-      ).run(...values.slice(0, -1), new Date().toISOString(), memberId)
+      this.updateByExistingColumns('team_members', 'id = ?', [memberId], {
+        ...(updates.status !== undefined ? { status: updates.status } : {}),
+        ...(updates.currentTaskId !== undefined ? { current_task_id: updates.currentTaskId } : {}),
+        last_active_at: updates.lastActiveAt ?? new Date().toISOString(),
+      })
     } catch (err) {
       console.error('[TeamRepository] updateMember error:', err)
     }
@@ -319,9 +326,10 @@ export class TeamRepository {
   updateMemberTask(memberId: string, taskId: string | null): void {
     if (!this.db) return
     try {
-      this.db.prepare(
-        'UPDATE team_members SET current_task_id = ?, last_active_at = ? WHERE id = ?'
-      ).run(taskId, new Date().toISOString(), memberId)
+      this.updateByExistingColumns('team_members', 'id = ?', [memberId], {
+        current_task_id: taskId,
+        last_active_at: new Date().toISOString(),
+      })
     } catch (err) {
       console.error('[TeamRepository] updateMemberTask error:', err)
     }
@@ -702,18 +710,27 @@ export class TeamRepository {
   addMessage(message: TeamMessage): void {
     if (!this.db) return
     try {
+      const cols = this.getTableColumns('team_messages')
+      const valuesByColumn: Record<string, any> = {
+        id: message.id,
+        instance_id: message.instanceId,
+        from_member_id: message.from,
+        from_role: message.from,
+        to_member_id: message.to || null,
+        to_role: message.to || null,
+        type: message.type,
+        message_type: message.type,
+        content: message.content,
+        timestamp: message.timestamp,
+        task_id: null,
+      }
+      const insertColumns = Object.keys(valuesByColumn).filter(column => cols.has(column))
+      if (insertColumns.length === 0) return
+      const placeholders = insertColumns.map(() => '?').join(', ')
       this.db.prepare(`
-        INSERT INTO team_messages (id, instance_id, from_member_id, to_member_id, type, content, timestamp)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
-      `).run(
-        message.id,
-        message.instanceId,
-        message.from,
-        message.to || null,
-        message.type,
-        message.content,
-        message.timestamp
-      )
+        INSERT INTO team_messages (${insertColumns.join(', ')})
+        VALUES (${placeholders})
+      `).run(...insertColumns.map(column => valuesByColumn[column]))
     } catch (err) {
       console.error('[TeamRepository] addMessage error:', err)
     }
@@ -728,9 +745,9 @@ export class TeamRepository {
       return rows.map((row: any) => ({
         id: row.id,
         instanceId: row.instance_id,
-        from: row.from_member_id,
-        to: row.to_member_id || undefined,
-        type: row.type,
+        from: this.getRowValue<string>(row, 'from_member_id', 'from_role') || '',
+        to: this.getRowValue<string>(row, 'to_member_id', 'to_role') || undefined,
+        type: this.getRowValue<any>(row, 'type', 'message_type') || 'role_message',
         content: row.content,
         timestamp: row.timestamp,
       })).reverse()

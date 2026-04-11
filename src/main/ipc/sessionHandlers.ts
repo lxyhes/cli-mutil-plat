@@ -618,6 +618,22 @@ export function registerSessionHandlers(deps: IpcDependencies): void {
       config.providerId = provider.id
       config.adapterType = provider.adapterType
 
+      // ★ iFlow 预热模式：提前完成握手，后续发消息无需等待 60 秒初始化
+      if (config.prewarm && provider.id === 'iflow') {
+        console.log(`[IPC] SESSION_CREATE: using prewarm mode for iFlow`)
+        const prewarmResult = await smV2.prewarmSession(config, provider)
+        concurrencyGuard.registerSession()
+        database.recordDirectoryUsage(config.workingDirectory)
+        // 等待预热完成（prewarmSession 内部已完成握手，返回时已是 waiting_input）
+        return createSuccessResponse({
+          sessionId: prewarmResult.sessionId,
+          iflowSessionId: prewarmResult.iflowSessionId,
+          ready: true,
+          status: 'waiting_input',
+          prewarmed: true,
+        })
+      }
+
       // ★ 创建 SDK V2 会话
       // 数据库记录由 systemHandlers.ts 中的 session_start 事件统一写入，此处不重复写（避免 UNIQUE constraint 冲突）
       const sessionId = smV2.createSession(config, provider)
@@ -653,6 +669,39 @@ export function registerSessionHandlers(deps: IpcDependencies): void {
       return await task
     } finally {
       createSessionInFlight.delete(dedupeKey)
+    }
+  })
+
+  // ★ iFlow 预热：提前完成握手，发送消息时无需等待 60 秒初始化
+  ipcMain.handle(IPC.SESSION_PREWARM, async (_event, config: SessionConfig) => {
+    try {
+      const smV2 = deps.sessionManagerV2
+      if (!smV2) {
+        throw new SpectrAIError({
+          code: ErrorCode.INTERNAL,
+          message: 'SDK V2 SessionManager not initialized',
+          userMessage: 'SDK V2 SessionManager 未初始化'
+        })
+      }
+
+      const providerId = config.providerId || 'claude-code'
+      let provider: AIProvider | undefined = database.getProvider(providerId)
+      if (!provider || !provider.adapterType) {
+        provider = BUILTIN_CLAUDE_PROVIDER
+      }
+
+      const result = await smV2.prewarmSession(config, provider)
+      concurrencyGuard.registerSession()
+      database.recordDirectoryUsage(config.workingDirectory)
+
+      return createSuccessResponse({
+        sessionId: result.sessionId,
+        iflowSessionId: result.iflowSessionId,
+        status: result.status,
+      })
+    } catch (error: any) {
+      console.error('[IPC] SESSION_PREWARM error:', error)
+      return createErrorResponse(error, { operation: 'session.prewarm', config })
     }
   })
 

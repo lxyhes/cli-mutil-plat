@@ -287,6 +287,8 @@ export interface SessionConfig {
   additionalDirectories?: string[]
   /** 追加到系统提示的内容（内部使用，用于注入 worktree 等规则，确保每次会话生效） */
   systemPromptAppend?: string
+  /** iFlow 预热：提前完成握手，后续发消息无需等待 60 秒初始化 */
+  prewarm?: boolean
 }
 
 export type SessionStatus =

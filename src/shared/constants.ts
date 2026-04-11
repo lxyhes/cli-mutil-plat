@@ -48,6 +48,7 @@ export const IPC = {
   SESSION_APPROVE_PLAN: 'session:approve-plan',          // 用户审批/拒绝 ExitPlanMode
   SESSION_GET_QUEUE: 'session:get-queue',                // SDK V2: 获取排队中的消息列表
   SESSION_CLEAR_QUEUE: 'session:clear-queue',            // SDK V2: 清空排队中的消息（用户主动取消）
+  SESSION_PREWARM: 'session:prewarm',                   // SDK V2: iFlow 预热（提前完成握手，不发送首条消息）
 
   TASK_CREATE: 'task:create',
   TASK_UPDATE: 'task:update',

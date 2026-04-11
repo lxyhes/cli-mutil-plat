@@ -9,18 +9,18 @@ import type { Skill } from '../../../shared/types'
 
 // 过滤类型配置
 const SKILL_TYPES = [
-  { id: 'all',           label: '全部'    },
+  { id: 'all',           label: '全部'      },
   { id: 'prompt',        label: 'Prompt 技能' },
-  { id: 'orchestration', label: '编排技能'   },
-  { id: 'native',        label: '原生技能'   },
-  { id: 'builtin',       label: '内置'    },
+  { id: 'orchestration', label: '编排技能'    },
+  { id: 'native',        label: '原生技能'    },
+  { id: 'builtin',       label: '内置'       },
 ]
 
 // 技能类型颜色
 const TYPE_COLORS: Record<string, string> = {
-  prompt:        'bg-accent-blue/15 text-accent-blue',
-  orchestration: 'bg-accent-purple/15 text-accent-purple',
-  native:        'bg-accent-green/15 text-accent-green',
+  prompt:        'bg-blue-500/10 text-blue-400 border border-blue-500/20',
+  orchestration: 'bg-purple-500/10 text-purple-400 border border-purple-500/20',
+  native:        'bg-green-500/10 text-green-400 border border-green-500/20',
 }
 
 // Provider 显示映射
@@ -30,15 +30,16 @@ const PROVIDER_LABELS: Record<string, string> = {
   'gemini-cli':  'Gemini',
   'iflow':       'iFlow',
   'opencode':    'OpenCode',
+  'qwen-coder':  'Qwen',
 }
 
 // 市场技能分类标签颜色
 const CATEGORY_COLORS: Record<string, string> = {
-  development: 'bg-blue-500/15 text-blue-400',
-  database:    'bg-orange-500/15 text-orange-400',
-  security:    'bg-red-500/15 text-red-400',
-  language:    'bg-green-500/15 text-green-400',
-  general:     'bg-gray-500/15 text-gray-400',
+  development: 'bg-indigo-500/10 text-indigo-400 border border-indigo-500/20',
+  database:    'bg-orange-500/10 text-orange-400 border border-orange-500/20',
+  security:    'bg-red-500/10 text-red-400 border border-red-500/20',
+  language:    'bg-green-500/10 text-green-400 border border-green-500/20',
+  general:     'bg-gray-500/10 text-gray-400 border border-gray-500/20',
 }
 
 // 市场技能分类名
@@ -50,29 +51,49 @@ const CATEGORY_LABELS: Record<string, string> = {
   general:     '通用',
 }
 
-// ── 折叠式说明卡片 ──
-function InfoCard() {
+// ── 顶部说明 Banner ──
+function SkillBanner() {
   const [expanded, setExpanded] = useState(false)
 
   return (
-    <div className="mb-4 bg-blue-500/10 border border-blue-500/20 rounded-lg overflow-hidden">
+    <div className="mb-3 bg-gradient-to-r from-blue-500/6 to-indigo-500/6 border border-blue-500/15 rounded-lg overflow-hidden">
       <button
-        className="w-full flex items-center justify-between px-4 py-2.5 text-left"
+        className="w-full flex items-center justify-between px-3.5 py-2.5 text-left hover:bg-white/5 transition-colors"
         onClick={() => setExpanded(v => !v)}
       >
-        <span className="text-xs font-medium text-blue-400">💡 技能 vs MCP 是什么关系？</span>
+        <div className="flex items-center gap-2">
+          <div className="w-6 h-6 rounded-md bg-blue-500/15 flex items-center justify-center shrink-0">
+            <svg className="w-3 h-3 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
+            </svg>
+          </div>
+          <span className="text-xs font-medium text-blue-300">技能 vs MCP 工具</span>
+        </div>
         <svg
-          className={`w-4 h-4 text-blue-400 transition-transform ${expanded ? 'rotate-180' : ''}`}
+          className={`w-3.5 h-3.5 text-blue-400/60 transition-transform duration-200 shrink-0 ${expanded ? 'rotate-180' : ''}`}
           fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}
         >
           <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
         </svg>
       </button>
       {expanded && (
-        <div className="px-4 pb-3 text-xs text-blue-300/80 space-y-1 leading-relaxed">
-          <p>• <strong className="text-blue-300">技能（Skill）</strong> = 快捷 Prompt 模板，输入 /命令 后展开发送给 AI</p>
-          <p>• <strong className="text-blue-300">MCP</strong> = 给 AI 增加真实工具能力（读文件、查数据库等）</p>
-          <p>• 两者可以结合：<strong className="text-blue-300">技能可以依赖 MCP 工具</strong>来完成任务</p>
+        <div className="px-3.5 pb-3 border-t border-blue-500/10 pt-2.5 space-y-2">
+          <div className="flex items-start gap-2">
+            <div className="w-4 h-4 rounded bg-blue-500/15 flex items-center justify-center shrink-0 mt-0.5">
+              <span className="text-[10px] text-blue-400 font-bold">S</span>
+            </div>
+            <div className="text-xs text-blue-300/80 leading-relaxed">
+              <strong>技能</strong>：快捷 Prompt 模板，输入 <code className="text-blue-300 bg-blue-500/15 px-1 rounded">/命令</code> 后展开发送给 AI
+            </div>
+          </div>
+          <div className="flex items-start gap-2">
+            <div className="w-4 h-4 rounded bg-purple-500/15 flex items-center justify-center shrink-0 mt-0.5">
+              <span className="text-[10px] text-purple-400 font-bold">M</span>
+            </div>
+            <div className="text-xs text-blue-300/80 leading-relaxed">
+              <strong>MCP 工具</strong>：给 AI 增加真实工具能力（读文件、查数据库等）
+            </div>
+          </div>
         </div>
       )}
     </div>
@@ -111,17 +132,20 @@ function MarketSkillCard({
   const catLabel = CATEGORY_LABELS[item.category || 'general'] || item.category || '通用'
 
   return (
-    <div className="border border-border rounded-lg px-4 py-3 bg-bg-secondary hover:border-blue-500/30 transition-colors">
-      <div className="flex items-start justify-between gap-3">
-        {/* 左侧信息 */}
+    <div className="border border-border rounded-xl p-4 bg-bg-secondary hover:border-blue-500/30 transition-colors">
+      {/* 顶部：名称 + 斜杠命令 + 标签 */}
+      <div className="flex items-start justify-between gap-3 mb-3">
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 flex-wrap">
+          <div className="flex items-center gap-2 flex-wrap mb-1.5">
             <span className="text-sm font-medium text-text-primary">{item.name}</span>
             {item.slashCommand && (
               <span className="text-xs font-mono text-accent-blue bg-accent-blue/10 px-1.5 py-0.5 rounded border border-accent-blue/20 flex-shrink-0">
                 /{item.slashCommand}
               </span>
             )}
+          </div>
+          {/* 分类标签行 */}
+          <div className="flex items-center gap-1.5 flex-wrap">
             <span className={`text-xs px-1.5 py-0.5 rounded flex-shrink-0 ${catColor}`}>
               {catLabel}
             </span>
@@ -131,31 +155,13 @@ function MarketSkillCard({
               </span>
             )}
           </div>
-          <p className="text-xs text-text-muted mt-1 leading-relaxed">{item.description}</p>
-          <div className="flex items-center gap-3 mt-2 flex-wrap">
-            {item.author && (
-              <span className="text-xs text-text-muted">👤 {item.author}</span>
-            )}
-            {item.version && (
-              <span className="text-xs text-text-muted">v{item.version}</span>
-            )}
-            {item.tags && item.tags.length > 0 && (
-              <div className="flex gap-1 flex-wrap">
-                {item.tags.slice(0, 4).map(tag => (
-                  <span key={tag} className="text-xs px-1 py-0.5 bg-bg-hover text-text-muted rounded">
-                    #{tag}
-                  </span>
-                ))}
-              </div>
-            )}
-          </div>
         </div>
 
-        {/* 右侧操作 */}
+        {/* 右侧安装按钮 */}
         <div className="flex-shrink-0">
           {installed ? (
-            <span className="flex items-center gap-1 text-xs text-green-400 bg-green-500/10 border border-green-500/20 px-3 py-1.5 rounded-md">
-              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+            <span className="flex items-center gap-1 text-xs text-green-400 bg-green-500/10 border border-green-500/20 px-2.5 py-1 rounded-md">
+              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
               </svg>
               已安装
@@ -164,7 +170,7 @@ function MarketSkillCard({
             <button
               onClick={onInstall}
               disabled={installing}
-              className="px-3 py-1.5 text-xs bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-md transition-colors whitespace-nowrap"
+              className="px-3 py-1 text-xs bg-blue-600 hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-md transition-colors whitespace-nowrap"
             >
               {installing ? (
                 <span className="flex items-center gap-1">
@@ -178,6 +184,33 @@ function MarketSkillCard({
             </button>
           )}
         </div>
+      </div>
+
+      {/* 描述 */}
+      <p className="text-xs text-text-secondary leading-relaxed mb-2.5">{item.description}</p>
+
+      {/* 底部元信息 */}
+      <div className="flex items-center gap-2 flex-wrap">
+        {item.author && (
+          <div className="flex items-center gap-1 text-xs text-text-muted">
+            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+            </svg>
+            {item.author}
+          </div>
+        )}
+        {item.version && (
+          <span className="text-xs text-text-muted">v{item.version}</span>
+        )}
+        {item.tags && item.tags.length > 0 && (
+          <div className="flex items-center gap-1 flex-wrap ml-auto">
+            {item.tags.slice(0, 4).map(tag => (
+              <span key={tag} className="text-xs px-1.5 py-0.5 bg-bg-hover text-text-muted rounded border border-border/50">
+                #{tag}
+              </span>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   )
@@ -293,68 +326,89 @@ function MarketplaceTab({ installedSkills, onInstalled }: { installedSkills: Ski
 
   return (
     <div className="flex flex-col flex-1 min-h-0">
-      {/* 工具栏 */}
+      {/* 工具栏：搜索 + 刷新 */}
       <div className="flex items-center gap-2 mb-3">
-        <input
-          type="text"
-          value={searchQ}
-          onChange={e => setSearchQ(e.target.value)}
-          placeholder="搜索技能..."
-          className="flex-1 bg-bg-input border border-border text-text-primary text-sm rounded-md px-3 py-1.5 focus:outline-none focus:border-blue-500"
-        />
+        <div className="flex-1 relative min-w-0">
+          <svg className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-text-muted" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+          </svg>
+          <input
+            type="text"
+            value={searchQ}
+            onChange={e => setSearchQ(e.target.value)}
+            placeholder="搜索技能..."
+            className="w-full bg-bg-input border border-border text-text-primary text-xs rounded-md pl-8 pr-3 py-1.5 focus:outline-none focus:border-accent-blue transition-colors min-w-0"
+          />
+        </div>
         <button
           onClick={fetchMarket}
-          className="px-3 py-1.5 text-xs border border-border text-text-secondary hover:text-text-primary rounded-md transition-colors flex-shrink-0"
+          className="px-3 py-1.5 text-xs border border-border text-text-secondary hover:text-text-primary hover:bg-bg-hover rounded-md transition-colors flex items-center gap-1.5 shrink-0"
           title="刷新列表"
         >
-          ↺ 刷新
+          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+          </svg>
+          刷新
         </button>
       </div>
 
-      {/* 分类过滤 */}
+      {/* 分类过滤标签栏 */}
       {items.length > 0 && (
-        <div className="flex gap-1 mb-3 flex-wrap">
+        <div className="flex items-center gap-2 mb-3 flex-wrap">
           {categories.map(cat => (
             <button
               key={cat}
               onClick={() => setFilterCat(cat)}
-              className={`px-2.5 py-1 text-xs rounded-md transition-colors ${
+              className={`px-3 py-1 text-xs rounded-md transition-colors ${
                 filterCat === cat
                   ? 'bg-blue-600 text-white'
-                  : 'bg-bg-hover text-text-muted hover:text-text-secondary'
+                  : 'bg-bg-secondary text-text-muted hover:text-text-secondary border border-border'
               }`}
             >
               {cat === 'all' ? '全部' : (CATEGORY_LABELS[cat] || cat)}
             </button>
           ))}
+          <div className="ml-auto flex items-center text-xs text-text-muted self-center pr-1">
+            共 {filtered.length}
+          </div>
         </div>
       )}
 
       {/* 错误提示 */}
       {error && (
-        <div className="mb-3 px-3 py-2 bg-accent-red/10 border border-accent-red/30 rounded-md text-accent-red text-sm flex items-center justify-between">
+        <div className="mb-3 px-3 py-2 bg-accent-red/10 border border-accent-red/30 rounded-lg text-accent-red text-xs flex items-center justify-between">
           <span>{error}</span>
-          <button onClick={() => setError(null)} className="text-accent-red hover:text-accent-red ml-2">✕</button>
+          <button onClick={() => setError(null)} className="text-accent-red hover:text-accent-red ml-2 font-bold">✕</button>
         </div>
       )}
 
       {/* 列表 */}
       {filtered.length === 0 ? (
-        <div className="flex-1 flex flex-col items-center justify-center text-text-muted">
-          <div className="text-4xl mb-3">🛒</div>
-          <div className="text-sm">
-            {items.length === 0
-              ? 'Registry 暂无可用技能'
-              : '没有匹配的技能'}
+        <div className="flex-1 flex flex-col items-center justify-center text-text-muted py-10">
+          <div className="w-12 h-12 rounded-xl bg-bg-tertiary flex items-center justify-center mb-3">
+            <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
+            </svg>
+          </div>
+          <div className="text-sm text-text-secondary mb-1">
+            {items.length === 0 ? '暂无市场技能' : '没有匹配的技能'}
           </div>
           {items.length === 0 && (
-            <div className="text-xs mt-1 text-center max-w-[280px]">
+            <div className="text-xs text-text-muted text-center max-w-xs leading-relaxed">
               请在设置中配置 Registry URL，或检查网络连接
             </div>
           )}
+          {items.length > 0 && (
+            <button
+              onClick={() => { setFilterCat('all'); setSearchQ('') }}
+              className="mt-2 text-xs text-blue-400 hover:text-blue-300 transition-colors"
+            >
+              清除筛选条件 →
+            </button>
+          )}
         </div>
       ) : (
-        <div className="flex-1 overflow-y-auto space-y-2">
+        <div className="flex-1 overflow-y-auto space-y-2 pb-4">
           {filtered.map(item => (
             <MarketSkillCard
               key={item.id}
@@ -364,15 +418,6 @@ function MarketplaceTab({ installedSkills, onInstalled }: { installedSkills: Ski
               onInstall={() => handleInstall(item)}
             />
           ))}
-        </div>
-      )}
-
-      {/* 底部说明 */}
-      {items.length > 0 && (
-        <div className="mt-3 pt-3 border-t border-border">
-          <p className="text-xs text-text-muted text-center">
-            共 {items.length} 个技能 · 数据来源于 Registry · 已安装的技能可在"我的技能"中管理
-          </p>
         </div>
       )}
     </div>
@@ -404,109 +449,181 @@ export default function SkillManager() {
     return s.type === activeType
   })
 
+  const enabledCount = skillsArray.filter(s => s.isEnabled).length
+  const promptCount = skillsArray.filter(s => s.type === 'prompt').length
+
   return (
-    <div className="flex flex-col h-full">
-      {/* 顶部主 Tab 切换 */}
-      <div className="flex items-center justify-between mb-4">
-        <div>
-          <h2 className="text-base font-semibold text-text-primary">技能库</h2>
-          <p className="text-xs text-text-muted mt-0.5">通过 /命令 在任意 Provider 的会话中调用技能模板</p>
-        </div>
-        {mainTab === 'mine' && (
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setShowImportDialog(true)}
-              className="px-3 py-1.5 border border-border hover:border-border text-text-secondary hover:text-text-primary text-sm rounded-md transition-colors"
-            >
-              📥 从 URL 导入
-            </button>
-            <button
-              onClick={() => { setEditingSkill(null); setShowEditor(true) }}
-              className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded-md transition-colors"
-            >
-              + 新建技能
-            </button>
+    <div className="flex flex-col h-full p-4 min-w-0">
+
+      {/* 顶部区域 */}
+      <div className="mb-4">
+        {/* 标题行 */}
+        <div className="flex items-start justify-between gap-3 mb-3 min-w-0">
+          <div className="min-w-0">
+            <h2 className="text-base font-semibold text-text-primary">技能库</h2>
+            <p className="text-xs text-text-muted mt-0.5">
+              通过 <code className="text-accent-blue bg-accent-blue/10 px-1 py-0.5 rounded text-xs font-mono">/命令</code> 在任意会话中调用技能模板
+            </p>
           </div>
-        )}
+          {mainTab === 'mine' && (
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                onClick={() => setShowImportDialog(true)}
+                className="px-3 py-1.5 border border-border hover:border-accent-blue/50 text-text-secondary hover:text-text-primary text-xs rounded-lg transition-colors flex items-center gap-1.5 whitespace-nowrap"
+              >
+                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                </svg>
+                从 URL 导入
+              </button>
+              <button
+                onClick={() => { setEditingSkill(null); setShowEditor(true) }}
+                className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white text-xs rounded-lg transition-colors flex items-center gap-1.5 font-medium whitespace-nowrap"
+              >
+                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+                </svg>
+                新建技能
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* 统计栏 */}
+        <div className="flex items-center gap-2 flex-wrap">
+          <div className="flex items-center gap-1.5 text-xs text-text-muted bg-bg-secondary border border-border rounded-lg px-2.5 py-1.5">
+            <svg className="w-3.5 h-3.5 text-accent-blue shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
+            </svg>
+            <span>{skillsArray.length} 个技能</span>
+          </div>
+          <div className="flex items-center gap-1.5 text-xs text-text-muted bg-bg-secondary border border-border rounded-lg px-2.5 py-1.5">
+            <svg className="w-3.5 h-3.5 text-accent-green shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <span>{enabledCount} 个已启用</span>
+          </div>
+          {promptCount > 0 && (
+            <div className="flex items-center gap-1.5 text-xs text-text-muted bg-bg-secondary border border-border rounded-lg px-2.5 py-1.5">
+              <svg className="w-3.5 h-3.5 text-text-secondary shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z" />
+              </svg>
+              <span>{promptCount} 个 Prompt</span>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* 主 Tab 导航 */}
-      <div className="flex gap-1 mb-4 border-b border-border">
+      <div className="flex items-center gap-1 mb-4 p-1 bg-bg-secondary border border-border rounded-lg w-fit">
         <button
           onClick={() => setMainTab('mine')}
-          className={`px-4 py-2 text-sm font-medium transition-colors ${
+          className={`px-4 py-1.5 text-sm rounded-md transition-all duration-150 flex items-center gap-1.5 ${
             mainTab === 'mine'
-              ? 'text-blue-400 border-b-2 border-blue-500 -mb-px'
-              : 'text-text-muted hover:text-text-secondary'
+              ? 'bg-blue-600 text-white shadow-sm shadow-blue-900/30'
+              : 'text-text-muted hover:text-text-secondary hover:bg-bg-hover'
           }`}
         >
+          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
+          </svg>
           我的技能
           {skills.length > 0 && (
-            <span className="ml-1.5 text-xs bg-bg-hover text-text-muted px-1.5 py-0.5 rounded-full">
+            <span className={`text-xs px-1.5 py-0.5 rounded-full ${
+              mainTab === 'mine' ? 'bg-white/20 text-white' : 'bg-bg-hover text-text-muted'
+            }`}>
               {skills.length}
             </span>
           )}
         </button>
         <button
           onClick={() => setMainTab('market')}
-          className={`px-4 py-2 text-sm font-medium transition-colors flex items-center gap-1.5 ${
+          className={`px-4 py-1.5 text-sm rounded-md transition-all duration-150 flex items-center gap-1.5 ${
             mainTab === 'market'
-              ? 'text-blue-400 border-b-2 border-blue-500 -mb-px'
-              : 'text-text-muted hover:text-text-secondary'
+              ? 'bg-blue-600 text-white shadow-sm shadow-blue-900/30'
+              : 'text-text-muted hover:text-text-secondary hover:bg-bg-hover'
           }`}
         >
-          🛒 技能市场
+          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
+          </svg>
+          技能市场
         </button>
       </div>
 
       {/* 我的技能 Tab */}
       {mainTab === 'mine' && (
         <>
-          {/* 说明卡片 */}
-          <InfoCard />
+          {/* 说明 Banner */}
+          <SkillBanner />
 
           {/* 错误提示 */}
           {error && (
-            <div className="mb-3 px-3 py-2 bg-accent-red/10 border border-accent-red/30 rounded-md text-accent-red text-sm flex items-center justify-between">
+            <div className="mb-3 px-3 py-2 bg-accent-red/10 border border-accent-red/30 rounded-lg text-accent-red text-xs flex items-center justify-between">
               <span>{error}</span>
-              <button onClick={clearError} className="text-accent-red hover:text-accent-red">✕</button>
+              <button onClick={clearError} className="text-accent-red hover:text-accent-red ml-2 font-bold">✕</button>
             </div>
           )}
 
-          {/* 类型过滤 */}
-          <div className="flex gap-1 mb-4 border-b border-border">
+          {/* 类型过滤标签栏 */}
+          <div className="flex items-center gap-2 mb-3 flex-wrap">
             {SKILL_TYPES.map(t => (
               <button
                 key={t.id}
                 onClick={() => setActiveType(t.id)}
-                className={`px-3 py-1.5 text-xs rounded-t-md transition-colors ${
+                className={`px-3 py-1 text-xs rounded-md transition-all duration-150 ${
                   activeType === t.id
-                    ? 'text-blue-400 border-b-2 border-blue-500 -mb-px'
-                    : 'text-text-muted hover:text-text-secondary'
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-bg-secondary text-text-muted hover:text-text-secondary border border-border'
                 }`}
               >
                 {t.label}
               </button>
             ))}
+            {filteredSkills.length > 0 && (
+              <span className="ml-auto text-xs text-text-muted self-center pr-1">
+                {filteredSkills.length} 个结果
+              </span>
+            )}
           </div>
 
           {/* Skill 列表 */}
           {loading ? (
-            <div className="flex-1 flex items-center justify-center text-text-muted text-sm">加载中...</div>
+            <div className="flex-1 flex items-center justify-center text-text-muted text-xs py-8">
+              <svg className="w-4 h-4 animate-spin text-blue-400 mr-2" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+              </svg>
+              加载中...
+            </div>
           ) : filteredSkills.length === 0 ? (
-            <div className="flex-1 flex flex-col items-center justify-center text-text-muted">
-              <div className="text-4xl mb-3">🎯</div>
-              <div className="text-sm">暂无技能</div>
-              <div className="text-xs mt-1">点击"新建技能"创建，或前往"技能市场"一键安装热门技能</div>
-              <button
-                onClick={() => setMainTab('market')}
-                className="mt-3 px-3 py-1.5 text-xs bg-blue-600/20 text-blue-400 border border-blue-500/30 rounded-md hover:bg-blue-600/30 transition-colors"
-              >
-                去技能市场看看 →
-              </button>
+            <div className="flex-1 flex flex-col items-center justify-center text-text-muted py-10">
+              <div className="w-14 h-14 rounded-xl bg-bg-secondary border border-border flex items-center justify-center mb-3">
+                <svg className="w-7 h-7 text-text-muted/40" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                </svg>
+              </div>
+              <div className="text-sm text-text-secondary mb-1">暂无技能</div>
+              <div className="text-xs text-text-muted text-center max-w-xs mb-4 leading-relaxed">
+                点击「新建技能」创建，或前往「技能市场」一键安装
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => { setEditingSkill(null); setShowEditor(true) }}
+                  className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white text-xs rounded-lg transition-colors font-medium"
+                >
+                  + 新建技能
+                </button>
+                <button
+                  onClick={() => setMainTab('market')}
+                  className="px-3 py-1.5 border border-border hover:border-accent-blue/50 text-text-secondary hover:text-text-primary text-xs rounded-lg transition-colors"
+                >
+                  去技能市场看看 →
+                </button>
+              </div>
             </div>
           ) : (
-            <div className="flex-1 overflow-y-auto space-y-2">
+            <div className="flex-1 overflow-y-auto space-y-2 pb-4">
               {filteredSkills.map(skill => (
                 <SkillCard
                   key={skill.id}
@@ -565,62 +682,87 @@ function SkillCard({ skill, onToggle, onEdit, onDelete }: {
   const isBuiltin = skill.source === 'builtin'
 
   return (
-    <div className={`border rounded-lg px-4 py-3 flex items-center gap-3 transition-colors ${
+    <div className={`border rounded-xl px-4 py-3 flex items-center gap-3 transition-all duration-150 ${
       skill.isEnabled
-        ? 'border-border/50 bg-bg-secondary'
-        : 'border-border bg-bg-tertiary opacity-60'
+        ? 'border-border/60 bg-bg-secondary hover:border-accent-blue/30'
+        : 'border-border/30 bg-bg-tertiary/50 opacity-60'
     }`}>
-      {/* 斜杠命令 */}
-      <div className="flex-shrink-0 text-xs font-mono text-accent-blue bg-accent-blue/10 px-2 py-1 rounded border border-accent-blue/20 min-w-[80px] text-center">
-        {skill.slashCommand ? `/${skill.slashCommand}` : '—'}
+      {/* 斜杠命令徽章 */}
+      <div className="flex-shrink-0">
+        <div className="text-sm font-mono font-semibold text-accent-blue bg-accent-blue/10 border border-accent-blue/20 px-2.5 py-1.5 rounded-lg min-w-[80px] text-center">
+          {skill.slashCommand ? `/${skill.slashCommand}` : '—'}
+        </div>
       </div>
 
       {/* 主信息 */}
       <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2">
-          <span className="text-sm font-medium text-text-primary truncate">{skill.name}</span>
+        <div className="flex items-center gap-2 flex-wrap mb-1">
+          <span className="text-sm font-medium text-text-primary">{skill.name}</span>
           {isBuiltin && (
-            <span className="text-xs px-1.5 py-0.5 rounded bg-bg-hover text-text-secondary">内置</span>
+            <span className="text-xs px-1.5 py-0.5 rounded bg-bg-hover text-text-muted">内置</span>
           )}
           {skill.source === 'marketplace' && (
-            <span className="text-xs px-1.5 py-0.5 rounded bg-orange-500/15 text-orange-400">市场</span>
+            <span className="text-xs px-1.5 py-0.5 rounded bg-orange-500/10 text-orange-400 border border-orange-500/20">市场</span>
           )}
           <span className={`text-xs px-1.5 py-0.5 rounded ${TYPE_COLORS[skill.type] || 'bg-bg-hover text-text-secondary'}`}>
             {skill.type}
           </span>
         </div>
-        <div className="text-xs text-text-muted truncate mt-0.5">{skill.description}</div>
-        <div className="flex items-center gap-1 mt-1">
-          <span className="text-xs text-text-muted">兼容：</span>
-          <span className="text-xs text-text-muted">
+        <div className="text-xs text-text-muted leading-relaxed line-clamp-1">{skill.description || <span className="text-text-muted italic">暂无描述</span>}</div>
+        <div className="flex items-center gap-1.5 text-xs text-text-muted mt-0.5">
+          <svg className="w-3 h-3 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+          </svg>
+          <span className="text-xs text-text-muted truncate max-w-full">
             {skill.compatibleProviders === 'all'
               ? '所有 Provider'
-              : Array.isArray(skill.compatibleProviders)
+              : Array.isArray(skill.compatibleProviders) && skill.compatibleProviders.length > 0
                 ? skill.compatibleProviders.map(p => PROVIDER_LABELS[p] || p).join(', ')
                 : '所有 Provider'}
           </span>
         </div>
       </div>
 
-      {/* 操作 */}
-      <div className="flex items-center gap-2 flex-shrink-0">
+      {/* 操作按钮组 */}
+      <div className="flex items-center gap-1.5 flex-shrink-0 flex-wrap">
         {!isBuiltin && (
-          <button onClick={onEdit} className="text-text-muted hover:text-text-secondary text-sm" title="编辑">✎</button>
+          <button
+            onClick={onEdit}
+            className="w-7 h-7 flex items-center justify-center rounded-md text-text-muted hover:text-text-primary hover:bg-bg-hover transition-colors"
+            title="编辑"
+          >
+            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+            </svg>
+          </button>
         )}
         {!isBuiltin && (
-          <button onClick={onDelete} className="text-text-muted hover:text-red-400 text-sm" title="删除">✕</button>
+          <button
+            onClick={onDelete}
+            className="w-7 h-7 flex items-center justify-center rounded-md text-text-muted hover:text-accent-red hover:bg-accent-red/10 transition-colors"
+            title="删除"
+          >
+            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+            </svg>
+          </button>
         )}
         {isBuiltin ? (
-          <span className="text-xs text-text-muted" title="内置技能不可禁用">🔒</span>
+          <div className="w-7 h-7 flex items-center justify-center rounded-md text-text-muted/40" title="内置技能不可禁用">
+            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+            </svg>
+          </div>
         ) : (
           <button
             onClick={() => onToggle(!skill.isEnabled)}
-            className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
-              skill.isEnabled ? 'bg-blue-600' : 'bg-bg-hover'
+            className={`relative inline-flex h-6 w-10 items-center rounded-full transition-colors ${
+              skill.isEnabled ? 'bg-blue-600' : 'bg-bg-tertiary border border-border'
             }`}
+            title={skill.isEnabled ? '点击禁用' : '点击启用'}
           >
-            <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${
-              skill.isEnabled ? 'translate-x-4' : 'translate-x-1'
+            <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+              skill.isEnabled ? 'translate-x-5' : 'translate-x-1'
             }`} />
           </button>
         )}

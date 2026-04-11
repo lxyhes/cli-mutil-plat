@@ -49,7 +49,7 @@ export function WorkspaceTab() {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 p-4 min-w-0">
       {/* 标题行 */}
       <div className="flex items-center justify-between">
         <div>

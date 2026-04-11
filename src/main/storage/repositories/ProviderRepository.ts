@@ -11,8 +11,10 @@ export class ProviderRepository {
     if (this.usingSqlite) {
       try {
         const rows = this.db.prepare('SELECT * FROM ai_providers ORDER BY sort_order ASC, created_at ASC').all() as any[]
-        return rows.map((row: any) => {
+        const seenIds = new Set<string>()
+        const results: AIProvider[] = rows.map((row: any) => {
           const mapped = this.mapProvider(row)
+          seenIds.add(mapped.id)
           // 内置 Provider：与硬编码预设合并，确保 adapterType 等关键字段不丢失
           if (mapped.isBuiltin) {
             const builtinPreset = BUILTIN_PROVIDERS.find(bp => bp.id === mapped.id)
@@ -35,6 +37,14 @@ export class ProviderRepository {
           }
           return mapped
         })
+        // ★ 补充缺失的内置 Provider（从未被插入数据库的内置 Provider）
+        for (const builtin of BUILTIN_PROVIDERS) {
+          if (!seenIds.has(builtin.id)) {
+            results.push(builtin)
+            seenIds.add(builtin.id)
+          }
+        }
+        return results
       } catch (err) {
         console.error('[Database] getAllProviders error:', err)
       }

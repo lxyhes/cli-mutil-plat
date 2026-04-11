@@ -654,3 +654,116 @@
   max-width: 100%;
   border-radius: 4px;
 }
+
+.studio-edge-flow {
+  animation: studio-edge-breathe 1.8s ease-in-out infinite;
+}
+
+.studio-node-ripple {
+  transform-origin: center;
+  animation: studio-node-ripple 2.2s ease-out infinite;
+}
+
+.studio-desk-ripple {
+  position: absolute;
+  inset: -20%;
+  border-radius: 9999px;
+  opacity: 0;
+  pointer-events: none;
+  animation: studio-desk-ripple 2.4s ease-out infinite;
+}
+
+.studio-ripple-focused {
+  background: radial-gradient(circle, rgba(63, 185, 80, 0.18) 0%, rgba(63, 185, 80, 0) 72%);
+}
+
+.studio-ripple-done {
+  background: radial-gradient(circle, rgba(88, 166, 255, 0.18) 0%, rgba(88, 166, 255, 0) 72%);
+}
+
+.studio-ripple-error {
+  background: radial-gradient(circle, rgba(244, 63, 94, 0.16) 0%, rgba(244, 63, 94, 0) 72%);
+}
+
+.studio-ripple-info,
+.studio-ripple-waiting {
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.12) 0%, rgba(255, 255, 255, 0) 72%);
+}
+
+.studio-pulse-badge {
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 9999px;
+  padding: 0.2rem 0.5rem;
+  font-size: 10px;
+  line-height: 1;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  backdrop-filter: blur(10px);
+  animation: studio-badge-pop 1.4s ease-in-out infinite;
+}
+
+.studio-pulse-focused {
+  background: rgba(63, 185, 80, 0.18);
+  color: #b7f7c0;
+}
+
+.studio-pulse-done {
+  background: rgba(88, 166, 255, 0.18);
+  color: #bfdbff;
+}
+
+.studio-pulse-error {
+  background: rgba(244, 63, 94, 0.16);
+  color: #fecdd3;
+}
+
+.studio-pulse-info,
+.studio-pulse-waiting {
+  background: rgba(255, 255, 255, 0.1);
+  color: #e2e8f0;
+}
+
+@keyframes studio-edge-breathe {
+  0%, 100% {
+    opacity: 0.42;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+@keyframes studio-node-ripple {
+  0% {
+    opacity: 0.75;
+    transform: scale(0.88);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.22);
+  }
+}
+
+@keyframes studio-desk-ripple {
+  0% {
+    opacity: 0;
+    transform: scale(0.72);
+  }
+  24% {
+    opacity: 0.7;
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.15);
+  }
+}
+
+@keyframes studio-badge-pop {
+  0%, 100% {
+    transform: translateY(0);
+    box-shadow: 0 0 0 rgba(255, 255, 255, 0);
+  }
+  50% {
+    transform: translateY(-1px);
+    box-shadow: 0 6px 18px rgba(15, 23, 42, 0.22);
+  }
+}

@@ -192,6 +192,24 @@ export abstract class BaseProviderAdapter extends EventEmitter {
    * 清理所有资源（应用退出时调用）
    */
   abstract cleanup(): void
+
+  /**
+   * 预热会话（仅部分 Adapter 支持，如 iFlow）
+   *
+   * 与 startSession 不同，预热完成后：
+   * - 不发送 initialPrompt
+   * - 立即返回预热后的会话信息
+   * - sendMessage() 时直接发送 session/prompt，无需等待初始化
+   *
+   * @param sessionId SpectrAI 内部会话 ID
+   * @param config 会话配置
+   * @returns 预热结果
+   */
+  prewarmSession?(sessionId: string, config: AdapterSessionConfig): Promise<{
+    sessionId: string
+    iflowSessionId: string
+    status: string
+  }>
 }
 
 // ---- 工具名→活动事件类型映射 ----

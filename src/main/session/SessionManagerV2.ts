@@ -468,7 +468,7 @@ export class SessionManagerV2 extends EventEmitter implements MemoryManagedCompo
         return base
       })(),
       mcpConfigPath: config.mcpConfigPath,
-      envOverrides: config.env,
+      envOverrides: { ...resolvedProvider.envOverrides, ...config.env },
       // ★ 从 Provider 配置传入 Provider 级参数（nodeVersion / model / providerArgs / executablePath / gitBashPath）
       model: resolvedProvider.defaultModel,
       nodeVersion: resolvedProvider.nodeVersion,
@@ -921,6 +921,138 @@ export class SessionManagerV2 extends EventEmitter implements MemoryManagedCompo
 
       this.on('status-change', onStatus)
     })
+  }
+
+  /**
+   * 预热会话（仅支持 iFlow）
+   *
+   * 适用于初始化较慢的 Provider（如 iFlow），提前完成握手，
+   * 让后续 sendMessage 可以立即发送消息，无需等待初始化。
+   *
+   * @returns 预热结果，包含 sessionId 和 iflowSessionId
+   */
+  async prewarmSession(
+    config: SessionConfig,
+    provider?: AIProvider
+  ): Promise<{ sessionId: string; iflowSessionId: string; status: string }> {
+    const id = config.id || uuidv4()
+    const resolvedProvider = provider || this.resolveProvider(config.providerId)
+
+    // ★ 仅 iFlow 支持预热
+    if (resolvedProvider.adapterType !== 'iflow-acp') {
+      throw new Error(`Prewarm is only supported for iFlow provider (got: ${resolvedProvider.adapterType})`)
+    }
+
+    // 创建内部状态（与 _createSession 相同）
+    const session: ManagedSession = {
+      id,
+      name: config.name || `Session-${id.slice(0, 8)}`,
+      workingDirectory: config.workingDirectory,
+      status: 'starting',
+      config,
+      provider: resolvedProvider,
+      nameLocked: !!config.agentId,
+      autoRenameEmitted: false,
+      startedAt: new Date().toISOString(),
+      totalUsage: { inputTokens: 0, outputTokens: 0 },
+      pendingMessages: [],
+      scheduledMessages: [],
+      schedulerAbortInFlight: false,
+      schedulerDispatchInFlight: false,
+    }
+
+    // 清理旧 adapter 监听器（resume 场景）
+    const existingSession = this.sessions.get(id)
+    if (existingSession?._cleanup) {
+      existingSession._cleanup()
+    }
+
+    this.sessions.set(id, session)
+
+    // 注册 adapter 事件监听（与 _createSession 相同）
+    const onEvent = (event: ProviderEvent) => {
+      if (event.sessionId !== id) return
+      this.handleProviderEvent(id, event)
+    }
+    const onStatusChange = (sid: string, status: SessionStatus) => {
+      if (sid !== id) return
+      this.updateStatus(id, status)
+    }
+    const onConversationMessage = (sid: string, msg: ConversationMessage) => {
+      if (sid !== id) return
+      this.emit('conversation-message', id, msg)
+    }
+    const onProviderSessionId = (sid: string, providerSessionId: string) => {
+      if (sid !== id) return
+      if (!session.claudeSessionId) {
+        session.claudeSessionId = providerSessionId
+        this.emit('claude-session-id', id, providerSessionId)
+      }
+    }
+    const onInitData = (sid: string, data: any) => {
+      if (sid !== id) return
+      this.emit('session-init-data', id, data)
+    }
+    const onAuthRequired = (sid: string, data: { providerId: string; message: string; authCommand: string }) => {
+      if (sid !== id) return
+      this.emit('auth-required', id, data)
+    }
+
+    const adapter = this.adapterRegistry.get(resolvedProvider.id)
+    adapter.on('event', onEvent)
+    adapter.on('status-change', onStatusChange)
+    adapter.on('conversation-message', onConversationMessage)
+    adapter.on('provider-session-id', onProviderSessionId)
+    adapter.on('session-init-data', onInitData)
+    adapter.on('auth-required', onAuthRequired)
+
+    session._cleanup = () => {
+      adapter.off('event', onEvent)
+      adapter.off('status-change', onStatusChange)
+      adapter.off('conversation-message', onConversationMessage)
+      adapter.off('provider-session-id', onProviderSessionId)
+      adapter.off('session-init-data', onInitData)
+      adapter.off('auth-required', onAuthRequired)
+    }
+
+    // 构建 Adapter 配置
+    const adapterConfig: AdapterSessionConfig = {
+      command: resolvedProvider.command,
+      workingDirectory: config.workingDirectory,
+      initialPrompt: config.initialPrompt,
+      initialPromptVisibility: config.initialPromptVisibility,
+      autoAccept: config.autoAccept ?? false,
+      systemPrompt: config.systemPromptAppend
+        ? (resolvedProvider.adapterType === 'claude-sdk'
+            ? { type: 'preset' as const, preset: 'claude_code', append: config.systemPromptAppend }
+            : config.systemPromptAppend)
+        : undefined,
+      mcpConfigPath: config.mcpConfigPath,
+      envOverrides: { ...resolvedProvider.envOverrides, ...config.env },
+      model: resolvedProvider.defaultModel,
+      nodeVersion: resolvedProvider.nodeVersion,
+      providerArgs: resolvedProvider.defaultArgs,
+      executablePath: resolvedProvider.executablePath,
+      gitBashPath: resolvedProvider.gitBashPath,
+      additionalDirectories: config.additionalDirectories,
+    }
+
+    // 发射启动事件
+    this.emit('status-change', id, 'starting')
+    this.emit('activity', id, {
+      id: uuidv4(),
+      sessionId: id,
+      timestamp: new Date().toISOString(),
+      type: 'session_start',
+      detail: `Session prewarming in ${config.workingDirectory} (${resolvedProvider.name})`,
+      metadata: { config, providerId: resolvedProvider.id },
+    } as ActivityEvent)
+
+    // 调用 adapter 的预热方法
+    const result = await adapter.prewarmSession(id, adapterConfig)
+
+    console.log(`[SessionManagerV2] Prewarmed session ${id}: iflowSessionId=${result.iflowSessionId}`)
+    return result
   }
 
   /**

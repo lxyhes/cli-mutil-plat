@@ -58,6 +58,7 @@ interface SessionState {
   fetchHistorySessions: () => Promise<void>
   fetchSessionActivities: (sessionId: string) => Promise<void>
   createSession: (config: SessionConfig) => Promise<void>
+  prewarmSession: (config: SessionConfig) => Promise<{ sessionId: string; iflowSessionId: string }>
   resumeSession: (oldSessionId: string) => Promise<ResumeSessionResult>
   openSessionForChat: (sessionId: string) => Promise<ResumeSessionResult>
   clearResumeError: () => void
@@ -101,6 +102,7 @@ function sortSessionsByLatest(sessions: Session[]): Session[] {
 
 // 防止创建会话按钮连点导致重复请求
 const createSessionInFlightKeys = new Set<string>()
+const prewarmInFlightKeys = new Set<string>()
 const resumeSessionInFlight = new Map<string, Promise<ResumeSessionResult>>()
 const chatViewTerminalStatuses = new Set<SessionStatus>(['completed', 'terminated', 'error', 'interrupted'])
 
@@ -306,6 +308,42 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       throw error
     } finally {
       createSessionInFlightKeys.delete(dedupeKey)
+    }
+  },
+
+  // ★ iFlow 预热：提前完成握手，后续发消息时无需等待 60 秒初始化
+  // 自动在 createSession 后调用（仅 iFlow provider）
+  prewarmSession: async (config: SessionConfig) => {
+    if (!safeAPI.isAPIReady()) {
+      console.warn('[SessionStore] prewarmSession: API not ready')
+      throw new Error('SpectrAI API not ready')
+    }
+    const dedupeKey = [
+      config.workingDirectory || '',
+      config.providerId || '',
+      config.workspaceId || '',
+      (config.initialPrompt || '').trim(),
+    ].join('|')
+    if (prewarmInFlightKeys.has(dedupeKey)) {
+      console.log('[SessionStore] prewarmSession: already in flight, skipping')
+      return { sessionId: '', iflowSessionId: '' }
+    }
+    prewarmInFlightKeys.add(dedupeKey)
+    try {
+      const result = await safeAPI.session.prewarm(config)
+      if (!result?.success) {
+        console.warn('[SessionStore] prewarmSession failed:', result?.error)
+        return { sessionId: '', iflowSessionId: '' }
+      }
+      console.log(`[SessionStore] prewarmSession succeeded: sessionId=${result.sessionId}, iflowSessionId=${result.iflowSessionId}`)
+      // 预热后刷新会话列表，让 prewarmed 会话显示正确状态
+      await get().fetchSessions()
+      return { sessionId: result.sessionId, iflowSessionId: result.iflowSessionId }
+    } catch (error) {
+      console.warn('[SessionStore] prewarmSession error:', error)
+      return { sessionId: '', iflowSessionId: '' }
+    } finally {
+      prewarmInFlightKeys.delete(dedupeKey)
     }
   },
 
