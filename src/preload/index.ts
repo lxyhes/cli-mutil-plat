@@ -938,8 +938,15 @@ if (!ctxBr) {
     restore: (id: string) => ipcRenderer.invoke(IPC.CHECKPOINT_RESTORE, id),
     delete: (id: string) => ipcRenderer.invoke(IPC.CHECKPOINT_DELETE, id),
     diff: (fromId: string, toId: string) => ipcRenderer.invoke(IPC.CHECKPOINT_DIFF, fromId, toId),
-    autoCreate: (sid: string, name: string, path: string, reason: string) => ipcRenderer.invoke(IPC.CHECKPOINT_AUTO_CREATE, sid, name, path, reason),
+    autoCreate: (sid: string, name: string, path: string, reason: string, trigger?: string) => ipcRenderer.invoke(IPC.CHECKPOINT_AUTO_CREATE, sid, name, path, reason, trigger),
     getPrompt: () => ipcRenderer.invoke(IPC.CHECKPOINT_GET_PROMPT),
+    settings: (updates?: { autoEnabled?: boolean }) => ipcRenderer.invoke(IPC.CHECKPOINT_SETTINGS, updates),
+    // 监听新快照创建通知
+    onCreated: (callback: (sessionId: string, checkpoint: any) => void) => {
+      const handler = (_: any, sessionId: string, checkpoint: any) => callback(sessionId, checkpoint)
+      ipcRenderer.on(IPC.CHECKPOINT_CREATED, handler)
+      return () => ipcRenderer.removeListener(IPC.CHECKPOINT_CREATED, handler)
+    },
   },
 
   // ==================== Cost Dashboard API ====================

@@ -976,7 +976,7 @@ app.whenReady().then(() => {
   const { SkillArenaService } = require('./arena/SkillArenaService')
   const { VoiceService } = require('./voice/VoiceService')
 
-  checkpointService = new CheckpointService(database)
+  checkpointService = new CheckpointService(database, gitService)
   costService = new CostService(database)
   projectKnowledgeService = new ProjectKnowledgeService(database)
   codeReviewService = new CodeReviewService(database)
@@ -1152,6 +1152,27 @@ app.whenReady().then(() => {
         // 如果检测到漂移且有纠正提示，可在此自动注入
       }
     })
+  }
+
+  // ★ 连接 CheckpointService → SessionManagerV2 事件流
+  // 在 AI 每轮对话完成（turn_complete）且产生了文件改动时，自动创建快照
+  if (checkpointService && sessionManagerV2) {
+    sessionManagerV2.on('event', (event: any) => {
+      if (event.type !== 'turn_complete') return
+      const sessionId = event.sessionId
+      if (!sessionId) return
+      // 获取会话信息
+      const session = sessionManagerV2.getSession(sessionId)
+      if (!session) return
+      // 忽略子 Agent 会话（避免大量快照）
+      if (session.config?.parentSessionId) return
+      const workingDir = session.workingDirectory
+      if (!workingDir) return
+      const sessionName = session.name || sessionId.slice(0, 8)
+      // 异步触发自动快照（不阻塞事件流）
+      checkpointService.autoCreate(sessionId, sessionName, workingDir, 'AI 回合完成', 'auto-turn-complete').catch(() => {})
+    })
+    console.log('[Main] CheckpointService connected to SessionManagerV2 event stream')
   }
 
   // ★ 连接 WorkingContext → SessionManagerV2，会话切换时自动快照

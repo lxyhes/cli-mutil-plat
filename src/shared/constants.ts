@@ -420,6 +420,8 @@ export const IPC = {
   CHECKPOINT_DIFF:          'checkpoint:diff',
   CHECKPOINT_AUTO_CREATE:   'checkpoint:auto-create',
   CHECKPOINT_GET_PROMPT:    'checkpoint:get-prompt',
+  CHECKPOINT_CREATED:       'checkpoint:created',       // 主进程→渲染进程：新快照创建通知
+  CHECKPOINT_SETTINGS:      'checkpoint:settings',      // 获取/设置自动快照配置
 
   // 2. 成本仪表盘 (Cost Dashboard)
   COST_GET_SUMMARY:         'cost:get-summary',

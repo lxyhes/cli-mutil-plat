@@ -32,14 +32,21 @@ export function registerNewFeatureHandlers(deps: NewFeatureDeps): void {
   // ── 1. Checkpoint ──
   if (deps.checkpointService) {
     const cp = deps.checkpointService
-    ipcMain.handle(IPC.CHECKPOINT_CREATE, (_, p) => cp.create(p))
-    ipcMain.handle(IPC.CHECKPOINT_LIST, (_, sessionId, limit?) => cp.list(sessionId, limit))
-    ipcMain.handle(IPC.CHECKPOINT_GET, (_, id) => cp.get(id))
-    ipcMain.handle(IPC.CHECKPOINT_RESTORE, (_, id) => cp.restore(id))
-    ipcMain.handle(IPC.CHECKPOINT_DELETE, (_, id) => cp.delete(id))
-    ipcMain.handle(IPC.CHECKPOINT_DIFF, (_, fromId, toId) => cp.diff(fromId, toId))
-    ipcMain.handle(IPC.CHECKPOINT_AUTO_CREATE, (_, sid, name, path, reason) => cp.autoCreate(sid, name, path, reason))
+    ipcMain.handle(IPC.CHECKPOINT_CREATE, async (_, p) => cp.create(p))
+    ipcMain.handle(IPC.CHECKPOINT_LIST, async (_, sessionId, limit?) => cp.list(sessionId, limit))
+    ipcMain.handle(IPC.CHECKPOINT_GET, async (_, id) => {
+      const checkpoint = await cp.get(id)
+      return { success: true, checkpoint }
+    })
+    ipcMain.handle(IPC.CHECKPOINT_RESTORE, async (_, id) => cp.restore(id))
+    ipcMain.handle(IPC.CHECKPOINT_DELETE, async (_, id) => cp.delete(id))
+    ipcMain.handle(IPC.CHECKPOINT_DIFF, async (_, fromId, toId) => cp.diff(fromId, toId))
+    ipcMain.handle(IPC.CHECKPOINT_AUTO_CREATE, async (_, sid, name, path, reason, trigger?) => cp.autoCreate(sid, name, path, reason, trigger))
     ipcMain.handle(IPC.CHECKPOINT_GET_PROMPT, () => cp.getPrompt())
+    ipcMain.handle(IPC.CHECKPOINT_SETTINGS, (_, updates?: { autoEnabled?: boolean }) => {
+      if (updates?.autoEnabled !== undefined) cp.setAutoEnabled(updates.autoEnabled)
+      return { success: true, autoEnabled: cp.isAutoEnabled() }
+    })
   }
 
   // ── 2. Cost Dashboard ──
