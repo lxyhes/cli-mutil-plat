@@ -104,6 +104,7 @@ function sortSessionsByLatest(sessions: Session[]): Session[] {
 const createSessionInFlightKeys = new Set<string>()
 const prewarmInFlightKeys = new Set<string>()
 const resumeSessionInFlight = new Map<string, Promise<ResumeSessionResult>>()
+let autoResumeInFlight = false
 const chatViewTerminalStatuses = new Set<SessionStatus>(['completed', 'terminated', 'error', 'interrupted'])
 
 // ── IPC 监听器 unsubscribe 句柄（防止重复注册导致内存泄漏） ──
@@ -364,7 +365,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       try {
         const result = await safeAPI.session.resume(oldSessionId)
         if (result.success) {
-          const resumedId = result.sessionId || oldSessionId
+          const resumedId = result.data?.sessionId || oldSessionId
 
           // Fallback: if no status transition arrives within 15s, clear resuming flag and force refresh
           setTimeout(() => {
@@ -378,9 +379,9 @@ export const useSessionStore = create<SessionState>((set, get) => ({
           }, 15000)
 
           await get().fetchSessions()
-          if (result.sessionId) {
-            set({ selectedSessionId: result.sessionId })
-            get().fetchSessionActivities(result.sessionId)
+          if (result.data?.sessionId) {
+            set({ selectedSessionId: result.data.sessionId })
+            get().fetchSessionActivities(result.data.sessionId)
           }
           return { success: true, sessionId: resumedId }
         }
@@ -626,6 +627,11 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       console.warn('[SessionStore] SpectrAI API not ready')
       return
     }
+    // ★ 防止并发调用（如 React StrictMode useEffect 执行两次）
+    if (autoResumeInFlight) return
+    autoResumeInFlight = true
+    try {
+
     const allInterrupted = get().sessions.filter(s => s.status === 'interrupted')
     if (allInterrupted.length === 0) return
 
@@ -651,46 +657,25 @@ export const useSessionStore = create<SessionState>((set, get) => ({
 
     console.log(`[AutoResume] ${allInterrupted.length} interrupted -> ${qwenSkipped} qwen-sdk skipped (OAuth), ${qwenExcluded.length} remaining -> ${toResume.length} recoverable by Claude ID (${dupeSkipped} dupes skipped), ${skippedNoId} skipped without Claude ID`)
 
-    set((state) => {
-      const next = new Set(state.resumingSessions)
-      for (const s of toResume) next.add(s.id)
-      return { resumingSessions: next }
-    })
-
+    // ★ 使用 resumeSession 方法（自带 in-flight 去重），而非直接调 safeAPI
     for (const session of toResume) {
       try {
-        const result = await safeAPI.session.resume(session.id)
+        const result = await get().resumeSession(session.id)
         if (result.success) {
-          const resumedId = result.sessionId || session.id
-          setTimeout(() => {
-            set((state) => {
-              if (!state.resumingSessions.has(resumedId)) return state
-              const next = new Set(state.resumingSessions)
-              next.delete(resumedId)
-              return { resumingSessions: next }
-            })
-            get().fetchSessions()
-          }, 15000)
           console.log(`[AutoResume] Resumed ${session.name} -> ${result.sessionId}`)
         } else {
-          set((state) => {
-            const next = new Set(state.resumingSessions)
-            next.delete(session.id)
-            return { resumingSessions: next }
-          })
           console.warn(`[AutoResume] Failed: ${session.name}: ${result.error}`)
         }
       } catch (error) {
-        set((state) => {
-          const next = new Set(state.resumingSessions)
-          next.delete(session.id)
-          return { resumingSessions: next }
-        })
         console.error(`[AutoResume] Error: ${session.name}:`, error)
       }
     }
 
     await get().fetchSessions()
+
+    } finally {
+      autoResumeInFlight = false
+    }
   },
 
   // 初始化事件监听器
