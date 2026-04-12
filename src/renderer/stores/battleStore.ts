@@ -1,6 +1,5 @@
 /**
  * Battle Store - AI 对决模式前端状态管理
- * @author spectrai
  */
 import { create } from 'zustand'
 
@@ -9,13 +8,22 @@ export interface Battle {
   status: string; result: any; winner: string | null; votes: any[]; createdAt: string
 }
 
+interface BattleStats {
+  totalBattles: number
+  providerWins: Record<string, number>
+  averageDuration: number
+  tieRate: number
+}
+
 interface BattleState {
   battles: Battle[]
-  stats: { totalBattles: number; providerWins: Record<string, number> } | null
+  stats: BattleStats | null
   loading: boolean
+
   fetchList: () => Promise<void>
   create: (prompt: string, providerAId: string, providerBId: string) => Promise<Battle | null>
   vote: (battleId: string, choice: 'A' | 'B' | 'tie', comment?: string) => Promise<void>
+  deleteBattle: (id: string) => Promise<void>
   fetchStats: () => Promise<void>
 }
 
@@ -28,14 +36,20 @@ export const useBattleStore = create<BattleState>((set, get) => ({
     set({ loading: true })
     try {
       const r = await api()?.list()
-      set({ battles: r?.success ? r.battles || [] : [], loading: false })
-    } catch { set({ loading: false }) }
+      if (r?.success) {
+        set({ battles: r.battles || [] })
+      }
+    } catch { /* ignore */ }
+    set({ loading: false })
   },
 
   create: async (prompt, providerAId, providerBId) => {
     try {
       const r = await api()?.create({ prompt, providerAId, providerBId })
-      if (r?.success) { await get().fetchList(); return r.battle }
+      if (r?.success) {
+        await get().fetchList()
+        return r.battle
+      }
       return null
     } catch { return null }
   },
@@ -44,13 +58,23 @@ export const useBattleStore = create<BattleState>((set, get) => ({
     try {
       await api()?.vote(battleId, 'user', choice, comment)
       await get().fetchList()
+      await get().fetchStats()
+    } catch { /* ignore */ }
+  },
+
+  deleteBattle: async (id) => {
+    try {
+      await api()?.delete(id)
+      set(prev => ({ battles: prev.battles.filter(b => b.id !== id) }))
     } catch { /* ignore */ }
   },
 
   fetchStats: async () => {
     try {
       const r = await api()?.getStats()
-      set({ stats: r?.success ? r.stats : null })
+      if (r?.success) {
+        set({ stats: r.stats })
+      }
     } catch { /* ignore */ }
   },
 }))

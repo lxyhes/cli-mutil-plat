@@ -124,12 +124,12 @@ export function registerNewFeatureHandlers(deps: NewFeatureDeps): void {
   // ── 7. Battle ──
   if (deps.battleService) {
     const bt = deps.battleService
-    ipcMain.handle(IPC.BATTLE_CREATE, (_, p) => bt.create(p))
-    ipcMain.handle(IPC.BATTLE_GET, (_, id) => bt.get(id))
-    ipcMain.handle(IPC.BATTLE_LIST, (_, limit?) => bt.list(limit))
-    ipcMain.handle(IPC.BATTLE_VOTE, (_, bid, vid, choice, comment?) => bt.vote(bid, vid, choice, comment))
-    ipcMain.handle(IPC.BATTLE_DELETE, (_, id) => bt.delete(id))
-    ipcMain.handle(IPC.BATTLE_GET_STATS, () => bt.getStats())
+    ipcMain.handle(IPC.BATTLE_CREATE, async (_, p) => bt.create(p))
+    ipcMain.handle(IPC.BATTLE_GET, async (_, id) => bt.get(id))
+    ipcMain.handle(IPC.BATTLE_LIST, async (_, limit?) => bt.list(limit))
+    ipcMain.handle(IPC.BATTLE_VOTE, async (_, bid, vid, choice, comment?) => bt.vote(bid, vid, choice, comment))
+    ipcMain.handle(IPC.BATTLE_DELETE, async (_, id) => bt.delete(id))
+    ipcMain.handle(IPC.BATTLE_GET_STATS, async () => bt.getStats())
   }
 
   // ── 8. Daily Report ──
