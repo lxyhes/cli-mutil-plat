@@ -23,9 +23,118 @@ import type {
 /** 团队数据仓库 */
 export class TeamRepository {
   private templatesTableEnsured = false
+  private allTablesEnsured = false
   private tableColumnsCache = new Map<string, Set<string>>()
 
   constructor(private db: any, private usingSqlite: boolean) {}
+
+  /** 确保所有团队表都存在（首次使用前调用） */
+  ensureAllTables(): void {
+    if (!this.db || this.allTablesEnsured) return
+    try {
+      this.db.exec(`
+        CREATE TABLE IF NOT EXISTS team_instances (
+          id TEXT PRIMARY KEY,
+          team_id TEXT,
+          name TEXT NOT NULL,
+          template_id TEXT,
+          status TEXT NOT NULL DEFAULT 'pending',
+          work_dir TEXT,
+          working_directory TEXT,
+          session_id TEXT,
+          parent_session_id TEXT,
+          objective TEXT,
+          task TEXT,
+          created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          started_at DATETIME,
+          completed_at DATETIME,
+          ended_at DATETIME,
+          parent_team_id TEXT,
+          worktree_isolation INTEGER NOT NULL DEFAULT 0,
+          reviewer_agent_id TEXT,
+          goal_round INTEGER DEFAULT 0
+        )
+      `)
+
+      this.db.exec(`
+        CREATE TABLE IF NOT EXISTS team_members (
+          id TEXT PRIMARY KEY,
+          instance_id TEXT NOT NULL,
+          role_id TEXT,
+          role_name TEXT,
+          display_name TEXT,
+          role_identifier TEXT,
+          role_icon TEXT,
+          role_color TEXT,
+          color TEXT,
+          agent_id TEXT,
+          child_session_id TEXT,
+          session_id TEXT,
+          status TEXT NOT NULL DEFAULT 'idle',
+          provider_id TEXT,
+          goal_round INTEGER DEFAULT 1,
+          retry_count INTEGER DEFAULT 0,
+          max_retries INTEGER DEFAULT 2,
+          failure_reason TEXT,
+          current_task_id TEXT,
+          work_dir TEXT,
+          worktree_path TEXT,
+          worktree_branch TEXT,
+          worktree_source_repo TEXT,
+          worktree_base_commit TEXT,
+          worktree_base_branch TEXT,
+          joined_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          last_active_at DATETIME,
+          FOREIGN KEY (instance_id) REFERENCES team_instances(id) ON DELETE CASCADE
+        )
+      `)
+      this.db.exec(`CREATE INDEX IF NOT EXISTS idx_team_members_instance ON team_members(instance_id)`)
+
+      this.db.exec(`
+        CREATE TABLE IF NOT EXISTS team_tasks (
+          id TEXT PRIMARY KEY,
+          instance_id TEXT NOT NULL,
+          title TEXT NOT NULL,
+          description TEXT,
+          status TEXT NOT NULL DEFAULT 'pending',
+          assigned_to TEXT,
+          claimed_by TEXT,
+          claimed_at DATETIME,
+          priority TEXT NOT NULL DEFAULT 'medium',
+          dependencies TEXT,
+          result TEXT,
+          created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          completed_at DATETIME,
+          FOREIGN KEY (instance_id) REFERENCES team_instances(id) ON DELETE CASCADE
+        )
+      `)
+      this.db.exec(`CREATE INDEX IF NOT EXISTS idx_team_tasks_instance_status ON team_tasks(instance_id, status)`)
+
+      this.db.exec(`
+        CREATE TABLE IF NOT EXISTS team_messages (
+          id TEXT PRIMARY KEY,
+          instance_id TEXT NOT NULL,
+          from_member_id TEXT,
+          from_role TEXT,
+          to_member_id TEXT,
+          to_role TEXT,
+          type TEXT,
+          message_type TEXT,
+          content TEXT,
+          timestamp DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          task_id TEXT,
+          FOREIGN KEY (instance_id) REFERENCES team_instances(id) ON DELETE CASCADE
+        )
+      `)
+      this.db.exec(`CREATE INDEX IF NOT EXISTS idx_team_messages_instance_timestamp ON team_messages(instance_id, timestamp DESC)`)
+
+      this.ensureTemplatesTable()
+      this.allTablesEnsured = true
+      this.tableColumnsCache.clear()
+    } catch (err) {
+      console.error('[TeamRepository] ensureAllTables error:', err)
+    }
+  }
 
   private getTableColumns(tableName: string): Set<string> {
     if (!this.db) return new Set()
@@ -91,6 +200,7 @@ export class TeamRepository {
 
   createTeamInstance(instance: Omit<TeamInstance, 'members'>): void {
     if (!this.db) return
+    this.ensureAllTables()
     try {
       const cols = this.getTableColumns('team_instances')
       const valuesByColumn: Record<string, any> = {
@@ -128,6 +238,7 @@ export class TeamRepository {
 
   getTeamInstance(instanceId: string): TeamInstance | undefined {
     if (!this.db) return undefined
+    this.ensureAllTables()
     try {
       const row = this.db.prepare('SELECT * FROM team_instances WHERE id = ?').get(instanceId)
       if (!row) return undefined
@@ -161,6 +272,7 @@ export class TeamRepository {
 
   getAllTeamInstances(status?: string): TeamInstance[] {
     if (!this.db) return []
+    this.ensureAllTables()
     try {
       const sql = status 
         ? 'SELECT * FROM team_instances WHERE status = ? ORDER BY created_at DESC'
@@ -216,6 +328,7 @@ export class TeamRepository {
 
   addTeamMember(member: Omit<TeamMember, 'role'> & { role: TeamRole }): void {
     if (!this.db) return
+    this.ensureAllTables()
     try {
       const cols = this.getTableColumns('team_members')
       const valuesByColumn: Record<string, any> = {
@@ -419,6 +532,7 @@ export class TeamRepository {
 
   createTask(task: TeamTask): void {
     if (!this.db) return
+    this.ensureAllTables()
     try {
       this.db.prepare(`
         INSERT INTO team_tasks (id, instance_id, title, description, status, assigned_to, priority, dependencies, created_at)
@@ -443,6 +557,7 @@ export class TeamRepository {
   /** 原子认领任务（核心方法：WHERE status='pending' 确保只有一个成员成功） */
   claimTask(taskId: string, memberId: string): TaskClaimResult {
     if (!this.db) return { success: false, error: 'Database not available' }
+    this.ensureAllTables()
     try {
       const result = this.db.prepare(`
         UPDATE team_tasks 
@@ -709,6 +824,7 @@ export class TeamRepository {
 
   addMessage(message: TeamMessage): void {
     if (!this.db) return
+    this.ensureAllTables()
     try {
       const cols = this.getTableColumns('team_messages')
       const valuesByColumn: Record<string, any> = {

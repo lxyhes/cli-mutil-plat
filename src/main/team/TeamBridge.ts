@@ -13,12 +13,14 @@
  * @author weibin
  */
 
+import { createServer } from 'net'
 import { WebSocketServer, WebSocket } from 'ws'
 import { v4 as uuidv4 } from 'uuid'
 import type { TeamManager } from './TeamManager'
 import type { SessionManagerV2 } from '../session/SessionManagerV2'
 import type { TeamRepository } from './TeamRepository'
 import type { TeamMember, TeamTask } from './types'
+import { TeamMessageDelivery } from './TeamMessageDelivery'
 
 interface TeamBridgeMessage {
   type: 'register' | 'team_message_role' | 'team_broadcast' | 'team_claim_task' | 'team_complete_task' | 'team_get_tasks' | 'team_get_members'
@@ -41,6 +43,28 @@ interface TeamBridgeConnection {
   registered: boolean
 }
 
+/** 检测端口是否可用 */
+function isPortAvailable(port: number): Promise<boolean> {
+  return new Promise(resolve => {
+    const server = createServer()
+    server.unref()
+    server.on('error', () => resolve(false))
+    server.listen(port, () => {
+      server.close(() => resolve(true))
+    })
+  })
+}
+
+/** 在给定范围内寻找可用端口 */
+async function findAvailablePort(startPort: number, maxAttempts: number = 100): Promise<number> {
+  for (let port = startPort; port < startPort + maxAttempts; port++) {
+    if (await isPortAvailable(port)) {
+      return port
+    }
+  }
+  throw new Error(`No available port found in range ${startPort}-${startPort + maxAttempts - 1}`)
+}
+
 export class TeamBridge {
   private wss: WebSocketServer | null = null
   private connections = new Map<string, TeamBridgeConnection>()
@@ -50,6 +74,7 @@ export class TeamBridge {
   private teamRepo: TeamRepository
   private requestCounter = 0
   private pendingRequests = new Map<string, { resolve: (v: any) => void; reject: (e: Error) => void }>()
+  private messageDelivery: TeamMessageDelivery | null = null
 
   constructor(
     port: number,
@@ -63,10 +88,24 @@ export class TeamBridge {
     this.teamRepo = teamRepo
   }
 
-  /** 启动 WebSocket 服务器 */
-  start(): void {
+  /** 启动 WebSocket 服务器（带端口冲突检测） */
+  async start(): Promise<void> {
+    // 检测端口可用性，如果被占用则自动寻找可用端口
+    if (!(await isPortAvailable(this.port))) {
+      const newPort = await findAvailablePort(this.port + 1)
+      console.warn(`[TeamBridge] Port ${this.port} is in use, switching to ${newPort}`)
+      this.port = newPort
+    }
+
     this.wss = new WebSocketServer({ port: this.port })
     console.log(`[TeamBridge] Listening on ws://127.0.0.1:${this.port}`)
+
+    // 初始化消息投递器（带重试）
+    this.messageDelivery = new TeamMessageDelivery(
+      (this.teamManager as any).agentManager,
+      this.sessionManager,
+      this.teamRepo
+    )
 
     this.wss.on('connection', (ws) => {
       let connId = uuidv4()
@@ -219,13 +258,15 @@ export class TeamBridge {
     // 发送到目标成员
     this.sendToMember(targetMember.id, `[来自 ${conn.memberId}] ${msg.content}`)
 
-    // 如果目标成员在线，通过 SessionManagerV2 发送
-    const targetSession = this.sessionManager.getSession(targetMember.sessionId)
-    if (targetSession && targetSession.status !== 'completed' && targetSession.status !== 'terminated') {
-      this.sessionManager.sendMessage(targetMember.sessionId,
+    // 通过 TeamMessageDelivery（带重试）投递消息
+    if (this.messageDelivery) {
+      this.messageDelivery.sendMessage(
+        conn.instanceId!,
+        conn.memberId!,
+        msg.toRole,
         `[团队消息 - 来自 ${conn.memberId}]: ${msg.content}`
       ).catch(err => {
-        console.error('[TeamBridge] Failed to send message to member session:', err)
+        console.error('[TeamBridge] MessageDelivery failed for role message:', err)
       })
     }
 
@@ -251,18 +292,18 @@ export class TeamBridge {
     // 广播给所有其他成员
     this.broadcastToAll(msg.content, conn.memberId)
 
-    // 发送到所有在线成员
-    const members = this.teamRepo.getTeamMembers(conn.instanceId!)
-    for (const member of members) {
-      if (member.id === conn.memberId) continue
-      const session = this.sessionManager.getSession(member.sessionId)
-      if (session && session.status !== 'completed' && session.status !== 'terminated') {
-        this.sessionManager.sendMessage(member.sessionId,
-          `[团队广播 - 来自 ${conn.memberId}]: ${msg.content}`
-        ).catch(() => {})
-      }
+    // 通过 TeamMessageDelivery（带重试）广播消息
+    if (this.messageDelivery) {
+      this.messageDelivery.broadcastMessage(
+        conn.instanceId!,
+        conn.memberId!,
+        `[团队广播 - 来自 ${conn.memberId}]: ${msg.content}`
+      ).catch(err => {
+        console.error('[TeamBridge] MessageDelivery failed for broadcast:', err)
+      })
     }
 
+    const members = this.teamRepo.getTeamMembers(conn.instanceId!)
     this.sendSuccess(conn.ws, msg.id, { delivered: members.length - 1 })
   }
 
@@ -305,15 +346,14 @@ export class TeamBridge {
     this.teamManager.completeTask(conn.instanceId, msg.taskId, msg.result || '')
 
     // 通知其他成员
-    const members = this.teamRepo.getTeamMembers(conn.instanceId!)
-    for (const member of members) {
-      if (member.id === conn.memberId) continue
-      const session = this.sessionManager.getSession(member.sessionId)
-      if (session && session.status !== 'completed' && session.status !== 'terminated') {
-        this.sessionManager.sendMessage(member.sessionId,
-          `[团队通知]: ${conn.memberId} 完成了任务 "${task.title}"`
-        ).catch(() => {})
-      }
+    if (this.messageDelivery) {
+      this.messageDelivery.broadcastMessage(
+        conn.instanceId!,
+        conn.memberId!,
+        `[团队通知]: ${conn.memberId} 完成了任务 "${task.title}"`
+      ).catch(err => {
+        console.error('[TeamBridge] MessageDelivery failed for task completion notification:', err)
+      })
     }
 
     this.sendSuccess(conn.ws, msg.id, { completed: true, taskId: msg.taskId })

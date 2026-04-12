@@ -163,7 +163,7 @@ export class TeamManager extends EventEmitter {
   private activeTeams: Map<string, TeamInstance> = new Map()
   private healthCheckers: Map<string, TeamHealthChecker> = new Map()
   private bridges: Map<string, TeamBridge> = new Map()
-  private bridgePort = 63800 // TeamBridge 起始端口
+  private nextBridgePort = 63800 // TeamBridge 起始端口（动态递增）
 
   constructor(
     private teamRepo: TeamRepository,
@@ -197,12 +197,13 @@ export class TeamManager extends EventEmitter {
     }
     teamLog.debug(`Using ${roles.length} roles: ${roles.map(r => r.identifier).join(', ')}`)
 
-    // 分配 Bridge 端口
-    const bridgePort = this.bridgePort + (this.bridges.size % 100)
+    // 分配 Bridge 端口（使用递增端口，避免 bridges.size 不准确）
+    const bridgePort = this.nextBridgePort++
+    const actualBridgePort = await this.findAvailableBridgePort(bridgePort)
 
     // 创建团队 Bridge
-    const bridge = new TeamBridge(bridgePort, this, this.sessionManager, this.teamRepo)
-    bridge.start()
+    const bridge = new TeamBridge(actualBridgePort, this, this.sessionManager, this.teamRepo)
+    await bridge.start()
     this.bridges.set(teamId, bridge)
 
     // 创建团队实例
@@ -273,7 +274,7 @@ export class TeamManager extends EventEmitter {
     this.emit('team:created', teamInstance)
 
     // 启动团队
-    await this.startTeam(teamId, request.objective, bridgePort)
+    await this.startTeam(teamId, request.objective, actualBridgePort)
 
     return teamInstance
   }
@@ -1116,6 +1117,30 @@ TeamBridge WebSocket 端口：${bridgePort}
         bridge.stop()
         this.bridges.delete(teamId)
       }
+
+      // 自动清理 Worktree 资源
+      this.autoCleanupWorktrees(teamId).catch(err => {
+        teamLog.warn('Auto cleanup worktrees failed', { teamId, error: String(err) })
+      })
+    }
+  }
+
+  /**
+   * 团队完成后自动清理 Worktree（合并+删除分支）
+   */
+  private async autoCleanupWorktrees(teamId: string): Promise<void> {
+    const team = this.teamRepo.getTeamInstance(teamId)
+    if (!team || !team.worktreeIsolation) return
+
+    teamLog.debug(`Auto-cleaning worktrees for completed team ${teamId}`)
+    try {
+      const results = await this.mergeTeamWorktrees(teamId, { cleanup: true, squash: true })
+      const merged = results.filter(r => r.merged).length
+      const skipped = results.filter(r => r.skipped).length
+      const failed = results.filter(r => !r.merged && !r.skipped).length
+      teamLog.debug(`Worktree cleanup done: ${merged} merged, ${skipped} skipped, ${failed} failed`)
+    } catch (err) {
+      teamLog.warn('Worktree auto-cleanup error', { teamId, error: String(err) })
     }
   }
 
@@ -1204,5 +1229,29 @@ TeamBridge WebSocket 端口：${bridgePort}
     for (const teamId of this.activeTeams.keys()) {
       this.cleanupTeam(teamId)
     }
+  }
+
+  /**
+   * 寻找可用的 Bridge 端口
+   */
+  private async findAvailableBridgePort(startPort: number): Promise<number> {
+    const { createServer } = await import('net')
+    const usedPorts = new Set(
+      Array.from(this.bridges.values()).map(b => b.getPort())
+    )
+
+    for (let port = startPort; port < startPort + 200; port++) {
+      if (usedPorts.has(port)) continue
+      const available = await new Promise<boolean>(resolve => {
+        const server = createServer()
+        server.unref()
+        server.on('error', () => resolve(false))
+        server.listen(port, () => {
+          server.close(() => resolve(true))
+        })
+      })
+      if (available) return port
+    }
+    throw new Error(`No available bridge port found starting from ${startPort}`)
   }
 }
