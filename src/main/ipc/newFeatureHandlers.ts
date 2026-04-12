@@ -1,0 +1,150 @@
+/**
+ * IPC Handlers - 10 大新功能
+ * @author spectrai
+ */
+import { ipcMain } from 'electron'
+import type { CheckpointService } from '../checkpoint/CheckpointService'
+import type { CostService } from '../cost/CostService'
+import type { ProjectKnowledgeService } from '../knowledge/ProjectKnowledgeService'
+import type { CodeReviewService } from '../review/CodeReviewService'
+import type { SessionReplayService } from '../replay/SessionReplayService'
+import type { ContextBudgetService } from '../context-budget/ContextBudgetService'
+import type { BattleService } from '../battle/BattleService'
+import type { DailyReportService } from '../daily-report/DailyReportService'
+import type { SkillArenaService } from '../arena/SkillArenaService'
+import type { VoiceService } from '../voice/VoiceService'
+import { IPC } from '../../shared/constants'
+
+export interface NewFeatureDeps {
+  checkpointService?: CheckpointService
+  costService?: CostService
+  projectKnowledgeService?: ProjectKnowledgeService
+  codeReviewService?: CodeReviewService
+  sessionReplayService?: SessionReplayService
+  contextBudgetService?: ContextBudgetService
+  battleService?: BattleService
+  dailyReportService?: DailyReportService
+  skillArenaService?: SkillArenaService
+  voiceService?: VoiceService
+}
+
+export function registerNewFeatureHandlers(deps: NewFeatureDeps): void {
+  // ── 1. Checkpoint ──
+  if (deps.checkpointService) {
+    const cp = deps.checkpointService
+    ipcMain.handle(IPC.CHECKPOINT_CREATE, (_, p) => cp.create(p))
+    ipcMain.handle(IPC.CHECKPOINT_LIST, (_, sessionId, limit?) => cp.list(sessionId, limit))
+    ipcMain.handle(IPC.CHECKPOINT_GET, (_, id) => cp.get(id))
+    ipcMain.handle(IPC.CHECKPOINT_RESTORE, (_, id) => cp.restore(id))
+    ipcMain.handle(IPC.CHECKPOINT_DELETE, (_, id) => cp.delete(id))
+    ipcMain.handle(IPC.CHECKPOINT_DIFF, (_, fromId, toId) => cp.diff(fromId, toId))
+    ipcMain.handle(IPC.CHECKPOINT_AUTO_CREATE, (_, sid, name, path, reason) => cp.autoCreate(sid, name, path, reason))
+    ipcMain.handle(IPC.CHECKPOINT_GET_PROMPT, () => cp.getPrompt())
+  }
+
+  // ── 2. Cost Dashboard ──
+  if (deps.costService) {
+    const cs = deps.costService
+    ipcMain.handle(IPC.COST_GET_SUMMARY, (_, days?) => cs.getSummary(days))
+    ipcMain.handle(IPC.COST_GET_HISTORY, (_, days?) => cs.getHistory(days))
+    ipcMain.handle(IPC.COST_GET_BY_SESSION, (_, sessionId) => cs.getSummary())
+    ipcMain.handle(IPC.COST_GET_BY_PROVIDER, () => cs.getSummary())
+    ipcMain.handle(IPC.COST_SET_BUDGET, (_, config) => cs.setBudget(config))
+    ipcMain.handle(IPC.COST_GET_BUDGET, () => cs.getBudget())
+    ipcMain.handle(IPC.COST_GET_PRICING, () => cs.getPricing())
+    ipcMain.handle(IPC.COST_UPDATE_PRICING, (_, tiers) => { cs.updatePricing(tiers); return cs.getPricing() })
+  }
+
+  // ── 3. Project Knowledge ──
+  if (deps.projectKnowledgeService) {
+    const kb = deps.projectKnowledgeService
+    ipcMain.handle(IPC.PROJECT_KB_CREATE, (_, p) => kb.createEntry(p))
+    ipcMain.handle(IPC.PROJECT_KB_GET, (_, id) => kb.get(id))
+    ipcMain.handle(IPC.PROJECT_KB_UPDATE, (_, id, updates) => kb.update(id, updates))
+    ipcMain.handle(IPC.PROJECT_KB_DELETE, (_, id) => kb.delete(id))
+    ipcMain.handle(IPC.PROJECT_KB_LIST, (_, path) => kb.list(path))
+    ipcMain.handle(IPC.PROJECT_KB_ADD_ENTRY, (_, p) => kb.createEntry(p))
+    ipcMain.handle(IPC.PROJECT_KB_REMOVE_ENTRY, (_, id) => kb.delete(id))
+    ipcMain.handle(IPC.PROJECT_KB_SEARCH, (_, path, q, limit?) => kb.search(path, q, limit))
+    ipcMain.handle(IPC.PROJECT_KB_GET_PROMPT, (_, path) => kb.getPrompt(path))
+    ipcMain.handle(IPC.PROJECT_KB_AUTO_EXTRACT, (_, path) => kb.autoExtract(path))
+  }
+
+  // ── 4. Code Review ──
+  if (deps.codeReviewService) {
+    const cr = deps.codeReviewService
+    ipcMain.handle(IPC.CODE_REVIEW_START, (_, p) => cr.startReview(p))
+    ipcMain.handle(IPC.CODE_REVIEW_GET, (_, id) => cr.get(id))
+    ipcMain.handle(IPC.CODE_REVIEW_LIST, (_, sessionId?, limit?) => cr.list(sessionId, limit))
+    ipcMain.handle(IPC.CODE_REVIEW_GET_COMMENTS, (_, reviewId) => cr.getComments(reviewId))
+    ipcMain.handle(IPC.CODE_REVIEW_RESOLVE_COMMENT, (_, commentId) => cr.resolveComment(commentId))
+    ipcMain.handle(IPC.CODE_REVIEW_APPLY_FIX, (_, commentId) => cr.applyFix(commentId))
+    ipcMain.handle(IPC.CODE_REVIEW_GET_PROMPT, () => cr.getPrompt())
+    ipcMain.handle(IPC.CODE_REVIEW_STATUS, () => ({ enabled: true }))
+  }
+
+  // ── 5. Session Replay ──
+  if (deps.sessionReplayService) {
+    const rp = deps.sessionReplayService
+    ipcMain.handle(IPC.REPLAY_START_RECORDING, (_, sid, name) => rp.startRecording(sid, name))
+    ipcMain.handle(IPC.REPLAY_STOP_RECORDING, (_, sid) => rp.stopRecording(sid))
+    ipcMain.handle(IPC.REPLAY_GET, (_, id) => rp.get(id))
+    ipcMain.handle(IPC.REPLAY_LIST, (_, limit?) => rp.list(limit))
+    ipcMain.handle(IPC.REPLAY_DELETE, (_, id) => rp.delete(id))
+    ipcMain.handle(IPC.REPLAY_EXPORT, (_, id) => rp.export(id))
+    ipcMain.handle(IPC.REPLAY_GET_EVENTS, (_, id) => rp.getEvents(id))
+  }
+
+  // ── 6. Context Budget ──
+  if (deps.contextBudgetService) {
+    const cb = deps.contextBudgetService
+    ipcMain.handle(IPC.CONTEXT_BUDGET_GET, (_, sid) => cb.get(sid))
+    ipcMain.handle(IPC.CONTEXT_BUDGET_UPDATE, (_, updates) => cb.updateConfig(updates))
+    ipcMain.handle(IPC.CONTEXT_BUDGET_COMPRESS, (_, sid) => cb.compress(sid))
+    ipcMain.handle(IPC.CONTEXT_BUDGET_MIGRATE, (_, sid) => cb.migrate(sid))
+    ipcMain.handle(IPC.CONTEXT_BUDGET_STATUS, () => cb.getStatus())
+  }
+
+  // ── 7. Battle ──
+  if (deps.battleService) {
+    const bt = deps.battleService
+    ipcMain.handle(IPC.BATTLE_CREATE, (_, p) => bt.create(p))
+    ipcMain.handle(IPC.BATTLE_GET, (_, id) => bt.get(id))
+    ipcMain.handle(IPC.BATTLE_LIST, (_, limit?) => bt.list(limit))
+    ipcMain.handle(IPC.BATTLE_VOTE, (_, bid, vid, choice, comment?) => bt.vote(bid, vid, choice, comment))
+    ipcMain.handle(IPC.BATTLE_DELETE, (_, id) => bt.delete(id))
+    ipcMain.handle(IPC.BATTLE_GET_STATS, () => bt.getStats())
+  }
+
+  // ── 8. Daily Report ──
+  if (deps.dailyReportService) {
+    const dr = deps.dailyReportService
+    ipcMain.handle(IPC.DAILY_REPORT_GENERATE, (_, date?) => dr.generate(date))
+    ipcMain.handle(IPC.DAILY_REPORT_GET, (_, date) => dr.get(date))
+    ipcMain.handle(IPC.DAILY_REPORT_LIST, (_, limit?) => dr.list(limit))
+    ipcMain.handle(IPC.DAILY_REPORT_EXPORT, (_, date) => dr.export(date))
+    ipcMain.handle(IPC.DAILY_REPORT_CONFIG, (_, updates?) => updates ? dr.setConfig(updates) : dr.getConfig())
+  }
+
+  // ── 9. Skill Arena ──
+  if (deps.skillArenaService) {
+    const sa = deps.skillArenaService
+    ipcMain.handle(IPC.SKILL_ARENA_LIST, (_, cat?, limit?) => sa.list(cat, limit))
+    ipcMain.handle(IPC.SKILL_ARENA_SUBMIT, (_, p) => sa.submit(p))
+    ipcMain.handle(IPC.SKILL_ARENA_GET_SCORES, (_, id) => sa.getScores(id))
+    ipcMain.handle(IPC.SKILL_ARENA_GET_LEADERBOARD, (_, cat?) => sa.getLeaderboard(cat))
+    ipcMain.handle(IPC.SKILL_ARENA_VOTE, (_, id, up) => sa.vote(id, up))
+  }
+
+  // ── 10. Voice ──
+  if (deps.voiceService) {
+    const vc = deps.voiceService
+    ipcMain.handle(IPC.VOICE_START_LISTENING, () => vc.startListening())
+    ipcMain.handle(IPC.VOICE_STOP_LISTENING, () => vc.stopListening())
+    ipcMain.handle(IPC.VOICE_SPEAK, (_, text) => vc.speak(text))
+    ipcMain.handle(IPC.VOICE_GET_STATUS, () => vc.getStatus())
+    ipcMain.handle(IPC.VOICE_GET_CONFIG, () => vc.getConfig())
+    ipcMain.handle(IPC.VOICE_UPDATE_CONFIG, (_, updates) => vc.updateConfig(updates))
+    ipcMain.handle(IPC.VOICE_TRANSCRIBE, (_, data) => vc.transcribe(data))
+  }
+}

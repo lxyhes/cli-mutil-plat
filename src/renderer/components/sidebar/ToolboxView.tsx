@@ -10,6 +10,7 @@ import { useState, useEffect } from 'react'
 import {
   ArrowLeft, Plug, Zap, Layers, Sparkles, Clock,
   FileText, Brain, Workflow, Target, BarChart2, Wrench, Flame,
+  History, DollarSign, BookMarked, ShieldCheck, Swords, Video, Trophy,
 } from 'lucide-react'
 import { useUIStore } from '../../stores/uiStore'
 import { useMcpStore } from '../../stores/mcpStore'
@@ -38,6 +39,13 @@ const FEATURES: FeatureDef[] = [
   { id: 'workflow',         label: '工作流',      description: '自动化工作流编排',         icon: Workflow, color: 'text-accent-blue' },
   { id: 'evaluation',       label: '任务评估',     description: '评估任务质量和效果',       icon: Target,   color: 'text-accent-yellow' },
   { id: 'goal',             label: '目标锚点',     description: '设定和跟踪目标',          icon: BarChart2, color: 'text-accent-green' },
+  { id: 'checkpoint',       label: '智能回溯',     description: '代码快照与一键回滚',       icon: History,  color: 'text-accent-blue' },
+  { id: 'cost',             label: '成本仪表盘',   description: 'Token 消耗换算实际金额',   icon: DollarSign, color: 'text-accent-green' },
+  { id: 'knowledge',        label: '项目知识库',   description: '持久化项目上下文',        icon: BookMarked, color: 'text-accent-purple' },
+  { id: 'review',           label: '代码审查',     description: 'AI 自动代码审查',         icon: ShieldCheck, color: 'text-accent-green' },
+  { id: 'battle',           label: 'AI 对决',     description: '同任务两 AI 对比',        icon: Swords,   color: 'text-accent-yellow' },
+  { id: 'replay',           label: '会话录像',     description: '录制和回放 AI 操作',       icon: Video,    color: 'text-accent-purple' },
+  { id: 'arena',            label: '技能竞技场',   description: '社区技能评分排行',        icon: Trophy,   color: 'text-accent-yellow' },
 ]
 
 // ── 懒加载功能组件映射 ──
@@ -53,6 +61,13 @@ import WorkflowSettings from '../settings/WorkflowSettings'
 import EvaluationSettings from '../settings/EvaluationSettings'
 import GoalSettings from '../settings/GoalSettings'
 import TrendingView from './TrendingView'
+import CheckpointView from './CheckpointView'
+import CostDashboardView from './CostDashboardView'
+import KnowledgeView from './KnowledgeView'
+import CodeReviewView from './CodeReviewView'
+import BattleView from './BattleView'
+import ReplayView from './ReplayView'
+import ArenaView from './ArenaView'
 
 function FeatureComponent({ featureId }: { featureId: string }) {
   switch (featureId) {
@@ -67,6 +82,13 @@ function FeatureComponent({ featureId }: { featureId: string }) {
     case 'workflow':         return <WorkflowSettings />
     case 'evaluation':       return <EvaluationSettings />
     case 'goal':             return <GoalSettings />
+    case 'checkpoint':       return <CheckpointView />
+    case 'cost':             return <CostDashboardView />
+    case 'knowledge':        return <KnowledgeView />
+    case 'review':           return <CodeReviewView />
+    case 'battle':           return <BattleView />
+    case 'replay':           return <ReplayView />
+    case 'arena':            return <ArenaView />
     default:                 return <div className="p-4 text-text-muted text-sm">未知功能</div>
   }
 }

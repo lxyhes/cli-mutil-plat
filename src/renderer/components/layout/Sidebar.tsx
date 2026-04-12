@@ -18,6 +18,13 @@ import SkillsSidebarView from '../sidebar/SkillsSidebarView'
 import ToolboxView from '../sidebar/ToolboxView'
 import WorkingContextView from '../sidebar/WorkingContextView'
 import CrossMemoryView from '../sidebar/CrossMemoryView'
+import CheckpointView from '../sidebar/CheckpointView'
+import CostDashboardView from '../sidebar/CostDashboardView'
+import KnowledgeView from '../sidebar/KnowledgeView'
+import CodeReviewView from '../sidebar/CodeReviewView'
+import BattleView from '../sidebar/BattleView'
+import ReplayView from '../sidebar/ReplayView'
+import ArenaView from '../sidebar/ArenaView'
 import { TeamSidebarView } from '../team'
 import TimelinePanel from '../panels/TimelinePanel'
 import StatsPanel from '../panels/StatsPanel'
@@ -1082,6 +1089,20 @@ export default function Sidebar() {
       return <WorkingContextView />
     case 'memory':
       return <CrossMemoryView />
+    case 'checkpoint':
+      return <CheckpointView />
+    case 'cost':
+      return <CostDashboardView />
+    case 'knowledge':
+      return <KnowledgeView />
+    case 'review':
+      return <CodeReviewView />
+    case 'battle':
+      return <BattleView />
+    case 'replay':
+      return <ReplayView />
+    case 'arena':
+      return <ArenaView />
     case 'sessions':
     default:
       return <SessionsContent />

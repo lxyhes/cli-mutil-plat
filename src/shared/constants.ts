@@ -406,6 +406,99 @@ export const IPC = {
   // OpenAI Compatible Provider
   OPENAI_COMPAT_TEST:       'openai-compat:test',
   OPENAI_COMPAT_CREATE:     'openai-compat:create',
+
+  // ═══════════════════════════════════════════════════════
+  // ★ 新增 10 大功能 IPC 通道
+  // ═══════════════════════════════════════════════════════
+
+  // 1. 智能回溯 (Time Travel / Checkpoint)
+  CHECKPOINT_CREATE:        'checkpoint:create',
+  CHECKPOINT_LIST:          'checkpoint:list',
+  CHECKPOINT_GET:           'checkpoint:get',
+  CHECKPOINT_RESTORE:       'checkpoint:restore',
+  CHECKPOINT_DELETE:        'checkpoint:delete',
+  CHECKPOINT_DIFF:          'checkpoint:diff',
+  CHECKPOINT_AUTO_CREATE:   'checkpoint:auto-create',
+  CHECKPOINT_GET_PROMPT:    'checkpoint:get-prompt',
+
+  // 2. 成本仪表盘 (Cost Dashboard)
+  COST_GET_SUMMARY:         'cost:get-summary',
+  COST_GET_HISTORY:         'cost:get-history',
+  COST_GET_BY_SESSION:      'cost:get-by-session',
+  COST_GET_BY_PROVIDER:     'cost:get-by-provider',
+  COST_SET_BUDGET:          'cost:set-budget',
+  COST_GET_BUDGET:          'cost:get-budget',
+  COST_GET_PRICING:         'cost:get-pricing',
+  COST_UPDATE_PRICING:      'cost:update-pricing',
+
+  // 3. 项目级知识库 (Project Knowledge Base)
+  PROJECT_KB_CREATE:        'project-kb:create',
+  PROJECT_KB_GET:           'project-kb:get',
+  PROJECT_KB_UPDATE:        'project-kb:update',
+  PROJECT_KB_DELETE:        'project-kb:delete',
+  PROJECT_KB_LIST:          'project-kb:list',
+  PROJECT_KB_ADD_ENTRY:     'project-kb:add-entry',
+  PROJECT_KB_REMOVE_ENTRY:  'project-kb:remove-entry',
+  PROJECT_KB_SEARCH:        'project-kb:search',
+  PROJECT_KB_GET_PROMPT:    'project-kb:get-prompt',
+  PROJECT_KB_AUTO_EXTRACT:  'project-kb:auto-extract',
+
+  // 4. AI 代码审查员 (Code Review Copilot)
+  CODE_REVIEW_START:        'code-review:start',
+  CODE_REVIEW_GET:          'code-review:get',
+  CODE_REVIEW_LIST:         'code-review:list',
+  CODE_REVIEW_GET_COMMENTS: 'code-review:get-comments',
+  CODE_REVIEW_RESOLVE_COMMENT: 'code-review:resolve-comment',
+  CODE_REVIEW_APPLY_FIX:    'code-review:apply-fix',
+  CODE_REVIEW_GET_PROMPT:   'code-review:get-prompt',
+  CODE_REVIEW_STATUS:       'code-review:status',
+
+  // 5. 会话录像与回放 (Session Replay)
+  REPLAY_START_RECORDING:   'replay:start-recording',
+  REPLAY_STOP_RECORDING:    'replay:stop-recording',
+  REPLAY_GET:               'replay:get',
+  REPLAY_LIST:              'replay:list',
+  REPLAY_DELETE:            'replay:delete',
+  REPLAY_EXPORT:            'replay:export',
+  REPLAY_GET_EVENTS:        'replay:get-events',
+
+  // 6. 智能上下文管理器 (Context Budget Manager)
+  CONTEXT_BUDGET_GET:       'context-budget:get',
+  CONTEXT_BUDGET_UPDATE:    'context-budget:update',
+  CONTEXT_BUDGET_COMPRESS:  'context-budget:compress',
+  CONTEXT_BUDGET_MIGRATE:   'context-budget:migrate',
+  CONTEXT_BUDGET_STATUS:    'context-budget:status',
+
+  // 7. AI 对决模式 (AI Battle / A/B Compare)
+  BATTLE_CREATE:            'battle:create',
+  BATTLE_GET:               'battle:get',
+  BATTLE_LIST:              'battle:list',
+  BATTLE_VOTE:              'battle:vote',
+  BATTLE_DELETE:            'battle:delete',
+  BATTLE_GET_STATS:         'battle:get-stats',
+
+  // 8. 每日 AI 日报 (Daily AI Report)
+  DAILY_REPORT_GENERATE:    'daily-report:generate',
+  DAILY_REPORT_GET:         'daily-report:get',
+  DAILY_REPORT_LIST:        'daily-report:list',
+  DAILY_REPORT_EXPORT:      'daily-report:export',
+  DAILY_REPORT_CONFIG:      'daily-report:config',
+
+  // 9. AI 技能竞技场 (Skill Arena)
+  SKILL_ARENA_LIST:         'skill-arena:list',
+  SKILL_ARENA_SUBMIT:       'skill-arena:submit',
+  SKILL_ARENA_GET_SCORES:   'skill-arena:get-scores',
+  SKILL_ARENA_GET_LEADERBOARD: 'skill-arena:get-leaderboard',
+  SKILL_ARENA_VOTE:         'skill-arena:vote',
+
+  // 10. 语音交互 (Voice Mode)
+  VOICE_START_LISTENING:    'voice:start-listening',
+  VOICE_STOP_LISTENING:     'voice:stop-listening',
+  VOICE_SPEAK:              'voice:speak',
+  VOICE_GET_STATUS:         'voice:get-status',
+  VOICE_GET_CONFIG:         'voice:get-config',
+  VOICE_UPDATE_CONFIG:      'voice:update-config',
+  VOICE_TRANSCRIBE:         'voice:transcribe',
 } as const
 
 // ---- 看板列 ----

@@ -930,6 +930,112 @@ if (!ctxBr) {
     create: (config: any) => ipcRenderer.invoke(IPC.OPENAI_COMPAT_CREATE, config),
   },
 
+  // ==================== Checkpoint API ====================
+  checkpoint: {
+    create: (params: any) => ipcRenderer.invoke(IPC.CHECKPOINT_CREATE, params),
+    list: (sessionId: string, limit?: number) => ipcRenderer.invoke(IPC.CHECKPOINT_LIST, sessionId, limit),
+    get: (id: string) => ipcRenderer.invoke(IPC.CHECKPOINT_GET, id),
+    restore: (id: string) => ipcRenderer.invoke(IPC.CHECKPOINT_RESTORE, id),
+    delete: (id: string) => ipcRenderer.invoke(IPC.CHECKPOINT_DELETE, id),
+    diff: (fromId: string, toId: string) => ipcRenderer.invoke(IPC.CHECKPOINT_DIFF, fromId, toId),
+    autoCreate: (sid: string, name: string, path: string, reason: string) => ipcRenderer.invoke(IPC.CHECKPOINT_AUTO_CREATE, sid, name, path, reason),
+    getPrompt: () => ipcRenderer.invoke(IPC.CHECKPOINT_GET_PROMPT),
+  },
+
+  // ==================== Cost Dashboard API ====================
+  cost: {
+    getSummary: (days?: number) => ipcRenderer.invoke(IPC.COST_GET_SUMMARY, days),
+    getHistory: (days?: number) => ipcRenderer.invoke(IPC.COST_GET_HISTORY, days),
+    getBySession: (sessionId: string) => ipcRenderer.invoke(IPC.COST_GET_BY_SESSION, sessionId),
+    getByProvider: () => ipcRenderer.invoke(IPC.COST_GET_BY_PROVIDER),
+    setBudget: (config: any) => ipcRenderer.invoke(IPC.COST_SET_BUDGET, config),
+    getBudget: () => ipcRenderer.invoke(IPC.COST_GET_BUDGET),
+    getPricing: () => ipcRenderer.invoke(IPC.COST_GET_PRICING),
+    updatePricing: (tiers: any[]) => ipcRenderer.invoke(IPC.COST_UPDATE_PRICING, tiers),
+  },
+
+  // ==================== Project Knowledge API ====================
+  projectKnowledge: {
+    create: (params: any) => ipcRenderer.invoke(IPC.PROJECT_KB_CREATE, params),
+    get: (id: string) => ipcRenderer.invoke(IPC.PROJECT_KB_GET, id),
+    update: (id: string, updates: any) => ipcRenderer.invoke(IPC.PROJECT_KB_UPDATE, id, updates),
+    delete: (id: string) => ipcRenderer.invoke(IPC.PROJECT_KB_DELETE, id),
+    list: (projectPath: string) => ipcRenderer.invoke(IPC.PROJECT_KB_LIST, projectPath),
+    search: (projectPath: string, query: string, limit?: number) => ipcRenderer.invoke(IPC.PROJECT_KB_SEARCH, projectPath, query, limit),
+    getPrompt: (projectPath: string) => ipcRenderer.invoke(IPC.PROJECT_KB_GET_PROMPT, projectPath),
+    autoExtract: (projectPath: string) => ipcRenderer.invoke(IPC.PROJECT_KB_AUTO_EXTRACT, projectPath),
+  },
+
+  // ==================== Code Review API ====================
+  codeReview: {
+    start: (params: any) => ipcRenderer.invoke(IPC.CODE_REVIEW_START, params),
+    get: (id: string) => ipcRenderer.invoke(IPC.CODE_REVIEW_GET, id),
+    list: (sessionId?: string, limit?: number) => ipcRenderer.invoke(IPC.CODE_REVIEW_LIST, sessionId, limit),
+    getComments: (reviewId: string) => ipcRenderer.invoke(IPC.CODE_REVIEW_GET_COMMENTS, reviewId),
+    resolveComment: (commentId: string) => ipcRenderer.invoke(IPC.CODE_REVIEW_RESOLVE_COMMENT, commentId),
+    applyFix: (commentId: string) => ipcRenderer.invoke(IPC.CODE_REVIEW_APPLY_FIX, commentId),
+    getPrompt: () => ipcRenderer.invoke(IPC.CODE_REVIEW_GET_PROMPT),
+  },
+
+  // ==================== Session Replay API ====================
+  replay: {
+    startRecording: (sessionId: string, sessionName: string) => ipcRenderer.invoke(IPC.REPLAY_START_RECORDING, sessionId, sessionName),
+    stopRecording: (sessionId: string) => ipcRenderer.invoke(IPC.REPLAY_STOP_RECORDING, sessionId),
+    get: (id: string) => ipcRenderer.invoke(IPC.REPLAY_GET, id),
+    list: (limit?: number) => ipcRenderer.invoke(IPC.REPLAY_LIST, limit),
+    delete: (id: string) => ipcRenderer.invoke(IPC.REPLAY_DELETE, id),
+    export: (id: string) => ipcRenderer.invoke(IPC.REPLAY_EXPORT, id),
+    getEvents: (id: string) => ipcRenderer.invoke(IPC.REPLAY_GET_EVENTS, id),
+  },
+
+  // ==================== Context Budget API ====================
+  contextBudget: {
+    get: (sessionId: string) => ipcRenderer.invoke(IPC.CONTEXT_BUDGET_GET, sessionId),
+    update: (updates: any) => ipcRenderer.invoke(IPC.CONTEXT_BUDGET_UPDATE, updates),
+    compress: (sessionId: string) => ipcRenderer.invoke(IPC.CONTEXT_BUDGET_COMPRESS, sessionId),
+    migrate: (sessionId: string) => ipcRenderer.invoke(IPC.CONTEXT_BUDGET_MIGRATE, sessionId),
+    status: () => ipcRenderer.invoke(IPC.CONTEXT_BUDGET_STATUS),
+  },
+
+  // ==================== Battle API ====================
+  battle: {
+    create: (params: any) => ipcRenderer.invoke(IPC.BATTLE_CREATE, params),
+    get: (id: string) => ipcRenderer.invoke(IPC.BATTLE_GET, id),
+    list: (limit?: number) => ipcRenderer.invoke(IPC.BATTLE_LIST, limit),
+    vote: (battleId: string, voterId: string, choice: string, comment?: string) => ipcRenderer.invoke(IPC.BATTLE_VOTE, battleId, voterId, choice, comment),
+    delete: (id: string) => ipcRenderer.invoke(IPC.BATTLE_DELETE, id),
+    getStats: () => ipcRenderer.invoke(IPC.BATTLE_GET_STATS),
+  },
+
+  // ==================== Daily Report API ====================
+  dailyReport: {
+    generate: (date?: string) => ipcRenderer.invoke(IPC.DAILY_REPORT_GENERATE, date),
+    get: (date: string) => ipcRenderer.invoke(IPC.DAILY_REPORT_GET, date),
+    list: (limit?: number) => ipcRenderer.invoke(IPC.DAILY_REPORT_LIST, limit),
+    export: (date: string) => ipcRenderer.invoke(IPC.DAILY_REPORT_EXPORT, date),
+    config: (updates?: any) => ipcRenderer.invoke(IPC.DAILY_REPORT_CONFIG, updates),
+  },
+
+  // ==================== Skill Arena API ====================
+  skillArena: {
+    list: (category?: string, limit?: number) => ipcRenderer.invoke(IPC.SKILL_ARENA_LIST, category, limit),
+    submit: (params: any) => ipcRenderer.invoke(IPC.SKILL_ARENA_SUBMIT, params),
+    getScores: (id: string) => ipcRenderer.invoke(IPC.SKILL_ARENA_GET_SCORES, id),
+    getLeaderboard: (category?: string) => ipcRenderer.invoke(IPC.SKILL_ARENA_GET_LEADERBOARD, category),
+    vote: (id: string, up: boolean) => ipcRenderer.invoke(IPC.SKILL_ARENA_VOTE, id, up),
+  },
+
+  // ==================== Voice API ====================
+  voice: {
+    startListening: () => ipcRenderer.invoke(IPC.VOICE_START_LISTENING),
+    stopListening: () => ipcRenderer.invoke(IPC.VOICE_STOP_LISTENING),
+    speak: (text: string) => ipcRenderer.invoke(IPC.VOICE_SPEAK, text),
+    getStatus: () => ipcRenderer.invoke(IPC.VOICE_GET_STATUS),
+    getConfig: () => ipcRenderer.invoke(IPC.VOICE_GET_CONFIG),
+    updateConfig: (updates: any) => ipcRenderer.invoke(IPC.VOICE_UPDATE_CONFIG, updates),
+    transcribe: (data: any) => ipcRenderer.invoke(IPC.VOICE_TRANSCRIBE, data),
+  },
+
   // ★ 渲染进程注册 API 就绪回调（避免轮询）
   __registerAPIAvailableCallback: (cb: () => void) => { _apiReadyCallbacks.push(cb) },
   }

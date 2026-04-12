@@ -56,6 +56,17 @@ export interface IpcDependencies {
   sessionTemplateService?: any  // SessionTemplateService（可选）
   codeContextInjectionService?: any  // CodeContextInjectionService（可选）
   adapterRegistry?: any  // AdapterRegistry（可选）
+  // ★ 新增 10 大功能服务
+  checkpointService?: any       // CheckpointService（可选）
+  costService?: any             // CostService（可选）
+  projectKnowledgeService?: any // ProjectKnowledgeService（可选）
+  codeReviewService?: any       // CodeReviewService（可选）
+  sessionReplayService?: any    // SessionReplayService（可选）
+  contextBudgetService?: any    // ContextBudgetService（可选）
+  battleService?: any           // BattleService（可选）
+  dailyReportService?: any      // DailyReportService（可选）
+  skillArenaService?: any       // SkillArenaService（可选）
+  voiceService?: any            // VoiceService（可选）
 }
 
 // 各子模块 handler 注册函数
@@ -88,6 +99,7 @@ import { registerCrossMemoryHandlers } from './crossMemoryHandlers'
 import { registerSessionTemplateHandlers } from './sessionTemplateHandlers'
 import { registerCodeContextHandlers } from './codeContextHandlers'
 import { registerOpenAICompatHandlers } from './openAICompatHandlers'
+import { registerNewFeatureHandlers, type NewFeatureDeps } from './newFeatureHandlers'
 import type { FileChangeTracker } from '../tracker/FileChangeTracker'
 
 // re-export wireSessionManagerV2Events from systemHandlers
@@ -144,4 +156,17 @@ export function registerIpcHandlers(deps: IpcDependencies, fileChangeTracker?: F
   if (deps.updateManager) {
     registerUpdateHandlers(deps.updateManager)
   }
+  // ★ 新增 10 大功能 IPC 注册
+  registerNewFeatureHandlers({
+    checkpointService: deps.checkpointService,
+    costService: deps.costService,
+    projectKnowledgeService: deps.projectKnowledgeService,
+    codeReviewService: deps.codeReviewService,
+    sessionReplayService: deps.sessionReplayService,
+    contextBudgetService: deps.contextBudgetService,
+    battleService: deps.battleService,
+    dailyReportService: deps.dailyReportService,
+    skillArenaService: deps.skillArenaService,
+    voiceService: deps.voiceService,
+  })
 }

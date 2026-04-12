@@ -175,6 +175,17 @@ let driftGuardService: DriftGuardService | null = null
 let crossSessionMemoryService: CrossSessionMemoryService | null = null
 let sessionTemplateService: SessionTemplateService | null = null
 let codeContextInjectionService: CodeContextInjectionService | null = null
+// ★ 新增 10 大功能服务
+let checkpointService: any = null
+let costService: any = null
+let projectKnowledgeService: any = null
+let codeReviewService: any = null
+let sessionReplayService: any = null
+let contextBudgetService: any = null
+let battleService: any = null
+let dailyReportService: any = null
+let skillArenaService: any = null
+let voiceService: any = null
 
 /**
  * 创建主窗口
@@ -953,6 +964,29 @@ app.whenReady().then(() => {
   // ★ 代码上下文注入服务
   codeContextInjectionService = new CodeContextInjectionService()
 
+  // ★ 新增 10 大功能服务初始化
+  const { CheckpointService } = require('./checkpoint/CheckpointService')
+  const { CostService } = require('./cost/CostService')
+  const { ProjectKnowledgeService } = require('./knowledge/ProjectKnowledgeService')
+  const { CodeReviewService } = require('./review/CodeReviewService')
+  const { SessionReplayService } = require('./replay/SessionReplayService')
+  const { ContextBudgetService } = require('./context-budget/ContextBudgetService')
+  const { BattleService } = require('./battle/BattleService')
+  const { DailyReportService } = require('./daily-report/DailyReportService')
+  const { SkillArenaService } = require('./arena/SkillArenaService')
+  const { VoiceService } = require('./voice/VoiceService')
+
+  checkpointService = new CheckpointService(database)
+  costService = new CostService(database)
+  projectKnowledgeService = new ProjectKnowledgeService(database)
+  codeReviewService = new CodeReviewService(database)
+  sessionReplayService = new SessionReplayService(database)
+  contextBudgetService = new ContextBudgetService(database)
+  battleService = new BattleService(database)
+  dailyReportService = new DailyReportService(database)
+  skillArenaService = new SkillArenaService(database)
+  voiceService = new VoiceService()
+
   // ★ 注册 team_* 方法处理器到 AgentBridge，使 agents 可以调用团队工具
   agentBridge.setTeamBridgeHandler(async (request) => {
     const { id, sessionId, method, params } = request
@@ -1089,6 +1123,17 @@ app.whenReady().then(() => {
     sessionTemplateService,
     codeContextInjectionService,
     adapterRegistry,
+    // ★ 新增 10 大功能服务
+    checkpointService,
+    costService,
+    projectKnowledgeService,
+    codeReviewService,
+    sessionReplayService,
+    contextBudgetService,
+    battleService,
+    dailyReportService,
+    skillArenaService,
+    voiceService,
   }, fileChangeTracker)
 
   // 连接事件流
