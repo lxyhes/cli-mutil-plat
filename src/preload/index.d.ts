@@ -113,6 +113,8 @@ export interface SpectrAIAPI {
     checkCli: (command: string) => Promise<any>
     /** 测试 Claude Code 可执行文件（cli.js）是否可用，支持自动检测或验证指定路径 */
     testExecutable: (executablePath?: string) => Promise<any>
+    /** 在系统终端中运行 Provider 认证命令（如 qwen auth） */
+    runAuthCli: (command: string, args?: string[]) => Promise<{ success: boolean; error?: string }>
   }
 
   nvm: {

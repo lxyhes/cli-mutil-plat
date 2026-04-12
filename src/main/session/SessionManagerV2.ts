@@ -417,7 +417,7 @@ export class SessionManagerV2 extends EventEmitter implements MemoryManagedCompo
       this.emit('session-init-data', id, data)
     }
 
-    const onAuthRequired = (sid: string, data: { providerId: string; message: string; authCommand: string }) => {
+    const onAuthRequired = (sid: string, data: { providerId: string; message: string; authCommand: string; requiredEnvKey?: string }) => {
       if (sid !== id) return
       this.emit('auth-required', id, data)
     }
@@ -993,7 +993,7 @@ export class SessionManagerV2 extends EventEmitter implements MemoryManagedCompo
       if (sid !== id) return
       this.emit('session-init-data', id, data)
     }
-    const onAuthRequired = (sid: string, data: { providerId: string; message: string; authCommand: string }) => {
+    const onAuthRequired = (sid: string, data: { providerId: string; message: string; authCommand: string; requiredEnvKey?: string }) => {
       if (sid !== id) return
       this.emit('auth-required', id, data)
     }

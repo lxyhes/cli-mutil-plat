@@ -76,6 +76,8 @@ export const IPC = {
   PROVIDER_CHECK_CLI: 'provider:check-cli',
   /** 测试 claude-sdk 可执行文件路径（自动检测或验证指定路径） */
   PROVIDER_TEST_EXECUTABLE: 'provider:test-executable',
+  /** 在系统终端中运行 Provider 认证命令（如 qwen auth） */
+  PROVIDER_RUN_AUTH_CLI: 'provider:run-auth-cli',
   /** 打开文件选择对话框，返回选中文件路径 */
   DIALOG_SELECT_FILE: 'dialog:select-file',
 

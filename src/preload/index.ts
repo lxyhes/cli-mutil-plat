@@ -228,6 +228,7 @@ if (!ctxBr) {
       providerId: string
       message: string
       authCommand: string
+      requiredEnvKey?: string
     }) => void) => {
       const listener = (_event: IpcRendererEvent, sessionId: string, data: any) => {
         callback(sessionId, data)
@@ -287,6 +288,8 @@ if (!ctxBr) {
      * 返回 { found: boolean, path: string | null, error?: string }
      */
     testExecutable: (executablePath?: string) => ipcRenderer.invoke(IPC.PROVIDER_TEST_EXECUTABLE, executablePath),
+    /** 在系统终端中运行 Provider 认证命令（如 qwen auth） */
+    runAuthCli: (command: string, args?: string[]) => ipcRenderer.invoke(IPC.PROVIDER_RUN_AUTH_CLI, command, args),
   },
 
   // ==================== NVM API ====================

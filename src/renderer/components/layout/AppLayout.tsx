@@ -14,6 +14,7 @@ import StatusBar from './StatusBar'
 import SearchPanel from './SearchPanel'
 import HistoryPanel from './HistoryPanel'
 import LogViewer from '../common/LogViewer'
+import AuthRequiredDialog from '../common/AuthRequiredDialog'
 import NewTaskDialog from '../kanban/NewTaskDialog'
 import { useUIStore } from '../../stores/uiStore'
 import ActivityBar from './ActivityBar'
@@ -115,6 +116,7 @@ export default function AppLayout() {
       {showHistoryPanel && <HistoryPanel />}
       {showLogViewer && <LogViewer />}
       <NewTaskDialog />
+      <AuthRequiredDialog />
 
       {showSettings && (
         <UnifiedSettingsModal

@@ -51,7 +51,7 @@ interface SessionState {
   sessionInitData: Record<string, { model: string; tools: string[]; skills: any[]; mcpServers: any[] }>  // SDK V2: 会话初始化数据
   activityHistoryLoaded: Set<string>  // 已从数据库加载过历史活动的会话 ID（防止 session_start 竞态导致跳过加载）
   suppressNextEcho: Set<string>  // 静默执行 Skill 时，需要屏蔽 SDK 回显的会话 ID 集合
-  authRequiredData: { sessionId: string; providerId: string; message: string; authCommand: string } | null  // Provider 需要认证
+  authRequiredData: { sessionId: string; providerId: string; message: string; authCommand: string; requiredEnvKey?: string } | null  // Provider 需要认证
 
   // 方法
   fetchSessions: () => Promise<void>
@@ -86,7 +86,7 @@ interface SessionState {
   bulkAddConversationMessages: (sessionId: string, msgs: ConversationMessage[]) => void
   setConversationLoading: (sessionId: string, loading: boolean) => void  // SDK V2
   setSessionInitData: (sessionId: string, data: any) => void  // SDK V2: 存储初始化数据
-  setAuthRequiredData: (data: { sessionId: string; providerId: string; message: string; authCommand: string } | null) => void  // 设置认证需要的数据
+  setAuthRequiredData: (data: { sessionId: string; providerId: string; message: string; authCommand: string; requiredEnvKey?: string } | null) => void  // 设置认证需要的数据
   clearAuthRequiredData: () => void  // 清除认证需要的数据
   fetchAgents: (parentSessionId: string) => Promise<void>
 }
@@ -629,8 +629,13 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     const allInterrupted = get().sessions.filter(s => s.status === 'interrupted')
     if (allInterrupted.length === 0) return
 
-    const withClaudeId = allInterrupted.filter(s => !!s.claudeSessionId)
-    const skippedNoId = allInterrupted.length - withClaudeId.length
+    // ★ 排除 qwen-sdk 类型的会话：Qwen 的 OAuth 认证流程需要交互式操作，
+    // 不适合后台自动 resume（每次 resume 都可能触发 OAuth 设备授权）
+    const qwenExcluded = allInterrupted.filter(s => s.config?.adapterType !== 'qwen-sdk')
+    const qwenSkipped = allInterrupted.length - qwenExcluded.length
+
+    const withClaudeId = qwenExcluded.filter(s => !!s.claudeSessionId)
+    const skippedNoId = qwenExcluded.length - withClaudeId.length
 
     const uniqueByClaudeId = new Map<string, typeof withClaudeId[0]>()
     for (const session of withClaudeId) {
@@ -644,7 +649,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     const toResume = Array.from(uniqueByClaudeId.values())
     const dupeSkipped = withClaudeId.length - toResume.length
 
-    console.log(`[AutoResume] ${allInterrupted.length} interrupted -> ${toResume.length} recoverable by Claude ID (${dupeSkipped} dupes skipped), ${skippedNoId} skipped without Claude ID`)
+    console.log(`[AutoResume] ${allInterrupted.length} interrupted -> ${qwenSkipped} qwen-sdk skipped (OAuth), ${qwenExcluded.length} remaining -> ${toResume.length} recoverable by Claude ID (${dupeSkipped} dupes skipped), ${skippedNoId} skipped without Claude ID`)
 
     set((state) => {
       const next = new Set(state.resumingSessions)
@@ -775,6 +780,16 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       }))
     })
     if (tokenUnsub) _sessionListenerUnsubs.push(tokenUnsub)
+
+    // ★ SDK V2: Provider 需要认证（如 Qwen CLI 未登录） → 弹出认证对话框
+    _sessionListenerUnsubs.push(safeAPI.session.onAuthRequired((sessionId: string, data: {
+      providerId: string
+      message: string
+      authCommand: string
+    }) => {
+      console.log(`[SessionStore] auth-required: sessionId=${sessionId}, providerId=${data.providerId}`)
+      set({ authRequiredData: { sessionId, ...data } })
+    }))
   },
 
   // 初始化 Agent 事件监听

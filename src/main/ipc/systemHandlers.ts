@@ -373,8 +373,49 @@ export function wireSessionManagerV2Events(
     providerId: string
     message: string
     authCommand: string
+    requiredEnvKey?: string
   }) => {
     sendToRenderer(IPC.SESSION_AUTH_REQUIRED, sessionId, data)
+  })
+
+  // ★ 在系统终端中运行 Provider 认证命令（如 qwen auth）
+  ipcMain.handle(IPC.PROVIDER_RUN_AUTH_CLI, async (_event, command: string, args: string[] = []) => {
+    try {
+      const { spawn } = await import('child_process')
+      const platform = process.platform
+
+      if (platform === 'darwin') {
+        // macOS: 用 osascript 打开 Terminal.app 并执行命令
+        const script = `tell application "Terminal"\nactivate\ndo script "${command} ${args.join(' ')}"\nend tell`
+        spawn('osascript', ['-e', script])
+      } else if (platform === 'win32') {
+        // Windows: 用 start 命令打开 cmd 并执行
+        spawn('cmd.exe', ['/c', 'start', 'cmd.exe', '/k', command, ...args])
+      } else {
+        // Linux: 尝试常见终端模拟器
+        const terminals = [
+          { cmd: 'gnome-terminal', args: ['--', 'bash', '-c'] },
+          { cmd: 'konsole', args: ['-e'] },
+          { cmd: 'xfce4-terminal', args: ['-e'] },
+          { cmd: 'xterm', args: ['-e'] },
+        ]
+        const fullCmd = `${command} ${args.join(' ')}`
+        let launched = false
+        for (const term of terminals) {
+          try {
+            spawn(term.cmd, [...term.args, fullCmd])
+            launched = true
+            break
+          } catch { /* try next */ }
+        }
+        if (!launched) {
+          return { success: false, error: '未找到可用的终端模拟器，请手动运行: ' + fullCmd }
+        }
+      }
+      return { success: true }
+    } catch (err: any) {
+      return { success: false, error: err.message }
+    }
   })
 
   // ★ SDK V2: Token 用量更新 → 持久化 + 推送给渲染进程
