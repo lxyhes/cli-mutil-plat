@@ -959,6 +959,12 @@ if (!ctxBr) {
     getBudget: () => ipcRenderer.invoke(IPC.COST_GET_BUDGET),
     getPricing: () => ipcRenderer.invoke(IPC.COST_GET_PRICING),
     updatePricing: (tiers: any[]) => ipcRenderer.invoke(IPC.COST_UPDATE_PRICING, tiers),
+    // 监听预算告警
+    onBudgetAlert: (callback: (result: { exceeded: boolean; level: string; message: string }) => void) => {
+      const handler = (_: any, result: any) => callback(result)
+      ipcRenderer.on(IPC.COST_BUDGET_ALERT, handler)
+      return () => ipcRenderer.removeListener(IPC.COST_BUDGET_ALERT, handler)
+    },
   },
 
   // ==================== Project Knowledge API ====================

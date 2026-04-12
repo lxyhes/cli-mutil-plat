@@ -432,6 +432,7 @@ export const IPC = {
   COST_GET_BUDGET:          'cost:get-budget',
   COST_GET_PRICING:         'cost:get-pricing',
   COST_UPDATE_PRICING:      'cost:update-pricing',
+  COST_BUDGET_ALERT:        'cost:budget-alert',        // 主进程→渲染进程：预算告警通知
 
   // 3. 项目级知识库 (Project Knowledge Base)
   PROJECT_KB_CREATE:        'project-kb:create',

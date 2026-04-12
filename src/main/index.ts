@@ -61,6 +61,16 @@ import { DriftGuardService } from './drift-guard/DriftGuardService'
 import { CrossSessionMemoryService } from './cross-session-memory/CrossSessionMemoryService'
 import { SessionTemplateService } from './session-template/SessionTemplateService'
 import { CodeContextInjectionService } from './code-context/CodeContextInjectionService'
+import { CheckpointService } from './checkpoint/CheckpointService'
+import { CostService } from './cost/CostService'
+import { ProjectKnowledgeService } from './knowledge/ProjectKnowledgeService'
+import { CodeReviewService } from './review/CodeReviewService'
+import { SessionReplayService } from './replay/SessionReplayService'
+import { ContextBudgetService } from './context-budget/ContextBudgetService'
+import { BattleService } from './battle/BattleService'
+import { DailyReportService } from './daily-report/DailyReportService'
+import { SkillArenaService } from './arena/SkillArenaService'
+import { VoiceService } from './voice/VoiceService'
 
 
 let mainWindow: BrowserWindow | null = null
@@ -967,17 +977,6 @@ app.whenReady().then(() => {
   codeContextInjectionService = new CodeContextInjectionService()
 
   // ★ 新增 10 大功能服务初始化
-  const { CheckpointService } = require('./checkpoint/CheckpointService')
-  const { CostService } = require('./cost/CostService')
-  const { ProjectKnowledgeService } = require('./knowledge/ProjectKnowledgeService')
-  const { CodeReviewService } = require('./review/CodeReviewService')
-  const { SessionReplayService } = require('./replay/SessionReplayService')
-  const { ContextBudgetService } = require('./context-budget/ContextBudgetService')
-  const { BattleService } = require('./battle/BattleService')
-  const { DailyReportService } = require('./daily-report/DailyReportService')
-  const { SkillArenaService } = require('./arena/SkillArenaService')
-  const { VoiceService } = require('./voice/VoiceService')
-
   checkpointService = new CheckpointService(database, gitWorktreeServiceRef)
   costService = new CostService(database)
   projectKnowledgeService = new ProjectKnowledgeService(database)
@@ -1175,6 +1174,24 @@ app.whenReady().then(() => {
       checkpointService.autoCreate(sessionId, sessionName, workingDir, 'AI 回合完成', 'auto-turn-complete').catch(() => {})
     })
     console.log('[Main] CheckpointService connected to SessionManagerV2 event stream')
+  }
+
+  // ★ 连接 CostService → SessionManagerV2 usage-update 事件
+  // 在每次 Token 用量更新时，同时记录到 cost_daily_detail 表（含 provider 信息）
+  if (costService && sessionManagerV2) {
+    sessionManagerV2.on('usage-update', (sessionId: string, usage: {
+      inputTokens: number; outputTokens: number; total: number; startedAt: string
+    }) => {
+      try {
+        const session = sessionManagerV2.getSession(sessionId)
+        const providerId = session?.config?.providerId || session?.providerId || ''
+        // 只在有实际 token 变化时记录（跳过初始化时 total=0 的情况）
+        if (usage.inputTokens > 0 || usage.outputTokens > 0) {
+          costService.saveUsageDetail(sessionId, providerId, usage.inputTokens, usage.outputTokens)
+        }
+      } catch (_err) { /* ignore */ }
+    })
+    console.log('[Main] CostService connected to SessionManagerV2 usage-update event')
   }
 
   // ★ 连接 WorkingContext → SessionManagerV2，会话切换时自动快照

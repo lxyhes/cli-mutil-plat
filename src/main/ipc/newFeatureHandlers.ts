@@ -52,14 +52,14 @@ export function registerNewFeatureHandlers(deps: NewFeatureDeps): void {
   // ── 2. Cost Dashboard ──
   if (deps.costService) {
     const cs = deps.costService
-    ipcMain.handle(IPC.COST_GET_SUMMARY, (_, days?) => cs.getSummary(days))
-    ipcMain.handle(IPC.COST_GET_HISTORY, (_, days?) => cs.getHistory(days))
-    ipcMain.handle(IPC.COST_GET_BY_SESSION, (_, sessionId) => cs.getSummary())
-    ipcMain.handle(IPC.COST_GET_BY_PROVIDER, () => cs.getSummary())
-    ipcMain.handle(IPC.COST_SET_BUDGET, (_, config) => cs.setBudget(config))
-    ipcMain.handle(IPC.COST_GET_BUDGET, () => cs.getBudget())
-    ipcMain.handle(IPC.COST_GET_PRICING, () => cs.getPricing())
-    ipcMain.handle(IPC.COST_UPDATE_PRICING, (_, tiers) => { cs.updatePricing(tiers); return cs.getPricing() })
+    ipcMain.handle(IPC.COST_GET_SUMMARY, async (_, days?) => ({ success: true, result: await cs.getSummary(days) }))
+    ipcMain.handle(IPC.COST_GET_HISTORY, async (_, days?) => ({ success: true, result: await cs.getHistory(days) }))
+    ipcMain.handle(IPC.COST_GET_BY_SESSION, async (_, sessionId) => ({ success: true, result: await cs.getBySession(sessionId) }))
+    ipcMain.handle(IPC.COST_GET_BY_PROVIDER, async () => ({ success: true, result: await cs.getByProvider() }))
+    ipcMain.handle(IPC.COST_SET_BUDGET, async (_, config) => ({ success: true, result: await cs.setBudget(config) }))
+    ipcMain.handle(IPC.COST_GET_BUDGET, async () => ({ success: true, result: await cs.getBudget() }))
+    ipcMain.handle(IPC.COST_GET_PRICING, () => ({ success: true, result: cs.getPricing() }))
+    ipcMain.handle(IPC.COST_UPDATE_PRICING, (_, tiers) => { cs.updatePricing(tiers); return { success: true, result: cs.getPricing() } })
   }
 
   // ── 3. Project Knowledge ──
