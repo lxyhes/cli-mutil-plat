@@ -28,7 +28,7 @@ export default function WorkingContextView() {
   const [activeTab, setActiveTab] = useState<TabKey>('task')
   const [showDriftPanel, setShowDriftPanel] = useState(false)
 
-  const activeSessionId = useSessionStore(s => s.activeSessionId)
+  const activeSessionId = useSessionStore(s => s.currentSessionId)
 
   // Working Context Store
   const ctx = useWorkingContextStore()

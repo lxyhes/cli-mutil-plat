@@ -87,6 +87,30 @@ const mdComponents: Components = {
 }
 
 /**
+ * 自定义 rehype-highlight 配置
+ * 避免 hljs 默认样式与自定义代码块样式冲突
+ */
+function highlightPlugin() {
+  return (tree: any) => {
+    // 移除 rehype-highlight 添加的 className，使用自定义样式
+    const visit = (node: any, parent?: any) => {
+      if (node.tagName === 'code' && parent?.tagName === 'pre') {
+        // 移除 hljs 相关 class
+        if (node.properties?.className) {
+          node.properties.className = node.properties.className.filter((c: string) => !c.startsWith('hljs'))
+        }
+      }
+      if (node.children) {
+        for (const child of node.children) {
+          visit(child, node)
+        }
+      }
+    }
+    visit(tree)
+  }
+}
+
+/**
  * 规范化非标准 Markdown 表格语法
  * 将 || 双竖线表格转换为标准 GFM 单竖线格式
  * 例如: || 任务类型 | 推荐 Provider | 原因 ||
@@ -258,10 +282,12 @@ export default function CodeViewer({ tabId }: CodeViewerProps) {
       rules: [],
       colors: {
         'editor.background':                  get('--color-bg-primary'),
+        'editor.foreground':                  get('--color-text-primary'),
         'editor.lineHighlightBackground':     get('--color-bg-secondary') + '80',
         'editorGutter.background':            get('--color-bg-primary'),
         'editorLineNumber.foreground':        get('--color-text-muted'),
         'editorLineNumber.activeForeground':  get('--color-text-secondary'),
+        'editorCursor.foreground':            get('--color-accent-blue'),
         'minimap.background':                 get('--color-bg-primary'),
         'editorOverviewRuler.background':     get('--color-bg-primary'),
         'editorOverviewRuler.border':         get('--color-bg-primary'),
@@ -383,10 +409,10 @@ export default function CodeViewer({ tabId }: CodeViewerProps) {
       </div>
 
       {/* 内容区域 */}
-      <div className="flex-1 min-h-0 flex">
+      <div className="flex-1 min-h-0 relative">
         {isMd && isPreview ? (
-          <>
-            {/* Markdown 预览 */}
+          /* Markdown 预览 + 大纲 */
+          <div className="h-full flex">
             <div className="flex-1 min-w-0 overflow-auto">
               <div className="markdown-body text-[13px] leading-relaxed px-6 py-4">
                 <Markdown
@@ -398,13 +424,11 @@ export default function CodeViewer({ tabId }: CodeViewerProps) {
                 </Markdown>
               </div>
             </div>
-
-            {/* 大纲侧边栏 */}
             <TocSidebar content={tab.content} />
-          </>
+          </div>
         ) : (
           /* Monaco Editor */
-          <div className="flex-1 min-h-0">
+          <div className="absolute inset-0">
             <Editor
               height="100%"
               language={tab.language}
