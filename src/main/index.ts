@@ -56,6 +56,11 @@ import { OpenCodeSdkAdapter } from './adapter/OpenCodeSdkAdapter'
 import { bootstrapShellPath } from './bootstrap/shellPath'
 import { UpdateManager } from './update/UpdateManager'
 import { MemoryCoordinator } from './memory/MemoryCoordinator'
+import { WorkingContextService } from './working-context/WorkingContextService'
+import { DriftGuardService } from './drift-guard/DriftGuardService'
+import { CrossSessionMemoryService } from './cross-session-memory/CrossSessionMemoryService'
+import { SessionTemplateService } from './session-template/SessionTemplateService'
+import { CodeContextInjectionService } from './code-context/CodeContextInjectionService'
 
 
 let mainWindow: BrowserWindow | null = null
@@ -164,6 +169,12 @@ let workflowService: WorkflowService | null = null
 let summaryService: SummaryService | null = null
 let goalService: GoalService | null = null
 let promptOptimizerService: PromptOptimizerService | null = null
+// ★ 新增 7 个差异化功能服务
+let workingContextService: WorkingContextService | null = null
+let driftGuardService: DriftGuardService | null = null
+let crossSessionMemoryService: CrossSessionMemoryService | null = null
+let sessionTemplateService: SessionTemplateService | null = null
+let codeContextInjectionService: CodeContextInjectionService | null = null
 
 /**
  * 创建主窗口
@@ -900,6 +911,29 @@ app.whenReady().then(() => {
     promptOptimizerService = new PromptOptimizerService(database, database.getPromptOptimizerRepository(), sessionManagerV2 ?? undefined)
   }
 
+  // ★ 会话级工作记忆服务
+  workingContextService = new WorkingContextService()
+
+  // ★ 漂移检测护栏服务
+  driftGuardService = new DriftGuardService()
+  driftGuardService.setServices({
+    goalService: goalService ?? undefined,
+    summaryService: summaryService ?? undefined,
+    sessionManagerV2: sessionManagerV2 ?? undefined,
+  })
+
+  // ★ 跨会话语义记忆服务
+  crossSessionMemoryService = new CrossSessionMemoryService(database)
+  if (summaryService) {
+    crossSessionMemoryService.setSummaryService(summaryService)
+  }
+
+  // ★ 会话模板服务
+  sessionTemplateService = new SessionTemplateService(database)
+
+  // ★ 代码上下文注入服务
+  codeContextInjectionService = new CodeContextInjectionService()
+
   // ★ 注册 team_* 方法处理器到 AgentBridge，使 agents 可以调用团队工具
   agentBridge.setTeamBridgeHandler(async (request) => {
     const { id, sessionId, method, params } = request
@@ -1030,7 +1064,16 @@ app.whenReady().then(() => {
     summaryService,
     goalService,
     promptOptimizerService,
+    workingContextService,
+    driftGuardService,
+    crossSessionMemoryService,
+    sessionTemplateService,
+    codeContextInjectionService,
   }, fileChangeTracker)
+
+  // ★ OpenAI Compatible Provider 的 IPC 注册（需要 adapterRegistry）
+  const { registerOpenAICompatHandlers } = require('./ipc/openAICompatHandlers')
+  registerOpenAICompatHandlers(adapterRegistry)
 
   // 连接事件流
   wireEvents()
@@ -1038,6 +1081,23 @@ app.whenReady().then(() => {
   // SDK V2 event forwarding (with TaskSessionCoordinator integration)
   // ★ 补传 fileChangeTracker，修复 V2 会话文件改动追踪失效 bug
   wireSessionManagerV2Events(sessionManagerV2, database, concurrencyGuard, notificationManager, trayManager, fileChangeTracker, telegramBotService ?? undefined, feishuService ?? undefined)
+
+  // ★ 连接 DriftGuard → SessionManagerV2 turn_complete 事件
+  if (driftGuardService && sessionManagerV2) {
+    const driftGuard = driftGuardService
+    sessionManagerV2.on('event', (event: any) => {
+      if (event.type === 'turn_complete') {
+        const result = driftGuard.onTurnComplete(event.sessionId)
+        // 如果检测到漂移且有纠正提示，可在此自动注入
+      }
+    })
+  }
+
+  // ★ 连接 WorkingContext → SessionManagerV2，会话切换时自动快照
+  if (workingContextService && sessionManagerV2) {
+    // 跨会话记忆索引：通过摘要 IPC handler 的副作用完成
+    // 当用户通过 summary:generate 生成摘要时，handler 可额外调用 crossSessionMemoryService.indexSummary
+  }
 
   // 启动状态推断引擎
   stateInference.start()
@@ -1159,6 +1219,13 @@ app.on('before-quit', () => {
 
   // 停止 Prompt Optimizer 服务
   promptOptimizerService?.removeAllListeners()
+
+  // ★ 停止新增差异化功能服务
+  workingContextService?.cleanup()
+  driftGuardService?.cleanup()
+  crossSessionMemoryService?.cleanup()
+  sessionTemplateService?.cleanup()
+  codeContextInjectionService?.cleanup()
 
   // ★ 在 cleanup 之前提前捕获 SDK V2 会话状态
   // 必须在 sessionManagerV2.dispose() 之前拿快照，否则 dispose() 会将所有会话

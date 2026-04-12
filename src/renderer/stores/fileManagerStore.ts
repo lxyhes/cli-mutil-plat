@@ -48,6 +48,8 @@ interface FileManagerState {
   clearSessionFiles: (sessionId: string) => void
   /** 获取指定会话改动的文件路径集合 */
   getChangedPathsForSession: (sessionId: string) => Set<string>
+  /** 在文件树中定位并选中指定文件，自动展开所有父目录 */
+  revealInTree: (filePath: string) => Promise<void>
 }
 
 /** 调用 preload 暴露的 fileManager IPC 接口 */
@@ -272,5 +274,53 @@ export const useFileManagerStore = create<FileManagerState>((set, get) => ({
   getChangedPathsForSession: (sessionId: string): Set<string> => {
     const files = get().sessionChangedFiles.get(sessionId) ?? []
     return new Set(files.map((f: any) => f.filePath))
+  },
+
+  /**
+   * 在文件树中定位并选中指定文件
+   * 自动展开从根目录到目标文件的所有父目录，然后选中该文件
+   */
+  revealInTree: async (filePath: string) => {
+    const { currentDir, expandedDirs, dirCache } = get()
+    if (!currentDir) return
+
+    // 确保 filePath 在 currentDir 之下
+    const normalizedFile = filePath.replace(/\\/g, '/')
+    const normalizedRoot = currentDir.replace(/\\/g, '/')
+    if (!normalizedFile.startsWith(normalizedRoot)) return
+
+    // 提取从 root 到 filePath 的所有中间目录路径
+    const pathParts = normalizedFile.slice(normalizedRoot.length).split('/').filter(Boolean)
+    const dirsToExpand: string[] = []
+    let current = normalizedRoot
+    for (let i = 0; i < pathParts.length - 1; i++) {
+      current = current + '/' + pathParts[i]
+      dirsToExpand.push(current)
+    }
+
+    // 展开所有未展开的父目录
+    const newExpanded = new Set(expandedDirs)
+    for (const dirPath of dirsToExpand) {
+      if (!newExpanded.has(dirPath)) {
+        newExpanded.add(dirPath)
+
+        // 如果缓存中没有该目录，异步加载
+        if (!dirCache.has(dirPath)) {
+          try {
+            const result = await fileManagerApi()?.listDir(dirPath)
+            if (!result?.error) {
+              const newCache = new Map(get().dirCache)
+              newCache.set(dirPath, result?.entries ?? [])
+              set({ dirCache: newCache })
+            }
+          } catch {
+            // 加载失败，跳过
+          }
+        }
+      }
+    }
+
+    // 更新展开状态和选中路径
+    set({ expandedDirs: newExpanded, selectedPath: filePath })
   },
 }))

@@ -860,6 +860,15 @@ function renderPreview(template: string): string {
   )
 }
 
+// ── Orchestration Step 类型 ──
+interface OrchestrationStep {
+  id: string
+  name: string
+  providerId: string
+  prompt: string
+  dependsOn: string[]
+}
+
 // ── 创建/编辑技能弹窗 ──
 function SkillEditorDialog({ skill, onClose, onSave }: {
   skill: Skill | null
@@ -867,6 +876,7 @@ function SkillEditorDialog({ skill, onClose, onSave }: {
   onSave: (data: Partial<Skill>) => Promise<void>
 }) {
   const isEdit = !!skill
+
   const [form, setForm] = useState({
     name:                skill?.name || '',
     description:         skill?.description || '',
@@ -876,6 +886,12 @@ function SkillEditorDialog({ skill, onClose, onSave }: {
     compatibleProviders: skill?.compatibleProviders || ('all' as string[] | 'all'),
     promptTemplate:      skill?.promptTemplate || '',
     systemPromptAddition: skill?.systemPromptAddition || '',
+    // ---- Native Skill ----
+    nativeProviderId:    skill?.nativeConfig?.providerId || '',
+    nativeRawContent:    skill?.nativeConfig?.rawContent || '',
+    // ---- Orchestration Skill ----
+    orchestrationMode:   skill?.orchestrationConfig?.mode || 'sequential',
+    orchestrationSteps:  (skill?.orchestrationConfig?.steps || []) as unknown as OrchestrationStep[],
   })
   const [allProviders, setAllProviders] = useState(!skill || skill.compatibleProviders === 'all')
   const [saving, setSaving] = useState(false)
@@ -918,11 +934,31 @@ function SkillEditorDialog({ skill, onClose, onSave }: {
     if (!form.name.trim()) return
     setSaving(true)
     const now = new Date().toISOString()
+
+    // 根据类型构建对应的 config
+    const nativeConfig = form.type === 'native' && form.nativeProviderId
+      ? { providerId: form.nativeProviderId, rawContent: form.nativeRawContent }
+      : undefined
+
+    const orchestrationConfig = form.type === 'orchestration' && form.orchestrationSteps.length > 0
+      ? { mode: form.orchestrationMode, steps: form.orchestrationSteps as unknown as Array<Record<string, unknown>> }
+      : form.type === 'orchestration'
+        ? { mode: form.orchestrationMode, steps: [] }
+        : undefined
+
     await onSave({
-      ...form,
+      name:                form.name,
+      description:         form.description,
+      category:            form.category,
+      slashCommand:        form.slashCommand,
+      type:                form.type,
       compatibleProviders: allProviders
         ? 'all'
         : (Array.isArray(form.compatibleProviders) ? form.compatibleProviders : []),
+      promptTemplate:       form.promptTemplate || undefined,
+      systemPromptAddition: form.systemPromptAddition || undefined,
+      nativeConfig,
+      orchestrationConfig,
       isInstalled: true,
       isEnabled:   true,
       source:      'custom',
@@ -1141,17 +1177,237 @@ function SkillEditorDialog({ skill, onClose, onSave }: {
             </>
           )}
 
-          {/* Orchestration 类型提示 */}
+          {/* Orchestration 类型编辑器 */}
           {form.type === 'orchestration' && (
-            <div className="px-3 py-2 bg-accent-purple/10 border border-accent-purple/30 rounded-md text-accent-purple text-xs">
-              编排技能的步骤配置需要通过 API 设置，当前 UI 支持基础信息编辑。复杂的多步骤编排建议使用内置模板。
+            <div className="space-y-3">
+              {/* 执行模式选择 */}
+              <div>
+                <label className="block text-xs text-text-secondary mb-1.5">执行模式</label>
+                <div className="flex items-center gap-3">
+                  <label className="flex items-center gap-1.5 text-xs text-text-secondary cursor-pointer">
+                    <input
+                      type="radio"
+                      name="orch-mode"
+                      checked={form.orchestrationMode === 'sequential'}
+                      onChange={() => setForm(p => ({ ...p, orchestrationMode: 'sequential' }))}
+                    />
+                    顺序执行
+                  </label>
+                  <label className="flex items-center gap-1.5 text-xs text-text-secondary cursor-pointer">
+                    <input
+                      type="radio"
+                      name="orch-mode"
+                      checked={form.orchestrationMode === 'parallel'}
+                      onChange={() => setForm(p => ({ ...p, orchestrationMode: 'parallel' }))}
+                    />
+                    并行执行
+                  </label>
+                  <label className="flex items-center gap-1.5 text-xs text-text-secondary cursor-pointer">
+                    <input
+                      type="radio"
+                      name="orch-mode"
+                      checked={form.orchestrationMode === 'dag'}
+                      onChange={() => setForm(p => ({ ...p, orchestrationMode: 'dag' }))}
+                    />
+                    DAG 依赖
+                  </label>
+                </div>
+              </div>
+
+              {/* 步骤列表 */}
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="text-xs text-text-secondary">编排步骤</label>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const newStep: OrchestrationStep = {
+                        id: `step-${Date.now()}`,
+                        name: `步骤 ${form.orchestrationSteps.length + 1}`,
+                        providerId: '',
+                        prompt: '',
+                        dependsOn: [],
+                      }
+                      setForm(p => ({ ...p, orchestrationSteps: [...p.orchestrationSteps, newStep] }))
+                    }}
+                    className="text-xs text-accent-blue hover:text-accent-blue/80 transition-colors flex items-center gap-0.5"
+                  >
+                    <Plus className="w-3 h-3" strokeWidth={2.5} />
+                    添加步骤
+                  </button>
+                </div>
+
+                {form.orchestrationSteps.length === 0 ? (
+                  <div className="text-xs text-text-muted bg-bg-tertiary border border-border rounded-md px-3 py-4 text-center">
+                    暂无步骤，点击「添加步骤」开始编排
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {form.orchestrationSteps.map((step, idx) => (
+                      <div key={step.id} className="border border-border rounded-lg px-3 py-2.5 bg-bg-tertiary space-y-2">
+                        {/* 步骤头部 */}
+                        <div className="flex items-center gap-2">
+                          <span className="text-[11px] text-text-muted bg-bg-hover px-1.5 py-0.5 rounded font-mono">#{idx + 1}</span>
+                          <input
+                            value={step.name}
+                            onChange={e => {
+                              const updated = [...form.orchestrationSteps]
+                              updated[idx] = { ...updated[idx], name: e.target.value }
+                              setForm(p => ({ ...p, orchestrationSteps: updated }))
+                            }}
+                            className="flex-1 bg-bg-input border border-border text-text-primary text-xs rounded px-2 py-1 focus:outline-none focus:border-blue-500 min-w-0"
+                            placeholder="步骤名称"
+                          />
+                          {/* 上移/下移/删除 */}
+                          <button
+                            type="button"
+                            disabled={idx === 0}
+                            onClick={() => {
+                              const updated = [...form.orchestrationSteps]
+                              ;[updated[idx - 1], updated[idx]] = [updated[idx], updated[idx - 1]]
+                              setForm(p => ({ ...p, orchestrationSteps: updated }))
+                            }}
+                            className="w-5 h-5 flex items-center justify-center text-text-muted hover:text-text-primary disabled:opacity-30 transition-colors"
+                            title="上移"
+                          >
+                            ↑
+                          </button>
+                          <button
+                            type="button"
+                            disabled={idx === form.orchestrationSteps.length - 1}
+                            onClick={() => {
+                              const updated = [...form.orchestrationSteps]
+                              ;[updated[idx], updated[idx + 1]] = [updated[idx + 1], updated[idx]]
+                              setForm(p => ({ ...p, orchestrationSteps: updated }))
+                            }}
+                            className="w-5 h-5 flex items-center justify-center text-text-muted hover:text-text-primary disabled:opacity-30 transition-colors"
+                            title="下移"
+                          >
+                            ↓
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const updated = form.orchestrationSteps.filter((_, i) => i !== idx)
+                              setForm(p => ({ ...p, orchestrationSteps: updated }))
+                            }}
+                            className="w-5 h-5 flex items-center justify-center text-text-muted hover:text-accent-red transition-colors"
+                            title="删除"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                          </button>
+                        </div>
+
+                        {/* Provider 选择 */}
+                        <div className="grid grid-cols-2 gap-2">
+                          <div>
+                            <label className="block text-[10px] text-text-muted mb-0.5">Provider</label>
+                            <select
+                              value={step.providerId}
+                              onChange={e => {
+                                const updated = [...form.orchestrationSteps]
+                                updated[idx] = { ...updated[idx], providerId: e.target.value }
+                                setForm(p => ({ ...p, orchestrationSteps: updated }))
+                              }}
+                              className="w-full bg-bg-input border border-border text-text-primary text-xs rounded px-2 py-1 focus:outline-none focus:border-blue-500"
+                            >
+                              <option value="">当前会话 Provider</option>
+                              {PROVIDERS.map(pid => (
+                                <option key={pid} value={pid}>{PROVIDER_LABELS[pid] || pid}</option>
+                              ))}
+                            </select>
+                          </div>
+                          {/* DAG 依赖选择 */}
+                          {form.orchestrationMode === 'dag' && (
+                            <div>
+                              <label className="block text-[10px] text-text-muted mb-0.5">依赖步骤</label>
+                              <div className="flex flex-wrap gap-1">
+                                {form.orchestrationSteps
+                                  .filter((_, i) => i !== idx)
+                                  .map(s => (
+                                    <label key={s.id} className="flex items-center gap-0.5 text-[10px] text-text-secondary cursor-pointer">
+                                      <input
+                                        type="checkbox"
+                                        checked={step.dependsOn.includes(s.id)}
+                                        onChange={e => {
+                                          const updated = [...form.orchestrationSteps]
+                                          updated[idx] = {
+                                            ...updated[idx],
+                                            dependsOn: e.target.checked
+                                              ? [...updated[idx].dependsOn, s.id]
+                                              : updated[idx].dependsOn.filter(id => id !== s.id),
+                                          }
+                                          setForm(p => ({ ...p, orchestrationSteps: updated }))
+                                        }}
+                                      />
+                                      {s.name || `#${form.orchestrationSteps.indexOf(s) + 1}`}
+                                    </label>
+                                  ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Prompt */}
+                        <div>
+                          <label className="block text-[10px] text-text-muted mb-0.5">Prompt 模板</label>
+                          <textarea
+                            value={step.prompt}
+                            onChange={e => {
+                              const updated = [...form.orchestrationSteps]
+                              updated[idx] = { ...updated[idx], prompt: e.target.value }
+                              setForm(p => ({ ...p, orchestrationSteps: updated }))
+                            }}
+                            rows={2}
+                            className="w-full bg-bg-input border border-border text-text-primary text-xs rounded px-2 py-1 focus:outline-none focus:border-blue-500 font-mono resize-y"
+                            placeholder="此步骤发送给 AI 的提示词..."
+                          />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                <p className="text-xs text-text-muted mt-1">
+                  编排技能触发时，按{form.orchestrationMode === 'sequential' ? '顺序' : form.orchestrationMode === 'parallel' ? '并行' : '依赖关系'}依次或同时执行各步骤。
+                </p>
+              </div>
             </div>
           )}
 
-          {/* Native 类型提示 */}
+          {/* Native 类型编辑器 */}
           {form.type === 'native' && (
-            <div className="px-3 py-2 bg-green-900/20 border border-green-800/30 rounded-md text-green-400 text-xs">
-              原生技能直接调用所选 Provider 的特定功能，行为由 Provider 自身决定。
+            <div className="space-y-3">
+              <div>
+                <label className="block text-xs text-text-secondary mb-1.5">目标 Provider</label>
+                <select
+                  value={form.nativeProviderId}
+                  onChange={e => setForm(p => ({ ...p, nativeProviderId: e.target.value }))}
+                  className="w-full bg-bg-input border border-border text-text-primary text-sm rounded-md px-3 py-2 focus:outline-none focus:border-blue-500"
+                >
+                  <option value="">选择 Provider...</option>
+                  {PROVIDERS.map(pid => (
+                    <option key={pid} value={pid}>{PROVIDER_LABELS[pid] || pid}</option>
+                  ))}
+                </select>
+                <p className="text-xs text-text-muted mt-1">
+                  选择需要使用的 AI Provider，技能触发时直接将原始内容透传给该 Provider
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-xs text-text-secondary mb-1.5">原始内容 (rawContent)</label>
+                <textarea
+                  value={form.nativeRawContent}
+                  onChange={e => setForm(p => ({ ...p, nativeRawContent: e.target.value }))}
+                  rows={6}
+                  className="w-full bg-bg-input border border-border text-text-primary text-sm rounded-md px-3 py-2 focus:outline-none focus:border-blue-500 font-mono resize-y"
+                  placeholder="直接发送给 Provider 的原始内容，支持 {{user_input}} 等变量占位符"
+                />
+                <p className="text-xs text-text-muted mt-1">
+                  原生技能的内容将直接透传给所选 Provider 处理，适合 Provider 特定的功能调用
+                </p>
+              </div>
             </div>
           )}
         </div>

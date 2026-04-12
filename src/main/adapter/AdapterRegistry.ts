@@ -5,7 +5,7 @@
 
 import type { BaseProviderAdapter } from './types'
 
-export type AdapterType = 'claude-sdk' | 'codex-appserver' | 'gemini-headless' | 'iflow-acp' | 'opencode-sdk' | 'qwen-sdk'
+export type AdapterType = 'claude-sdk' | 'codex-appserver' | 'gemini-headless' | 'iflow-acp' | 'opencode-sdk' | 'qwen-sdk' | 'openai-compatible'
 
 export class AdapterRegistry {
   private adapters: Map<string, BaseProviderAdapter> = new Map()
@@ -91,6 +91,9 @@ export class AdapterRegistry {
         return providerId === 'opencode'
       case 'qwen-sdk':
         return providerId === 'qwen-coder'
+      case 'openai-compatible':
+        // OpenAI Compatible 适配器匹配所有非内置 provider
+        return !['claude-code', 'codex', 'gemini-cli', 'iflow', 'opencode', 'qwen-coder'].includes(providerId)
       default:
         return false
     }

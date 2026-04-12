@@ -8,6 +8,7 @@
 import React, { useState } from 'react'
 import { X, FileText, Circle, Copy, FolderOpen, XSquare } from 'lucide-react'
 import { useFileTabStore } from '../../stores/fileTabStore'
+import { useFileManagerStore } from '../../stores/fileManagerStore'
 import ContextMenu, { MenuItem } from '../common/ContextMenu'
 import { toPlatformShortcutLabel } from '../../utils/shortcut'
 
@@ -31,6 +32,8 @@ export default function FileTabs() {
     closeSavedTabs,
     closeAllTabs,
   } = useFileTabStore()
+
+  const revealInTree = useFileManagerStore(s => s.revealInTree)
 
   // 右键菜单状态
   const [ctxMenu, setCtxMenu] = useState<CtxMenuState>({
@@ -64,7 +67,7 @@ export default function FileTabs() {
         key: 'reveal-in-tree',
         label: '在文件树中定位',
         icon: <FolderOpen size={13} />,
-        onClick: () => console.log('TODO: reveal in tree', tab.path),
+        onClick: () => revealInTree(tab.path),
       },
       { key: 'divider-1', type: 'divider' },
       {

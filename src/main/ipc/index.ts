@@ -50,6 +50,11 @@ export interface IpcDependencies {
   summaryService?: any  // SummaryService（可选）
   goalService?: any  // GoalService（可选）
   promptOptimizerService?: any  // PromptOptimizerService（可选）
+  workingContextService?: any  // WorkingContextService（可选）
+  driftGuardService?: any  // DriftGuardService（可选）
+  crossSessionMemoryService?: any  // CrossSessionMemoryService（可选）
+  sessionTemplateService?: any  // SessionTemplateService（可选）
+  codeContextInjectionService?: any  // CodeContextInjectionService（可选）
 }
 
 // 各子模块 handler 注册函数
@@ -76,6 +81,12 @@ import { registerEvaluationHandlers } from './evaluationHandlers'
 import { registerSummaryHandlers } from './summaryHandlers'
 import { registerGoalHandlers } from './goalHandlers'
 import { registerPromptOptimizerHandlers } from './promptOptimizerHandlers'
+import { registerWorkingContextHandlers } from './workingContextHandlers'
+import { registerDriftGuardHandlers } from './driftGuardHandlers'
+import { registerCrossMemoryHandlers } from './crossMemoryHandlers'
+import { registerSessionTemplateHandlers } from './sessionTemplateHandlers'
+import { registerCodeContextHandlers } from './codeContextHandlers'
+import { registerOpenAICompatHandlers } from './openAICompatHandlers'
 import type { FileChangeTracker } from '../tracker/FileChangeTracker'
 
 // re-export wireSessionManagerV2Events from systemHandlers
@@ -109,6 +120,22 @@ export function registerIpcHandlers(deps: IpcDependencies, fileChangeTracker?: F
   registerSummaryHandlers(deps)
   registerGoalHandlers(deps)
   registerPromptOptimizerHandlers(deps)
+  // ★ 新增 7 个差异化功能的 IPC 注册
+  if (deps.workingContextService) {
+    registerWorkingContextHandlers(deps.workingContextService)
+  }
+  if (deps.driftGuardService) {
+    registerDriftGuardHandlers(deps.driftGuardService)
+  }
+  if (deps.crossSessionMemoryService) {
+    registerCrossMemoryHandlers(deps.crossSessionMemoryService)
+  }
+  if (deps.sessionTemplateService) {
+    registerSessionTemplateHandlers(deps.sessionTemplateService)
+  }
+  if (deps.codeContextInjectionService) {
+    registerCodeContextHandlers(deps.codeContextInjectionService)
+  }
   if (deps.updateManager) {
     registerUpdateHandlers(deps.updateManager)
   }

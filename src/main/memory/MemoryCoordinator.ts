@@ -368,17 +368,82 @@ export class ConversationMemoryAdapter implements MemoryManagedComponent {
   constructor(private conversationRepo: any) {}
 
   async cleanup(mode: 'normal' | 'aggressive'): Promise<void> {
-    // 清理超过 7 天的对话消息
     const daysToKeep = mode === 'aggressive' ? 3 : 7
     const cutoffDate = new Date()
     cutoffDate.setDate(cutoffDate.getDate() - daysToKeep)
 
-    // TODO: 实现清理逻辑
-    console.log(`[ConversationMemoryAdapter] Cleaning up messages older than ${daysToKeep} days`)
+    try {
+      // 清理过期的对话消息（保留最近 N 天）
+      if (this.conversationRepo && typeof this.conversationRepo.cleanupOldMessages === 'function') {
+        const deleted = this.conversationRepo.cleanupOldMessages(cutoffDate.toISOString())
+        console.log(`[ConversationMemoryAdapter] Cleaned up ${deleted} messages older than ${daysToKeep} days`)
+      } else if (this.conversationRepo && typeof this.conversationRepo.deleteOldMessages === 'function') {
+        const deleted = this.conversationRepo.deleteOldMessages(cutoffDate.toISOString())
+        console.log(`[ConversationMemoryAdapter] Cleaned up ${deleted} messages older than ${daysToKeep} days`)
+      } else if (this.conversationRepo && this.conversationRepo.db) {
+        // 降级：直接执行 SQL
+        try {
+          const result = this.conversationRepo.db.prepare(
+            'DELETE FROM conversations WHERE created_at < ?'
+          ).run(cutoffDate.toISOString())
+          console.log(`[ConversationMemoryAdapter] Cleaned up ${result.changes} messages older than ${daysToKeep} days`)
+        } catch (sqlErr) {
+          console.error('[ConversationMemoryAdapter] SQL cleanup failed:', sqlErr)
+        }
+      } else {
+        console.log(`[ConversationMemoryAdapter] No cleanup method available, skipping`)
+      }
+
+      // 激进模式：额外清理空会话
+      if (mode === 'aggressive' && this.conversationRepo && this.conversationRepo.db) {
+        try {
+          // 删除没有任何消息的空会话
+          const emptyResult = this.conversationRepo.db.prepare(
+            `DELETE FROM sessions WHERE id NOT IN (SELECT DISTINCT session_id FROM conversations) AND status = 'completed'`
+          ).run()
+          if (emptyResult.changes > 0) {
+            console.log(`[ConversationMemoryAdapter] Cleaned up ${emptyResult.changes} empty completed sessions`)
+          }
+        } catch (sqlErr) {
+          console.error('[ConversationMemoryAdapter] Empty session cleanup failed:', sqlErr)
+        }
+      }
+    } catch (err) {
+      console.error('[ConversationMemoryAdapter] Cleanup failed:', err)
+    }
   }
 
   getMemoryInfo(): ComponentMemoryInfo {
-    // TODO: 实现统计逻辑
+    try {
+      if (this.conversationRepo && this.conversationRepo.db) {
+        try {
+          const countResult = this.conversationRepo.db.prepare(
+            'SELECT COUNT(*) as count FROM conversations'
+          ).get() as { count: number } | undefined
+          const sessionCount = this.conversationRepo.db.prepare(
+            'SELECT COUNT(*) as count FROM sessions'
+          ).get() as { count: number } | undefined
+
+          const itemCount = (countResult?.count || 0) + (sessionCount?.count || 0)
+          // 粗略估算：每条消息约 2KB
+          const estimatedSize = itemCount * 2 * 1024
+
+          return {
+            name: this.name,
+            estimatedSize,
+            itemCount,
+            lastCleanup: new Date().toISOString(),
+            metadata: {
+              messageCount: countResult?.count || 0,
+              sessionCount: sessionCount?.count || 0,
+            },
+          }
+        } catch {
+          // DB 不可用，返回零值
+        }
+      }
+    } catch {}
+
     return {
       name: this.name,
       estimatedSize: 0,

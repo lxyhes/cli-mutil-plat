@@ -260,4 +260,70 @@ export const BUILTIN_SKILLS: Skill[] = [
     createdAt: NOW,
     updatedAt: NOW,
   },
+  // ---- Native Skill 示例 ----
+  {
+    id: 'builtin-quick-shell',
+    name: '快速 Shell',
+    description: '通过 Native 方式直接向 Claude 发送 Shell 命令执行请求',
+    category: 'devops',
+    slashCommand: 'sh',
+    type: 'native',
+    compatibleProviders: ['claude-code'],
+    nativeConfig: {
+      providerId: 'claude-code',
+      rawContent: `请执行以下 Shell 命令并返回结果：
+
+{{user_input}}
+
+执行后请告诉我：
+- 命令是否成功执行
+- 标准输出内容
+- 如有错误，给出原因和修复建议`,
+    },
+    isInstalled: true,
+    isEnabled: true,
+    source: 'builtin',
+    version: '1.0.0',
+    author: 'ClaudeOps',
+    tags: ['shell', 'command', 'devops'],
+    createdAt: NOW,
+    updatedAt: NOW,
+  },
+  // ---- Orchestration Skill 示例 ----
+  {
+    id: 'builtin-review-and-test',
+    name: '审查 + 测试',
+    description: '编排技能：先用 Claude 审查代码，再自动生成测试用例',
+    category: 'development',
+    slashCommand: 'review-test',
+    type: 'orchestration',
+    compatibleProviders: 'all',
+    orchestrationConfig: {
+      mode: 'sequential',
+      steps: [
+        {
+          id: 'step-review',
+          name: '代码审查',
+          providerId: '',
+          prompt: `请对以下代码进行全面审查：\n\n{{user_input}}\n\n重点关注：逻辑正确性、性能、安全性、可维护性。以结构化格式输出审查结果。`,
+          dependsOn: [],
+        },
+        {
+          id: 'step-test',
+          name: '生成测试',
+          providerId: '',
+          prompt: `基于上一步的代码审查结果，为以下代码生成单元测试：\n\n{{user_input}}\n\n请覆盖审查中发现的边界情况和异常情况。使用 vitest 框架。`,
+          dependsOn: ['step-review'],
+        },
+      ],
+    },
+    isInstalled: true,
+    isEnabled: true,
+    source: 'builtin',
+    version: '1.0.0',
+    author: 'ClaudeOps',
+    tags: ['review', 'testing', 'orchestration'],
+    createdAt: NOW,
+    updatedAt: NOW,
+  },
 ]

@@ -651,7 +651,7 @@ export interface SessionMetrics {
 
 // ---- SDK V2：Adapter 类型 ----
 
-export type AdapterType = 'claude-sdk' | 'codex-appserver' | 'gemini-headless' | 'iflow-acp' | 'opencode-sdk' | 'qwen-sdk'
+export type AdapterType = 'claude-sdk' | 'codex-appserver' | 'gemini-headless' | 'iflow-acp' | 'opencode-sdk' | 'qwen-sdk' | 'openai-compatible'
 
 // ---- SDK V2：对话消息 ----
 
@@ -1091,4 +1091,132 @@ export interface TeamWorktreeMergeResult {
   mainBranch?: string
   linesAdded?: number
   linesRemoved?: number
+}
+
+// ─── 会话工作上下文类型 ───────────────────────────────────────────────
+
+/** 问题状态 */
+export type IssueStatus = 'open' | 'resolved' | 'wontfix'
+
+/** 待办状态 */
+export type TodoStatus = 'pending' | 'in_progress' | 'done'
+
+/** 当前任务状态 */
+export type CurrentTaskStatus = 'in_progress' | 'blocked' | 'reviewing' | 'completed'
+
+/** 问题记录 */
+export interface WorkContextIssue {
+  id: string
+  contextId: string
+  description: string
+  errorSnippet?: string
+  solution?: string
+  status: IssueStatus
+  resolvedAt?: string
+  relatedFiles?: string[]
+  createdAt: string
+}
+
+/** 决策记录 */
+export interface WorkContextDecision {
+  id: string
+  contextId: string
+  topic: string
+  chosen: string
+  alternatives: string[]
+  reason: string
+  relatedCode?: string
+  createdAt: string
+}
+
+/** 待办事项 */
+export interface WorkContextTodo {
+  id: string
+  contextId: string
+  content: string
+  priority: 'high' | 'medium' | 'low'
+  status: TodoStatus
+  dueDate?: string
+  createdAt: string
+}
+
+/** 当前任务 */
+export interface CurrentTask {
+  description: string
+  status: CurrentTaskStatus
+  startedAt: string
+  estimatedCompletion?: string
+  blockers?: string[]
+}
+
+/** AI 生成的摘要 */
+export interface WorkContextSummary {
+  lastActivity: string
+  nextSteps: string[]
+  keyFiles: string[]
+  generatedAt: string
+}
+
+/** 会话工作上下文 */
+export interface SessionWorkContext {
+  id: string
+  sessionId: string
+  currentTask?: CurrentTask
+  summary?: WorkContextSummary
+  updatedAt: string
+  createdAt: string
+}
+
+/** 创建/更新工作上下文请求 */
+export interface UpsertWorkContextRequest {
+  sessionId: string
+  currentTask?: CurrentTask
+}
+
+/** 创建问题请求 */
+export interface CreateIssueRequest {
+  sessionId: string
+  description: string
+  errorSnippet?: string
+  relatedFiles?: string[]
+}
+
+/** 解决问题请求 */
+export interface ResolveIssueRequest {
+  sessionId: string
+  issueId: string
+  solution: string
+}
+
+/** 创建决策请求 */
+export interface CreateDecisionRequest {
+  sessionId: string
+  topic: string
+  chosen: string
+  alternatives: string[]
+  reason: string
+  relatedCode?: string
+}
+
+/** 创建待办请求 */
+export interface CreateTodoRequest {
+  sessionId: string
+  content: string
+  priority?: 'high' | 'medium' | 'low'
+  dueDate?: string
+}
+
+/** 更新待办状态请求 */
+export interface UpdateTodoStatusRequest {
+  sessionId: string
+  todoId: string
+  status: TodoStatus
+}
+
+/** 完整的工作上下文视图（包含关联数据） */
+export interface WorkContextFullView {
+  context: SessionWorkContext
+  issues: WorkContextIssue[]
+  decisions: WorkContextDecision[]
+  todos: WorkContextTodo[]
 }

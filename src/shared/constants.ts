@@ -355,6 +355,56 @@ export const IPC = {
   PROMPT_GET_BEST_VERSION:  'prompt:get-best-version',
   PROMPT_PROMOTE_BEST:      'prompt:promote-best',
   PROMPT_GET_EVOLUTION:     'prompt:get-evolution',
+
+  // 会话级工作记忆 (Working Context)
+  WORKING_CONTEXT_GET:          'working-context:get',
+  WORKING_CONTEXT_UPDATE_TASK:  'working-context:update-task',
+  WORKING_CONTEXT_ADD_PROBLEM:  'working-context:add-problem',
+  WORKING_CONTEXT_RESOLVE_PROBLEM: 'working-context:resolve-problem',
+  WORKING_CONTEXT_ADD_DECISION: 'working-context:add-decision',
+  WORKING_CONTEXT_ADD_TODO:     'working-context:add-todo',
+  WORKING_CONTEXT_RESOLVE_TODO: 'working-context:resolve-todo',
+  WORKING_CONTEXT_ADD_SNIPPET:  'working-context:add-snippet',
+  WORKING_CONTEXT_REMOVE_ITEM:  'working-context:remove-item',
+  WORKING_CONTEXT_CREATE_SNAPSHOT: 'working-context:create-snapshot',
+  WORKING_CONTEXT_GET_PROMPT:   'working-context:get-prompt',
+  WORKING_CONTEXT_STATUS:       'working-context:status',
+
+  // 漂移检测护栏 (Drift Guard)
+  DRIFT_GUARD_START:       'drift-guard:start',
+  DRIFT_GUARD_STOP:        'drift-guard:stop',
+  DRIFT_GUARD_GET_STATE:   'drift-guard:get-state',
+  DRIFT_GUARD_RESUME:      'drift-guard:resume',
+  DRIFT_GUARD_GET_PROMPT:  'drift-guard:get-prompt',
+  DRIFT_GUARD_UPDATE_CONFIG: 'drift-guard:update-config',
+  DRIFT_GUARD_GET_CONFIG:  'drift-guard:get-config',
+  DRIFT_GUARD_STATUS:      'drift-guard:status',
+
+  // 跨会话语义记忆 (Cross-Session Memory)
+  CROSS_MEMORY_SEARCH:     'cross-memory:search',
+  CROSS_MEMORY_LIST:       'cross-memory:list',
+  CROSS_MEMORY_INDEX:      'cross-memory:index',
+  CROSS_MEMORY_DELETE:     'cross-memory:delete',
+  CROSS_MEMORY_GET_PROMPT: 'cross-memory:get-prompt',
+  CROSS_MEMORY_GET_STATS:  'cross-memory:get-stats',
+  CROSS_MEMORY_UPDATE_CONFIG: 'cross-memory:update-config',
+
+  // 会话模板 (Session Template)
+  SESSION_TEMPLATE_LIST:     'session-template:list',
+  SESSION_TEMPLATE_GET:      'session-template:get',
+  SESSION_TEMPLATE_CREATE:   'session-template:create',
+  SESSION_TEMPLATE_UPDATE:   'session-template:update',
+  SESSION_TEMPLATE_DELETE:   'session-template:update',
+  SESSION_TEMPLATE_GET_CATEGORIES: 'session-template:get-categories',
+  SESSION_TEMPLATE_STATUS:   'session-template:status',
+
+  // 代码上下文注入 (Code Context Injection)
+  CODE_CONTEXT_INJECT:      'code-context:inject',
+  CODE_CONTEXT_GET_MODES:   'code-context:get-modes',
+
+  // OpenAI Compatible Provider
+  OPENAI_COMPAT_TEST:       'openai-compat:test',
+  OPENAI_COMPAT_CREATE:     'openai-compat:create',
 } as const
 
 // ---- 看板列 ----

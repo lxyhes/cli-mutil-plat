@@ -203,6 +203,9 @@ export class SessionManagerV2 extends EventEmitter implements MemoryManagedCompo
   private thinkingBuffers: Map<string, string> = new Map()
   private thinkingFlushTimers: Map<string, NodeJS.Timeout> = new Map()
   private readonly thinkingFlushIntervalMs = 1200
+  private textDeltaBuffers: Map<string, string> = new Map()
+  private textDeltaTimers: Map<string, NodeJS.Timeout> = new Map()
+  private readonly textDeltaIntervalMs = 100 // 100ms 节流，大幅减少 IPC 消息量
   private readonly schedulerMaxQueuePerSession = 20
 
   constructor(adapterRegistry: AdapterRegistry) {
@@ -218,6 +221,35 @@ export class SessionManagerV2 extends EventEmitter implements MemoryManagedCompo
   /** 注入 LockManager 实例（用于会话清理时释放锁） */
   setLockManager(lockManager: LockManager): void {
     this.lockManager = lockManager
+  }
+
+  private queueTextDelta(sessionId: string, text: string, timestamp: string): void {
+    if (!text) return
+    const prev = this.textDeltaBuffers.get(sessionId) || ''
+    this.textDeltaBuffers.set(sessionId, prev + text)
+
+    if (this.textDeltaTimers.has(sessionId)) return
+    const timer = setTimeout(() => this.flushTextDelta(sessionId, timestamp), this.textDeltaIntervalMs)
+    this.textDeltaTimers.set(sessionId, timer)
+  }
+
+  private flushTextDelta(sessionId: string, timestamp?: string): void {
+    const timer = this.textDeltaTimers.get(sessionId)
+    if (timer) clearTimeout(timer)
+    this.textDeltaTimers.delete(sessionId)
+
+    const text = this.textDeltaBuffers.get(sessionId) || ''
+    this.textDeltaBuffers.delete(sessionId)
+    if (!text) return
+
+    this.emit('conversation-message', sessionId, {
+      id: `delta-${sessionId}`,
+      sessionId,
+      role: 'assistant' as const,
+      content: text,
+      timestamp: timestamp || new Date().toISOString(),
+      isDelta: true,
+    } as ConversationMessage)
   }
 
   private queueThinkingActivity(sessionId: string, text: string, timestamp: string): void {
@@ -257,6 +289,13 @@ export class SessionManagerV2 extends EventEmitter implements MemoryManagedCompo
     if (timer) clearTimeout(timer)
     this.thinkingFlushTimers.delete(sessionId)
     this.thinkingBuffers.delete(sessionId)
+  }
+
+  private clearTextDeltaState(sessionId: string): void {
+    const timer = this.textDeltaTimers.get(sessionId)
+    if (timer) clearTimeout(timer)
+    this.textDeltaTimers.delete(sessionId)
+    this.textDeltaBuffers.delete(sessionId)
   }
 
   /**
@@ -659,16 +698,16 @@ export class SessionManagerV2 extends EventEmitter implements MemoryManagedCompo
       throw new Error(`Session ${id} is in ${session.status} state and cannot accept messages`)
     }
 
-    // ★ 会话仍在启动中，暂存消息，待 ready 后自动 flush
-    if (session.status === 'starting') {
-      console.log(`[SessionManagerV2] Session ${id} is still starting, buffering message (queue size: ${session.pendingMessages.length + 1})`)
+    // ★ 会话仍在启动或中断恢复中，暂存消息，待 ready 后自动 flush
+    if (session.status === 'starting' || session.status === 'interrupted') {
+      console.log(`[SessionManagerV2] Session ${id} is in ${session.status} state, buffering message (queue size: ${session.pendingMessages.length + 1})`)
       session.pendingMessages.push(message)
       return {
         dispatched: false,
         scheduled: true,
         strategy: 'queue_after_turn',
         queueLength: session.pendingMessages.length,
-        reason: 'session_starting',
+        reason: session.status === 'starting' ? 'session_starting' : 'session_running',
       }
     }
 
@@ -815,8 +854,19 @@ export class SessionManagerV2 extends EventEmitter implements MemoryManagedCompo
     if (!session) throw new Error(`Session ${id} not found`)
     if (session.status !== 'running') return   // 非运行中无需中断
 
+    // [优化] 立即切换为中断状态，让前端 UI 能即时反馈（隐藏停止按钮，显示发送按钮）
+    // 虽然适配器还在清理中，但这样能解决“点击后无反应”的视觉痛点
+    session.status = 'interrupted'
+    this.emit('status-change', id, 'interrupted')
+    this.flushThinkingActivity(id)
+    this.flushTextDelta(id)
+
     const adapter = this.adapterRegistry.get(session.provider.id)
-    await adapter.abortCurrentTurn(id)
+    try {
+      await adapter.abortCurrentTurn(id)
+    } catch (err) {
+      console.warn(`[SessionManagerV2] Adapter abortCurrentTurn failed for ${id}:`, err)
+    }
 
     this.emit('activity', id, {
       id: uuidv4(),
@@ -842,6 +892,7 @@ export class SessionManagerV2 extends EventEmitter implements MemoryManagedCompo
     session.status = 'completed'
     session.endedAt = new Date().toISOString()
     this.flushThinkingActivity(id)
+    this.flushTextDelta(id)
 
     // 清理 adapter 监听器
     session._cleanup?.()
@@ -1206,12 +1257,8 @@ export class SessionManagerV2 extends EventEmitter implements MemoryManagedCompo
     // 移除会话
     for (const id of sessionsToRemove) {
       this.sessions.delete(id)
-      this.thinkingBuffers.delete(id)
-      const timer = this.thinkingFlushTimers.get(id)
-      if (timer) {
-        clearTimeout(timer)
-        this.thinkingFlushTimers.delete(id)
-      }
+      this.clearThinkingState(id)
+      this.clearTextDeltaState(id)
     }
 
     this.lastCleanupTime = new Date()
@@ -1299,15 +1346,7 @@ export class SessionManagerV2 extends EventEmitter implements MemoryManagedCompo
 
     switch (event.type) {
       case 'text_delta': {
-        // 发送增量消息到前端，用固定 ID 标识临时草稿
-        this.emit('conversation-message', sessionId, {
-          id: `delta-${sessionId}`,
-          sessionId,
-          role: 'assistant' as const,
-          content: event.data.text || '',
-          timestamp: event.timestamp,
-          isDelta: true,
-        } as ConversationMessage)
+        this.queueTextDelta(sessionId, event.data.text || '', event.timestamp)
         break
       }
 
@@ -1386,6 +1425,7 @@ export class SessionManagerV2 extends EventEmitter implements MemoryManagedCompo
 
       case 'turn_complete': {
         this.flushThinkingActivity(sessionId, event.timestamp)
+        this.flushTextDelta(sessionId, event.timestamp)
         // 更新 usage
         if (event.data.usage) {
           session.totalUsage.inputTokens += event.data.usage.inputTokens
@@ -1525,9 +1565,9 @@ export class SessionManagerV2 extends EventEmitter implements MemoryManagedCompo
       if (status !== 'completed' && status !== 'terminated') return
     }
 
-    const wasStarting = session.status === 'starting'
-
+    const prevStatus = session.status
     session.status = status
+
     if (status === 'completed' || status === 'terminated' || status === 'error') {
       session.endedAt = new Date().toISOString()
       this.clearThinkingState(id)
@@ -1538,16 +1578,18 @@ export class SessionManagerV2 extends EventEmitter implements MemoryManagedCompo
 
     this.emit('status-change', id, status)
 
-    // ★ 启动完成 → flush 暂存消息
-    // 从 starting 转为任何活跃状态（idle/running/waiting_input）时，
-    // 将启动期间缓冲的消息依次发出，解决 Codex/Gemini 启动慢导致首条消息丢失的问题
-    if (wasStarting && status !== 'starting' && status !== 'error' && status !== 'completed' && status !== 'terminated') {
+    // ★ 启动或中断恢复完成 → flush 暂存消息
+    // 从 starting/interrupted 转为就绪状态（waiting_input/idle）时，
+    // 将期间缓冲的消息依次发出
+    const wasWaiting = prevStatus === 'starting' || prevStatus === 'interrupted'
+    const isReady = status === 'waiting_input' || status === 'idle'
+    if (wasWaiting && isReady) {
       this.flushPendingMessages(id).catch(err => {
         console.error(`[SessionManagerV2] flushPendingMessages failed for session ${id}:`, err)
       })
     }
 
-    if (status === 'waiting_input' || status === 'idle') {
+    if (isReady) {
       this.flushScheduledMessages(id).catch(err => {
         console.error(`[SessionManagerV2] flushScheduledMessages failed for session ${id}:`, err)
       })

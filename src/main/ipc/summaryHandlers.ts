@@ -10,6 +10,7 @@ import type { SummaryService } from '../summary/SummaryService'
 export function registerSummaryHandlers(deps: IpcDependencies): void {
   const { database } = deps
   const summaryService: SummaryService | undefined = (deps as any).summaryService
+  const crossSessionMemoryService: any | undefined = (deps as any).crossSessionMemoryService
 
   // GENERATE - 生成摘要
   ipcMain.handle(IPC.SUMMARY_GENERATE, async (_event, sessionId: string, options?: {
@@ -24,6 +25,20 @@ export function registerSummaryHandlers(deps: IpcDependencies): void {
         return createErrorResponse(new Error('SummaryService not initialized'), { operation: 'summary.generate' })
       }
       const result = await summaryService.generateSummary(sessionId, options)
+
+      // ★ 自动索引到跨会话语义记忆
+      if (crossSessionMemoryService && result.summary) {
+        try {
+          const session = database.getSession(sessionId)
+          crossSessionMemoryService.indexSummary(
+            sessionId,
+            session?.name || sessionId,
+            result.summary,
+            result.keyPoints || '',
+          )
+        } catch { /* ignore indexing failure */ }
+      }
+
       return createSuccessResponse(result)
     } catch (err) {
       return createErrorResponse(err, { operation: 'summary.generate' })
