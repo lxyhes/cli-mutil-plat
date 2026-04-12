@@ -6,7 +6,7 @@
 
 // ★ 必须最先导入，激活 electron-log 并重定向 console.*
 import './logger'
-import { app, BrowserWindow, ipcMain, Menu } from 'electron'
+import { app, BrowserWindow, ipcMain, Menu, session } from 'electron'
 
 // ★ 禁用硬件加速，解决某些显卡驱动导致的黑屏问题
 app.disableHardwareAcceleration()
@@ -836,6 +836,20 @@ if (isDevelopment) {
 }
 
 app.whenReady().then(() => {
+  // ★ 生产模式设置 Content-Security-Policy（开发模式不设置，Vite HMR 需要 unsafe-eval 会触发警告）
+  if (!isDevelopment) {
+    session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
+      callback({
+        responseHeaders: {
+          ...details.responseHeaders,
+          'Content-Security-Policy': [
+            "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self' https:; img-src 'self' data: blob:; font-src 'self' data:"
+          ]
+        }
+      })
+    })
+  }
+
   // Finder 启动时提前修复 PATH，确保后续 Provider 检测和 CLI spawn 可用
   bootstrapShellPath()
   if (!hasSingleInstanceLock) return
