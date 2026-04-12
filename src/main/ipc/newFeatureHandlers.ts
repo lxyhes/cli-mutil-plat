@@ -146,11 +146,14 @@ export function registerNewFeatureHandlers(deps: NewFeatureDeps): void {
   // ── 9. Skill Arena ──
   if (deps.skillArenaService) {
     const sa = deps.skillArenaService
-    ipcMain.handle(IPC.SKILL_ARENA_LIST, (_, cat?, limit?) => sa.list(cat, limit))
-    ipcMain.handle(IPC.SKILL_ARENA_SUBMIT, (_, p) => sa.submit(p))
-    ipcMain.handle(IPC.SKILL_ARENA_GET_SCORES, (_, id) => sa.getScores(id))
-    ipcMain.handle(IPC.SKILL_ARENA_GET_LEADERBOARD, (_, cat?) => sa.getLeaderboard(cat))
-    ipcMain.handle(IPC.SKILL_ARENA_VOTE, (_, id, up) => sa.vote(id, up))
+    ipcMain.handle(IPC.SKILL_ARENA_LIST, async (_, cat?, limit?) => sa.list(cat, limit))
+    ipcMain.handle(IPC.SKILL_ARENA_SUBMIT, async (_, p) => sa.submit(p))
+    ipcMain.handle(IPC.SKILL_ARENA_GET_SCORES, async (_, id) => sa.getScores(id))
+    ipcMain.handle(IPC.SKILL_ARENA_GET_LEADERBOARD, async (_, cat?) => sa.getLeaderboard(cat))
+    ipcMain.handle(IPC.SKILL_ARENA_VOTE, async (_, id, up) => sa.vote(id, up))
+    ipcMain.handle(IPC.SKILL_ARENA_DELETE, async (_, id) => sa.deleteSkill(id))
+    ipcMain.handle(IPC.SKILL_ARENA_CATEGORIES, () => sa.getCategories())
+    ipcMain.handle(IPC.SKILL_ARENA_GET_STATS, () => sa.getStats())
   }
 
   // ── 10. Voice ──

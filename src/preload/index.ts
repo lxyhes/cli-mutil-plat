@@ -1049,6 +1049,9 @@ if (!ctxBr) {
     getScores: (id: string) => ipcRenderer.invoke(IPC.SKILL_ARENA_GET_SCORES, id),
     getLeaderboard: (category?: string) => ipcRenderer.invoke(IPC.SKILL_ARENA_GET_LEADERBOARD, category),
     vote: (id: string, up: boolean) => ipcRenderer.invoke(IPC.SKILL_ARENA_VOTE, id, up),
+    delete: (id: string) => ipcRenderer.invoke(IPC.SKILL_ARENA_DELETE, id),
+    getCategories: () => ipcRenderer.invoke(IPC.SKILL_ARENA_CATEGORIES),
+    getStats: () => ipcRenderer.invoke(IPC.SKILL_ARENA_GET_STATS),
   },
 
   // ==================== Voice API ====================

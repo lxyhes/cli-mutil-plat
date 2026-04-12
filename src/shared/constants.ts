@@ -498,6 +498,9 @@ export const IPC = {
   SKILL_ARENA_GET_SCORES:   'skill-arena:get-scores',
   SKILL_ARENA_GET_LEADERBOARD: 'skill-arena:get-leaderboard',
   SKILL_ARENA_VOTE:         'skill-arena:vote',
+  SKILL_ARENA_DELETE:       'skill-arena:delete',
+  SKILL_ARENA_CATEGORIES:   'skill-arena:categories',
+  SKILL_ARENA_GET_STATS:    'skill-arena:get-stats',
 
   // 10. 语音交互 (Voice Mode)
   VOICE_START_LISTENING:    'voice:start-listening',
