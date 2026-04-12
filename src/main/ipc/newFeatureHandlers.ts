@@ -114,11 +114,11 @@ export function registerNewFeatureHandlers(deps: NewFeatureDeps): void {
   // ── 6. Context Budget ──
   if (deps.contextBudgetService) {
     const cb = deps.contextBudgetService
-    ipcMain.handle(IPC.CONTEXT_BUDGET_GET, (_, sid) => cb.get(sid))
-    ipcMain.handle(IPC.CONTEXT_BUDGET_UPDATE, (_, updates) => cb.updateConfig(updates))
-    ipcMain.handle(IPC.CONTEXT_BUDGET_COMPRESS, (_, sid) => cb.compress(sid))
-    ipcMain.handle(IPC.CONTEXT_BUDGET_MIGRATE, (_, sid) => cb.migrate(sid))
-    ipcMain.handle(IPC.CONTEXT_BUDGET_STATUS, () => cb.getStatus())
+    ipcMain.handle(IPC.CONTEXT_BUDGET_GET, async (_, sid) => cb.get(sid))
+    ipcMain.handle(IPC.CONTEXT_BUDGET_UPDATE, async (_, updates) => cb.updateConfig(updates))
+    ipcMain.handle(IPC.CONTEXT_BUDGET_COMPRESS, async (_, sid) => cb.compress(sid))
+    ipcMain.handle(IPC.CONTEXT_BUDGET_MIGRATE, async (_, sid) => cb.migrate(sid))
+    ipcMain.handle(IPC.CONTEXT_BUDGET_STATUS, async () => cb.getStatus())
   }
 
   // ── 7. Battle ──
