@@ -272,20 +272,34 @@ function MarketplaceTab({ installedSkills, onInstalled }: { installedSkills: Ski
   const fetchMarket = async () => {
     setLoading(true)
     setError(null)
+    const startTime = Date.now()
+    
     try {
       const spectrAI = (window as any).spectrAI
       let result: any[] = []
+
+      // 超时保护：前端设 30s，给主进程（10s超时 + fallback降级）足够时间返回
+      const withTimeout = <T,>(promise: Promise<T>, timeoutMs = 30000): Promise<T> => {
+        return Promise.race([
+          promise,
+          new Promise<T>((_, reject) =>
+            setTimeout(() => reject(new Error('Request timeout')), timeoutMs)
+          )
+        ])
+      }
 
       if (activeSource === 'all') {
         // 合并所有数据源
         const fetchPromises: Promise<any[]>[] = [
           // 默认 registry（含内置 fallback）
-          spectrAI?.registry?.fetchSkills?.()?.catch(() => []) ?? Promise.resolve([]),
+          withTimeout<any[]>(spectrAI?.registry?.fetchSkills?.()?.catch(() => []) ?? Promise.resolve([]))
+            .catch(() => []),
         ]
         // 各个数据源
         for (const s of sources) {
           fetchPromises.push(
-            spectrAI?.registry?.fetchSkillsFromSource?.(s.id)?.catch(() => []) ?? Promise.resolve([])
+            withTimeout<any[]>(spectrAI?.registry?.fetchSkillsFromSource?.(s.id)?.catch(() => []) ?? Promise.resolve([]))
+              .catch(() => [])
           )
         }
         const allResults = await Promise.allSettled(fetchPromises)
@@ -298,8 +312,13 @@ function MarketplaceTab({ installedSkills, onInstalled }: { installedSkills: Ski
           }
         }
         result = Array.from(merged.values())
+        console.log('[SkillManager] fetched from all sources:', result.length, 'skills, took', Date.now() - startTime, 'ms')
       } else {
-        result = await spectrAI?.registry?.fetchSkillsFromSource?.(activeSource) ?? []
+        // 单个数据源也要加超时保护（30s 给主进程 fallback 足够时间）
+        result = await withTimeout<any[]>(
+          spectrAI?.registry?.fetchSkillsFromSource?.(activeSource)?.catch(() => []) ?? Promise.resolve([])
+        ).catch(() => [])
+        console.log('[SkillManager] fetched from source', activeSource, ':', result.length, 'skills, took', Date.now() - startTime, 'ms')
       }
 
       if (Array.isArray(result) && result.length > 0) {
@@ -312,8 +331,10 @@ function MarketplaceTab({ installedSkills, onInstalled }: { installedSkills: Ski
         setError('暂无数据，请检查网络或 Registry URL 配置')
       }
     } catch (e: any) {
+      console.error('[SkillManager] fetchMarket error:', e)
       setError(e.message || '加载失败')
     } finally {
+      console.log('[SkillManager] fetchMarket finally, setting loading=false, took', Date.now() - startTime, 'ms')
       setLoading(false)
     }
   }
@@ -379,15 +400,6 @@ function MarketplaceTab({ installedSkills, onInstalled }: { installedSkills: Ski
     )
     return matchCat && matchSearch
   })
-
-  if (loading) {
-    return (
-      <div className="flex-1 flex flex-col items-center justify-center text-text-muted gap-3">
-        <Loader2 className="w-6 h-6 animate-spin text-accent-blue" />
-        <span className="text-sm">正在加载技能市场...</span>
-      </div>
-    )
-  }
 
   return (
     <div className="flex flex-col flex-1 min-h-0">
@@ -493,7 +505,7 @@ function MarketplaceTab({ installedSkills, onInstalled }: { installedSkills: Ski
       )}
 
       {/* 列表 */}
-      {filtered.length === 0 ? (
+      {loading ? null : filtered.length === 0 ? (
         <div className="flex-1 flex flex-col items-center justify-center text-text-muted py-12">
           <div className="w-14 h-14 rounded-xl bg-bg-tertiary border border-border flex items-center justify-center mb-3">
             <Inbox className="w-7 h-7 text-text-muted/40" strokeWidth={1.5} />
