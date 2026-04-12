@@ -560,6 +560,9 @@ if (!ctxBr) {
     fetchSkills: (forceRefresh?: boolean) => ipcRenderer.invoke(IPC.REGISTRY_FETCH_SKILLS, forceRefresh),
     forceRefresh: () => ipcRenderer.invoke(IPC.REGISTRY_FORCE_REFRESH),
     importSkillFromUrl: (url: string) => ipcRenderer.invoke(IPC.SKILL_IMPORT_URL, url),
+    getSources: () => ipcRenderer.invoke(IPC.REGISTRY_GET_SOURCES),
+    fetchSkillsFromSource: (sourceId: string, forceRefresh?: boolean) =>
+      ipcRenderer.invoke(IPC.REGISTRY_FETCH_SKILLS_FROM_SOURCE, sourceId, forceRefresh),
   },
 
   // ==================== Agent Teams API ====================

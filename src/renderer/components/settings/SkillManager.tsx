@@ -35,20 +35,44 @@ const PROVIDER_LABELS: Record<string, string> = {
 
 // 市场技能分类标签颜色
 const CATEGORY_COLORS: Record<string, string> = {
-  development: 'bg-indigo-500/10 text-indigo-400 border border-indigo-500/20',
-  database:    'bg-orange-500/10 text-orange-400 border border-orange-500/20',
-  security:    'bg-red-500/10 text-red-400 border border-red-500/20',
-  language:    'bg-green-500/10 text-green-400 border border-green-500/20',
-  general:     'bg-gray-500/10 text-gray-400 border border-gray-500/20',
+  development:    'bg-indigo-500/10 text-indigo-400 border border-indigo-500/20',
+  database:       'bg-orange-500/10 text-orange-400 border border-orange-500/20',
+  security:       'bg-red-500/10 text-red-400 border border-red-500/20',
+  language:       'bg-green-500/10 text-green-400 border border-green-500/20',
+  general:        'bg-gray-500/10 text-gray-400 border border-gray-500/20',
+  devops:         'bg-cyan-500/10 text-cyan-400 border border-cyan-500/20',
+  data:           'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20',
+  architecture:   'bg-violet-500/10 text-violet-400 border border-violet-500/20',
+  prompt:         'bg-pink-500/10 text-pink-400 border border-pink-500/20',
+  performance:    'bg-amber-500/10 text-amber-400 border border-amber-500/20',
+  documentation:  'bg-teal-500/10 text-teal-400 border border-teal-500/20',
+  learning:       'bg-lime-500/10 text-lime-400 border border-lime-500/20',
 }
 
 // 市场技能分类名
 const CATEGORY_LABELS: Record<string, string> = {
-  development: '开发',
-  database:    '数据库',
-  security:    '安全',
-  language:    '语言',
-  general:     '通用',
+  development:    '开发',
+  database:       '数据库',
+  security:       '安全',
+  language:       '语言',
+  general:        '通用',
+  devops:         'DevOps',
+  data:           '数据分析',
+  architecture:   '架构设计',
+  prompt:         'Prompt 工程',
+  performance:    '性能优化',
+  documentation:  '文档',
+  learning:       '学习',
+}
+
+// ── Registry 数据源类型 ──
+interface RegistrySource {
+  id: string
+  name: string
+  description: string
+  url: string
+  icon?: string
+  official?: boolean
 }
 
 // ── 顶部说明 Banner ──
@@ -225,19 +249,55 @@ function MarketplaceTab({ installedSkills, onInstalled }: { installedSkills: Ski
   const [successIds, setSuccessIds] = useState<Set<string>>(new Set())
   const [filterCat, setFilterCat] = useState('all')
   const [searchQ, setSearchQ] = useState('')
+  const [sources, setSources] = useState<RegistrySource[]>([])
+  const [activeSource, setActiveSource] = useState<string>('all')
 
   const installedIds = new Set((installedSkills ?? []).map(s => s.id))
 
   useEffect(() => {
-    fetchMarket()
+    loadSources()
   }, [])
+
+  useEffect(() => {
+    fetchMarket()
+  }, [activeSource])
+
+  const loadSources = async () => {
+    try {
+      const spectrAI = (window as any).spectrAI
+      const result = await spectrAI?.registry?.getSources?.()
+      if (Array.isArray(result)) {
+        setSources(result)
+      }
+    } catch {}
+  }
 
   const fetchMarket = async () => {
     setLoading(true)
     setError(null)
     try {
       const spectrAI = (window as any).spectrAI
-      const result = await spectrAI?.registry?.fetchSkills?.()
+      let result: any[] = []
+
+      if (activeSource === 'all') {
+        // 合并所有数据源
+        const allResults = await Promise.allSettled([
+          spectrAI?.registry?.fetchSkills?.(),
+          ...sources.map(s => spectrAI?.registry?.fetchSkillsFromSource?.(s.id).catch(() => [])),
+        ])
+        const merged = new Map<string, MarketSkillItem>()
+        for (const r of allResults) {
+          if (r.status === 'fulfilled' && Array.isArray(r.value)) {
+            for (const item of r.value) {
+              if (!merged.has(item.id)) merged.set(item.id, item)
+            }
+          }
+        }
+        result = Array.from(merged.values())
+      } else {
+        result = await spectrAI?.registry?.fetchSkillsFromSource?.(activeSource)
+      }
+
       if (Array.isArray(result)) {
         setItems(result)
       } else {
@@ -352,6 +412,41 @@ function MarketplaceTab({ installedSkills, onInstalled }: { installedSkills: Ski
         </button>
       </div>
 
+      {/* 数据源选择器 */}
+      {sources.length > 0 && (
+        <div className="flex items-center gap-1.5 mb-3 overflow-x-auto pb-1">
+          <span className="text-xs text-text-muted shrink-0">数据源:</span>
+          <button
+            onClick={() => setActiveSource('all')}
+            className={`px-2.5 py-1 text-xs rounded-md transition-colors whitespace-nowrap shrink-0 ${
+              activeSource === 'all'
+                ? 'bg-blue-600 text-white'
+                : 'bg-bg-secondary text-text-muted hover:text-text-secondary border border-border'
+            }`}
+          >
+            全部市场
+          </button>
+          {sources.map(source => (
+            <button
+              key={source.id}
+              onClick={() => setActiveSource(source.id)}
+              className={`px-2.5 py-1 text-xs rounded-md transition-colors whitespace-nowrap shrink-0 ${
+                activeSource === source.id
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-bg-secondary text-text-muted hover:text-text-secondary border border-border'
+              }`}
+              title={source.description}
+            >
+              {source.icon && <span className="mr-1">{source.icon}</span>}
+              {source.name}
+              {source.official && (
+                <span className="ml-1 text-[10px] opacity-70">官方</span>
+              )}
+            </button>
+          ))}
+        </div>
+      )}
+
       {/* 分类过滤标签栏 */}
       {items.length > 0 && (
         <div className="flex items-center gap-2 mb-3 flex-wrap">
@@ -369,7 +464,7 @@ function MarketplaceTab({ installedSkills, onInstalled }: { installedSkills: Ski
             </button>
           ))}
           <div className="ml-auto flex items-center text-xs text-text-muted self-center pr-1">
-            共 {filtered.length}
+            共 {filtered.length}{activeSource !== 'all' ? ` (来自 ${sources.find(s => s.id === activeSource)?.name || activeSource})` : ''}
           </div>
         </div>
       )}
