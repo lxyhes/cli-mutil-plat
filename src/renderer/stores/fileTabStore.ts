@@ -5,7 +5,6 @@
  */
 
 import { create } from 'zustand'
-import type { IpcResponse } from '../../shared/errors'
 
 // ─────────────────────────────────────────────────────────
 // 类型定义
@@ -174,10 +173,16 @@ export const useFileTabStore = create<FileTabState>((set, get) => ({
             t.id === id ? { ...t, isLoading: false, error: result.error } : t
           ),
         }))
+      } else if (result?.success && result.data?.content !== undefined) {
+        set(s => ({
+          tabs: s.tabs.map(t =>
+            t.id === id ? { ...t, isLoading: false, content: result.data.content } : t
+          ),
+        }))
       } else {
         set(s => ({
           tabs: s.tabs.map(t =>
-            t.id === id ? { ...t, isLoading: false, content: result?.content ?? '' } : t
+            t.id === id ? { ...t, isLoading: false, content: '' } : t
           ),
         }))
       }
@@ -224,7 +229,7 @@ export const useFileTabStore = create<FileTabState>((set, get) => ({
         tab.path,
         tab.content
       )
-      if (!result?.error) {
+      if (result?.success) {
         set(s => ({
           tabs: s.tabs.map(t => (t.id === id ? { ...t, isDirty: false } : t)),
         }))
