@@ -774,7 +774,7 @@ export interface TrackedFileChange {
 // ─────────────────────────────────────────────────────────────
 
 export type McpTransport = 'stdio' | 'http' | 'sse'
-export type McpCategory = 'filesystem' | 'database' | 'web' | 'code' | 'productivity' | 'custom'
+export type McpCategory = 'filesystem' | 'database' | 'web' | 'browser' | 'code' | 'infrastructure' | 'cloud' | 'ai' | 'memory' | 'monitoring' | 'thinking' | 'productivity' | 'custom'
 export type McpSource = 'builtin' | 'registry' | 'github' | 'local'
 export type McpInstallMethod = 'npm' | 'pip' | 'binary' | 'builtin'
 

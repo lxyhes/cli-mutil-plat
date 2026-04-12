@@ -10,11 +10,10 @@ import React, { useCallback, useEffect, useState, useMemo } from 'react'
 import Editor, { useMonaco } from '@monaco-editor/react'
 import Markdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import rehypeHighlight from 'rehype-highlight'
 import { useFileTabStore } from '../../stores/fileTabStore'
 import { useUIStore } from '../../stores/uiStore'
 import { THEMES } from '../../../shared/constants'
-import { Eye, Pencil, Sparkles } from 'lucide-react'
+import { Eye, Pencil } from 'lucide-react'
 import type { Components } from 'react-markdown'
 
 interface CodeViewerProps {
@@ -84,30 +83,6 @@ const mdComponents: Components = {
       </table>
     </div>
   ),
-}
-
-/**
- * 自定义 rehype-highlight 配置
- * 避免 hljs 默认样式与自定义代码块样式冲突
- */
-function highlightPlugin() {
-  return (tree: any) => {
-    // 移除 rehype-highlight 添加的 className，使用自定义样式
-    const visit = (node: any, parent?: any) => {
-      if (node.tagName === 'code' && parent?.tagName === 'pre') {
-        // 移除 hljs 相关 class
-        if (node.properties?.className) {
-          node.properties.className = node.properties.className.filter((c: string) => !c.startsWith('hljs'))
-        }
-      }
-      if (node.children) {
-        for (const child of node.children) {
-          visit(child, node)
-        }
-      }
-    }
-    visit(tree)
-  }
 }
 
 /**
@@ -372,40 +347,6 @@ export default function CodeViewer({ tabId }: CodeViewerProps) {
             {isPreview ? '编辑' : '预览'}
           </button>
         )}
-        <div className="flex-1" />
-        <button
-          onClick={async () => {
-            if (!tab) return
-            const result = await window.spectrAI?.codeContext?.getModes()
-            if (result?.success && result.modes) {
-              const modeNames = result.modes.map((m: any) => `${m.id}: ${m.name}`).join('\n')
-              const selected = prompt(`选择注入模式:\n${modeNames}\n\n输入模式 ID:`)
-              if (selected) {
-                const activeSessionId = (window as any).__activeSessionId || ''
-                if (!activeSessionId) {
-                  alert('请先选择一个活跃会话')
-                  return
-                }
-                const injectResult = await window.spectrAI?.codeContext?.inject({
-                  sessionId: activeSessionId,
-                  mode: selected.trim(),
-                  code: tab.content,
-                  fileName: tab.path?.split('/').pop() || '',
-                  language: tab.language || '',
-                  filePath: tab.path || '',
-                })
-                if (injectResult?.success) {
-                  alert('代码上下文已注入到当前会话')
-                }
-              }
-            }
-          }}
-          className="flex items-center gap-1 px-2 py-1 rounded text-xs text-text-muted hover:text-accent-purple hover:bg-accent-purple/10 transition-colors"
-          title="将当前文件注入到 AI 会话上下文"
-        >
-          <Sparkles className="w-3 h-3" />
-          AI 注入
-        </button>
       </div>
 
       {/* 内容区域 */}
@@ -417,7 +358,6 @@ export default function CodeViewer({ tabId }: CodeViewerProps) {
               <div className="markdown-body text-[13px] leading-relaxed px-6 py-4">
                 <Markdown
                   remarkPlugins={[remarkGfm]}
-                  rehypePlugins={[rehypeHighlight]}
                   components={mdComponents}
                 >
                   {normalizeMdTables(tab.content)}

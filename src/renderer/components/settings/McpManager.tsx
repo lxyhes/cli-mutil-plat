@@ -10,14 +10,21 @@ import { isMacPlatform } from '../../utils/shortcut'
 
 // 分类标签配置
 const CATEGORIES = [
-  { id: 'all',          label: '全部'   },
-  { id: 'filesystem',   label: '文件系统' },
-  { id: 'database',     label: '数据库'  },
-  { id: 'web',          label: '网络'   },
-  { id: 'code',         label: '代码'   },
-  { id: 'productivity', label: '效率'   },
-  { id: 'custom',       label: '自定义'  },
-  { id: 'marketplace',  label: '🌐 市场' },
+  { id: 'all',            label: '全部'     },
+  { id: 'filesystem',     label: '文件系统' },
+  { id: 'database',       label: '数据库'   },
+  { id: 'web',            label: '网络'     },
+  { id: 'browser',        label: '浏览器'   },
+  { id: 'code',           label: '代码'     },
+  { id: 'infrastructure', label: '基础设施' },
+  { id: 'cloud',          label: '云服务'   },
+  { id: 'ai',             label: 'AI/LLM'   },
+  { id: 'memory',         label: '内存'     },
+  { id: 'monitoring',     label: '监控'     },
+  { id: 'thinking',       label: '思考'     },
+  { id: 'productivity',   label: '效率'     },
+  { id: 'custom',         label: '自定义'   },
+  { id: 'marketplace',    label: '🌐 市场'  },
 ]
 
 // Provider 显示映射（完整名称）
@@ -58,12 +65,19 @@ const ALL_PROVIDER_IDS = ['claude-code', 'codex', 'iflow', 'gemini-cli', 'openco
 
 // 分类图标映射
 const CATEGORY_ICONS: Record<string, string> = {
-  filesystem:   '📁',
-  database:     '🗄️',
-  web:          '🌐',
-  code:         '💻',
-  productivity: '⚡',
-  custom:       '🔧',
+  filesystem:     '📁',
+  database:       '🗄️',
+  web:            '🌐',
+  browser:        '🧭',
+  code:           '💻',
+  infrastructure: '🏗️',
+  cloud:          '☁️',
+  ai:             '🤖',
+  memory:         '🧠',
+  monitoring:     '📊',
+  thinking:       '🤔',
+  productivity:   '⚡',
+  custom:         '🔧',
 }
 
 function getInstallSuggestionForCommand(command: string): string | null {
@@ -101,7 +115,9 @@ export default function McpManager() {
 
   const filteredServers = activeCategory === 'all'
     ? servers
-    : servers.filter(s => s.category === activeCategory)
+    : activeCategory === 'marketplace'
+      ? servers.filter(s => s.source === 'builtin')
+      : servers.filter(s => s.category === activeCategory)
 
   const handleTestConnection = async (server: McpServer) => {
     setTestingId(server.id)
@@ -183,24 +199,42 @@ export default function McpManager() {
 
       {/* MCP 列表 */}
       {activeCategory === 'marketplace' ? (
-        <div className="flex-1 flex flex-col items-center justify-center text-text-muted gap-3">
-          <div className="w-12 h-12 rounded-xl bg-bg-tertiary flex items-center justify-center">
-            <span className="text-3xl">🚧</span>
+        loading ? (
+          <div className="flex-1 flex items-center justify-center text-text-muted text-sm">加载中...</div>
+        ) : filteredServers.length === 0 ? (
+          <div className="flex-1 flex flex-col items-center justify-center text-text-muted gap-3">
+            <div className="w-12 h-12 rounded-xl bg-bg-tertiary flex items-center justify-center">
+              <span className="text-3xl">📦</span>
+            </div>
+            <div className="text-center">
+              <div className="text-sm font-medium text-text-secondary mb-1">暂无内置 MCP</div>
+              <div className="text-xs text-text-muted">请检查内置 MCP 配置是否正确加载</div>
+            </div>
           </div>
-          <div className="text-center">
-            <div className="text-sm font-medium text-text-secondary mb-1">市场功能建设中</div>
-            <div className="text-xs text-text-muted">更多 MCP 正在陆续接入，敬请期待</div>
+        ) : (
+          <div className="flex-1 overflow-y-auto space-y-2">
+            <div className="mb-3 px-3 py-2 bg-blue-500/10 border border-blue-500/20 rounded-md text-xs text-blue-300">
+              💡 以下是系统内置的 MCP 服务器，点击"安装"按钮即可快速部署使用
+            </div>
+            {filteredServers.map(server => (
+              <McpCard
+                key={server.id}
+                server={server}
+                testResult={testResults[server.id]}
+                testing={testingId === server.id}
+                onToggle={(enabled) => toggle(server.id, enabled)}
+                onEdit={() => { setEditingServer(server); setShowAddDialog(true) }}
+                onDelete={() => remove(server.id)}
+                onTest={() => handleTestConnection(server)}
+                onInstall={() => setShowInstallModal({ id: server.id, name: server.name })}
+                onMarkInstalled={() => update(server.id, { isInstalled: true })}
+                onUpdateProviders={(providers) => update(server.id, {
+                  enabledForProviders: providers ?? undefined
+                })}
+              />
+            ))}
           </div>
-          <div className="mt-2 px-4 py-3 bg-bg-secondary border border-border rounded-lg max-w-xs w-full text-center">
-            <div className="text-xs text-text-muted mb-2">现在您可以手动添加任意 MCP 服务器</div>
-            <button
-              onClick={() => { setEditingServer(null); setShowAddDialog(true) }}
-              className="px-4 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs rounded-md transition-colors"
-            >
-              + 手动添加 MCP
-            </button>
-          </div>
-        </div>
+        )
       ) : (
         loading ? (
           <div className="flex-1 flex items-center justify-center text-text-muted text-sm">加载中...</div>
