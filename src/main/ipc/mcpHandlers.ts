@@ -128,7 +128,7 @@ export function registerMcpHandlers(deps: IpcDependencies): void {
   // MCP_GET_ALL: 获取所有 MCP 服务器
   ipcMain.handle(IPC.MCP_GET_ALL, async () => {
     try {
-      return createSuccessResponse({ data: database.getAllMcps() })
+      return createSuccessResponse(database.getAllMcps())
     } catch (err) {
       console.error('[MCP] getAllMcps error:', err)
       return createErrorResponse(err, { operation: 'mcp' })
@@ -145,7 +145,7 @@ export function registerMcpHandlers(deps: IpcDependencies): void {
         userMessage: 'MCP 服务器不存在',
         context: { serverId: id }
       })
-      return createSuccessResponse({ data: server })
+      return createSuccessResponse({ server })
     } catch (err) {
       console.error('[MCP] getMcp error:', err)
       return createErrorResponse(err, { operation: 'mcp' })
@@ -156,7 +156,7 @@ export function registerMcpHandlers(deps: IpcDependencies): void {
   ipcMain.handle(IPC.MCP_CREATE, async (_event, server: any) => {
     try {
       const created = database.createMcp(server)
-      return createSuccessResponse({ data: created })
+      return createSuccessResponse({ server: created })
     } catch (err) {
       console.error('[MCP] createMcp error:', err)
       return createErrorResponse(err, { operation: 'mcp' })
@@ -205,7 +205,7 @@ export function registerMcpHandlers(deps: IpcDependencies): void {
   // MCP_GET_FOR_PROVIDER: 获取对指定 Provider 启用的 MCP 列表
   ipcMain.handle(IPC.MCP_GET_FOR_PROVIDER, async (_event, providerId: string) => {
     try {
-      return createSuccessResponse({ data: database.getEnabledMcpsForProvider(providerId) })
+      return createSuccessResponse({ mcps: database.getEnabledMcpsForProvider(providerId) })
     } catch (err) {
       console.error('[MCP] getEnabledMcpsForProvider error:', err)
       return createErrorResponse(err, { operation: 'mcp' })

@@ -47,8 +47,9 @@ export const useMcpStore = create<McpState>((set, _get) => ({
     try {
       const result = await safeAPI.mcp.create(server)
       if (result.success) {
-        set(state => ({ servers: [...state.servers, result.data] }))
-        return result.data
+        const created = (result.data as any)?.server ?? result.data
+        set(state => ({ servers: [...state.servers, created] }))
+        return created
       }
       set({ error: result.error })
       return null
