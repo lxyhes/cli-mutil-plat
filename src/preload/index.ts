@@ -1063,6 +1063,9 @@ if (!ctxBr) {
     getConfig: () => ipcRenderer.invoke(IPC.VOICE_GET_CONFIG),
     updateConfig: (updates: any) => ipcRenderer.invoke(IPC.VOICE_UPDATE_CONFIG, updates),
     transcribe: (data: any) => ipcRenderer.invoke(IPC.VOICE_TRANSCRIBE, data),
+    getHistory: (limit?: number) => ipcRenderer.invoke(IPC.VOICE_GET_HISTORY, limit),
+    clearHistory: () => ipcRenderer.invoke(IPC.VOICE_CLEAR_HISTORY),
+    simulateInput: (text: string) => ipcRenderer.invoke(IPC.VOICE_SIMULATE_INPUT, text),
   },
 
   // ★ 渲染进程注册 API 就绪回调（避免轮询）

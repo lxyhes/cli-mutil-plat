@@ -27,6 +27,7 @@ import ReplayView from '../sidebar/ReplayView'
 import ArenaView from '../sidebar/ArenaView'
 import ContextBudgetView from '../sidebar/ContextBudgetView'
 import DailyReportView from '../sidebar/DailyReportView'
+import VoiceView from '../sidebar/VoiceView'
 import { TeamSidebarView } from '../team'
 import TimelinePanel from '../panels/TimelinePanel'
 import StatsPanel from '../panels/StatsPanel'
@@ -1109,6 +1110,8 @@ export default function Sidebar() {
       return <ContextBudgetView />
     case 'daily-report':
       return <DailyReportView />
+    case 'voice':
+      return <VoiceView />
     case 'sessions':
     default:
       return <SessionsContent />

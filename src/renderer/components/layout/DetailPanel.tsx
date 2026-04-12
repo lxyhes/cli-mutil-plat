@@ -17,6 +17,7 @@ import WorkingContextView from '../sidebar/WorkingContextView'
 import CrossMemoryView from '../sidebar/CrossMemoryView'
 import GitPanel from '../panels/GitPanel'
 import DailyReportView from '../sidebar/DailyReportView'
+import VoiceView from '../sidebar/VoiceView'
 
 
 export default function DetailPanel() {
@@ -38,6 +39,7 @@ export default function DetailPanel() {
       case 'context':   return <WorkingContextView />
       case 'memory':    return <CrossMemoryView />
       case 'daily-report': return <DailyReportView />
+      case 'voice': return <VoiceView />
       default:          return <TimelinePanel />
     }
   }

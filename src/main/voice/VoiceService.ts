@@ -3,7 +3,10 @@
  * 支持：开始/停止监听、语音合成、转录
  * @author spectrai
  */
-import { ipcMain } from 'electron'
+import { exec } from 'child_process'
+import { promisify } from 'util'
+
+const execAsync = promisify(exec)
 
 export interface VoiceConfig {
   enabled: boolean
@@ -23,6 +26,13 @@ export interface VoiceStatus {
   error: string | null
 }
 
+export interface VoiceHistoryEntry {
+  id: string
+  timestamp: string
+  type: 'input' | 'output'
+  text: string
+}
+
 export class VoiceService {
   private config: VoiceConfig = {
     enabled: false,
@@ -38,6 +48,8 @@ export class VoiceService {
     lastTranscript: null,
     error: null,
   }
+  private history: VoiceHistoryEntry[] = []
+  private idCounter = 0
 
   constructor() {}
 
@@ -46,27 +58,43 @@ export class VoiceService {
     if (this.status.isListening) return { success: false, message: '已在监听中' }
     this.status.isListening = true
     this.status.error = null
-    // TODO: 接入系统语音识别 API (Web Speech API 或 Whisper)
     return { success: true, message: '语音监听已开启，请说话...' }
   }
 
   /** 停止监听 */
   async stopListening(): Promise<{ success: boolean; transcript: string | null }> {
+    if (!this.status.isListening) return { success: false, transcript: null }
     this.status.isListening = false
-    return { success: true, transcript: this.status.lastTranscript }
+    // 模拟转录结果（实际接入 Whisper API 后替换）
+    const simulatedText = this.status.lastTranscript || ''
+    return { success: true, transcript: simulatedText }
   }
 
   /** 语音合成（播报） */
   async speak(text: string): Promise<{ success: boolean; message: string }> {
+    if (this.status.isSpeaking) return { success: false, message: '正在播报中，请等待' }
     this.status.isSpeaking = true
-    // TODO: 接入系统 TTS (electron 的 shell.beep 或外部 TTS API)
-    // 简单实现：使用 macOS say 命令或 Windows SAPI
     try {
-      const { exec } = require('child_process')
       const platform = process.platform
+      const rate = this.config.speechRate
       if (platform === 'darwin') {
-        exec(`say "${text.replace(/"/g, '\\"')}"`)
+        // macOS: say 命令支持 -r 速率参数
+        const escaped = text.replace(/"/g, '\\"').replace(/`/g, '\\`')
+        await execAsync(`say -r ${Math.round(rate * 200)} "${escaped}"`)
+      } else if (platform === 'win32') {
+        // Windows: PowerShell SAPI
+        const escaped = text.replace(/"/g, '""')
+        await execAsync(`powershell -Command "Add-Type -AssemblyName System.Speech; (New-Object System.Speech.Synthesis.SpeechSynthesizer).Speak('${escaped}')"`, { timeout: 30000 })
+      } else {
+        // Linux: espeak
+        try {
+          await execAsync(`espeak -v ${this.config.language === 'zh-CN' ? 'zh' : 'en'} -s ${Math.round(rate * 175)} "${text.replace(/"/g, '\\"')}"`, { timeout: 30000 })
+        } catch {
+          return { success: false, message: 'Linux 需要安装 espeak: sudo apt install espeak' }
+        }
       }
+      // 记录历史
+      this.addHistory('output', text)
       this.status.isSpeaking = false
       return { success: true, message: '播报完成' }
     } catch (err: any) {
@@ -76,18 +104,59 @@ export class VoiceService {
   }
 
   /** 转录音频 */
-  async transcribe(audioData: Buffer): Promise<{ text: string; confidence: number }> {
+  async transcribe(audioData: Buffer): Promise<{ success: boolean; text: string; confidence: number }> {
     // TODO: 接入 Whisper API
-    return { text: '', confidence: 0 }
+    if (this.config.transcriptionProvider === 'whisper-api' && this.config.whisperApiKey) {
+      return { success: false, text: '', confidence: 0 }
+    }
+    // 本地模式暂不支持
+    return { success: false, text: '', confidence: 0 }
   }
 
   /** 获取状态 */
-  getStatus(): VoiceStatus { return this.status }
+  getStatus(): { success: boolean; status: VoiceStatus } {
+    return { success: true, status: { ...this.status } }
+  }
 
-  /** 获取/更新配置 */
-  getConfig(): VoiceConfig { return this.config }
-  updateConfig(updates: Partial<VoiceConfig>): VoiceConfig {
+  /** 获取配置 */
+  getConfig(): { success: boolean; config: VoiceConfig } {
+    return { success: true, config: { ...this.config } }
+  }
+
+  /** 更新配置 */
+  updateConfig(updates: Partial<VoiceConfig>): { success: boolean; config: VoiceConfig } {
     Object.assign(this.config, updates)
-    return this.config
+    return { success: true, config: { ...this.config } }
+  }
+
+  /** 获取历史记录 */
+  getHistory(limit = 50): { success: boolean; history: VoiceHistoryEntry[] } {
+    return { success: true, history: this.history.slice(-limit) }
+  }
+
+  /** 清除历史 */
+  clearHistory(): { success: boolean; message: string } {
+    this.history = []
+    return { success: true, message: '历史已清除' }
+  }
+
+  /** 模拟语音输入（用于测试） */
+  simulateInput(text: string): { success: boolean; message: string } {
+    this.status.lastTranscript = text
+    this.addHistory('input', text)
+    return { success: true, message: '语音输入已记录' }
+  }
+
+  private addHistory(type: 'input' | 'output', text: string) {
+    this.history.push({
+      id: `vh-${++this.idCounter}`,
+      timestamp: new Date().toISOString(),
+      type,
+      text,
+    })
+    // 保留最近 200 条
+    if (this.history.length > 200) {
+      this.history = this.history.slice(-200)
+    }
   }
 }

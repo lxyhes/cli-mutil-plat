@@ -159,12 +159,15 @@ export function registerNewFeatureHandlers(deps: NewFeatureDeps): void {
   // ── 10. Voice ──
   if (deps.voiceService) {
     const vc = deps.voiceService
-    ipcMain.handle(IPC.VOICE_START_LISTENING, () => vc.startListening())
-    ipcMain.handle(IPC.VOICE_STOP_LISTENING, () => vc.stopListening())
-    ipcMain.handle(IPC.VOICE_SPEAK, (_, text) => vc.speak(text))
-    ipcMain.handle(IPC.VOICE_GET_STATUS, () => vc.getStatus())
-    ipcMain.handle(IPC.VOICE_GET_CONFIG, () => vc.getConfig())
-    ipcMain.handle(IPC.VOICE_UPDATE_CONFIG, (_, updates) => vc.updateConfig(updates))
-    ipcMain.handle(IPC.VOICE_TRANSCRIBE, (_, data) => vc.transcribe(data))
+    ipcMain.handle(IPC.VOICE_START_LISTENING, async () => vc.startListening())
+    ipcMain.handle(IPC.VOICE_STOP_LISTENING, async () => vc.stopListening())
+    ipcMain.handle(IPC.VOICE_SPEAK, async (_, text) => vc.speak(text))
+    ipcMain.handle(IPC.VOICE_GET_STATUS, async () => vc.getStatus())
+    ipcMain.handle(IPC.VOICE_GET_CONFIG, async () => vc.getConfig())
+    ipcMain.handle(IPC.VOICE_UPDATE_CONFIG, async (_, updates) => vc.updateConfig(updates))
+    ipcMain.handle(IPC.VOICE_TRANSCRIBE, async (_, data) => vc.transcribe(data))
+    ipcMain.handle(IPC.VOICE_GET_HISTORY, async (_, limit?) => vc.getHistory(limit))
+    ipcMain.handle(IPC.VOICE_CLEAR_HISTORY, async () => vc.clearHistory())
+    ipcMain.handle(IPC.VOICE_SIMULATE_INPUT, async (_, text) => vc.simulateInput(text))
   }
 }

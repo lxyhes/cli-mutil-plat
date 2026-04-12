@@ -510,6 +510,9 @@ export const IPC = {
   VOICE_GET_CONFIG:         'voice:get-config',
   VOICE_UPDATE_CONFIG:      'voice:update-config',
   VOICE_TRANSCRIBE:         'voice:transcribe',
+  VOICE_GET_HISTORY:        'voice:get-history',
+  VOICE_CLEAR_HISTORY:      'voice:clear-history',
+  VOICE_SIMULATE_INPUT:     'voice:simulate-input',
 } as const
 
 // ---- 看板列 ----
