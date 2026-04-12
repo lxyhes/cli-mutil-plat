@@ -164,6 +164,9 @@ export const useFileTabStore = create<FileTabState>((set, get) => ({
 
     // 异步加载文件内容
     try {
+      // 增加一个极短的延迟（10ms），让 UI 线程先完成 Tab 切换的渲染
+      await new Promise(resolve => setTimeout(resolve, 10))
+
       const result = await (window as any).spectrAI?.fileManager?.readFile(path)
       if (result?.error) {
         set(s => ({

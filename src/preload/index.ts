@@ -856,6 +856,78 @@ if (!ctxBr) {
     getAllReports: () => ipcRenderer.invoke(IPC.ANALYZER_GET_ALL_REPORTS),
   },
 
+  // ==================== Working Context API ====================
+  workingContext: {
+    get: (sessionId: string) => ipcRenderer.invoke(IPC.WORKING_CONTEXT_GET, sessionId),
+    updateTask: (sessionId: string, task: string) => ipcRenderer.invoke(IPC.WORKING_CONTEXT_UPDATE_TASK, sessionId, task),
+    addProblem: (sessionId: string, content: string) => ipcRenderer.invoke(IPC.WORKING_CONTEXT_ADD_PROBLEM, sessionId, content),
+    resolveProblem: (sessionId: string, problemId: string) => ipcRenderer.invoke(IPC.WORKING_CONTEXT_RESOLVE_PROBLEM, sessionId, problemId),
+    addDecision: (sessionId: string, content: string) => ipcRenderer.invoke(IPC.WORKING_CONTEXT_ADD_DECISION, sessionId, content),
+    addTodo: (sessionId: string, content: string) => ipcRenderer.invoke(IPC.WORKING_CONTEXT_ADD_TODO, sessionId, content),
+    resolveTodo: (sessionId: string, todoId: string) => ipcRenderer.invoke(IPC.WORKING_CONTEXT_RESOLVE_TODO, sessionId, todoId),
+    addSnippet: (sessionId: string, snippet: any) => ipcRenderer.invoke(IPC.WORKING_CONTEXT_ADD_SNIPPET, sessionId, snippet),
+    removeItem: (sessionId: string, category: string, itemId: string) => ipcRenderer.invoke(IPC.WORKING_CONTEXT_REMOVE_ITEM, sessionId, category, itemId),
+    createSnapshot: (sessionId: string, trigger?: string) => ipcRenderer.invoke(IPC.WORKING_CONTEXT_CREATE_SNAPSHOT, sessionId, trigger),
+    getPrompt: (sessionId: string) => ipcRenderer.invoke(IPC.WORKING_CONTEXT_GET_PROMPT, sessionId),
+    onStatus: (callback: (status: any) => void) => {
+      ipcRenderer.on(IPC.WORKING_CONTEXT_STATUS, (_e, status) => callback(status))
+      return () => ipcRenderer.removeListener(IPC.WORKING_CONTEXT_STATUS, () => {})
+    },
+  },
+
+  // ==================== Drift Guard API ====================
+  driftGuard: {
+    start: (sessionId: string, goalId: string) => ipcRenderer.invoke(IPC.DRIFT_GUARD_START, sessionId, goalId),
+    stop: (sessionId: string) => ipcRenderer.invoke(IPC.DRIFT_GUARD_STOP, sessionId),
+    getState: (sessionId: string) => ipcRenderer.invoke(IPC.DRIFT_GUARD_GET_STATE, sessionId),
+    resume: (sessionId: string) => ipcRenderer.invoke(IPC.DRIFT_GUARD_RESUME, sessionId),
+    getPrompt: (sessionId: string) => ipcRenderer.invoke(IPC.DRIFT_GUARD_GET_PROMPT, sessionId),
+    updateConfig: (updates: any) => ipcRenderer.invoke(IPC.DRIFT_GUARD_UPDATE_CONFIG, updates),
+    getConfig: () => ipcRenderer.invoke(IPC.DRIFT_GUARD_GET_CONFIG),
+    onStatus: (callback: (status: any) => void) => {
+      ipcRenderer.on(IPC.DRIFT_GUARD_STATUS, (_e, status) => callback(status))
+      return () => ipcRenderer.removeListener(IPC.DRIFT_GUARD_STATUS, () => {})
+    },
+  },
+
+  // ==================== Cross Session Memory API ====================
+  crossMemory: {
+    search: (query: string, limit?: number) => ipcRenderer.invoke(IPC.CROSS_MEMORY_SEARCH, query, limit),
+    list: (limit?: number) => ipcRenderer.invoke(IPC.CROSS_MEMORY_LIST, limit),
+    index: (sessionId: string, sessionName: string, summary: string, keyPoints: string) =>
+      ipcRenderer.invoke(IPC.CROSS_MEMORY_INDEX, sessionId, sessionName, summary, keyPoints),
+    delete: (id: string) => ipcRenderer.invoke(IPC.CROSS_MEMORY_DELETE, id),
+    getPrompt: (sessionGoal: string) => ipcRenderer.invoke(IPC.CROSS_MEMORY_GET_PROMPT, sessionGoal),
+    getStats: () => ipcRenderer.invoke(IPC.CROSS_MEMORY_GET_STATS),
+    updateConfig: (updates: any) => ipcRenderer.invoke(IPC.CROSS_MEMORY_UPDATE_CONFIG, updates),
+  },
+
+  // ==================== Session Template API ====================
+  sessionTemplate: {
+    list: (category?: string) => ipcRenderer.invoke(IPC.SESSION_TEMPLATE_LIST, category),
+    get: (id: string) => ipcRenderer.invoke(IPC.SESSION_TEMPLATE_GET, id),
+    create: (data: any) => ipcRenderer.invoke(IPC.SESSION_TEMPLATE_CREATE, data),
+    update: (id: string, updates: any) => ipcRenderer.invoke(IPC.SESSION_TEMPLATE_UPDATE, id, updates),
+    delete: (id: string) => ipcRenderer.invoke(IPC.SESSION_TEMPLATE_DELETE, id),
+    getCategories: () => ipcRenderer.invoke(IPC.SESSION_TEMPLATE_GET_CATEGORIES),
+    onStatus: (callback: (status: any) => void) => {
+      ipcRenderer.on(IPC.SESSION_TEMPLATE_STATUS, (_e, status) => callback(status))
+      return () => ipcRenderer.removeListener(IPC.SESSION_TEMPLATE_STATUS, () => {})
+    },
+  },
+
+  // ==================== Code Context Injection API ====================
+  codeContext: {
+    inject: (request: any) => ipcRenderer.invoke(IPC.CODE_CONTEXT_INJECT, request),
+    getModes: () => ipcRenderer.invoke(IPC.CODE_CONTEXT_GET_MODES),
+  },
+
+  // ==================== OpenAI Compatible API ====================
+  openAICompat: {
+    test: (config: any) => ipcRenderer.invoke(IPC.OPENAI_COMPAT_TEST, config),
+    create: (config: any) => ipcRenderer.invoke(IPC.OPENAI_COMPAT_CREATE, config),
+  },
+
   // ★ 渲染进程注册 API 就绪回调（避免轮询）
   __registerAPIAvailableCallback: (cb: () => void) => { _apiReadyCallbacks.push(cb) },
   }

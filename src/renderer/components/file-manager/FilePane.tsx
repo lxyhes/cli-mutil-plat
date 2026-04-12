@@ -4,7 +4,7 @@
  * @author weibin
  */
 
-import React from 'react'
+import React, { useState, useEffect } from 'react'
 import FileTabs from './FileTabs'
 import CodeViewer from './CodeViewer'
 import { useFileTabStore } from '../../stores/fileTabStore'
@@ -12,6 +12,23 @@ import { toPlatformShortcutLabel } from '../../utils/shortcut'
 
 export default function FilePane() {
   const { tabs, activeTabId } = useFileTabStore()
+  // 追踪哪些 Tab 已经被渲染过（一旦渲染过就保持，以保留滚动位置）
+  const [renderedTabIds, setRenderedTabIds] = useState<Set<string>>(new Set())
+
+  useEffect(() => {
+    if (activeTabId && !renderedTabIds.has(activeTabId)) {
+      setRenderedTabIds(prev => new Set([...prev, activeTabId]))
+    }
+  }, [activeTabId, renderedTabIds])
+
+  // 当 Tab 被关闭时，从已渲染列表中移除
+  useEffect(() => {
+    const tabIdSet = new Set(tabs.map(t => t.id))
+    setRenderedTabIds(prev => {
+      const next = new Set(Array.from(prev).filter(id => tabIdSet.has(id)))
+      return next.size === prev.size ? prev : next
+    })
+  }, [tabs])
 
   return (
     <div className="h-full flex flex-col bg-bg-primary">
@@ -29,18 +46,23 @@ export default function FilePane() {
           </div>
         ) : (
           /*
-           * 同时渲染所有 Tab 的 Editor，通过 display 切换激活项。
-           * 这样可以避免切换 Tab 时 Monaco Editor 重建，保留各 Tab 的滚动位置和撤销栈。
+           * 按需渲染 Tab 内容。只有当前激活或曾经激活过的 Tab 才会挂载 DOM。
+           * 这样既能提升初始打开性能，又能保留已打开 Tab 的状态（滚动位置、撤销栈）。
            */
-          tabs.map(tab => (
-            <div
-              key={tab.id}
-              className="absolute inset-0"
-              style={{ display: tab.id === activeTabId ? 'block' : 'none' }}
-            >
-              <CodeViewer tabId={tab.id} />
-            </div>
-          ))
+          tabs.map(tab => {
+            const isRendered = renderedTabIds.has(tab.id)
+            if (!isRendered) return null
+
+            return (
+              <div
+                key={tab.id}
+                className="absolute inset-0"
+                style={{ display: tab.id === activeTabId ? 'block' : 'none' }}
+              >
+                <CodeViewer tabId={tab.id} />
+              </div>
+            )
+          })
         )}
       </div>
     </div>
