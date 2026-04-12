@@ -1008,6 +1008,9 @@ if (!ctxBr) {
     delete: (id: string) => ipcRenderer.invoke(IPC.REPLAY_DELETE, id),
     export: (id: string) => ipcRenderer.invoke(IPC.REPLAY_EXPORT, id),
     getEvents: (id: string) => ipcRenderer.invoke(IPC.REPLAY_GET_EVENTS, id),
+    settings: (updates?: { autoRecordEnabled?: boolean; maxDuration?: number; captureEvents?: string[] }) =>
+      ipcRenderer.invoke(IPC.REPLAY_SETTINGS, updates),
+    isRecording: (sessionId: string) => ipcRenderer.invoke(IPC.REPLAY_IS_RECORDING, sessionId),
   },
 
   // ==================== Context Budget API ====================

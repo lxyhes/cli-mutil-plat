@@ -1194,6 +1194,61 @@ app.whenReady().then(() => {
     console.log('[Main] CostService connected to SessionManagerV2 usage-update event')
   }
 
+  // ★ 连接 SessionReplayService → SessionManagerV2 事件流
+  if (sessionReplayService && sessionManagerV2) {
+    // activity 事件 → 录制 tool_use / permission / status_change 等
+    sessionManagerV2.on('activity', (sessionId: string, activity: any) => {
+      if (!sessionReplayService.isRecording(sessionId)) return
+      const eventType = mapActivityToReplayEvent(activity)
+      if (eventType) {
+        sessionReplayService.appendEvent(sessionId, { type: eventType, data: activity })
+      }
+    })
+    // conversation-message → 录制 message 事件
+    sessionManagerV2.on('conversation-message', (sessionId: string, msg: any) => {
+      if (!sessionReplayService.isRecording(sessionId)) return
+      sessionReplayService.appendEvent(sessionId, { type: 'message', data: msg })
+    })
+    // usage-update → 录制 usage 事件
+    sessionManagerV2.on('usage-update', (sessionId: string, usage: any) => {
+      if (!sessionReplayService.isRecording(sessionId)) return
+      sessionReplayService.appendEvent(sessionId, { type: 'usage', data: usage })
+    })
+    // status-change → 自动开始/停止录制
+    sessionManagerV2.on('status-change', (sessionId: string, status: string) => {
+      const settings = sessionReplayService.getSettings()
+      if (settings.autoRecordEnabled) {
+        if (status === 'running') {
+          const session = sessionManagerV2.getSession(sessionId)
+          const name = session?.name || session?.config?.name || sessionId.slice(0, 8)
+          if (!sessionReplayService.isRecording(sessionId)) {
+            sessionReplayService.startRecording(sessionId, name)
+          }
+        } else if (status === 'completed' || status === 'error' || status === 'stopped') {
+          if (sessionReplayService.isRecording(sessionId)) {
+            sessionReplayService.stopRecording(sessionId)
+          }
+        }
+      }
+      // 始终录制 status_change 事件
+      if (sessionReplayService.isRecording(sessionId)) {
+        sessionReplayService.appendEvent(sessionId, { type: 'status_change', data: { status } })
+      }
+    })
+    console.log('[Main] SessionReplayService connected to SessionManagerV2 event stream')
+  }
+
+  /** 将 activity 映射到 replay 事件类型 */
+  function mapActivityToReplayEvent(activity: any): string | null {
+    const type = activity?.type || activity?.activityType || ''
+    if (type.includes('tool') || type.includes('Tool')) return 'tool_use'
+    if (type.includes('permission') || type.includes('Permission')) return 'permission'
+    if (type.includes('file') || type.includes('File')) return 'file_change'
+    if (type.includes('terminal') || type.includes('Terminal')) return 'terminal_output'
+    if (type.includes('checkpoint') || type.includes('Checkpoint')) return 'checkpoint'
+    return 'tool_use'  // 默认归类为 tool_use
+  }
+
   // ★ 连接 WorkingContext → SessionManagerV2，会话切换时自动快照
   if (workingContextService && sessionManagerV2) {
     // 跨会话记忆索引：通过摘要 IPC handler 的副作用完成

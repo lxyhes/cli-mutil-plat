@@ -97,13 +97,18 @@ export function registerNewFeatureHandlers(deps: NewFeatureDeps): void {
   // ── 5. Session Replay ──
   if (deps.sessionReplayService) {
     const rp = deps.sessionReplayService
-    ipcMain.handle(IPC.REPLAY_START_RECORDING, (_, sid, name) => rp.startRecording(sid, name))
-    ipcMain.handle(IPC.REPLAY_STOP_RECORDING, (_, sid) => rp.stopRecording(sid))
-    ipcMain.handle(IPC.REPLAY_GET, (_, id) => rp.get(id))
-    ipcMain.handle(IPC.REPLAY_LIST, (_, limit?) => rp.list(limit))
-    ipcMain.handle(IPC.REPLAY_DELETE, (_, id) => rp.delete(id))
-    ipcMain.handle(IPC.REPLAY_EXPORT, (_, id) => rp.export(id))
-    ipcMain.handle(IPC.REPLAY_GET_EVENTS, (_, id) => rp.getEvents(id))
+    ipcMain.handle(IPC.REPLAY_START_RECORDING, async (_, sid, name) => rp.startRecording(sid, name))
+    ipcMain.handle(IPC.REPLAY_STOP_RECORDING, async (_, sid) => rp.stopRecording(sid))
+    ipcMain.handle(IPC.REPLAY_GET, async (_, id) => rp.get(id))
+    ipcMain.handle(IPC.REPLAY_LIST, async (_, limit?) => rp.list(limit))
+    ipcMain.handle(IPC.REPLAY_DELETE, async (_, id) => rp.delete(id))
+    ipcMain.handle(IPC.REPLAY_EXPORT, async (_, id) => rp.export(id))
+    ipcMain.handle(IPC.REPLAY_GET_EVENTS, async (_, id) => rp.getEvents(id))
+    ipcMain.handle(IPC.REPLAY_SETTINGS, (_, updates?) => {
+      if (updates) rp.updateSettings(updates)
+      return { success: true, settings: rp.getSettings() }
+    })
+    ipcMain.handle(IPC.REPLAY_IS_RECORDING, (_, sid) => ({ success: true, recording: rp.isRecording(sid) }))
   }
 
   // ── 6. Context Budget ──

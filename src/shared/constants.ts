@@ -466,6 +466,8 @@ export const IPC = {
   REPLAY_DELETE:            'replay:delete',
   REPLAY_EXPORT:            'replay:export',
   REPLAY_GET_EVENTS:        'replay:get-events',
+  REPLAY_SETTINGS:          'replay:settings',           // 获取/设置录制配置
+  REPLAY_IS_RECORDING:      'replay:is-recording',       // 查询会话是否在录制中
 
   // 6. 智能上下文管理器 (Context Budget Manager)
   CONTEXT_BUDGET_GET:       'context-budget:get',
