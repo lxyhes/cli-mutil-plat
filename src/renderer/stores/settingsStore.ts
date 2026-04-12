@@ -62,7 +62,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
 
   fetchSettings: async () => {
     try {
-      const result: IpcResponse<Record<string, any>> = await window.spectrAI.settings.getAll()
+      const result: IpcResponse<{ settings: Record<string, any> }> = await window.spectrAI.settings.getAll()
       if (!result.success) {
         console.warn('[settingsStore] fetchSettings error:', result.error?.userMessage)
         set({ loaded: true })
@@ -70,7 +70,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       }
       const settings: AppSettings = {
         ...DEFAULT_SETTINGS,
-        ...(result.data as Partial<AppSettings>),
+        ...(result.data?.settings as Partial<AppSettings>),
       }
       set({ settings, loaded: true })
     } catch (err) {

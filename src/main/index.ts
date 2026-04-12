@@ -1069,11 +1069,8 @@ app.whenReady().then(() => {
     crossSessionMemoryService,
     sessionTemplateService,
     codeContextInjectionService,
+    adapterRegistry,
   }, fileChangeTracker)
-
-  // ★ OpenAI Compatible Provider 的 IPC 注册（需要 adapterRegistry）
-  const { registerOpenAICompatHandlers } = require('./ipc/openAICompatHandlers')
-  registerOpenAICompatHandlers(adapterRegistry)
 
   // 连接事件流
   wireEvents()

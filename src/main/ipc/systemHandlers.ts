@@ -25,7 +25,8 @@ export function registerSystemHandlers(deps: IpcDependencies): void {
   // ==================== 全局应用设置 ====================
 
   ipcMain.handle(IPC.SETTINGS_GET_ALL, async () => {
-    return database.getAppSettings()
+    const settings = database.getAppSettings()
+    return createSuccessResponse({ settings })
   })
 
   ipcMain.handle(IPC.SETTINGS_UPDATE, async (_event, key: string, value: any) => {

@@ -55,6 +55,7 @@ export interface IpcDependencies {
   crossSessionMemoryService?: any  // CrossSessionMemoryService（可选）
   sessionTemplateService?: any  // SessionTemplateService（可选）
   codeContextInjectionService?: any  // CodeContextInjectionService（可选）
+  adapterRegistry?: any  // AdapterRegistry（可选）
 }
 
 // 各子模块 handler 注册函数
@@ -135,6 +136,10 @@ export function registerIpcHandlers(deps: IpcDependencies, fileChangeTracker?: F
   }
   if (deps.codeContextInjectionService) {
     registerCodeContextHandlers(deps.codeContextInjectionService)
+  }
+  // ★ OpenAI Compatible Provider 需要 adapterRegistry
+  if (deps.adapterRegistry) {
+    registerOpenAICompatHandlers(deps.adapterRegistry)
   }
   if (deps.updateManager) {
     registerUpdateHandlers(deps.updateManager)

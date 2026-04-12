@@ -84,6 +84,60 @@ export class PromptOptimizerRepository {
     } catch {
       this.usingSqlite = false
     }
+    this.ensureTables()
+  }
+
+  // 确保表存在（防御性建表，避免迁移未执行时报错）
+  private ensureTables(): void {
+    if (!this.usingSqlite) return
+    const sqliteDb = this.db.getDb?.()
+    if (!sqliteDb) return
+    try {
+      sqliteDb.exec(`
+        CREATE TABLE IF NOT EXISTS prompt_templates (
+          id TEXT PRIMARY KEY,
+          name TEXT NOT NULL,
+          description TEXT,
+          category TEXT,
+          tags TEXT,
+          variables TEXT,
+          current_version_id TEXT,
+          is_active INTEGER DEFAULT 1,
+          created_by TEXT,
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        );
+        CREATE TABLE IF NOT EXISTS prompt_versions (
+          id TEXT PRIMARY KEY,
+          template_id TEXT NOT NULL,
+          version_number INTEGER NOT NULL,
+          content TEXT NOT NULL,
+          system_prompt TEXT,
+          variables_values TEXT,
+          change_notes TEXT,
+          score REAL,
+          test_count INTEGER DEFAULT 0,
+          is_baseline INTEGER DEFAULT 0,
+          created_by TEXT,
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          FOREIGN KEY (template_id) REFERENCES prompt_templates(id) ON DELETE CASCADE
+        );
+        CREATE TABLE IF NOT EXISTS prompt_tests (
+          id TEXT PRIMARY KEY,
+          version_id TEXT NOT NULL,
+          test_input TEXT NOT NULL,
+          test_output TEXT,
+          tokens_used INTEGER,
+          duration_ms INTEGER,
+          score REAL,
+          metadata TEXT,
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          FOREIGN KEY (version_id) REFERENCES prompt_versions(id) ON DELETE CASCADE
+        );
+      `)
+    } catch {
+      // 忽略已存在等错误
+    }
   }
 
   // ── Templates ────────────────────────────────────────────

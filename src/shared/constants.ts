@@ -394,7 +394,7 @@ export const IPC = {
   SESSION_TEMPLATE_GET:      'session-template:get',
   SESSION_TEMPLATE_CREATE:   'session-template:create',
   SESSION_TEMPLATE_UPDATE:   'session-template:update',
-  SESSION_TEMPLATE_DELETE:   'session-template:update',
+  SESSION_TEMPLATE_DELETE:   'session-template:delete',
   SESSION_TEMPLATE_GET_CATEGORIES: 'session-template:get-categories',
   SESSION_TEMPLATE_STATUS:   'session-template:status',
 
