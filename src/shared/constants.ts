@@ -455,6 +455,8 @@ export const IPC = {
   CODE_REVIEW_APPLY_FIX:    'code-review:apply-fix',
   CODE_REVIEW_GET_PROMPT:   'code-review:get-prompt',
   CODE_REVIEW_STATUS:       'code-review:status',
+  CODE_REVIEW_SETTINGS:     'code-review:settings',     // 获取/设置自动审查配置
+  CODE_REVIEW_COMPLETED:    'code-review:completed',     // 主进程→渲染进程：审查完成通知
 
   // 5. 会话录像与回放 (Session Replay)
   REPLAY_START_RECORDING:   'replay:start-recording',

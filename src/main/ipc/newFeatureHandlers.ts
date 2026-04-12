@@ -80,14 +80,18 @@ export function registerNewFeatureHandlers(deps: NewFeatureDeps): void {
   // ── 4. Code Review ──
   if (deps.codeReviewService) {
     const cr = deps.codeReviewService
-    ipcMain.handle(IPC.CODE_REVIEW_START, (_, p) => cr.startReview(p))
-    ipcMain.handle(IPC.CODE_REVIEW_GET, (_, id) => cr.get(id))
-    ipcMain.handle(IPC.CODE_REVIEW_LIST, (_, sessionId?, limit?) => cr.list(sessionId, limit))
-    ipcMain.handle(IPC.CODE_REVIEW_GET_COMMENTS, (_, reviewId) => cr.getComments(reviewId))
-    ipcMain.handle(IPC.CODE_REVIEW_RESOLVE_COMMENT, (_, commentId) => cr.resolveComment(commentId))
-    ipcMain.handle(IPC.CODE_REVIEW_APPLY_FIX, (_, commentId) => cr.applyFix(commentId))
+    ipcMain.handle(IPC.CODE_REVIEW_START, async (_, p) => cr.startReview(p))
+    ipcMain.handle(IPC.CODE_REVIEW_GET, async (_, id) => cr.get(id))
+    ipcMain.handle(IPC.CODE_REVIEW_LIST, async (_, sessionId?, limit?) => cr.list(sessionId, limit))
+    ipcMain.handle(IPC.CODE_REVIEW_GET_COMMENTS, async (_, reviewId) => cr.getComments(reviewId))
+    ipcMain.handle(IPC.CODE_REVIEW_RESOLVE_COMMENT, async (_, commentId) => cr.resolveComment(commentId))
+    ipcMain.handle(IPC.CODE_REVIEW_APPLY_FIX, async (_, commentId) => cr.applyFix(commentId))
     ipcMain.handle(IPC.CODE_REVIEW_GET_PROMPT, () => cr.getPrompt())
-    ipcMain.handle(IPC.CODE_REVIEW_STATUS, () => ({ enabled: true }))
+    ipcMain.handle(IPC.CODE_REVIEW_STATUS, () => ({ success: true, enabled: true, settings: cr.getSettings() }))
+    ipcMain.handle(IPC.CODE_REVIEW_SETTINGS, (_, updates?) => {
+      if (updates) cr.updateSettings(updates)
+      return { success: true, settings: cr.getSettings() }
+    })
   }
 
   // ── 5. Session Replay ──

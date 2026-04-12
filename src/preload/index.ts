@@ -988,6 +988,15 @@ if (!ctxBr) {
     resolveComment: (commentId: string) => ipcRenderer.invoke(IPC.CODE_REVIEW_RESOLVE_COMMENT, commentId),
     applyFix: (commentId: string) => ipcRenderer.invoke(IPC.CODE_REVIEW_APPLY_FIX, commentId),
     getPrompt: () => ipcRenderer.invoke(IPC.CODE_REVIEW_GET_PROMPT),
+    getStatus: () => ipcRenderer.invoke(IPC.CODE_REVIEW_STATUS),
+    settings: (updates?: { autoReviewEnabled?: boolean; autoReviewInterval?: number }) =>
+      ipcRenderer.invoke(IPC.CODE_REVIEW_SETTINGS, updates),
+    // 监听审查完成通知
+    onCompleted: (callback: (data: { reviewId: string; status: string; summary: string; score: number; totalComments: number }) => void) => {
+      const handler = (_: any, data: any) => callback(data)
+      ipcRenderer.on(IPC.CODE_REVIEW_COMPLETED, handler)
+      return () => ipcRenderer.removeListener(IPC.CODE_REVIEW_COMPLETED, handler)
+    },
   },
 
   // ==================== Session Replay API ====================
