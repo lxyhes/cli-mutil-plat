@@ -13,6 +13,8 @@ import { SessionsContent } from './Sidebar'
 import DashboardSidebarView from '../sidebar/DashboardSidebarView'
 import ComingSoonView from '../sidebar/ComingSoonView'
 import ToolboxView from '../sidebar/ToolboxView'
+import WorkingContextView from '../sidebar/WorkingContextView'
+import CrossMemoryView from '../sidebar/CrossMemoryView'
 import GitPanel from '../panels/GitPanel'
 
 
@@ -32,6 +34,8 @@ export default function DetailPanel() {
       case 'mcp':       return <ToolboxView />
       case 'skills':    return <ToolboxView />
       case 'toolbox':   return <ToolboxView />
+      case 'context':   return <WorkingContextView />
+      case 'memory':    return <CrossMemoryView />
       default:          return <TimelinePanel />
     }
   }

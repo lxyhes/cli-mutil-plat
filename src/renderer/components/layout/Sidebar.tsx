@@ -16,6 +16,8 @@ import DashboardSidebarView from '../sidebar/DashboardSidebarView'
 import McpSidebarView from '../sidebar/McpSidebarView'
 import SkillsSidebarView from '../sidebar/SkillsSidebarView'
 import ToolboxView from '../sidebar/ToolboxView'
+import WorkingContextView from '../sidebar/WorkingContextView'
+import CrossMemoryView from '../sidebar/CrossMemoryView'
 import { TeamSidebarView } from '../team'
 import TimelinePanel from '../panels/TimelinePanel'
 import StatsPanel from '../panels/StatsPanel'
@@ -1074,6 +1076,10 @@ export default function Sidebar() {
       return <ToolboxView />
     case 'team':
       return <TeamSidebarView />
+    case 'context':
+      return <WorkingContextView />
+    case 'memory':
+      return <CrossMemoryView />
     case 'sessions':
     default:
       return <SessionsContent />

@@ -168,18 +168,30 @@ export const useFileTabStore = create<FileTabState>((set, get) => ({
 
       const result = await (window as any).spectrAI?.fileManager?.readFile(path)
       if (result?.error) {
+        // 错误响应：{ error: "..." } 或 { success: false, error: {...} }
+        const errMsg = typeof result.error === 'string' ? result.error : result.error?.userMessage || result.error?.message || '未知错误'
         set(s => ({
           tabs: s.tabs.map(t =>
-            t.id === id ? { ...t, isLoading: false, error: result.error } : t
+            t.id === id ? { ...t, isLoading: false, error: errMsg } : t
           ),
         }))
       } else if (result?.success && result.data?.content !== undefined) {
+        // 标准成功响应：{ success: true, data: { content: "..." } }
         set(s => ({
           tabs: s.tabs.map(t =>
             t.id === id ? { ...t, isLoading: false, content: result.data.content } : t
           ),
         }))
+      } else if (result?.content !== undefined) {
+        // 兼容旧格式：直接返回 { content: "..." }
+        set(s => ({
+          tabs: s.tabs.map(t =>
+            t.id === id ? { ...t, isLoading: false, content: result.content } : t
+          ),
+        }))
       } else {
+        // 兜底：设置为空内容
+        console.warn('[fileTabStore] Unexpected readFile response:', result)
         set(s => ({
           tabs: s.tabs.map(t =>
             t.id === id ? { ...t, isLoading: false, content: '' } : t

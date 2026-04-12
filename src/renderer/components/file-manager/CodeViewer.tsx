@@ -14,7 +14,7 @@ import rehypeHighlight from 'rehype-highlight'
 import { useFileTabStore } from '../../stores/fileTabStore'
 import { useUIStore } from '../../stores/uiStore'
 import { THEMES } from '../../../shared/constants'
-import { Eye, Pencil } from 'lucide-react'
+import { Eye, Pencil, Sparkles } from 'lucide-react'
 import type { Components } from 'react-markdown'
 
 interface CodeViewerProps {
@@ -24,6 +24,36 @@ interface CodeViewerProps {
 
 /** Markdown 预览的自定义组件 */
 const mdComponents: Components = {
+  h1: ({ children, ...rest }) => (
+    <h1 id={(children as string)?.toLowerCase().replace(/\s+/g, '-').replace(/[^\w-]/g, '')} {...rest}>
+      {children}
+    </h1>
+  ),
+  h2: ({ children, ...rest }) => (
+    <h2 id={(children as string)?.toLowerCase().replace(/\s+/g, '-').replace(/[^\w-]/g, '')} {...rest}>
+      {children}
+    </h2>
+  ),
+  h3: ({ children, ...rest }) => (
+    <h3 id={(children as string)?.toLowerCase().replace(/\s+/g, '-').replace(/[^\w-]/g, '')} {...rest}>
+      {children}
+    </h3>
+  ),
+  h4: ({ children, ...rest }) => (
+    <h4 id={(children as string)?.toLowerCase().replace(/\s+/g, '-').replace(/[^\w-]/g, '')} {...rest}>
+      {children}
+    </h4>
+  ),
+  h5: ({ children, ...rest }) => (
+    <h5 id={(children as string)?.toLowerCase().replace(/\s+/g, '-').replace(/[^\w-]/g, '')} {...rest}>
+      {children}
+    </h5>
+  ),
+  h6: ({ children, ...rest }) => (
+    <h6 id={(children as string)?.toLowerCase().replace(/\s+/g, '-').replace(/[^\w-]/g, '')} {...rest}>
+      {children}
+    </h6>
+  ),
   code: ({ children, ...rest }) => (
     <code className="markdown-inline-code" {...rest}>
       {children}
@@ -95,6 +125,113 @@ function normalizeMdTables(content: string): string {
   }
 
   return result.join('\n')
+}
+
+/** 大纲条目 */
+interface TocItem {
+  id: string
+  text: string
+  level: number
+}
+
+/**
+ * 从 Markdown 内容中提取标题，生成大纲（TOC）
+ */
+function extractToc(content: string): TocItem[] {
+  const lines = content.split('\n')
+  const toc: TocItem[] = []
+  const idMap = new Map<string, number>()
+
+  for (const line of lines) {
+    const match = line.match(/^(#{1,6})\s+(.+)$/)
+    if (match) {
+      const level = match[1].length
+      const rawText = match[2].trim()
+      // 生成锚点 ID（与 react-markdown 默认行为一致）
+      const baseId = rawText
+        .toLowerCase()
+        .replace(/\s+/g, '-')
+        .replace(/[^\w-]/g, '')
+
+      // 处理重复 ID
+      const count = idMap.get(baseId) || 0
+      const id = count === 0 ? baseId : `${baseId}-${count}`
+      idMap.set(baseId, count + 1)
+
+      toc.push({ id, text: rawText, level })
+    }
+  }
+
+  return toc
+}
+
+/**
+ * Markdown 大纲侧边栏组件
+ */
+function TocSidebar({ content }: { content: string }) {
+  const toc = useMemo(() => extractToc(content), [content])
+  const [activeId, setActiveId] = useState<string>('')
+
+  // 点击大纲项滚动到对应标题
+  const scrollToHeading = (id: string) => {
+    const el = document.getElementById(id)
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      setActiveId(id)
+    }
+  }
+
+  // 监听滚动，高亮当前可见的标题
+  useEffect(() => {
+    const container = document.querySelector('.markdown-body')?.parentElement
+    if (!container) return
+
+    const handleScroll = () => {
+      const headings = container.querySelectorAll('h1, h2, h3, h4, h5, h6')
+      let currentId = ''
+
+      for (const heading of headings) {
+        const rect = heading.getBoundingClientRect()
+        if (rect.top <= 80) {
+          currentId = heading.id
+        }
+      }
+
+      if (currentId) {
+        setActiveId(currentId)
+      }
+    }
+
+    container.addEventListener('scroll', handleScroll)
+    return () => container.removeEventListener('scroll', handleScroll)
+  }, [])
+
+  if (toc.length === 0) return null
+
+  return (
+    <div className="w-48 flex-shrink-0 border-l border-border bg-bg-secondary overflow-y-auto">
+      <div className="p-3">
+        <div className="text-xs font-medium text-text-muted mb-2">大纲</div>
+        <nav className="space-y-0.5">
+          {toc.map(item => (
+            <button
+              key={item.id}
+              onClick={() => scrollToHeading(item.id)}
+              className={`block w-full text-left text-xs py-1 px-2 rounded transition-colors truncate ${
+                activeId === item.id
+                  ? 'bg-accent-blue/20 text-accent-blue font-medium'
+                  : 'text-text-muted hover:text-text-secondary hover:bg-bg-hover'
+              }`}
+              style={{ paddingLeft: `${(item.level - 1) * 8 + 8}px` }}
+              title={item.text}
+            >
+              {item.text}
+            </button>
+          ))}
+        </nav>
+      </div>
+    </div>
+  )
 }
 
 export default function CodeViewer({ tabId }: CodeViewerProps) {
@@ -193,9 +330,9 @@ export default function CodeViewer({ tabId }: CodeViewerProps) {
   // ── Monaco Editor ────────────────────────────────────
   return (
     <div className="h-full flex flex-col" onKeyDown={handleKeyDown}>
-      {/* 工具栏：Markdown 文件显示预览切换按钮 */}
-      {isMd && (
-        <div className="flex items-center gap-1 px-2 py-1 border-b border-border bg-bg-primary">
+      {/* 工具栏：Markdown 文件显示预览切换按钮 + AI 上下文注入 */}
+      <div className="flex items-center gap-1 px-2 py-1 border-b border-border bg-bg-primary">
+        {isMd && (
           <button
             onClick={() => setIsPreview(v => !v)}
             className={`flex items-center gap-1 px-2 py-1 rounded text-xs transition-colors ${
@@ -208,25 +345,66 @@ export default function CodeViewer({ tabId }: CodeViewerProps) {
             {isPreview ? <Pencil className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
             {isPreview ? '编辑' : '预览'}
           </button>
-        </div>
-      )}
+        )}
+        <div className="flex-1" />
+        <button
+          onClick={async () => {
+            if (!tab) return
+            const result = await window.spectrAI?.codeContext?.getModes()
+            if (result?.success && result.modes) {
+              const modeNames = result.modes.map((m: any) => `${m.id}: ${m.name}`).join('\n')
+              const selected = prompt(`选择注入模式:\n${modeNames}\n\n输入模式 ID:`)
+              if (selected) {
+                const activeSessionId = (window as any).__activeSessionId || ''
+                if (!activeSessionId) {
+                  alert('请先选择一个活跃会话')
+                  return
+                }
+                const injectResult = await window.spectrAI?.codeContext?.inject({
+                  sessionId: activeSessionId,
+                  mode: selected.trim(),
+                  code: tab.content,
+                  fileName: tab.path?.split('/').pop() || '',
+                  language: tab.language || '',
+                  filePath: tab.path || '',
+                })
+                if (injectResult?.success) {
+                  alert('代码上下文已注入到当前会话')
+                }
+              }
+            }
+          }}
+          className="flex items-center gap-1 px-2 py-1 rounded text-xs text-text-muted hover:text-accent-purple hover:bg-accent-purple/10 transition-colors"
+          title="将当前文件注入到 AI 会话上下文"
+        >
+          <Sparkles className="w-3 h-3" />
+          AI 注入
+        </button>
+      </div>
 
       {/* 内容区域 */}
-      <div className="flex-1 min-h-0 overflow-auto">
+      <div className="flex-1 min-h-0 flex">
         {isMd && isPreview ? (
-          /* Markdown 预览 */
-          <div className="markdown-body text-[13px] leading-relaxed px-6 py-4">
-            <Markdown
-              remarkPlugins={[remarkGfm]}
-              rehypePlugins={[rehypeHighlight]}
-              components={mdComponents}
-            >
-              {normalizeMdTables(tab.content)}
-            </Markdown>
-          </div>
+          <>
+            {/* Markdown 预览 */}
+            <div className="flex-1 min-w-0 overflow-auto">
+              <div className="markdown-body text-[13px] leading-relaxed px-6 py-4">
+                <Markdown
+                  remarkPlugins={[remarkGfm]}
+                  rehypePlugins={[rehypeHighlight]}
+                  components={mdComponents}
+                >
+                  {normalizeMdTables(tab.content)}
+                </Markdown>
+              </div>
+            </div>
+
+            {/* 大纲侧边栏 */}
+            <TocSidebar content={tab.content} />
+          </>
         ) : (
           /* Monaco Editor */
-          <div className="h-full">
+          <div className="flex-1 min-h-0">
             <Editor
               height="100%"
               language={tab.language}

@@ -362,6 +362,68 @@ export interface SpectrAIAPI {
     onRunStatus: (callback: (status: any) => void) => () => void
   }
 
+  // 会话级工作记忆
+  workingContext: {
+    get: (sessionId: string) => Promise<any>
+    updateTask: (sessionId: string, task: string) => Promise<any>
+    addProblem: (sessionId: string, content: string) => Promise<any>
+    resolveProblem: (sessionId: string, problemId: string) => Promise<any>
+    addDecision: (sessionId: string, content: string) => Promise<any>
+    addTodo: (sessionId: string, content: string) => Promise<any>
+    resolveTodo: (sessionId: string, todoId: string) => Promise<any>
+    addSnippet: (sessionId: string, snippet: any) => Promise<any>
+    removeItem: (sessionId: string, category: string, itemId: string) => Promise<any>
+    createSnapshot: (sessionId: string, trigger?: string) => Promise<any>
+    getPrompt: (sessionId: string) => Promise<any>
+    onStatus: (callback: (status: any) => void) => () => void
+  }
+
+  // 漂移检测护栏
+  driftGuard: {
+    start: (sessionId: string, goalId: string) => Promise<any>
+    stop: (sessionId: string) => Promise<any>
+    getState: (sessionId: string) => Promise<any>
+    resume: (sessionId: string) => Promise<any>
+    getPrompt: (sessionId: string) => Promise<any>
+    updateConfig: (updates: any) => Promise<any>
+    getConfig: () => Promise<any>
+    onStatus: (callback: (status: any) => void) => () => void
+  }
+
+  // 跨会话语义记忆
+  crossMemory: {
+    search: (query: string, limit?: number) => Promise<any>
+    list: (limit?: number) => Promise<any>
+    index: (sessionId: string, sessionName: string, summary: string, keyPoints: string) => Promise<any>
+    delete: (id: string) => Promise<any>
+    getPrompt: (sessionGoal: string) => Promise<any>
+    getStats: () => Promise<any>
+    updateConfig: (updates: any) => Promise<any>
+  }
+
+  // 会话模板
+  sessionTemplate: {
+    list: (category?: string) => Promise<any>
+    get: (id: string) => Promise<any>
+    create: (data: any) => Promise<any>
+    update: (id: string, updates: any) => Promise<any>
+    delete: (id: string) => Promise<any>
+    getCategories: () => Promise<any>
+    onStatus: (callback: (status: any) => void) => () => void
+  }
+
+  // 代码上下文注入
+  codeContext: {
+    inject: (request: any) => Promise<any>
+    getModes: () => Promise<any>
+  }
+
+  // OpenAI Compatible Provider
+  openAICompat: {
+    test: (config: any) => Promise<any>
+    create: (config: any) => Promise<any>
+  }
+
 }
 
 declare global {
