@@ -563,6 +563,8 @@ if (!ctxBr) {
     getSources: () => ipcRenderer.invoke(IPC.REGISTRY_GET_SOURCES),
     fetchSkillsFromSource: (sourceId: string, forceRefresh?: boolean) =>
       ipcRenderer.invoke(IPC.REGISTRY_FETCH_SKILLS_FROM_SOURCE, sourceId, forceRefresh),
+    fetchTrending: (platform?: string) =>
+      ipcRenderer.invoke(IPC.REGISTRY_FETCH_TRENDING, platform),
   },
 
   // ==================== Agent Teams API ====================

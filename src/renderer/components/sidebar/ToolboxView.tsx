@@ -9,7 +9,7 @@
 import { useState, useEffect } from 'react'
 import {
   ArrowLeft, Plug, Zap, Layers, Sparkles, Clock,
-  FileText, Brain, Workflow, Target, BarChart2, Wrench,
+  FileText, Brain, Workflow, Target, BarChart2, Wrench, Flame,
 } from 'lucide-react'
 import { useUIStore } from '../../stores/uiStore'
 import { useMcpStore } from '../../stores/mcpStore'
@@ -29,6 +29,7 @@ interface FeatureDef {
 const FEATURES: FeatureDef[] = [
   { id: 'mcp',              label: 'MCP 工具',    description: '管理和配置 MCP 服务器',    icon: Plug,     color: 'text-accent-blue' },
   { id: 'skills',           label: '技能库',      description: '浏览和启用技能模板',       icon: Zap,      color: 'text-accent-purple' },
+  { id: 'trending',         label: '热门项目',     description: '发现热门 AI 开源项目',     icon: Flame,    color: 'text-orange-400' },
   { id: 'workspace',        label: '工作区',      description: '管理工作区和代码仓库',      icon: Layers,   color: 'text-accent-green' },
   { id: 'prompt-optimizer', label: '提示词优化',   description: 'AI 驱动的提示词工程',      icon: Sparkles, color: 'text-accent-yellow' },
   { id: 'scheduler',        label: '定时任务',     description: '调度定时执行任务',         icon: Clock,    color: 'text-accent-blue' },
@@ -51,11 +52,13 @@ import PlannerSettings from '../settings/PlannerSettings'
 import WorkflowSettings from '../settings/WorkflowSettings'
 import EvaluationSettings from '../settings/EvaluationSettings'
 import GoalSettings from '../settings/GoalSettings'
+import TrendingView from './TrendingView'
 
 function FeatureComponent({ featureId }: { featureId: string }) {
   switch (featureId) {
     case 'mcp':              return <McpManager />
     case 'skills':           return <SkillManager />
+    case 'trending':         return <TrendingView />
     case 'workspace':        return <WorkspaceTab />
     case 'prompt-optimizer': return <PromptOptimizer />
     case 'scheduler':        return <SchedulerSettings />
@@ -170,13 +173,16 @@ export default function ToolboxView() {
   const activePanelLeft = useUIStore(s => s.activePanelLeft)
   const [localFeature, setLocalFeature] = useState<string | null>(null)
 
-  // 当从 ActivityBar 点击 mcp/skills 时，自动跳转到对应功能
+  // 当从 ActivityBar 点击 mcp/skills/trending 时，自动跳转到对应功能
   useEffect(() => {
     if (activePanelLeft === 'mcp') {
       setLocalFeature('mcp')
       setToolboxFeature(null)
     } else if (activePanelLeft === 'skills') {
       setLocalFeature('skills')
+      setToolboxFeature(null)
+    } else if (activePanelLeft === 'trending') {
+      setLocalFeature('trending')
       setToolboxFeature(null)
     }
   }, [activePanelLeft])

@@ -35,7 +35,7 @@ export default function AppLayout() {
 
   // 工具箱功能 Tab → 路由到工具箱面板
   const TOOLBOX_FEATURES = new Set([
-    'mcp', 'skills', 'workspace', 'scheduler', 'summary',
+    'mcp', 'skills', 'trending', 'workspace', 'scheduler', 'summary',
     'planner', 'workflow', 'evaluation', 'goal', 'prompt-optimizer',
   ])
 

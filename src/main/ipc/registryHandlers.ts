@@ -665,12 +665,131 @@ const BUILTIN_MARKET_SKILLS = [
   },
 ]
 
+// ── GitHub 热门 AI 项目 ──
+const GITHUB_AI_TOPICS = ['ai', 'chatgpt', 'claude', 'llm', 'prompt-engineering', 'copilot', 'ai-agent']
+
+interface TrendingRepo {
+  id: string
+  name: string
+  fullName: string
+  description: string
+  url: string
+  stars: number
+  language: string
+  topics: string[]
+  updatedAt: string
+  platform: 'github' | 'gitee'
+}
+
+async function fetchGithubTrending(): Promise<TrendingRepo[]> {
+  // 通过 GitHub Search API 搜索热门 AI 仓库
+  const results: TrendingRepo[] = []
+  const seen = new Set<string>()
+
+  // 分批请求不同 topic，合并去重
+  const queries = [
+    'ai+language:typescript',
+    'chatgpt+language:python',
+    'llm+language:python',
+    'prompt-engineering',
+    'ai-agent+language:typescript',
+    'claude+language:typescript',
+    'copilot+language:typescript',
+  ]
+
+  // 只发 3 个请求避免 rate limit
+  for (const q of queries.slice(0, 3)) {
+    try {
+      const url = `https://api.github.com/search/repositories?q=${q}&sort=stars&order=desc&per_page=15`
+      const res = await fetch(url, {
+        signal: AbortSignal.timeout(10000),
+        headers: { 'Accept': 'application/vnd.github.v3+json' },
+      })
+      if (!res.ok) continue
+      const data = await res.json() as { items: any[] }
+      for (const repo of (data.items || [])) {
+        if (seen.has(repo.full_name)) continue
+        seen.add(repo.full_name)
+        results.push({
+          id: `github-${repo.id}`,
+          name: repo.name,
+          fullName: repo.full_name,
+          description: repo.description || '',
+          url: repo.html_url,
+          stars: repo.stargazers_count || 0,
+          language: repo.language || '',
+          topics: repo.topics || [],
+          updatedAt: repo.updated_at || '',
+          platform: 'github',
+        })
+      }
+    } catch {
+      // 跳过失败的请求
+    }
+  }
+
+  // 按 stars 排序，取 top 30
+  return results.sort((a, b) => b.stars - a.stars).slice(0, 30)
+}
+
+async function fetchGiteeTrending(): Promise<TrendingRepo[]> {
+  // Gitee 搜索 API
+  const results: TrendingRepo[] = []
+  const seen = new Set<string>()
+
+  const queries = ['AI', 'ChatGPT', 'LLM', '大模型', 'AI Agent']
+
+  for (const q of queries.slice(0, 3)) {
+    try {
+      const url = `https://gitee.com/api/v5/search/repositories?q=${encodeURIComponent(q)}&sort=stars_count&order=desc&page=1&per_page=15`
+      const res = await fetch(url, { signal: AbortSignal.timeout(10000) })
+      if (!res.ok) continue
+      const data = await res.json() as { items?: any[]; data?: any[] }
+      const repos = data.items || data.data || []
+      for (const repo of repos) {
+        const fullName = repo.full_name || `${repo.namespace?.path || ''}/${repo.name}`
+        if (seen.has(fullName)) continue
+        seen.add(fullName)
+        results.push({
+          id: `gitee-${repo.id}`,
+          name: repo.name || repo.path,
+          fullName,
+          description: repo.description || '',
+          url: repo.html_url || repo.url || `https://gitee.com/${fullName}`,
+          stars: repo.stars_count || repo.stargazers_count || 0,
+          language: repo.language || '',
+          topics: [],
+          updatedAt: repo.updated_at || '',
+          platform: 'gitee',
+        })
+      }
+    } catch {
+      // 跳过失败的请求
+    }
+  }
+
+  return results.sort((a, b) => b.stars - a.stars).slice(0, 30)
+}
+
 export function registerRegistryHandlers(deps: IpcDependencies): void {
   const { database } = deps
 
   // ── 获取 Registry 数据源列表 ──
   ipcMain.handle(IPC.REGISTRY_GET_SOURCES, () => {
     return REGISTRY_SOURCES
+  })
+
+  // ── 获取 GitHub / Gitee 热门 AI 项目 ──
+  ipcMain.handle(IPC.REGISTRY_FETCH_TRENDING, async (_event, platform: string = 'github') => {
+    try {
+      if (platform === 'gitee') {
+        return await fetchGiteeTrending()
+      }
+      return await fetchGithubTrending()
+    } catch (err: any) {
+      console.error('[Registry] fetch trending failed:', err.message)
+      return []
+    }
   })
 
   // ── 从指定数据源获取 Skill 列表 ──

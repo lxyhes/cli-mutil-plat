@@ -1074,6 +1074,8 @@ export default function Sidebar() {
       return <ToolboxView />
     case 'toolbox':
       return <ToolboxView />
+    case 'trending':
+      return <ToolboxView />
     case 'team':
       return <TeamSidebarView />
     case 'context':

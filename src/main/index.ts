@@ -237,6 +237,11 @@ function createWindow(): void {
   mainWindow.webContents.once('did-finish-load', ensureStartupVisible)
   startupFallbackTimer = setTimeout(ensureStartupVisible, 2000)
 
+  // ★ 开发模式下自动打开 DevTools
+  if (isDevelopment) {
+    mainWindow.webContents.openDevTools()
+  }
+
   // ★ 开发模式下监听渲染进程的控制台输出
   if (isDevelopment) {
     const levelMap: Record<number, 'debug' | 'log' | 'warn' | 'error'> = {

@@ -11,7 +11,7 @@
  */
 
 import { useState, useEffect } from 'react'
-import { Bot, FolderTree, GitBranch, BarChart2, Settings, Activity, PieChart, Plug, Zap, Users, Wrench, Brain, BookOpen } from 'lucide-react'
+import { Bot, FolderTree, GitBranch, BarChart2, Settings, Activity, PieChart, Plug, Zap, Users, Wrench, Brain, BookOpen, Flame } from 'lucide-react'
 import type { PanelId, PanelSide } from '../../stores/uiStore'
 import { useUIStore } from '../../stores/uiStore'
 
@@ -32,6 +32,7 @@ const PANEL_DEFS: {
   { id: 'mcp' as PanelId,    icon: Plug,  label: 'MCP 工具' },
   { id: 'skills' as PanelId, icon: Zap,   label: '技能库' },
   { id: 'toolbox' as PanelId, icon: Wrench, label: '工具箱' },
+  { id: 'trending' as PanelId, icon: Flame, label: '热门项目' },
   { id: 'context' as PanelId, icon: Brain, label: '工作记忆' },
   { id: 'memory' as PanelId,  icon: BookOpen, label: '跨会话记忆' },
 ]

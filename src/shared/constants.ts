@@ -232,6 +232,7 @@ export const IPC = {
   REGISTRY_FORCE_REFRESH: 'registry:force-refresh',
   REGISTRY_GET_SOURCES: 'registry:get-sources',
   REGISTRY_FETCH_SKILLS_FROM_SOURCE: 'registry:fetch-skills-from-source',
+  REGISTRY_FETCH_TRENDING: 'registry:fetch-trending',
   SKILL_IMPORT_URL: 'skill:import-url',
   /** 主进程通知渲染进程：有新 Skill 通过 MCP 安装，需要刷新列表 */
   SKILL_INSTALLED_NOTIFY: 'skill:installed-notify',

@@ -9,7 +9,7 @@ import type { ViewMode, LayoutMode, PaneContent } from '../../shared/types'
 import { THEMES, THEME_IDS, DEFAULT_THEME_ID } from '../../shared/constants'
 
 /** 统一面板 ID（左侧边栏和右侧面板均使用此类型） */
-export type PanelId = 'sessions' | 'explorer' | 'git' | 'dashboard' | 'team' | 'timeline' | 'stats' | 'mcp' | 'skills' | 'toolbox' | 'context' | 'memory'
+export type PanelId = 'sessions' | 'explorer' | 'git' | 'dashboard' | 'team' | 'timeline' | 'stats' | 'mcp' | 'skills' | 'toolbox' | 'trending' | 'context' | 'memory'
 
 /** 面板所在侧 */
 export type PanelSide = 'left' | 'right'
@@ -19,7 +19,7 @@ export type ActivityType = PanelId
 export type RightPanelView = PanelId
 
 /** 所有面板 ID（用于校验） */
-const ALL_PANEL_IDS: PanelId[] = ['sessions', 'explorer', 'git', 'dashboard', 'team', 'timeline', 'stats', 'mcp', 'skills', 'toolbox', 'context', 'memory']
+const ALL_PANEL_IDS: PanelId[] = ['sessions', 'explorer', 'git', 'dashboard', 'team', 'timeline', 'stats', 'mcp', 'skills', 'toolbox', 'trending', 'context', 'memory']
 
 /** 默认面板分配（left = 左侧边栏，right = 右侧面板） */
 const DEFAULT_PANEL_SIDES: Record<PanelId, PanelSide> = {
@@ -33,6 +33,7 @@ const DEFAULT_PANEL_SIDES: Record<PanelId, PanelSide> = {
   mcp:       'left',
   skills:    'left',
   toolbox:   'left',
+  trending:  'left',
   context:   'right',
   memory:    'right',
 }
