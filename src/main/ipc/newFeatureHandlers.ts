@@ -65,16 +65,16 @@ export function registerNewFeatureHandlers(deps: NewFeatureDeps): void {
   // ── 3. Project Knowledge ──
   if (deps.projectKnowledgeService) {
     const kb = deps.projectKnowledgeService
-    ipcMain.handle(IPC.PROJECT_KB_CREATE, (_, p) => kb.createEntry(p))
-    ipcMain.handle(IPC.PROJECT_KB_GET, (_, id) => kb.get(id))
-    ipcMain.handle(IPC.PROJECT_KB_UPDATE, (_, id, updates) => kb.update(id, updates))
-    ipcMain.handle(IPC.PROJECT_KB_DELETE, (_, id) => kb.delete(id))
-    ipcMain.handle(IPC.PROJECT_KB_LIST, (_, path) => kb.list(path))
-    ipcMain.handle(IPC.PROJECT_KB_ADD_ENTRY, (_, p) => kb.createEntry(p))
-    ipcMain.handle(IPC.PROJECT_KB_REMOVE_ENTRY, (_, id) => kb.delete(id))
-    ipcMain.handle(IPC.PROJECT_KB_SEARCH, (_, path, q, limit?) => kb.search(path, q, limit))
-    ipcMain.handle(IPC.PROJECT_KB_GET_PROMPT, (_, path) => kb.getPrompt(path))
-    ipcMain.handle(IPC.PROJECT_KB_AUTO_EXTRACT, (_, path) => kb.autoExtract(path))
+    ipcMain.handle(IPC.PROJECT_KB_CREATE, async (_, p) => kb.createEntry(p))
+    ipcMain.handle(IPC.PROJECT_KB_GET, async (_, id) => kb.get(id))
+    ipcMain.handle(IPC.PROJECT_KB_UPDATE, async (_, id, updates) => kb.update(id, updates))
+    ipcMain.handle(IPC.PROJECT_KB_DELETE, async (_, id) => kb.delete(id))
+    ipcMain.handle(IPC.PROJECT_KB_LIST, async (_, path) => kb.list(path))
+    ipcMain.handle(IPC.PROJECT_KB_ADD_ENTRY, async (_, p) => kb.createEntry(p))
+    ipcMain.handle(IPC.PROJECT_KB_REMOVE_ENTRY, async (_, id) => kb.delete(id))
+    ipcMain.handle(IPC.PROJECT_KB_SEARCH, async (_, path, q, limit?) => kb.search(path, q, limit))
+    ipcMain.handle(IPC.PROJECT_KB_GET_PROMPT, async (_, path) => kb.getPrompt(path))
+    ipcMain.handle(IPC.PROJECT_KB_AUTO_EXTRACT, async (_, path) => kb.autoExtract(path))
   }
 
   // ── 4. Code Review ──
