@@ -334,7 +334,7 @@ function buildResumeBootstrapPrompt(summaries: any[], messages: any[]): string |
   return prompt
 }
 
-// 防止前端连点“创建”造成重复会话（同参数请求共享同一 Promise）
+// 防止前端连点"创建"造成重复会话（同参数请求共享同一 Promise）
 const createSessionInFlight = new Map<string, Promise<any>>()
 
 function buildCreateSessionDedupeKey(config: SessionConfig): string {
@@ -640,8 +640,9 @@ export function registerSessionHandlers(deps: IpcDependencies): void {
       concurrencyGuard.registerSession()
       database.recordDirectoryUsage(config.workingDirectory)
 
-      // 等待会话脱离 starting（可交互/失败）再返回，减少“创建成功但仍假性处理中”的体验问题
-      const readyTimeoutMs = provider.id === 'codex' ? 12000 : 6000
+      // 等待会话脱离 starting（可交互/失败）再返回，减少"创建成功但仍假性处理中"的体验问题
+      // ★ iFlow session/new 需初始化 MCP servers，实测需 ~60s，超时需覆盖
+      const readyTimeoutMs = provider.id === 'codex' ? 12000 : provider.id === 'iflow' ? 90000 : 6000
       const readyInfo = await smV2.waitForSessionReady(sessionId, readyTimeoutMs)
 
       if (readyInfo.status === 'error') {
@@ -1100,7 +1101,7 @@ export function registerSessionHandlers(deps: IpcDependencies): void {
         concurrencyGuard.registerSession();
         database.recordDirectoryUsage(resumeConfig.workingDirectory);
 
-        const readyTimeoutMs = provider.id === 'codex' ? 12000 : 6000;
+        const readyTimeoutMs = provider.id === 'codex' ? 12000 : provider.id === 'iflow' ? 90000 : 6000;
         await smV2.waitForSessionReady(newSessionId, readyTimeoutMs);
 
         console.warn(`[IPC] ${provider.name} does not support native resume; created continuation session ${newSessionId} from ${oldSessionId}`);
