@@ -11,7 +11,7 @@
  */
 
 import { useState, useEffect } from 'react'
-import { Bot, FolderTree, GitBranch, BarChart2, Settings, Activity, PieChart, Plug, Zap, Users, Wrench, Brain, BookOpen, Flame, History, DollarSign, BookMarked, ShieldCheck, Swords, Video, Trophy, Gauge } from 'lucide-react'
+import { Bot, FolderTree, GitBranch, BarChart2, Settings, Activity, PieChart, Plug, Zap, Users, Wrench, Brain, BookOpen, Flame, History, DollarSign, BookMarked, ShieldCheck, Swords, Video, Trophy, Gauge, Calendar } from 'lucide-react'
 import type { PanelId, PanelSide } from '../../stores/uiStore'
 import { useUIStore } from '../../stores/uiStore'
 
@@ -43,6 +43,7 @@ const PANEL_DEFS: {
   { id: 'replay' as PanelId,    icon: Video, label: '会话录像' },
   { id: 'arena' as PanelId,     icon: Trophy, label: '技能竞技场' },
   { id: 'context-budget' as PanelId, icon: Gauge, label: '上下文预算' },
+  { id: 'daily-report' as PanelId, icon: Calendar, label: '每日 AI 日报' },
 ]
 
 // ─────────────────────────────────────────────────────────────────────────────

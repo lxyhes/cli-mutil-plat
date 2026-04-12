@@ -135,11 +135,12 @@ export function registerNewFeatureHandlers(deps: NewFeatureDeps): void {
   // ── 8. Daily Report ──
   if (deps.dailyReportService) {
     const dr = deps.dailyReportService
-    ipcMain.handle(IPC.DAILY_REPORT_GENERATE, (_, date?) => dr.generate(date))
-    ipcMain.handle(IPC.DAILY_REPORT_GET, (_, date) => dr.get(date))
-    ipcMain.handle(IPC.DAILY_REPORT_LIST, (_, limit?) => dr.list(limit))
-    ipcMain.handle(IPC.DAILY_REPORT_EXPORT, (_, date) => dr.export(date))
-    ipcMain.handle(IPC.DAILY_REPORT_CONFIG, (_, updates?) => updates ? dr.setConfig(updates) : dr.getConfig())
+    ipcMain.handle(IPC.DAILY_REPORT_GENERATE, async (_, date?) => dr.generate(date))
+    ipcMain.handle(IPC.DAILY_REPORT_GET, async (_, date) => dr.get(date))
+    ipcMain.handle(IPC.DAILY_REPORT_LIST, async (_, limit?) => dr.list(limit))
+    ipcMain.handle(IPC.DAILY_REPORT_EXPORT, async (_, date) => dr.export(date))
+    ipcMain.handle(IPC.DAILY_REPORT_CONFIG, async (_, updates?) => updates ? dr.setConfig(updates) : dr.getConfig())
+    ipcMain.handle(IPC.DAILY_REPORT_DELETE, async (_, date) => dr.delete(date))
   }
 
   // ── 9. Skill Arena ──

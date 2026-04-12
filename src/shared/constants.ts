@@ -490,6 +490,7 @@ export const IPC = {
   DAILY_REPORT_LIST:        'daily-report:list',
   DAILY_REPORT_EXPORT:      'daily-report:export',
   DAILY_REPORT_CONFIG:      'daily-report:config',
+  DAILY_REPORT_DELETE:      'daily-report:delete',
 
   // 9. AI 技能竞技场 (Skill Arena)
   SKILL_ARENA_LIST:         'skill-arena:list',

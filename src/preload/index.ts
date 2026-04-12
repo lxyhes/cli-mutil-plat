@@ -1039,6 +1039,7 @@ if (!ctxBr) {
     list: (limit?: number) => ipcRenderer.invoke(IPC.DAILY_REPORT_LIST, limit),
     export: (date: string) => ipcRenderer.invoke(IPC.DAILY_REPORT_EXPORT, date),
     config: (updates?: any) => ipcRenderer.invoke(IPC.DAILY_REPORT_CONFIG, updates),
+    delete: (date: string) => ipcRenderer.invoke(IPC.DAILY_REPORT_DELETE, date),
   },
 
   // ==================== Skill Arena API ====================

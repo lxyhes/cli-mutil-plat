@@ -16,6 +16,7 @@ import ToolboxView from '../sidebar/ToolboxView'
 import WorkingContextView from '../sidebar/WorkingContextView'
 import CrossMemoryView from '../sidebar/CrossMemoryView'
 import GitPanel from '../panels/GitPanel'
+import DailyReportView from '../sidebar/DailyReportView'
 
 
 export default function DetailPanel() {
@@ -36,6 +37,7 @@ export default function DetailPanel() {
       case 'toolbox':   return <ToolboxView />
       case 'context':   return <WorkingContextView />
       case 'memory':    return <CrossMemoryView />
+      case 'daily-report': return <DailyReportView />
       default:          return <TimelinePanel />
     }
   }
