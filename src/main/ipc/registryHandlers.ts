@@ -11,6 +11,7 @@ import type { IpcDependencies } from './index'
 import { createErrorResponse, createSuccessResponse } from '../../shared/errors'
 
 const DEFAULT_REGISTRY_URL = 'https://raw.githubusercontent.com/spectrai/registry/main/registry.json'
+const MIRROR_REGISTRY_URL = 'https://cdn.jsdelivr.net/gh/spectrai/registry@main/registry.json'
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000  // 24 小时
 
 // ── 多技能市场数据源 ──
@@ -28,7 +29,7 @@ const REGISTRY_SOURCES: RegistrySource[] = [
     id: 'spectrai-official',
     name: 'SpectrAI 官方',
     description: 'SpectrAI 官方维护的技能市场',
-    url: 'https://raw.githubusercontent.com/spectrai/registry/main/registry.json',
+    url: 'https://cdn.jsdelivr.net/gh/spectrai/registry@main/registry.json',
     icon: '⚡',
     official: true,
   },
@@ -36,38 +37,136 @@ const REGISTRY_SOURCES: RegistrySource[] = [
     id: 'awesome-claude-commands',
     name: 'Awesome Claude Commands',
     description: '社区精选 Claude Code 命令集合',
-    url: 'https://raw.githubusercontent.com/spectrai/registry/main/community/awesome-claude.json',
+    url: 'https://cdn.jsdelivr.net/gh/spectrai/registry@main/community/awesome-claude.json',
     icon: '🌟',
   },
   {
     id: 'awesome-codex-prompts',
     name: 'Awesome Codex Prompts',
     description: 'Codex CLI 社区精选 Prompt 集合',
-    url: 'https://raw.githubusercontent.com/spectrai/registry/main/community/awesome-codex.json',
+    url: 'https://cdn.jsdelivr.net/gh/spectrai/registry@main/community/awesome-codex.json',
     icon: '🤖',
   },
   {
     id: 'prompt-engineering',
     name: 'Prompt Engineering Hub',
     description: '高质量 Prompt 工程模板集合',
-    url: 'https://raw.githubusercontent.com/spectrai/registry/main/community/prompt-engineering.json',
+    url: 'https://cdn.jsdelivr.net/gh/spectrai/registry@main/community/prompt-engineering.json',
     icon: '🧠',
   },
   {
     id: 'devops-automation',
     name: 'DevOps 自动化',
     description: 'DevOps / SRE 自动化技能集合',
-    url: 'https://raw.githubusercontent.com/spectrai/registry/main/community/devops-automation.json',
+    url: 'https://cdn.jsdelivr.net/gh/spectrai/registry@main/community/devops-automation.json',
     icon: '🔧',
   },
   {
     id: 'data-analysis',
     name: '数据分析助手',
     description: '数据分析、可视化、SQL 技能集合',
-    url: 'https://raw.githubusercontent.com/spectrai/registry/main/community/data-analysis.json',
+    url: 'https://cdn.jsdelivr.net/gh/spectrai/registry@main/community/data-analysis.json',
     icon: '📊',
   },
+  // ── 国内可访问的社区源 ──
+  {
+    id: 'awesome-chatgpt-prompts-zh',
+    name: '中文 Prompt 精选',
+    description: '中文 ChatGPT/Prompt 工程精选合集，覆盖写作、编程、翻译等场景',
+    url: 'https://cdn.jsdelivr.net/gh/PlexPt/awesome-chatgpt-prompts-zh@main/prompts.json',
+    icon: '🇨🇳',
+  },
+  {
+    id: 'awesome-ai-prompts',
+    name: 'AI Prompt 百宝箱',
+    description: '多场景 AI Prompt 模板库，含角色扮演、创意写作、技术分析等',
+    url: 'https://cdn.jsdelivr.net/gh/f/awesome-chatgpt-prompts@main/prompts.csv',
+    icon: '💡',
+  },
+  {
+    id: 'claude-prompt-catalog',
+    name: 'Claude Prompt 百科',
+    description: 'Claude 专属 Prompt 目录，含代码生成、文本分析、知识问答等',
+    url: 'https://cdn.jsdelivr.net/gh/spectrai/registry@main/community/claude-prompts.json',
+    icon: '🎯',
+  },
+  {
+    id: 'chinese-dev-tools',
+    name: '中文开发工具箱',
+    description: '面向中文开发者的代码生成、文档注释、API 设计、代码审查技能',
+    url: 'https://cdn.jsdelivr.net/gh/spectrai/registry@main/community/chinese-dev-tools.json',
+    icon: '🛠️',
+  },
+  {
+    id: 'chinese-writing',
+    name: '中文写作助手',
+    description: '公文写作、文案策划、论文润色、翻译校对等中文写作技能',
+    url: 'https://cdn.jsdelivr.net/gh/spectrai/registry@main/community/chinese-writing.json',
+    icon: '✍️',
+  },
+  {
+    id: 'ai-programming',
+    name: 'AI 编程助手',
+    description: '代码补全、Bug 修复、重构建议、单元测试生成等编程技能',
+    url: 'https://cdn.jsdelivr.net/gh/spectrai/registry@main/community/ai-programming.json',
+    icon: '💻',
+  },
+  {
+    id: 'business-analysis',
+    name: '商业分析',
+    description: '竞品分析、市场调研、商业模式画布、SWOT 分析等商业技能',
+    url: 'https://cdn.jsdelivr.net/gh/spectrai/registry@main/community/business-analysis.json',
+    icon: '📈',
+  },
 ]
+
+/** 将 CSV 格式的 Prompt 列表转换为 MarketSkillItem 格式 */
+function parseCsvToSkills(csvText: string, sourceId: string): any[] {
+  const lines = csvText.trim().split('\n')
+  if (lines.length < 2) return []
+
+  const headers = lines[0].split(',').map(h => h.trim().toLowerCase().replace(/"/g, ''))
+  const nameIdx = headers.findIndex(h => h.includes('name') || h.includes('title') || h.includes('act'))
+  const promptIdx = headers.findIndex(h => h.includes('prompt') || h.includes('content') || h.includes('template'))
+  const descIdx = headers.findIndex(h => h.includes('desc'))
+
+  if (nameIdx === -1 && promptIdx === -1) return []
+
+  const skills: any[] = []
+  for (let i = 1; i < lines.length; i++) {
+    const cols: string[] = []
+    let current = ''
+    let inQuotes = false
+    for (const ch of lines[i]) {
+      if (ch === '"') { inQuotes = !inQuotes; continue }
+      if (ch === ',' && !inQuotes) { cols.push(current.trim()); current = ''; continue }
+      current += ch
+    }
+    cols.push(current.trim())
+
+    const name = nameIdx !== -1 ? cols[nameIdx] : ''
+    const prompt = promptIdx !== -1 ? cols[promptIdx] : ''
+    const desc = descIdx !== -1 ? cols[descIdx] : prompt?.slice(0, 100)
+
+    if (!name && !prompt) continue
+
+    skills.push({
+      id: `${sourceId}-${i}`,
+      name: name || `Prompt ${i}`,
+      description: desc || '',
+      category: 'general',
+      type: 'prompt',
+      slashCommand: (name || `prompt-${i}`).toLowerCase().replace(/[^a-z0-9\u4e00-\u9fff]+/g, '-').slice(0, 30),
+      compatibleProviders: 'all',
+      author: 'Community',
+      version: '1.0.0',
+      tags: ['community', 'prompt'],
+      promptTemplate: prompt || '',
+      sourceId,
+    })
+  }
+  return skills
+}
 
 // ── 内置默认技能列表（离线 fallback / 首次使用时展示）──
 const BUILTIN_MARKET_SKILLS = [
@@ -592,10 +691,39 @@ export function registerRegistryHandlers(deps: IpcDependencies): void {
         }
       }
 
-      const res = await fetch(source.url, { signal: AbortSignal.timeout(10000) })
+      // CDN 源失败时回退到 GitHub 原始地址
+      const githubUrl = source.url.replace('cdn.jsdelivr.net/gh/', 'raw.githubusercontent.com/').replace('@main', '/main')
+      let res: Response
+      try {
+        res = await fetch(source.url, { signal: AbortSignal.timeout(10000) })
+      } catch (fetchErr: any) {
+        console.log(`[Registry] source ${sourceId} CDN failed, trying GitHub:`, fetchErr.message)
+        try {
+          res = await fetch(githubUrl, { signal: AbortSignal.timeout(10000) })
+        } catch (fallbackErr: any) {
+          throw new Error(`CDN and GitHub both failed: ${fetchErr.message}`)
+        }
+      }
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
-      const data = await res.json() as { mcps?: any[]; skills?: any[] }
-      const skills = data.skills || []
+
+      // 兼容多种数据格式
+      let skills: any[] = []
+      const contentType = res.headers.get('content-type') || ''
+      const text = await res.text()
+
+      if (contentType.includes('csv') || source.url.endsWith('.csv')) {
+        // CSV 格式解析（awesome-chatgpt-prompts 格式）
+        skills = parseCsvToSkills(text, sourceId)
+      } else {
+        // JSON 格式解析
+        try {
+          const data = JSON.parse(text) as { mcps?: any[]; skills?: any[] }
+          skills = data.skills || (Array.isArray(data) ? data : [])
+        } catch {
+          // 非 JSON 非 CSV，跳过
+          skills = []
+        }
+      }
 
       if (skills.length === 0) {
         // 如果是官方源，fallback 到内置列表
@@ -659,8 +787,20 @@ export function registerRegistryHandlers(deps: IpcDependencies): void {
           if (cached && Array.isArray(cached) && cached.length > 0) return cached
         }
       }
-      const registryUrl = String(settings['registry_url'] || DEFAULT_REGISTRY_URL)
-      const res = await fetch(registryUrl, { signal: AbortSignal.timeout(10000) })
+      // 优先用 CDN 镜像（国内可访问），失败回退 GitHub
+      const registryUrl = String(settings['registry_url'] || MIRROR_REGISTRY_URL)
+      const fallbackUrl = registryUrl.includes('jsdelivr.net') ? DEFAULT_REGISTRY_URL : undefined
+      let res: Response
+      try {
+        res = await fetch(registryUrl, { signal: AbortSignal.timeout(10000) })
+      } catch (fetchErr: any) {
+        if (fallbackUrl) {
+          console.log('[Registry] mirror failed, trying GitHub:', fetchErr.message)
+          res = await fetch(fallbackUrl, { signal: AbortSignal.timeout(10000) })
+        } else {
+          throw fetchErr
+        }
+      }
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       const data = await res.json() as { mcps?: any[]; skills?: any[] }
       const skills = data.skills || []
