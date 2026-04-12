@@ -185,7 +185,7 @@ export default function CheckpointView() {
 
   const handleCreate = async () => {
     if (!activeSessionId || !session) return
-    const workingDir = session.workDir || (session as any).workingDirectory || ''
+    const workingDir = session.config?.workingDirectory || ''
     if (!workingDir) return
     await store.create({
       sessionId: activeSessionId,

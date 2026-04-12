@@ -176,6 +176,7 @@ let crossSessionMemoryService: CrossSessionMemoryService | null = null
 let sessionTemplateService: SessionTemplateService | null = null
 let codeContextInjectionService: CodeContextInjectionService | null = null
 // ★ 新增 10 大功能服务
+let gitWorktreeServiceRef: any = null
 let checkpointService: any = null
 let costService: any = null
 let projectKnowledgeService: any = null
@@ -367,6 +368,7 @@ function initializeManagers(): void {
   agentBridge = new AgentBridge()
   agentBridge.start(63721)
   const gitService = new GitWorktreeService()
+  gitWorktreeServiceRef = gitService
   agentManager = new AgentManager(sessionManager, database, {
     outputParser,
     stateInference,
@@ -976,7 +978,7 @@ app.whenReady().then(() => {
   const { SkillArenaService } = require('./arena/SkillArenaService')
   const { VoiceService } = require('./voice/VoiceService')
 
-  checkpointService = new CheckpointService(database, gitService)
+  checkpointService = new CheckpointService(database, gitWorktreeServiceRef)
   costService = new CostService(database)
   projectKnowledgeService = new ProjectKnowledgeService(database)
   codeReviewService = new CodeReviewService(database)
