@@ -182,13 +182,19 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({ message, isStreaming }) =
     return <ToolUseCard message={message} />
   }
 
-  // system 消息居中
+  // system 消息居中（支持 Markdown 渲染）
   if (role === 'system') {
     return (
       <div className="flex justify-center my-2">
-        <span className="text-xs text-text-muted bg-bg-tertiary px-3 py-1 rounded-full">
-          {content}
-        </span>
+        <div className="text-xs text-text-muted bg-bg-tertiary px-3 py-2 rounded-lg max-w-[85%] markdown-body">
+          <Markdown
+            remarkPlugins={remarkPlugins}
+            rehypePlugins={rehypePlugins}
+            components={markdownComponents}
+          >
+            {content}
+          </Markdown>
+        </div>
       </div>
     )
   }

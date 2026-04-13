@@ -561,12 +561,8 @@ export function registerSessionHandlers(deps: IpcDependencies): void {
       if (config.workingDirectory) {
         try {
           if (providerId === 'claude-code') {
+            // Claude Code 会自动读取 .claude/rules/ 目录，无需追加到 systemPromptAppend（会导致对话历史中出现重复）
             injectFileOpsRule(config.workingDirectory)
-            // 双重保险：通过 systemPromptAppend 注入
-            const fileOpsRule = buildFileOpsPrompt()
-            config.systemPromptAppend = config.systemPromptAppend
-              ? config.systemPromptAppend + '\n\n' + fileOpsRule
-              : fileOpsRule
           } else if (providerId === 'codex') {
             injectFileOpsRuleToAgentsMd(config.workingDirectory)
           } else if (providerId === 'gemini-cli') {
