@@ -451,6 +451,16 @@ export const IPC = {
   PROJECT_KB_EXPORT:        'project-kb:export',
   PROJECT_KB_IMPORT:        'project-kb:import',
 
+  // 3b. 参考项目 (Reference Projects)
+  REFERENCE_SEARCH:           'reference:search',
+  REFERENCE_REPO_TREE:        'reference:repo-tree',
+  REFERENCE_FILE_CONTENT:     'reference:file-content',
+  REFERENCE_SAVE_TO_KB:       'reference:save-to-kb',
+  REFERENCE_SAVE:             'reference:save',
+  REFERENCE_LIST:            'reference:list',
+  REFERENCE_DELETE:           'reference:delete',
+  REFERENCE_SUGGEST:         'reference:suggest',
+
   // 4. AI 代码审查员 (Code Review Copilot)
   CODE_REVIEW_START:        'code-review:start',
   CODE_REVIEW_GET:          'code-review:get',

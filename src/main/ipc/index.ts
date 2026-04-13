@@ -60,6 +60,7 @@ export interface IpcDependencies {
   checkpointService?: any       // CheckpointService（可选）
   costService?: any             // CostService（可选）
   projectKnowledgeService?: any // ProjectKnowledgeService（可选）
+  referenceProjectService?: any // ReferenceProjectService（可选）
   codeReviewService?: any       // CodeReviewService（可选）
   sessionReplayService?: any    // SessionReplayService（可选）
   contextBudgetService?: any    // ContextBudgetService（可选）

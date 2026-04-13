@@ -6,6 +6,7 @@ import { ipcMain } from 'electron'
 import type { CheckpointService } from '../checkpoint/CheckpointService'
 import type { CostService } from '../cost/CostService'
 import type { ProjectKnowledgeService } from '../knowledge/ProjectKnowledgeService'
+import type { ReferenceProjectService } from '../reference/ReferenceProjectService'
 import type { CodeReviewService } from '../review/CodeReviewService'
 import type { SessionReplayService } from '../replay/SessionReplayService'
 import type { ContextBudgetService } from '../context-budget/ContextBudgetService'
@@ -19,6 +20,7 @@ export interface NewFeatureDeps {
   checkpointService?: CheckpointService
   costService?: CostService
   projectKnowledgeService?: ProjectKnowledgeService
+  referenceProjectService?: ReferenceProjectService
   codeReviewService?: CodeReviewService
   sessionReplayService?: SessionReplayService
   contextBudgetService?: ContextBudgetService
@@ -80,6 +82,27 @@ export function registerNewFeatureHandlers(deps: NewFeatureDeps): void {
     ipcMain.handle(IPC.PROJECT_KB_UPDATE_BATCH, async (_, ids, updates) => kb.updateBatch(ids, updates))
     ipcMain.handle(IPC.PROJECT_KB_EXPORT, async (_, path) => kb.exportData(path))
     ipcMain.handle(IPC.PROJECT_KB_IMPORT, async (_, path, data) => kb.importData(path, data))
+  }
+
+  // ── 3b. Reference Projects ──
+  if (deps.referenceProjectService) {
+    const rp = deps.referenceProjectService
+    ipcMain.handle(IPC.REFERENCE_SEARCH, async (_, query, language?) =>
+      rp.searchRepos(query, language))
+    ipcMain.handle(IPC.REFERENCE_REPO_TREE, async (_, owner, repo, branch?) =>
+      rp.getRepoTree(owner, repo, branch))
+    ipcMain.handle(IPC.REFERENCE_FILE_CONTENT, async (_, owner, repo, filePath, branch?) =>
+      rp.getFileContent(owner, repo, filePath, branch))
+    ipcMain.handle(IPC.REFERENCE_SAVE_TO_KB, async (_, params) =>
+      rp.saveToKnowledge(params))
+    ipcMain.handle(IPC.REFERENCE_SAVE, async (_, params) =>
+      rp.saveReference(params))
+    ipcMain.handle(IPC.REFERENCE_LIST, async (_, projectPath) =>
+      rp.listReferences(projectPath))
+    ipcMain.handle(IPC.REFERENCE_DELETE, async (_, id) =>
+      rp.deleteReference(id))
+    ipcMain.handle(IPC.REFERENCE_SUGGEST, async (_, projectPath) =>
+      rp.suggestSimilarProjects(projectPath))
   }
 
   // ── 4. Code Review ──

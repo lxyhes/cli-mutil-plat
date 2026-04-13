@@ -7,9 +7,10 @@ import { useState, useEffect } from 'react'
 import {
   BookMarked, Plus, Search, Trash2, RefreshCw, Sparkles,
   ChevronDown, ChevronRight, Edit3, Check, X, Zap, FileText, Bot, User,
-  CheckSquare, Download, Upload, MessageSquare, PanelRightClose
+  CheckSquare, Download, Upload, MessageSquare, PanelRightClose, Globe
 } from 'lucide-react'
 import { useKnowledgeStore, type KnowledgeEntry } from '../../stores/knowledgeStore'
+import ReferenceProjectPanel from './ReferenceProjectPanel'
 
 const CATEGORIES = [
   { value: 'architecture', label: '架构', color: 'text-accent-blue', bg: 'bg-accent-blue/10' },
@@ -206,6 +207,7 @@ export default function SessionKnowledgePanel({ sessionId, projectPath, onClose 
   const [extractResult, setExtractResult] = useState<{ count: number; extracted: string[] } | null>(null)
   const [showBatchOps, setShowBatchOps] = useState(false)
   const [batchCategory, setBatchCategory] = useState<string>('')
+  const [activeTab, setActiveTab] = useState<'knowledge' | 'reference'>('knowledge')
   const [batchPriority, setBatchPriority] = useState<string>('')
   const [filterCategory, setFilterCategory] = useState<string | null>(null)
 
@@ -328,51 +330,81 @@ export default function SessionKnowledgePanel({ sessionId, projectPath, onClose 
   return (
     <div className="flex flex-col h-full border-l border-border bg-bg-primary">
       {/* Header */}
-      <div className="flex items-center justify-between px-3 py-2.5 border-b border-border bg-bg-secondary">
-        <div className="flex items-center gap-2 text-sm font-medium text-text-primary">
-          <BookMarked className="w-4 h-4 text-accent-purple" />
-          项目知识库
-          {showBatchOps && selectedIds.size > 0 && (
-            <span className="text-xs text-accent-blue">已选 {selectedIds.size}</span>
-          )}
+      <div className="flex flex-col border-b border-border bg-bg-secondary">
+        {/* Title row */}
+        <div className="flex items-center justify-between px-3 py-2">
+          <div className="flex items-center gap-2 text-sm font-medium text-text-primary">
+            <BookMarked className="w-4 h-4 text-accent-purple" />
+            项目知识库
+            {showBatchOps && selectedIds.size > 0 && (
+              <span className="text-xs text-accent-blue">已选 {selectedIds.size}</span>
+            )}
+          </div>
+          <div className="flex items-center gap-1">
+            {/* 批量操作按钮 */}
+            <button onClick={() => setShowBatchOps(!showBatchOps)} title="批量操作"
+              className={`p-1 rounded transition-colors ${showBatchOps ? 'bg-accent-blue/20 text-accent-blue' : 'hover:bg-bg-hover text-text-muted hover:text-accent-blue'}`}>
+              <CheckSquare className="w-3.5 h-3.5" />
+            </button>
+            <button onClick={handleImport} title="导入"
+              className="p-1 rounded hover:bg-bg-hover text-text-muted hover:text-accent-green transition-colors">
+              <Download className="w-3.5 h-3.5" />
+            </button>
+            <button onClick={handleExport} title="导出"
+              className="p-1 rounded hover:bg-bg-hover text-text-muted hover:text-accent-purple transition-colors">
+              <Upload className="w-3.5 h-3.5" />
+            </button>
+            <button onClick={handleAutoExtract} title="从项目文件提取知识" disabled={extracting}
+              className="p-1 rounded hover:bg-bg-hover text-text-muted hover:text-accent-blue transition-colors disabled:opacity-50">
+              <Sparkles className={`w-3.5 h-3.5 ${extracting ? 'animate-pulse' : ''}`} />
+            </button>
+            <button onClick={handleExtractFromSession} title="从当前会话提取知识" disabled={extractingSession}
+              className="p-1 rounded hover:bg-bg-hover text-text-muted hover:text-accent-purple transition-colors disabled:opacity-50">
+              <MessageSquare className={`w-3.5 h-3.5 ${extractingSession ? 'animate-pulse' : ''}`} />
+            </button>
+            <button onClick={() => setShowAdd(!showAdd)} title="添加知识"
+              className="p-1 rounded hover:bg-bg-hover text-text-muted hover:text-accent-green transition-colors">
+              <Plus className="w-3.5 h-3.5" />
+            </button>
+            <button onClick={() => store.fetchList(projectPath)} title="刷新"
+              className="p-1 rounded hover:bg-bg-hover text-text-muted hover:text-text-primary transition-colors">
+              <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+            </button>
+            <button onClick={onClose} title="关闭知识库"
+              className="p-1 rounded hover:bg-bg-hover text-text-muted hover:text-text-primary transition-colors">
+              <PanelRightClose className="w-3.5 h-3.5" />
+            </button>
+          </div>
         </div>
-        <div className="flex items-center gap-1">
-          {/* 批量操作按钮 */}
-          <button onClick={() => setShowBatchOps(!showBatchOps)} title="批量操作"
-            className={`p-1 rounded transition-colors ${showBatchOps ? 'bg-accent-blue/20 text-accent-blue' : 'hover:bg-bg-hover text-text-muted hover:text-accent-blue'}`}>
-            <CheckSquare className="w-3.5 h-3.5" />
+        {/* Tab row */}
+        <div className="flex px-3 pb-2 gap-1">
+          <button onClick={() => setActiveTab('knowledge')}
+            className={`flex items-center gap-1.5 px-2.5 py-1 rounded text-xs transition-colors ${
+              activeTab === 'knowledge'
+                ? 'bg-accent-purple/15 text-accent-purple font-medium'
+                : 'text-text-muted hover:text-text-primary hover:bg-bg-hover'
+            }`}>
+            <BookMarked className="w-3 h-3" />
+            知识库
           </button>
-          <button onClick={handleImport} title="导入"
-            className="p-1 rounded hover:bg-bg-hover text-text-muted hover:text-accent-green transition-colors">
-            <Download className="w-3.5 h-3.5" />
-          </button>
-          <button onClick={handleExport} title="导出"
-            className="p-1 rounded hover:bg-bg-hover text-text-muted hover:text-accent-purple transition-colors">
-            <Upload className="w-3.5 h-3.5" />
-          </button>
-          <button onClick={handleAutoExtract} title="从项目文件提取知识" disabled={extracting}
-            className="p-1 rounded hover:bg-bg-hover text-text-muted hover:text-accent-blue transition-colors disabled:opacity-50">
-            <Sparkles className={`w-3.5 h-3.5 ${extracting ? 'animate-pulse' : ''}`} />
-          </button>
-          <button onClick={handleExtractFromSession} title="从当前会话提取知识" disabled={extractingSession}
-            className="p-1 rounded hover:bg-bg-hover text-text-muted hover:text-accent-purple transition-colors disabled:opacity-50">
-            <MessageSquare className={`w-3.5 h-3.5 ${extractingSession ? 'animate-pulse' : ''}`} />
-          </button>
-          <button onClick={() => setShowAdd(!showAdd)} title="添加知识"
-            className="p-1 rounded hover:bg-bg-hover text-text-muted hover:text-accent-green transition-colors">
-            <Plus className="w-3.5 h-3.5" />
-          </button>
-          <button onClick={() => store.fetchList(projectPath)} title="刷新"
-            className="p-1 rounded hover:bg-bg-hover text-text-muted hover:text-text-primary transition-colors">
-            <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
-          </button>
-          <button onClick={onClose} title="关闭知识库"
-            className="p-1 rounded hover:bg-bg-hover text-text-muted hover:text-text-primary transition-colors">
-            <PanelRightClose className="w-3.5 h-3.5" />
+          <button onClick={() => setActiveTab('reference')}
+            className={`flex items-center gap-1.5 px-2.5 py-1 rounded text-xs transition-colors ${
+              activeTab === 'reference'
+                ? 'bg-accent-blue/15 text-accent-blue font-medium'
+                : 'text-text-muted hover:text-text-primary hover:bg-bg-hover'
+            }`}>
+            <Globe className="w-3 h-3" />
+            参考项目
           </button>
         </div>
       </div>
 
+      {/* Content */}
+      {activeTab === 'reference' ? (
+        <ReferenceProjectPanel sessionId={sessionId} projectPath={projectPath} />
+      ) : (
+      /* 知识库 Tab 内容 */
+      <>
       {/* Batch Operations Bar */}
       {showBatchOps && selectedIds.size > 0 && (
         <div className="flex items-center gap-2 px-3 py-2 bg-accent-blue/5 border-b border-accent-blue/20">
@@ -484,12 +516,16 @@ export default function SessionKnowledgePanel({ sessionId, projectPath, onClose 
           </div>
         )}
       </div>
+      </>
+      )}
 
-      {/* Stats */}
-      <div className="px-3 py-2 border-t border-border flex items-center justify-between text-[10px] text-text-muted">
-        <span>{pagination.total > 0 ? `${entries.length}/${pagination.total}` : entries.length} 条知识 · {entries.filter(e => e.autoInject).length} 条自动注入</span>
-        <span>自动注入的知识在新会话时注入 AI 上下文</span>
-      </div>
+      {/* Stats - 知识库 Tab 专属统计 */}
+      {activeTab === 'knowledge' && (
+        <div className="px-3 py-2 border-t border-border flex items-center justify-between text-[10px] text-text-muted">
+          <span>{pagination.total > 0 ? `${entries.length}/${pagination.total}` : entries.length} 条知识 · {entries.filter(e => e.autoInject).length} 条自动注入</span>
+          <span>自动注入的知识在新会话时注入 AI 上下文</span>
+        </div>
+      )}
     </div>
   )
 }

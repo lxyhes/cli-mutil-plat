@@ -64,6 +64,7 @@ import { CodeContextInjectionService } from './code-context/CodeContextInjection
 import { CheckpointService } from './checkpoint/CheckpointService'
 import { CostService } from './cost/CostService'
 import { ProjectKnowledgeService } from './knowledge/ProjectKnowledgeService'
+import { ReferenceProjectService } from './reference/ReferenceProjectService'
 import { CodeReviewService } from './review/CodeReviewService'
 import { SessionReplayService } from './replay/SessionReplayService'
 import { ContextBudgetService } from './context-budget/ContextBudgetService'
@@ -190,6 +191,7 @@ let gitWorktreeServiceRef: any = null
 let checkpointService: any = null
 let costService: any = null
 let projectKnowledgeService: any = null
+let referenceProjectService: any = null
 let codeReviewService: any = null
 let sessionReplayService: any = null
 let contextBudgetService: any = null
@@ -980,6 +982,7 @@ app.whenReady().then(() => {
   checkpointService = new CheckpointService(database, gitWorktreeServiceRef)
   costService = new CostService(database)
   projectKnowledgeService = new ProjectKnowledgeService(database)
+  referenceProjectService = new ReferenceProjectService(database)
   // ★ 注入项目知识服务到 SessionManagerV2，用于新会话自动注入项目知识
   sessionManagerV2.setProjectKnowledgeService(projectKnowledgeService)
   codeReviewService = new CodeReviewService(database, fileChangeTracker, gitWorktreeServiceRef)
@@ -1132,6 +1135,7 @@ app.whenReady().then(() => {
     checkpointService,
     costService,
     projectKnowledgeService,
+    referenceProjectService,
     codeReviewService,
     sessionReplayService,
     contextBudgetService,

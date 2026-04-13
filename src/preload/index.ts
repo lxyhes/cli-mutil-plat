@@ -984,6 +984,18 @@ if (!ctxBr) {
     import: (projectPath: string, data: any) => ipcRenderer.invoke(IPC.PROJECT_KB_IMPORT, projectPath, data),
   },
 
+  // ==================== Reference Projects API ====================
+  reference: {
+    search: (query: string, language?: string) => ipcRenderer.invoke(IPC.REFERENCE_SEARCH, query, language),
+    getRepoTree: (owner: string, repo: string, branch?: string) => ipcRenderer.invoke(IPC.REFERENCE_REPO_TREE, owner, repo, branch),
+    getFileContent: (owner: string, repo: string, filePath: string, branch?: string) => ipcRenderer.invoke(IPC.REFERENCE_FILE_CONTENT, owner, repo, filePath, branch),
+    saveToKnowledge: (params: any) => ipcRenderer.invoke(IPC.REFERENCE_SAVE_TO_KB, params),
+    save: (params: any) => ipcRenderer.invoke(IPC.REFERENCE_SAVE, params),
+    list: (projectPath: string) => ipcRenderer.invoke(IPC.REFERENCE_LIST, projectPath),
+    delete: (id: string) => ipcRenderer.invoke(IPC.REFERENCE_DELETE, id),
+    suggest: (projectPath: string) => ipcRenderer.invoke(IPC.REFERENCE_SUGGEST, projectPath),
+  },
+
   // ==================== Code Review API ====================
   codeReview: {
     start: (params: any) => ipcRenderer.invoke(IPC.CODE_REVIEW_START, params),
