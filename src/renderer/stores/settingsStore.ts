@@ -31,6 +31,8 @@ export interface AppSettings {
   notificationEnabled: boolean
   /** 开机自启：系统登录后是否自动启动应用 */
   autoLaunch: boolean
+  /** GitHub Token：用于参考项目搜索等功能，提高 API 限额 */
+  githubToken: string
 }
 
 /** 默认设置值（与 Database.ts 中的 defaults 保持一致） */
@@ -43,6 +45,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   proxyPassword: '',
   notificationEnabled: true,
   autoLaunch: false,
+  githubToken: '',
 }
 
 interface SettingsState {

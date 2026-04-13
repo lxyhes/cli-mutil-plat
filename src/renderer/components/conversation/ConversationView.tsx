@@ -281,10 +281,20 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
     if (text.startsWith('/model ')) {
       const modelId = text.slice(7).trim()
       if (modelId) {
-        console.log(`[ConversationView] 切换模型: ${modelId}`)
-        // TODO: 调用 API 切换当前会话的模型
-        // 目前仅显示提示，实际切换需要后端支持
-        setQueueHintText(`模型切换请求: ${modelId}（需重启会话生效）`)
+        try {
+          const result = await window.spectrAI.session.setModel(sessionId, modelId)
+          if (result?.success) {
+            if (result.requiresRestart) {
+              setQueueHintText(`模型已切换为 ${modelId}，请重启会话使新模型生效`)
+            } else {
+              setQueueHintText(`模型已切换为 ${modelId}，下次启动时生效`)
+            }
+          } else {
+            setQueueHintText(`模型切换失败: ${result?.error || '未知错误'}`)
+          }
+        } catch (err: any) {
+          setQueueHintText(`模型切换失败: ${err?.message || '未知错误'}`)
+        }
       }
       return
     }

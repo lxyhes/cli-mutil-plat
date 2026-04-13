@@ -532,7 +532,7 @@ export class SessionManagerV2 extends EventEmitter implements MemoryManagedCompo
       mcpConfigPath: config.mcpConfigPath,
       envOverrides: { ...resolvedProvider.envOverrides, ...config.env },
       // ★ 从 Provider 配置传入 Provider 级参数（nodeVersion / model / providerArgs / executablePath / gitBashPath）
-      model: resolvedProvider.defaultModel,
+      model: config.modelOverride || resolvedProvider.defaultModel,
       nodeVersion: resolvedProvider.nodeVersion,
       providerArgs: resolvedProvider.defaultArgs,
       executablePath: resolvedProvider.executablePath,
@@ -948,6 +948,17 @@ export class SessionManagerV2 extends EventEmitter implements MemoryManagedCompo
   }
 
   /**
+   * 设置会话的模型覆盖（/model 命令）
+   * 仅记录到 config.modelOverride，需重启/恢复会话后生效
+   */
+  setModelOverride(sessionId: string, model: string): boolean {
+    const session = this.sessions.get(sessionId)
+    if (!session) return false
+    session.config.modelOverride = model
+    return true
+  }
+
+  /**
    * 等待会话从 starting 进入可交互状态（running / waiting_input / error / ...）
    * 用于 IPC 创建会话时提供更稳定的 ready 反馈，避免前端过早进入“处理中”假象。
    */
@@ -1099,7 +1110,7 @@ export class SessionManagerV2 extends EventEmitter implements MemoryManagedCompo
       systemPrompt: config.systemPromptAppend, // iFlow 直接使用 string
       mcpConfigPath: config.mcpConfigPath,
       envOverrides: { ...resolvedProvider.envOverrides, ...config.env },
-      model: resolvedProvider.defaultModel,
+      model: config.modelOverride || resolvedProvider.defaultModel,
       nodeVersion: resolvedProvider.nodeVersion,
       providerArgs: resolvedProvider.defaultArgs,
       executablePath: resolvedProvider.executablePath,

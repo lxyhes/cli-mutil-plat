@@ -31,6 +31,7 @@ export const IPC = {
   SESSION_GET_LOGS: 'session:get-logs',
   SESSION_GET_OUTPUT: 'session:get-output',
   SESSION_RENAME: 'session:rename',
+  SESSION_SET_MODEL: 'session:set-model',
   SESSION_AI_RENAME: 'session:ai-rename',
   SESSION_DELETE: 'session:delete',
 

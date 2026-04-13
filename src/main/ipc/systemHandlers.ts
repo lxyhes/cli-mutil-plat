@@ -39,6 +39,11 @@ export function registerSystemHandlers(deps: IpcDependencies): void {
     if (key === 'autoLaunch') {
       app.setLoginItemSettings({ openAtLogin: !!value })
     }
+    // GitHub Token 变更时，刷新 ReferenceProjectService 的 Token
+    if (key === 'githubToken') {
+      const rp = (deps as any).referenceProjectService
+      if (rp?.reloadGithubToken) rp.reloadGithubToken()
+    }
     return createSuccessResponse({})
   })
 

@@ -32,6 +32,7 @@ interface FeishuState {
   config: FeishuConfig | null
   status: FeishuStatus
   mappings: FeishuMapping[]
+  lastSentMessage: { chatId: string; text: string; sentAt: string } | null
   loading: boolean
 
   fetchConfig: () => Promise<void>
@@ -46,11 +47,13 @@ interface FeishuState {
 }
 
 let _statusCleanup: (() => void) | null = null
+let _messageSentCleanup: (() => void) | null = null
 
 export const useFeishuStore = create<FeishuState>((set, get) => ({
   config: null,
   status: 'stopped',
   mappings: [],
+  lastSentMessage: null,
   loading: false,
 
   fetchConfig: async () => {
@@ -134,13 +137,19 @@ export const useFeishuStore = create<FeishuState>((set, get) => ({
 
   initListeners: () => {
     _statusCleanup?.()
+    _messageSentCleanup?.()
     _statusCleanup = (window as any).spectrAI.feishu.onStatusChanged((status: string) => {
       set({ status: status as FeishuStatus })
+    })
+    _messageSentCleanup = (window as any).spectrAI.feishu.onMessageSent((chatId: string, msg: string) => {
+      set({ lastSentMessage: { chatId, text: msg, sentAt: new Date().toISOString() } })
     })
   },
 
   cleanup: () => {
     _statusCleanup?.()
     _statusCleanup = null
+    _messageSentCleanup?.()
+    _messageSentCleanup = null
   },
 }))

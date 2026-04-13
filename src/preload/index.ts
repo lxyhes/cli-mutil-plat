@@ -120,6 +120,9 @@ if (!ctxBr) {
     delete: (sessionId: string) =>
       ipcRenderer.invoke(IPC.SESSION_DELETE, sessionId),
 
+    setModel: (sessionId: string, modelId: string) =>
+      ipcRenderer.invoke(IPC.SESSION_SET_MODEL, sessionId, modelId),
+
     // 事件监听（主进程 → 渲染进程）
     onOutput: (callback: (sessionId: string, data: any) => void) => {
       const listener = (_event: IpcRendererEvent, sessionId: string, data: any) => {
@@ -707,6 +710,10 @@ if (!ctxBr) {
     onStatusChanged: (callback: (status: string) => void) => {
       ipcRenderer.on(IPC.FEISHU_STATUS_CHANGED, (_e, status) => callback(status))
       return () => ipcRenderer.removeListener(IPC.FEISHU_STATUS_CHANGED, () => {})
+    },
+    onMessageSent: (callback: (chatId: string, msg: string) => void) => {
+      ipcRenderer.on(IPC.FEISHU_MESSAGE_SENT, (_e, chatId, msg) => callback(chatId, msg))
+      return () => ipcRenderer.removeListener(IPC.FEISHU_MESSAGE_SENT, () => {})
     },
   },
 

@@ -147,6 +147,8 @@ export class FeishuService extends EventEmitter {
       const data = await res.json() as LarkApiResponse
       if (data.code !== 0) {
         console.error('[Feishu] Send message failed:', data.msg)
+      } else {
+        sendToRenderer(IPC.FEISHU_MESSAGE_SENT, chatId, text)
       }
     } catch (err) {
       console.error('[Feishu] Send bot message error:', err)
@@ -159,11 +161,14 @@ export class FeishuService extends EventEmitter {
         msg_type: 'text',
         content: { text },
       }
-      await fetch(webhookUrl, {
+      const res = await fetch(webhookUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       })
+      if (res.ok) {
+        sendToRenderer(IPC.FEISHU_MESSAGE_SENT, 'webhook', text)
+      }
     } catch (err) {
       console.error('[Feishu] Webhook send error:', err)
     }

@@ -940,6 +940,58 @@ export function registerSessionHandlers(deps: IpcDependencies): void {
     }
   })
 
+  // ==================== Session 模型切换 ====================
+
+  ipcMain.handle(IPC.SESSION_SET_MODEL, async (_event, sessionId: string, modelId: string) => {
+    try {
+      const smV2 = deps.sessionManagerV2
+      if (!smV2) {
+        throw new SpectrAIError({
+          code: ErrorCode.INTERNAL,
+          message: 'SDK V2 SessionManager not initialized',
+          userMessage: 'SDK V2 SessionManager 未初始化'
+        })
+      }
+
+      const trimmed = modelId?.trim()
+      if (!trimmed) {
+        throw new SpectrAIError({
+          code: ErrorCode.INVALID_INPUT,
+          message: 'Model ID cannot be empty',
+          userMessage: '模型 ID 不能为空'
+        })
+      }
+
+      const session = smV2.getSession(sessionId)
+      if (!session) {
+        throw new SpectrAIError({
+          code: ErrorCode.SESSION_NOT_FOUND,
+          message: 'Session not found',
+          userMessage: '找不到指定会话'
+        })
+      }
+
+      const updated = smV2.setModelOverride(sessionId, trimmed)
+      if (!updated) {
+        throw new SpectrAIError({
+          code: ErrorCode.INTERNAL,
+          message: 'Failed to set model override',
+          userMessage: '设置模型覆盖失败'
+        })
+      }
+
+      console.log(`[IPC] SESSION_SET_MODEL: ${sessionId} → ${trimmed}`)
+      return createSuccessResponse({
+        model: trimmed,
+        requiresRestart: !['terminated', 'completed', 'error'].includes(session.status),
+        message: '模型偏好已保存，请重启会话使新模型生效'
+      })
+    } catch (error: any) {
+      console.error('[IPC] SESSION_SET_MODEL error:', error)
+      return createErrorResponse(error, { operation: 'session.setModel', sessionId })
+    }
+  })
+
   // ==================== Session 恢复 ====================
 
   ipcMain.handle(IPC.SESSION_RESUME, async (_event, oldSessionId: string) => {

@@ -289,6 +289,8 @@ export interface SessionConfig {
   systemPromptAppend?: string
   /** iFlow 预热：提前完成握手，后续发消息无需等待 60 秒初始化 */
   prewarm?: boolean
+  /** 用户指定的模型覆盖（/model 命令或 UI 切换，优先级高于 Provider defaultModel） */
+  modelOverride?: string
 }
 
 export type SessionStatus =

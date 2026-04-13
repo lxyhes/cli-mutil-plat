@@ -42,6 +42,7 @@ export default function ReferenceProjectPanel({ sessionId, projectPath }: Props)
   const [searchError, setSearchError] = useState('')
   const [suggested, setSuggested] = useState<GithubRepo[]>([])
   const [suggestLoading, setSuggestLoading] = useState(false)
+  const [suggestAttempted, setSuggestAttempted] = useState(false)
 
   // 浏览状态
   const [activeRepo, setActiveRepo] = useState<GithubRepo | null>(null)
@@ -64,6 +65,7 @@ export default function ReferenceProjectPanel({ sessionId, projectPath }: Props)
   // 智能推荐：基于当前项目的 package.json 依赖推荐相似项目
   const handleSuggest = useCallback(async () => {
     setSuggestLoading(true)
+    setSuggestAttempted(true)
     try {
       const r = await api()?.suggest(projectPath)
       if (r?.repos) setSuggested(r.repos)
@@ -172,8 +174,8 @@ export default function ReferenceProjectPanel({ sessionId, projectPath }: Props)
     setSavingToKb(false)
   }, [activeRepo, projectPath])
 
-  // 初始加载推荐
-  if (suggested.length === 0 && !suggestLoading && view === 'search') {
+  // 初始加载推荐（只尝试一次，避免 API 失败时无限循环）
+  if (suggested.length === 0 && !suggestLoading && !suggestAttempted && view === 'search') {
     handleSuggest()
   }
 

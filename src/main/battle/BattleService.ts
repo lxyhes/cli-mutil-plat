@@ -329,14 +329,6 @@ export class BattleService {
     return 0                       // 极慢
   }
 
-  /** 创建对决（异步触发执行） */catch (err) {
-      console.error('[BattleService] Battle execution error:', err)
-      try { sm.terminateSession(sessionAId) } catch {}
-      try { sm.terminateSession(sessionBId) } catch {}
-      return null
-    }
-  }
-
   /** 创建对决（异步触发执行） */
   async create(params: { prompt: string; providerAId: string; providerBId: string }): Promise<{ success: boolean; battle?: Battle; error?: string }> {
     const battleId = uuid()

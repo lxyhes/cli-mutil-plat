@@ -76,12 +76,12 @@ export class ReferenceProjectService {
 
   private loadGithubToken(): void {
     try {
-      // 尝试从数据库 settings 获取 GitHub token
       const row = this.rawDb.prepare("SELECT value FROM app_settings WHERE key = 'github_token'").get() as any
       if (row?.value) {
         try {
-          const settings = JSON.parse(row.value)
-          this.githubToken = settings.token || null
+          const parsed = JSON.parse(row.value)
+          // 支持两种格式：纯字符串 "ghp_xxx" 或对象 { token: "ghp_xxx" }
+          this.githubToken = typeof parsed === 'string' ? parsed : (parsed?.token || null)
         } catch {
           this.githubToken = row.value || null
         }
@@ -89,6 +89,11 @@ export class ReferenceProjectService {
     } catch {
       // ignore
     }
+  }
+
+  /** 重新加载 GitHub Token（设置变更后调用） */
+  reloadGithubToken(): void {
+    this.loadGithubToken()
   }
 
   private async githubFetch(url: string): Promise<any> {
@@ -114,6 +119,11 @@ export class ReferenceProjectService {
     }
     if (res.status === 429) {
       throw new Error('GitHub API 请求过于频繁，请稍后再试。')
+    }
+    if (res.status === 422) {
+      // 422 通常是查询语法错误（如包含非法字符），静默返回空而非报错
+      console.warn('[ReferenceProjectService] GitHub API 422: 查询语法可能不合法，跳过本次搜索')
+      return { total_count: 0, incomplete_results: true, items: [] }
     }
     if (!res.ok) {
       throw new Error(`GitHub API 错误: ${res.status} ${res.statusText}`)
@@ -156,8 +166,11 @@ export class ReferenceProjectService {
     if (!query.trim()) return { success: true, repos: [] }
 
     try {
-      // 构建搜索查询
-      let searchQ = encodeURIComponent(query)
+      // 构建搜索查询：GitHub Search API q 参数中词间用 + 分隔
+      // 先将查询拆成词，分别编码后再用 + 连接（避免 encodeURIComponent 将空格编码为 %20）
+      const words = query.trim().split(/\s+/).filter(Boolean).map(w => encodeURIComponent(w))
+      if (words.length === 0) return { success: true, repos: [] }
+      let searchQ = words.join('+')
       if (language) searchQ += `+language:${encodeURIComponent(language)}`
       // 优先显示最近活跃、star 多的项目
       const url = `https://api.github.com/search/repositories?q=${searchQ}&sort=stars&order=desc&per_page=${Math.min(limit, 30)}`
@@ -438,12 +451,14 @@ export class ReferenceProjectService {
       const deps = Object.keys(pkg.dependencies || {})
       if (deps.length === 0) return { success: true, repos: [] }
 
-      // 取最重要的几个依赖作为搜索词（过滤掉工具类依赖）
+      // 取最重要的几个依赖作为搜索词（过滤掉工具类和 scoped packages）
       const keyDeps = deps.filter(d =>
-        !d.startsWith('@types') &&
-        !d.startsWith('@babel') &&
+        !d.startsWith('@') &&     // 排除所有 scoped packages (@types, @babel, @anthropic-ai 等)
         !d.startsWith('eslint') &&
-        !d.startsWith('jest')
+        !d.startsWith('jest') &&
+        !d.startsWith('prettier') &&
+        !d.startsWith('vite-') &&  // 排除 vite 插件
+        !d.includes('-plugin-')    // 排除插件包
       ).slice(0, 4)
 
       if (keyDeps.length === 0) return { success: true, repos: [] }

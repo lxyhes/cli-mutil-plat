@@ -17,6 +17,7 @@ import {
   RefreshCw, Check, ShieldAlert,
   Palette, ScrollText, ExternalLink,
   Settings, Paintbrush, Link2, ScrollText as LogIcon,
+  Github, Eye, EyeOff,
 } from 'lucide-react'
 import { useSettingsStore } from '../../stores/settingsStore'
 import type { ProxyType } from '../../stores/settingsStore'
@@ -122,7 +123,199 @@ export default function UnifiedSettingsModal({ onClose, initialTab = 'general' }
 }
 
 // ══════════════════════════════════════════════
+// ── GitHub Token 设置 ──
+// ══════════════════════════════════════════════
+function GithubSettings() {
+  const { settings, updateSetting } = useSettingsStore()
+  const [token, setToken] = useState(settings.githubToken || '')
+  const [showToken, setShowToken] = useState(false)
+  const [saved, setSaved] = useState(false)
+
+  useEffect(() => {
+    setToken(settings.githubToken || '')
+  }, [settings.githubToken])
+
+  const handleSave = async () => {
+    await updateSetting('githubToken', token.trim())
+    setSaved(true)
+    setTimeout(() => setSaved(false), 2000)
+  }
+
+  const handleClear = async () => {
+    setToken('')
+    await updateSetting('githubToken', '')
+  }
+
+  const inputCls = 'w-full px-2.5 py-1.5 rounded bg-bg-primary border border-border text-sm text-text-primary placeholder:text-text-muted focus:outline-none focus:border-accent-blue/60'
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center gap-2 mb-2">
+        <Github className="w-4 h-4 text-text-primary" />
+        <h3 className="text-sm font-medium text-text-primary">GitHub Token</h3>
+      </div>
+
+      <div className="text-xs text-text-secondary leading-relaxed">
+        用于参考项目搜索等功能。未配置 Token 时，GitHub API 匿名访问限额仅 10 次/分钟，
+        配置后可提升至 30 次/分钟。
+      </div>
+
+      <div className="border border-border rounded-lg p-3 space-y-3">
+        <div className="relative">
+          <input
+            type={showToken ? 'text' : 'password'}
+            value={token}
+            onChange={(e) => setToken(e.target.value)}
+            placeholder="ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+            className={inputCls + ' pr-9'}
+          />
+          <button
+            onClick={() => setShowToken(!showToken)}
+            className="absolute right-2 top-1/2 -translate-y-1/2 text-text-muted hover:text-text-primary"
+          >
+            {showToken ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+          </button>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleSave}
+            className="px-3 py-1.5 bg-accent-blue text-white rounded text-xs transition-opacity hover:opacity-90"
+          >
+            保存 Token
+          </button>
+          {token && (
+            <button
+              onClick={handleClear}
+              className="px-3 py-1.5 rounded text-xs bg-bg-tertiary border border-border text-text-secondary hover:border-accent-red/30"
+            >
+              清除
+            </button>
+          )}
+          {saved && (
+            <span className="flex items-center gap-1 text-xs text-green-500">
+              <Check className="w-3 h-3" /> 已保存
+            </span>
+          )}
+        </div>
+
+        {settings.githubToken ? (
+          <div className="flex items-start gap-2 px-3 py-2 rounded-lg bg-green-500/5 border border-green-500/20 text-xs text-text-secondary leading-relaxed">
+            <Check className="w-3 h-3 text-green-500 flex-shrink-0 mt-0.5" />
+            <span>已配置 GitHub Token，API 访问限额已提升。</span>
+          </div>
+        ) : (
+          <div className="flex items-start gap-2 px-3 py-2 rounded-lg bg-yellow-500/5 border border-yellow-500/20 text-xs text-text-secondary leading-relaxed">
+            <ShieldAlert className="w-3 h-3 text-yellow-500 flex-shrink-0 mt-0.5" />
+            <span>
+              未配置 Token。参考项目搜索等功能可能因速率限制而失败。
+              可在 GitHub Settings → Developer settings → Personal access tokens 生成。
+            </span>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ══════════════════════════════════════════════
 // ── 通用 Tab ──
+// ══════════════════════════════════════════════
+// ── GitHub Token 设置 ──
+// ══════════════════════════════════════════════
+function GithubSettings() {
+  const { settings, updateSetting } = useSettingsStore()
+  const [token, setToken] = useState(settings.githubToken || '')
+  const [showToken, setShowToken] = useState(false)
+  const [saved, setSaved] = useState(false)
+
+  useEffect(() => {
+    setToken(settings.githubToken || '')
+  }, [settings.githubToken])
+
+  const handleSave = async () => {
+    await updateSetting('githubToken', token.trim())
+    setSaved(true)
+    setTimeout(() => setSaved(false), 2000)
+  }
+
+  const handleClear = async () => {
+    setToken('')
+    await updateSetting('githubToken', '')
+  }
+
+  const inputCls = 'w-full px-2.5 py-1.5 rounded bg-bg-primary border border-border text-sm text-text-primary placeholder:text-text-muted focus:outline-none focus:border-accent-blue/60'
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center gap-2 mb-2">
+        <Github className="w-4 h-4 text-text-primary" />
+        <h3 className="text-sm font-medium text-text-primary">GitHub Token</h3>
+      </div>
+
+      <div className="text-xs text-text-secondary leading-relaxed">
+        用于参考项目搜索等功能。未配置 Token 时，GitHub API 匿名访问限额仅 10 次/分钟，
+        配置后可提升至 30 次/分钟。
+      </div>
+
+      <div className="border border-border rounded-lg p-3 space-y-3">
+        <div className="relative">
+          <input
+            type={showToken ? 'text' : 'password'}
+            value={token}
+            onChange={(e) => setToken(e.target.value)}
+            placeholder="ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+            className={inputCls + ' pr-9'}
+          />
+          <button
+            onClick={() => setShowToken(!showToken)}
+            className="absolute right-2 top-1/2 -translate-y-1/2 text-text-muted hover:text-text-primary"
+          >
+            {showToken ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+          </button>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleSave}
+            className="px-3 py-1.5 bg-accent-blue text-white rounded text-xs transition-opacity hover:opacity-90"
+          >
+            保存 Token
+          </button>
+          {token && (
+            <button
+              onClick={handleClear}
+              className="px-3 py-1.5 rounded text-xs bg-bg-tertiary border border-border text-text-secondary hover:border-accent-red/30"
+            >
+              清除
+            </button>
+          )}
+          {saved && (
+            <span className="flex items-center gap-1 text-xs text-green-500">
+              <Check className="w-3 h-3" /> 已保存
+            </span>
+          )}
+        </div>
+
+        {settings.githubToken ? (
+          <div className="flex items-start gap-2 px-3 py-2 rounded-lg bg-green-500/5 border border-green-500/20 text-xs text-text-secondary leading-relaxed">
+            <Check className="w-3 h-3 text-green-500 flex-shrink-0 mt-0.5" />
+            <span>已配置 GitHub Token，API 访问限额已提升。</span>
+          </div>
+        ) : (
+          <div className="flex items-start gap-2 px-3 py-2 rounded-lg bg-yellow-500/5 border border-yellow-500/20 text-xs text-text-secondary leading-relaxed">
+            <ShieldAlert className="w-3 h-3 text-yellow-500 flex-shrink-0 mt-0.5" />
+            <span>
+              未配置 Token。参考项目搜索等功能可能因速率限制而失败。
+              可在 GitHub Settings → Developer settings → Personal access tokens 生成。
+            </span>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
 // ══════════════════════════════════════════════
 function GeneralTab() {
   const { settings, updateSetting, updateSettings } = useSettingsStore()
@@ -497,7 +690,199 @@ function GeneralTab() {
 }
 
 // ══════════════════════════════════════════════
+// ── GitHub Token 设置 ──
+// ══════════════════════════════════════════════
+function GithubSettings() {
+  const { settings, updateSetting } = useSettingsStore()
+  const [token, setToken] = useState(settings.githubToken || '')
+  const [showToken, setShowToken] = useState(false)
+  const [saved, setSaved] = useState(false)
+
+  useEffect(() => {
+    setToken(settings.githubToken || '')
+  }, [settings.githubToken])
+
+  const handleSave = async () => {
+    await updateSetting('githubToken', token.trim())
+    setSaved(true)
+    setTimeout(() => setSaved(false), 2000)
+  }
+
+  const handleClear = async () => {
+    setToken('')
+    await updateSetting('githubToken', '')
+  }
+
+  const inputCls = 'w-full px-2.5 py-1.5 rounded bg-bg-primary border border-border text-sm text-text-primary placeholder:text-text-muted focus:outline-none focus:border-accent-blue/60'
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center gap-2 mb-2">
+        <Github className="w-4 h-4 text-text-primary" />
+        <h3 className="text-sm font-medium text-text-primary">GitHub Token</h3>
+      </div>
+
+      <div className="text-xs text-text-secondary leading-relaxed">
+        用于参考项目搜索等功能。未配置 Token 时，GitHub API 匿名访问限额仅 10 次/分钟，
+        配置后可提升至 30 次/分钟。
+      </div>
+
+      <div className="border border-border rounded-lg p-3 space-y-3">
+        <div className="relative">
+          <input
+            type={showToken ? 'text' : 'password'}
+            value={token}
+            onChange={(e) => setToken(e.target.value)}
+            placeholder="ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+            className={inputCls + ' pr-9'}
+          />
+          <button
+            onClick={() => setShowToken(!showToken)}
+            className="absolute right-2 top-1/2 -translate-y-1/2 text-text-muted hover:text-text-primary"
+          >
+            {showToken ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+          </button>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleSave}
+            className="px-3 py-1.5 bg-accent-blue text-white rounded text-xs transition-opacity hover:opacity-90"
+          >
+            保存 Token
+          </button>
+          {token && (
+            <button
+              onClick={handleClear}
+              className="px-3 py-1.5 rounded text-xs bg-bg-tertiary border border-border text-text-secondary hover:border-accent-red/30"
+            >
+              清除
+            </button>
+          )}
+          {saved && (
+            <span className="flex items-center gap-1 text-xs text-green-500">
+              <Check className="w-3 h-3" /> 已保存
+            </span>
+          )}
+        </div>
+
+        {settings.githubToken ? (
+          <div className="flex items-start gap-2 px-3 py-2 rounded-lg bg-green-500/5 border border-green-500/20 text-xs text-text-secondary leading-relaxed">
+            <Check className="w-3 h-3 text-green-500 flex-shrink-0 mt-0.5" />
+            <span>已配置 GitHub Token，API 访问限额已提升。</span>
+          </div>
+        ) : (
+          <div className="flex items-start gap-2 px-3 py-2 rounded-lg bg-yellow-500/5 border border-yellow-500/20 text-xs text-text-secondary leading-relaxed">
+            <ShieldAlert className="w-3 h-3 text-yellow-500 flex-shrink-0 mt-0.5" />
+            <span>
+              未配置 Token。参考项目搜索等功能可能因速率限制而失败。
+              可在 GitHub Settings → Developer settings → Personal access tokens 生成。
+            </span>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ══════════════════════════════════════════════
 // ── 外观 Tab ──
+// ══════════════════════════════════════════════
+// ── GitHub Token 设置 ──
+// ══════════════════════════════════════════════
+function GithubSettings() {
+  const { settings, updateSetting } = useSettingsStore()
+  const [token, setToken] = useState(settings.githubToken || '')
+  const [showToken, setShowToken] = useState(false)
+  const [saved, setSaved] = useState(false)
+
+  useEffect(() => {
+    setToken(settings.githubToken || '')
+  }, [settings.githubToken])
+
+  const handleSave = async () => {
+    await updateSetting('githubToken', token.trim())
+    setSaved(true)
+    setTimeout(() => setSaved(false), 2000)
+  }
+
+  const handleClear = async () => {
+    setToken('')
+    await updateSetting('githubToken', '')
+  }
+
+  const inputCls = 'w-full px-2.5 py-1.5 rounded bg-bg-primary border border-border text-sm text-text-primary placeholder:text-text-muted focus:outline-none focus:border-accent-blue/60'
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center gap-2 mb-2">
+        <Github className="w-4 h-4 text-text-primary" />
+        <h3 className="text-sm font-medium text-text-primary">GitHub Token</h3>
+      </div>
+
+      <div className="text-xs text-text-secondary leading-relaxed">
+        用于参考项目搜索等功能。未配置 Token 时，GitHub API 匿名访问限额仅 10 次/分钟，
+        配置后可提升至 30 次/分钟。
+      </div>
+
+      <div className="border border-border rounded-lg p-3 space-y-3">
+        <div className="relative">
+          <input
+            type={showToken ? 'text' : 'password'}
+            value={token}
+            onChange={(e) => setToken(e.target.value)}
+            placeholder="ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+            className={inputCls + ' pr-9'}
+          />
+          <button
+            onClick={() => setShowToken(!showToken)}
+            className="absolute right-2 top-1/2 -translate-y-1/2 text-text-muted hover:text-text-primary"
+          >
+            {showToken ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+          </button>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleSave}
+            className="px-3 py-1.5 bg-accent-blue text-white rounded text-xs transition-opacity hover:opacity-90"
+          >
+            保存 Token
+          </button>
+          {token && (
+            <button
+              onClick={handleClear}
+              className="px-3 py-1.5 rounded text-xs bg-bg-tertiary border border-border text-text-secondary hover:border-accent-red/30"
+            >
+              清除
+            </button>
+          )}
+          {saved && (
+            <span className="flex items-center gap-1 text-xs text-green-500">
+              <Check className="w-3 h-3" /> 已保存
+            </span>
+          )}
+        </div>
+
+        {settings.githubToken ? (
+          <div className="flex items-start gap-2 px-3 py-2 rounded-lg bg-green-500/5 border border-green-500/20 text-xs text-text-secondary leading-relaxed">
+            <Check className="w-3 h-3 text-green-500 flex-shrink-0 mt-0.5" />
+            <span>已配置 GitHub Token，API 访问限额已提升。</span>
+          </div>
+        ) : (
+          <div className="flex items-start gap-2 px-3 py-2 rounded-lg bg-yellow-500/5 border border-yellow-500/20 text-xs text-text-secondary leading-relaxed">
+            <ShieldAlert className="w-3 h-3 text-yellow-500 flex-shrink-0 mt-0.5" />
+            <span>
+              未配置 Token。参考项目搜索等功能可能因速率限制而失败。
+              可在 GitHub Settings → Developer settings → Personal access tokens 生成。
+            </span>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
 // ══════════════════════════════════════════════
 function AppearanceTab() {
   const theme    = useUIStore((s) => s.theme)
@@ -581,10 +966,202 @@ function AppearanceTab() {
 }
 
 // ══════════════════════════════════════════════
+// ── GitHub Token 设置 ──
+// ══════════════════════════════════════════════
+function GithubSettings() {
+  const { settings, updateSetting } = useSettingsStore()
+  const [token, setToken] = useState(settings.githubToken || '')
+  const [showToken, setShowToken] = useState(false)
+  const [saved, setSaved] = useState(false)
+
+  useEffect(() => {
+    setToken(settings.githubToken || '')
+  }, [settings.githubToken])
+
+  const handleSave = async () => {
+    await updateSetting('githubToken', token.trim())
+    setSaved(true)
+    setTimeout(() => setSaved(false), 2000)
+  }
+
+  const handleClear = async () => {
+    setToken('')
+    await updateSetting('githubToken', '')
+  }
+
+  const inputCls = 'w-full px-2.5 py-1.5 rounded bg-bg-primary border border-border text-sm text-text-primary placeholder:text-text-muted focus:outline-none focus:border-accent-blue/60'
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center gap-2 mb-2">
+        <Github className="w-4 h-4 text-text-primary" />
+        <h3 className="text-sm font-medium text-text-primary">GitHub Token</h3>
+      </div>
+
+      <div className="text-xs text-text-secondary leading-relaxed">
+        用于参考项目搜索等功能。未配置 Token 时，GitHub API 匿名访问限额仅 10 次/分钟，
+        配置后可提升至 30 次/分钟。
+      </div>
+
+      <div className="border border-border rounded-lg p-3 space-y-3">
+        <div className="relative">
+          <input
+            type={showToken ? 'text' : 'password'}
+            value={token}
+            onChange={(e) => setToken(e.target.value)}
+            placeholder="ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+            className={inputCls + ' pr-9'}
+          />
+          <button
+            onClick={() => setShowToken(!showToken)}
+            className="absolute right-2 top-1/2 -translate-y-1/2 text-text-muted hover:text-text-primary"
+          >
+            {showToken ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+          </button>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleSave}
+            className="px-3 py-1.5 bg-accent-blue text-white rounded text-xs transition-opacity hover:opacity-90"
+          >
+            保存 Token
+          </button>
+          {token && (
+            <button
+              onClick={handleClear}
+              className="px-3 py-1.5 rounded text-xs bg-bg-tertiary border border-border text-text-secondary hover:border-accent-red/30"
+            >
+              清除
+            </button>
+          )}
+          {saved && (
+            <span className="flex items-center gap-1 text-xs text-green-500">
+              <Check className="w-3 h-3" /> 已保存
+            </span>
+          )}
+        </div>
+
+        {settings.githubToken ? (
+          <div className="flex items-start gap-2 px-3 py-2 rounded-lg bg-green-500/5 border border-green-500/20 text-xs text-text-secondary leading-relaxed">
+            <Check className="w-3 h-3 text-green-500 flex-shrink-0 mt-0.5" />
+            <span>已配置 GitHub Token，API 访问限额已提升。</span>
+          </div>
+        ) : (
+          <div className="flex items-start gap-2 px-3 py-2 rounded-lg bg-yellow-500/5 border border-yellow-500/20 text-xs text-text-secondary leading-relaxed">
+            <ShieldAlert className="w-3 h-3 text-yellow-500 flex-shrink-0 mt-0.5" />
+            <span>
+              未配置 Token。参考项目搜索等功能可能因速率限制而失败。
+              可在 GitHub Settings → Developer settings → Personal access tokens 生成。
+            </span>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ══════════════════════════════════════════════
 // ── 集成 Tab ──
 // ══════════════════════════════════════════════
+// ── GitHub Token 设置 ──
+// ══════════════════════════════════════════════
+function GithubSettings() {
+  const { settings, updateSetting } = useSettingsStore()
+  const [token, setToken] = useState(settings.githubToken || '')
+  const [showToken, setShowToken] = useState(false)
+  const [saved, setSaved] = useState(false)
+
+  useEffect(() => {
+    setToken(settings.githubToken || '')
+  }, [settings.githubToken])
+
+  const handleSave = async () => {
+    await updateSetting('githubToken', token.trim())
+    setSaved(true)
+    setTimeout(() => setSaved(false), 2000)
+  }
+
+  const handleClear = async () => {
+    setToken('')
+    await updateSetting('githubToken', '')
+  }
+
+  const inputCls = 'w-full px-2.5 py-1.5 rounded bg-bg-primary border border-border text-sm text-text-primary placeholder:text-text-muted focus:outline-none focus:border-accent-blue/60'
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center gap-2 mb-2">
+        <Github className="w-4 h-4 text-text-primary" />
+        <h3 className="text-sm font-medium text-text-primary">GitHub Token</h3>
+      </div>
+
+      <div className="text-xs text-text-secondary leading-relaxed">
+        用于参考项目搜索等功能。未配置 Token 时，GitHub API 匿名访问限额仅 10 次/分钟，
+        配置后可提升至 30 次/分钟。
+      </div>
+
+      <div className="border border-border rounded-lg p-3 space-y-3">
+        <div className="relative">
+          <input
+            type={showToken ? 'text' : 'password'}
+            value={token}
+            onChange={(e) => setToken(e.target.value)}
+            placeholder="ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+            className={inputCls + ' pr-9'}
+          />
+          <button
+            onClick={() => setShowToken(!showToken)}
+            className="absolute right-2 top-1/2 -translate-y-1/2 text-text-muted hover:text-text-primary"
+          >
+            {showToken ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+          </button>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleSave}
+            className="px-3 py-1.5 bg-accent-blue text-white rounded text-xs transition-opacity hover:opacity-90"
+          >
+            保存 Token
+          </button>
+          {token && (
+            <button
+              onClick={handleClear}
+              className="px-3 py-1.5 rounded text-xs bg-bg-tertiary border border-border text-text-secondary hover:border-accent-red/30"
+            >
+              清除
+            </button>
+          )}
+          {saved && (
+            <span className="flex items-center gap-1 text-xs text-green-500">
+              <Check className="w-3 h-3" /> 已保存
+            </span>
+          )}
+        </div>
+
+        {settings.githubToken ? (
+          <div className="flex items-start gap-2 px-3 py-2 rounded-lg bg-green-500/5 border border-green-500/20 text-xs text-text-secondary leading-relaxed">
+            <Check className="w-3 h-3 text-green-500 flex-shrink-0 mt-0.5" />
+            <span>已配置 GitHub Token，API 访问限额已提升。</span>
+          </div>
+        ) : (
+          <div className="flex items-start gap-2 px-3 py-2 rounded-lg bg-yellow-500/5 border border-yellow-500/20 text-xs text-text-secondary leading-relaxed">
+            <ShieldAlert className="w-3 h-3 text-yellow-500 flex-shrink-0 mt-0.5" />
+            <span>
+              未配置 Token。参考项目搜索等功能可能因速率限制而失败。
+              可在 GitHub Settings → Developer settings → Personal access tokens 生成。
+            </span>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ══════════════════════════════════════════════
 function IntegrationsTab() {
-  const [subTab, setSubTab] = useState<'telegram' | 'feishu'>('telegram')
+  const [subTab, setSubTab] = useState<'telegram' | 'feishu' | 'github'>('telegram')
 
   return (
     <div className="space-y-4">
@@ -612,17 +1189,221 @@ function IntegrationsTab() {
         >
           飞书
         </button>
+        <button
+          onClick={() => setSubTab('github')}
+          className={[
+            'px-4 py-1.5 rounded-md text-xs font-medium transition-colors',
+            subTab === 'github'
+              ? 'bg-bg-primary text-text-primary shadow-sm'
+              : 'text-text-muted hover:text-text-secondary',
+          ].join(' ')}
+        >
+          GitHub
+        </button>
       </div>
 
       {/* 子内容 */}
       {subTab === 'telegram' && <TelegramSettings />}
       {subTab === 'feishu'   && <FeishuSettings />}
+      {subTab === 'github'   && <GithubSettings />}
+    </div>
+  )
+}
+
+// ══════════════════════════════════════════════
+// ── GitHub Token 设置 ──
+// ══════════════════════════════════════════════
+function GithubSettings() {
+  const { settings, updateSetting } = useSettingsStore()
+  const [token, setToken] = useState(settings.githubToken || '')
+  const [showToken, setShowToken] = useState(false)
+  const [saved, setSaved] = useState(false)
+
+  useEffect(() => {
+    setToken(settings.githubToken || '')
+  }, [settings.githubToken])
+
+  const handleSave = async () => {
+    await updateSetting('githubToken', token.trim())
+    setSaved(true)
+    setTimeout(() => setSaved(false), 2000)
+  }
+
+  const handleClear = async () => {
+    setToken('')
+    await updateSetting('githubToken', '')
+  }
+
+  const inputCls = 'w-full px-2.5 py-1.5 rounded bg-bg-primary border border-border text-sm text-text-primary placeholder:text-text-muted focus:outline-none focus:border-accent-blue/60'
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center gap-2 mb-2">
+        <Github className="w-4 h-4 text-text-primary" />
+        <h3 className="text-sm font-medium text-text-primary">GitHub Token</h3>
+      </div>
+
+      <div className="text-xs text-text-secondary leading-relaxed">
+        用于参考项目搜索等功能。未配置 Token 时，GitHub API 匿名访问限额仅 10 次/分钟，
+        配置后可提升至 30 次/分钟。
+      </div>
+
+      <div className="border border-border rounded-lg p-3 space-y-3">
+        <div className="relative">
+          <input
+            type={showToken ? 'text' : 'password'}
+            value={token}
+            onChange={(e) => setToken(e.target.value)}
+            placeholder="ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+            className={inputCls + ' pr-9'}
+          />
+          <button
+            onClick={() => setShowToken(!showToken)}
+            className="absolute right-2 top-1/2 -translate-y-1/2 text-text-muted hover:text-text-primary"
+          >
+            {showToken ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+          </button>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleSave}
+            className="px-3 py-1.5 bg-accent-blue text-white rounded text-xs transition-opacity hover:opacity-90"
+          >
+            保存 Token
+          </button>
+          {token && (
+            <button
+              onClick={handleClear}
+              className="px-3 py-1.5 rounded text-xs bg-bg-tertiary border border-border text-text-secondary hover:border-accent-red/30"
+            >
+              清除
+            </button>
+          )}
+          {saved && (
+            <span className="flex items-center gap-1 text-xs text-green-500">
+              <Check className="w-3 h-3" /> 已保存
+            </span>
+          )}
+        </div>
+
+        {settings.githubToken ? (
+          <div className="flex items-start gap-2 px-3 py-2 rounded-lg bg-green-500/5 border border-green-500/20 text-xs text-text-secondary leading-relaxed">
+            <Check className="w-3 h-3 text-green-500 flex-shrink-0 mt-0.5" />
+            <span>已配置 GitHub Token，API 访问限额已提升。</span>
+          </div>
+        ) : (
+          <div className="flex items-start gap-2 px-3 py-2 rounded-lg bg-yellow-500/5 border border-yellow-500/20 text-xs text-text-secondary leading-relaxed">
+            <ShieldAlert className="w-3 h-3 text-yellow-500 flex-shrink-0 mt-0.5" />
+            <span>
+              未配置 Token。参考项目搜索等功能可能因速率限制而失败。
+              可在 GitHub Settings → Developer settings → Personal access tokens 生成。
+            </span>
+          </div>
+        )}
+      </div>
     </div>
   )
 }
 
 // ══════════════════════════════════════════════
 // ── 日志 Tab ──
+// ══════════════════════════════════════════════
+// ── GitHub Token 设置 ──
+// ══════════════════════════════════════════════
+function GithubSettings() {
+  const { settings, updateSetting } = useSettingsStore()
+  const [token, setToken] = useState(settings.githubToken || '')
+  const [showToken, setShowToken] = useState(false)
+  const [saved, setSaved] = useState(false)
+
+  useEffect(() => {
+    setToken(settings.githubToken || '')
+  }, [settings.githubToken])
+
+  const handleSave = async () => {
+    await updateSetting('githubToken', token.trim())
+    setSaved(true)
+    setTimeout(() => setSaved(false), 2000)
+  }
+
+  const handleClear = async () => {
+    setToken('')
+    await updateSetting('githubToken', '')
+  }
+
+  const inputCls = 'w-full px-2.5 py-1.5 rounded bg-bg-primary border border-border text-sm text-text-primary placeholder:text-text-muted focus:outline-none focus:border-accent-blue/60'
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center gap-2 mb-2">
+        <Github className="w-4 h-4 text-text-primary" />
+        <h3 className="text-sm font-medium text-text-primary">GitHub Token</h3>
+      </div>
+
+      <div className="text-xs text-text-secondary leading-relaxed">
+        用于参考项目搜索等功能。未配置 Token 时，GitHub API 匿名访问限额仅 10 次/分钟，
+        配置后可提升至 30 次/分钟。
+      </div>
+
+      <div className="border border-border rounded-lg p-3 space-y-3">
+        <div className="relative">
+          <input
+            type={showToken ? 'text' : 'password'}
+            value={token}
+            onChange={(e) => setToken(e.target.value)}
+            placeholder="ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+            className={inputCls + ' pr-9'}
+          />
+          <button
+            onClick={() => setShowToken(!showToken)}
+            className="absolute right-2 top-1/2 -translate-y-1/2 text-text-muted hover:text-text-primary"
+          >
+            {showToken ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+          </button>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleSave}
+            className="px-3 py-1.5 bg-accent-blue text-white rounded text-xs transition-opacity hover:opacity-90"
+          >
+            保存 Token
+          </button>
+          {token && (
+            <button
+              onClick={handleClear}
+              className="px-3 py-1.5 rounded text-xs bg-bg-tertiary border border-border text-text-secondary hover:border-accent-red/30"
+            >
+              清除
+            </button>
+          )}
+          {saved && (
+            <span className="flex items-center gap-1 text-xs text-green-500">
+              <Check className="w-3 h-3" /> 已保存
+            </span>
+          )}
+        </div>
+
+        {settings.githubToken ? (
+          <div className="flex items-start gap-2 px-3 py-2 rounded-lg bg-green-500/5 border border-green-500/20 text-xs text-text-secondary leading-relaxed">
+            <Check className="w-3 h-3 text-green-500 flex-shrink-0 mt-0.5" />
+            <span>已配置 GitHub Token，API 访问限额已提升。</span>
+          </div>
+        ) : (
+          <div className="flex items-start gap-2 px-3 py-2 rounded-lg bg-yellow-500/5 border border-yellow-500/20 text-xs text-text-secondary leading-relaxed">
+            <ShieldAlert className="w-3 h-3 text-yellow-500 flex-shrink-0 mt-0.5" />
+            <span>
+              未配置 Token。参考项目搜索等功能可能因速率限制而失败。
+              可在 GitHub Settings → Developer settings → Personal access tokens 生成。
+            </span>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
 // ══════════════════════════════════════════════
 type LogLevel = 'all' | 'error' | 'warn' | 'info' | 'debug'
 
