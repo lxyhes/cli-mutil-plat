@@ -82,6 +82,73 @@ export function getActivityPreview(activity: ActivityEvent): string {
 }
 
 // ─────────────────────────────────────────────────────────
+// 会话名称格式化
+// ─────────────────────────────────────────────────────────
+
+import React from 'react'
+
+type Token =
+  | { type: 'flag'; value: string }
+  | { type: 'string'; value: string }
+  | { type: 'word'; value: string }
+  | { type: 'space'; value: string }
+
+/** 将命令行风格的会话名解析为 token 序列 */
+function tokenizeSessionName(name: string): Token[] {
+  const tokens: Token[] = []
+  let i = 0
+  while (i < name.length) {
+    // 空格
+    if (name[i] === ' ') { tokens.push({ type: 'space', value: ' ' }); i++; continue }
+    // 双引号字符串
+    if (name[i] === '"') {
+      let j = i + 1
+      while (j < name.length && name[j] !== '"') j++
+      tokens.push({ type: 'string', value: name.slice(i, j + 1) })
+      i = j + 1; continue
+    }
+    // 单引号字符串
+    if (name[i] === "'") {
+      let j = i + 1
+      while (j < name.length && name[j] !== "'") j++
+      tokens.push({ type: 'string', value: name.slice(i, j + 1) })
+      i = j + 1; continue
+    }
+    // --开头的 flag（到空格或引号前为止）
+    if (name[i] === '-' && name[i + 1] === '-') {
+      let j = i + 2
+      while (j < name.length && name[j] !== ' ' && name[j] !== '"' && name[j] !== "'") j++
+      tokens.push({ type: 'flag', value: name.slice(i, j) })
+      i = j; continue
+    }
+    // 普通单词
+    let j = i
+    while (j < name.length && name[j] !== ' ' && name[j] !== '"' && name[j] !== "'") j++
+    tokens.push({ type: 'word', value: name.slice(i, j) })
+    i = j
+  }
+  return tokens
+}
+
+/**
+ * 将命令行风格的会话名渲染为带样式的 JSX。
+ * 示例: `--project "E:\fuke-spec" --no-input`
+ * → `<span class="code-flag">--project</span> <span class="code-string">"E:\fuke-spec"</span> <span class="code-flag">--no-input</span>`
+ */
+export function formatSessionName(name: string): React.ReactNode {
+  // 如果不包含命令行特征，直接返回原文
+  if (!name.includes('--') && !name.includes('"')) return name
+
+  const tokens = tokenizeSessionName(name)
+  return tokens.map((token, i) => {
+    if (token.type === 'space') return <React.Fragment key={i}>{token.value}</React.Fragment>
+    if (token.type === 'flag') return <code key={i} className="text-[10px] px-0.5 py-0 rounded bg-accent-blue/15 text-accent-blue font-mono">{token.value}</code>
+    if (token.type === 'string') return <code key={i} className="text-[10px] px-0.5 py-0 rounded bg-accent-green/15 text-accent-green font-mono">{token.value}</code>
+    return <span key={i} className="text-text-primary">{token.value}</span>
+  })
+}
+
+// ─────────────────────────────────────────────────────────
 // 分组工具
 // ─────────────────────────────────────────────────────────
 

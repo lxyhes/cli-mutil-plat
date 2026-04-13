@@ -13,6 +13,7 @@ import { STATUS_COLORS, STATUS_LABELS } from '../../../shared/constants'
 import type { SessionStatus } from '../../../shared/types'
 import TerminalPanel from './TerminalPanel'
 import ConfirmDialog from '../common/ConfirmDialog'
+import { formatSessionName } from '../layout/sidebar/utils'
 import ContextMenu, { MenuItem } from '../common/ContextMenu'
 
 // 右键菜单状态类型
@@ -307,7 +308,7 @@ const TerminalTabs: React.FC = () => {
 
                 {/* 名称 */}
                 <span className="text-xs font-medium truncate flex-1 min-w-0">
-                  {sessionName}
+                  {formatSessionName(sessionName)}
                 </span>
 
                 {/* 状态文字 */}

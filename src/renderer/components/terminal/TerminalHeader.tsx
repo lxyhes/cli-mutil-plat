@@ -10,6 +10,7 @@ import { useSessionStore } from '../../stores/sessionStore'
 import { useUIStore } from '../../stores/uiStore'
 import { STATUS_COLORS, STATUS_LABELS } from '../../../shared/constants'
 import type { SessionStatus } from '../../../shared/types'
+import { formatSessionName } from '../layout/sidebar/utils'
 import ContextMenu from '../common/ContextMenu'
 import type { MenuItem } from '../common/ContextMenu'
 
@@ -167,7 +168,7 @@ const TerminalHeader: React.FC<TerminalHeaderProps> = ({ sessionId, onMaximize, 
       <div className="flex items-center gap-2 flex-1 min-w-0">
         {/* 会话名称 — 主标识，放最左边最显眼 */}
         <span className="text-sm text-gray-300 font-medium truncate max-w-[160px] flex-shrink-0">
-          {session.name || session.config.name || '未命名'}
+          {formatSessionName(session.name || session.config.name || '未命名')}
         </span>
 
         {/* Provider 徽章 — 次要信息 */}

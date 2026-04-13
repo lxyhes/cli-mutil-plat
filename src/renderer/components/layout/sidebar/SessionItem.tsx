@@ -8,7 +8,7 @@ import { useSessionStore } from '../../../stores/sessionStore'
 import { STATUS_COLORS } from '../../../../shared/constants'
 import { STATUS_LABELS, AGENT_STATUS_COLORS } from './types'
 import type { SessionItemProps } from './types'
-import { getShortPath, getProviderColor, getProviderLabel, getActivityPreview } from './utils'
+import { getShortPath, getProviderColor, getProviderLabel, getActivityPreview, formatSessionName } from './utils'
 
 /** 单个会话项 */
 export const SessionItem = React.memo(function SessionItem({
@@ -100,7 +100,7 @@ export const SessionItem = React.memo(function SessionItem({
             onDoubleClick={(e) => { e.stopPropagation(); startEditing() }}
             title="双击重命名"
           >
-            {aiRenaming ? 'AI 命名中...' : (session.name || session.config.name)}
+            {aiRenaming ? 'AI 命名中...' : formatSessionName(session.name || session.config.name)}
           </span>
         )}
         <div className="flex items-center gap-1 ml-2 flex-shrink-0">

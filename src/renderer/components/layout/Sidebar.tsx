@@ -54,7 +54,7 @@ import { GroupByToggle } from './sidebar/GroupByToggle'
 // ─────────────────────────────────────────────────────────
 
 export function SessionsContent() {
-  const { toggleNewTaskDialog, showNewSessionDialog, setShowNewSessionDialog, toggleSearchPanel, setActivePanelLeft } = useUIStore()
+  const { toggleNewTaskDialog, showNewSessionDialog, setShowNewSessionDialog, toggleSearchPanel, setActivePanelLeft, setViewMode } = useUIStore()
   const { createSession, resumeSession, terminateSession, deleteSession, renameSession, aiRenameSession, sessions, selectSession, selectedSessionId, lastActivities, agents, resumeError, clearResumeError, openSessionForChat } = useSessionStore()
   const setGitActiveTab = useGitStore((s) => s.setActiveTab)
   // ── 分组方式 ──
@@ -340,6 +340,8 @@ export function SessionsContent() {
         prewarm: providerId === 'iflow',
       })
       setShowNewSessionDialog(false)
+      // 切换到标签页视图，让新建会话立即可见
+      setViewMode('tabs')
     } catch (error: any) {
       setCreateSessionError(error?.message || '创建会话失败，请检查 Provider 配置')
       console.error('Failed to create session:', error)

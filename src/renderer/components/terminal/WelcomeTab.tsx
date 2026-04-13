@@ -8,6 +8,7 @@ import { useSessionStore } from '../../stores/sessionStore'
 import { useUIStore } from '../../stores/uiStore'
 import { STATUS_COLORS } from '../../../shared/constants'
 import { toPlatformShortcutLabel } from '../../utils/shortcut'
+import { formatSessionName } from '../layout/sidebar/utils'
 
 /** 格式化相对时间：今天显示 HH:mm，否则显示日期 */
 function formatTime(dateStr: string): string {
@@ -88,7 +89,7 @@ export default function WelcomeTab() {
                   />
                   {/* 会话名称 */}
                   <span className="flex-1 text-sm text-text-primary truncate">
-                    {session.name || session.id}
+                    {formatSessionName(session.name) || session.id}
                   </span>
                   {/* 状态文字 */}
                   <span className="text-xs text-text-muted flex-shrink-0">
