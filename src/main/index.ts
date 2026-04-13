@@ -469,9 +469,6 @@ function initializeManagers(): void {
   // ★ 注入 database 到 SessionManagerV2，用于 Skill 拦截
   sessionManagerV2.setDatabase(database)
 
-  // ★ 注入项目知识服务到 SessionManagerV2，用于新会话自动注入项目知识
-  sessionManagerV2.setProjectKnowledgeService(projectKnowledgeService)
-
   // ★ 注入 bridgePort 到 agentManagerV2，使子会话（团队成员、spawn_agent）也能获得 MCP 工具
   // 必须在 spawnAgent() 首次调用前完成注入，否则子会话无法使用 list_sessions 等跨会话感知工具
   agentManagerV2.setBridgePort(63721)
@@ -983,6 +980,8 @@ app.whenReady().then(() => {
   checkpointService = new CheckpointService(database, gitWorktreeServiceRef)
   costService = new CostService(database)
   projectKnowledgeService = new ProjectKnowledgeService(database)
+  // ★ 注入项目知识服务到 SessionManagerV2，用于新会话自动注入项目知识
+  sessionManagerV2.setProjectKnowledgeService(projectKnowledgeService)
   codeReviewService = new CodeReviewService(database, fileChangeTracker, gitWorktreeServiceRef)
   sessionReplayService = new SessionReplayService(database)
   contextBudgetService = new ContextBudgetService(database)

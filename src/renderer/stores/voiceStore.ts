@@ -41,7 +41,7 @@ class VoiceStore {
   }
 
   private api() {
-    return (window as any).api?.voice
+    return (window as any).spectrAI?.voice
   }
 
   /** 加载配置和状态 */
