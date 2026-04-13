@@ -1,9 +1,11 @@
 /**
  * 智能上下文管理器 - 实时显示会话上下文使用量
- * 支持：容量监控、压缩建议、上下文迁移、配置持久化
+ * 支持：容量监控、压缩建议、上下文迁移、配置持久化、自动告警
  * @author spectrai
  */
 import { DatabaseManager } from '../storage/Database'
+import { sendToRenderer } from '../ipc/shared'
+import { IPC } from '../../shared/constants'
 import type BetterSqlite3 from 'better-sqlite3'
 
 export interface ContextBudget {
@@ -36,11 +38,59 @@ export class ContextBudgetService {
   private db: DatabaseManager
   private rawDb: BetterSqlite3.Database | null = null
   private config: ContextBudgetConfig = { ...DEFAULT_CONFIG }
+  /** 追踪每个会话的累计 token 使用量（用于告警判断） */
+  private sessionUsage = new Map<string, number>()
 
   constructor(db: DatabaseManager) {
     this.db = db
     this.initDatabase()
     this.loadConfig()
+  }
+
+  /**
+   * ★ 会话 token 使用量更新回调
+   * 由 SessionManagerV2 的 usage-update 事件调用（见 index.ts）
+   * 会自动检查阈值并向渲染进程推送告警
+   */
+  onUsageUpdate(sessionId: string, inputTokens: number, outputTokens: number): void {
+    if (inputTokens === 0 && outputTokens === 0) return
+    const delta = inputTokens + outputTokens
+    const current = this.sessionUsage.get(sessionId) || 0
+    const total = current + delta
+    this.sessionUsage.set(sessionId, total)
+
+    const maxTokens = this.config.maxContextTokens
+    const usagePercent = total / maxTokens
+
+    // 检查阈值并推送告警
+    if (usagePercent >= this.config.criticalThreshold) {
+      this.sendAlert(sessionId, 'critical', total, maxTokens)
+    } else if (usagePercent >= this.config.warningThreshold) {
+      this.sendAlert(sessionId, 'warning', total, maxTokens)
+    }
+
+    // 检查是否需要自动压缩
+    if (usagePercent >= this.config.autoCompressAt) {
+      this.sendAlert(sessionId, 'compress', total, maxTokens)
+    }
+  }
+
+  /** 清除会话追踪数据（会话结束时调用） */
+  onSessionEnd(sessionId: string): void {
+    this.sessionUsage.delete(sessionId)
+  }
+
+  /** 向渲染进程推送上下文告警 */
+  private sendAlert(sessionId: string, level: 'warning' | 'critical' | 'compress', used: number, max: number): void {
+    try {
+      sendToRenderer(IPC.CONTEXT_BUDGET_ALERT, {
+        sessionId,
+        level,
+        used,
+        max,
+        percent: Math.round((used / max) * 100),
+      })
+    } catch { /* ignore */ }
   }
 
   private getRawDb(): BetterSqlite3.Database {

@@ -12,6 +12,8 @@ import { useSkillStore } from './stores/skillStore'
 import { useUIStore } from './stores/uiStore'
 import { useSettingsStore } from './stores/settingsStore'
 import { voiceStore } from './stores/voiceStore'
+import { useContextBudgetStore } from './stores/contextBudgetStore'
+import { IPC } from '../shared/constants'
 import type { ViewMode } from '../shared/types'
 import { isPrimaryModifierPressed } from './utils/shortcut'
 import './styles/globals.css'
@@ -58,6 +60,18 @@ export default function App() {
       // ★ 语音配置预加载（用于 autoSpeak 事件监听）
       voiceStore.loadConfig()
       voiceStore.loadStatus()
+
+      // ★ 上下文预算告警监听：主进程推送超阈值通知时自动刷新当前会话的预算数据
+      const budgetApi = (window as any).spectrAI?.contextBudget
+      if (budgetApi?.onAlert) {
+        budgetApi.onAlert((alert: any) => {
+          console.warn('[App] Context budget alert:', alert)
+          const sessionId = localStorage.getItem('active-session-id')
+          if (sessionId) {
+            useContextBudgetStore.getState().fetchBudget(sessionId)
+          }
+        })
+      }
 
       // MCP install_skill 通知监听：AI 通过 MCP 安装技能后自动刷新列表
       cleanups.push(useSkillStore.getState().initMcpInstallListener())

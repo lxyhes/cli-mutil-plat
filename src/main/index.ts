@@ -1198,6 +1198,24 @@ app.whenReady().then(() => {
     console.log('[Main] CostService connected to SessionManagerV2 usage-update event')
   }
 
+  // ★ 连接 ContextBudgetService → SessionManagerV2 usage-update 事件
+  // 追踪每个会话的累计 token 使用量，超阈值时向渲染进程推送告警
+  if (contextBudgetService && sessionManagerV2) {
+    sessionManagerV2.on('usage-update', (sessionId: string, usage: {
+      inputTokens: number; outputTokens: number; total: number; startedAt: string
+    }) => {
+      if (usage.inputTokens > 0 || usage.outputTokens > 0) {
+        contextBudgetService.onUsageUpdate(sessionId, usage.inputTokens, usage.outputTokens)
+      }
+    })
+    sessionManagerV2.on('status-change', (sessionId: string, status: string) => {
+      if (status === 'completed' || status === 'error' || status === 'stopped') {
+        contextBudgetService.onSessionEnd(sessionId)
+      }
+    })
+    console.log('[Main] ContextBudgetService connected to SessionManagerV2 event stream')
+  }
+
   // ★ 连接 SessionReplayService → SessionManagerV2 事件流
   if (sessionReplayService && sessionManagerV2) {
     // activity 事件 → 录制 tool_use / permission / status_change 等

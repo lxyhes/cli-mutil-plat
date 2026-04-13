@@ -1020,6 +1020,12 @@ if (!ctxBr) {
     compress: (sessionId: string) => ipcRenderer.invoke(IPC.CONTEXT_BUDGET_COMPRESS, sessionId),
     migrate: (sessionId: string) => ipcRenderer.invoke(IPC.CONTEXT_BUDGET_MIGRATE, sessionId),
     status: () => ipcRenderer.invoke(IPC.CONTEXT_BUDGET_STATUS),
+    // 监听超阈值告警（由主进程 usage-update 事件推送）
+    onAlert: (callback: (alert: { sessionId: string; level: string; used: number; max: number; percent: number }) => void) => {
+      const handler = (_: any, data: any) => callback(data)
+      ipcRenderer.on(IPC.CONTEXT_BUDGET_ALERT, handler)
+      return () => ipcRenderer.removeListener(IPC.CONTEXT_BUDGET_ALERT, handler)
+    },
   },
 
   // ==================== Battle API ====================

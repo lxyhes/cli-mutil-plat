@@ -475,6 +475,7 @@ export const IPC = {
   CONTEXT_BUDGET_COMPRESS:  'context-budget:compress',
   CONTEXT_BUDGET_MIGRATE:   'context-budget:migrate',
   CONTEXT_BUDGET_STATUS:    'context-budget:status',
+  CONTEXT_BUDGET_ALERT:     'context-budget:alert',
 
   // 7. AI 对决模式 (AI Battle / A/B Compare)
   BATTLE_CREATE:            'battle:create',
