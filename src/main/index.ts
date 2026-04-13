@@ -986,6 +986,8 @@ app.whenReady().then(() => {
   sessionReplayService = new SessionReplayService(database)
   contextBudgetService = new ContextBudgetService(database)
   battleService = new BattleService(database)
+  // ★ 注入 SessionManagerV2 到 BattleService（用于并行 AI 对决执行）
+  battleService.setSessionManager(sessionManagerV2)
   dailyReportService = new DailyReportService(database)
   skillArenaService = new SkillArenaService(database)
   voiceService = new VoiceService()
@@ -1230,22 +1232,18 @@ app.whenReady().then(() => {
           if (sessionReplayService.isRecording(sessionId)) {
             sessionReplayService.stopRecording(sessionId)
           }
-          // ★ 会话完成时自动触发代码审查
+          // ★ 会话完成时自动触发代码审查（尊重 autoReviewEnabled 开关）
           if (codeReviewService) {
             const session = sessionManagerV2.getSession(sessionId)
             const workDir = session?.workingDirectory
             if (workDir) {
-              const changedFiles = fileChangeTracker?.getSessionChanges(sessionId) || []
-              if (changedFiles.length > 0) {
-                console.log(`[Main] Triggering auto code review for session ${sessionId}, ${changedFiles.length} files changed`)
-                codeReviewService.startReview({
-                  sessionId,
-                  sessionName: session?.name || sessionId.slice(0, 8),
-                  repoPath: workDir,
-                }).catch((err: unknown) => {
-                  console.warn('[Main] Auto code review failed:', err)
-                })
-              }
+              codeReviewService.autoReview(
+                sessionId,
+                session?.name || sessionId.slice(0, 8),
+                workDir,
+              ).catch((err: unknown) => {
+                console.warn('[Main] Auto code review failed:', err)
+              })
             }
           }
         }

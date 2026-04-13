@@ -1,11 +1,14 @@
 /**
- * AI 对决模式服务 - 同一任务发给两个 AI 对比结果
+ * AI 对决模式服务 - 同一任务发给两个 AI 并行执行对比结果
  * 支持：创建对决、并行执行、投票、统计
  * @author spectrai
  */
 import { v4 as uuid } from 'uuid'
-import { DatabaseManager } from '../storage/Database'
+import type { DatabaseManager } from '../storage/Database'
 import type BetterSqlite3 from 'better-sqlite3'
+import type { SessionManagerV2 } from '../session/SessionManagerV2'
+import type { AIProvider } from '../../shared/types'
+import { BUILTIN_PROVIDERS } from '../../shared/types'
 
 export interface BattleResult {
   providerA: { providerId: string; providerName: string; response: string; tokenCount: number; duration: number }
@@ -32,22 +35,38 @@ export interface BattleStats {
   tieRate: number
 }
 
+// UI provider ID → actual provider ID
+const PROVIDER_ID_MAP: Record<string, string> = {
+  'claude':   'claude-code',
+  'codex':    'codex',
+  'gemini':   'gemini-cli',
+  'qwen':     'qwen-coder',
+  'opencode': 'opencode',
+  'iflow':    'iflow',
+}
+
 const PROVIDER_NAMES: Record<string, string> = {
-  'claude': 'Claude Code',
-  'codex': 'Codex CLI',
-  'gemini': 'Gemini CLI',
-  'qwen': 'Qwen Coder',
+  'claude':   'Claude Code',
+  'codex':    'Codex CLI',
+  'gemini':   'Gemini CLI',
+  'qwen':     'Qwen Coder',
   'opencode': 'OpenCode',
-  'iflow': 'iFlow',
+  'iflow':    'iFlow CLI',
 }
 
 export class BattleService {
   private db: DatabaseManager
   private rawDb: BetterSqlite3.Database | null = null
+  private sessionManagerV2: SessionManagerV2 | null = null
 
   constructor(db: DatabaseManager) {
     this.db = db
     this.initDatabase()
+  }
+
+  /** 注入 SessionManagerV2（由主进程在服务创建后调用） */
+  setSessionManager(sm: SessionManagerV2): void {
+    this.sessionManagerV2 = sm
   }
 
   private getRawDb(): BetterSqlite3.Database {
@@ -77,10 +96,156 @@ export class BattleService {
     db.exec(`CREATE INDEX IF NOT EXISTS idx_battles_created ON battles(created_at)`)
   }
 
-  /** 创建对决 */
+  /** 解析 provider ID（UI ID → actual provider ID） */
+  private resolveProviderId(uiId: string): string {
+    return PROVIDER_ID_MAP[uiId] || uiId
+  }
+
+  /** 获取 Provider 配置（优先用户自定义，回退内置） */
+  private getProvider(providerId: string): AIProvider | undefined {
+    const custom = this.db.getProvider(providerId)
+    if (custom) return custom
+    return BUILTIN_PROVIDERS.find(bp => bp.id === providerId)
+  }
+
+  /** 从会话对话历史中提取最后一条 assistant 消息文本 */
+  private extractLastAssistantResponse(sessionId: string): string {
+    const messages = this.db.getConversationMessages(sessionId)
+    for (let i = messages.length - 1; i >= 0; i--) {
+      const m = messages[i]
+      if (m.role === 'assistant' && m.content && typeof m.content === 'string') {
+        return m.content
+      }
+    }
+    return ''
+  }
+
+  /** 等待会话 turn_complete 或超时 */
+  private waitForTurnComplete(sessionId: string, timeoutMs = 300000): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(() => {
+        this.sessionManagerV2?.off('event', onEvent)
+        reject(new Error('timeout'))
+      }, timeoutMs)
+
+      const onEvent = (sid: string, event: any) => {
+        if (sid !== sessionId) return
+        if (event.type === 'turn_complete') {
+          clearTimeout(timer)
+          this.sessionManagerV2?.off('event', onEvent)
+          resolve()
+        }
+        if (event.type === 'status_change' && event.data?.status === 'completed') {
+          clearTimeout(timer)
+          this.sessionManagerV2?.off('event', onEvent)
+          resolve()
+        }
+      }
+
+      const session = this.sessionManagerV2?.getSession(sessionId)
+      if (session?.status === 'completed' || session?.status === 'error') {
+        clearTimeout(timer)
+        this.sessionManagerV2?.off('event', onEvent)
+        resolve()
+        return
+      }
+
+      this.sessionManagerV2?.on('event', onEvent)
+    })
+  }
+
+  /** 执行一场对决（并行调度两个 AI） */
+  async execute(battleId: string, prompt: string, providerAId: string, providerBId: string): Promise<BattleResult | null> {
+    const sm = this.sessionManagerV2
+    if (!sm) {
+      console.error('[BattleService] SessionManagerV2 not injected — battle cannot execute')
+      return null
+    }
+
+    const actualA = this.resolveProviderId(providerAId)
+    const actualB = this.resolveProviderId(providerBId)
+    const providerA = this.getProvider(actualA)
+    const providerB = this.getProvider(actualB)
+
+    if (!providerA) { console.error('[BattleService] Provider A not found:', actualA); return null }
+    if (!providerB) { console.error('[BattleService] Provider B not found:', actualB); return null }
+
+    const sessionAId = `battle-${battleId}-A`
+    const sessionBId = `battle-${battleId}-B`
+    const workDir = process.cwd()
+
+    const sessionAConfig = {
+      id: sessionAId,
+      name: `Battle-A [${PROVIDER_NAMES[providerAId] || actualA}]`,
+      providerId: actualA,
+      workingDirectory: workDir,
+    }
+    const sessionBConfig = {
+      id: sessionBId,
+      name: `Battle-B [${PROVIDER_NAMES[providerBId] || actualB}]`,
+      providerId: actualB,
+      workingDirectory: workDir,
+    }
+
+    const startTime = Date.now()
+
+    try {
+      console.log(`[BattleService] Creating sessions: ${sessionAId} vs ${sessionBId}`)
+      const idA = sm.createSession(sessionAConfig, providerA)
+      const idB = sm.createSession(sessionBConfig, providerB)
+
+      // 等待两个会话就绪（等待 startup 完成）
+      await Promise.all([
+        this.waitForTurnComplete(idA, 60000).catch(() => {}),
+        this.waitForTurnComplete(idB, 60000).catch(() => {}),
+      ])
+
+      // 发送 prompt（并行）
+      console.log(`[BattleService] Sending prompts`)
+      await Promise.allSettled([
+        sm.sendMessage(idA, prompt),
+        sm.sendMessage(idB, prompt),
+      ])
+
+      // 等待两个 turn 完成（各 5 分钟超时）
+      await Promise.all([
+        this.waitForTurnComplete(idA).catch(() => {}),
+        this.waitForTurnComplete(idB).catch(() => {}),
+      ])
+
+      const duration = Date.now() - startTime
+
+      // 提取结果
+      const responseA = this.extractLastAssistantResponse(idA)
+      const responseB = this.extractLastAssistantResponse(idB)
+
+      // 清理对决会话
+      try { sm.terminateSession(idA) } catch {}
+      try { sm.terminateSession(idB) } catch {}
+
+      const tokensA = Math.round(responseA.length / 4)
+      const tokensB = Math.round(responseB.length / 4)
+
+      const result: BattleResult = {
+        providerA: { providerId: actualA, providerName: PROVIDER_NAMES[providerAId] || providerA.name, response: responseA, tokenCount: tokensA, duration },
+        providerB: { providerId: actualB, providerName: PROVIDER_NAMES[providerBId] || providerB.name, response: responseB, tokenCount: tokensB, duration },
+      }
+
+      console.log(`[BattleService] Battle ${battleId} completed: A=${tokensA} tokens, B=${tokensB} tokens, ${duration}ms`)
+      return result
+    } catch (err) {
+      console.error('[BattleService] Battle execution error:', err)
+      try { sm.terminateSession(sessionAId) } catch {}
+      try { sm.terminateSession(sessionBId) } catch {}
+      return null
+    }
+  }
+
+  /** 创建对决（异步触发执行） */
   async create(params: { prompt: string; providerAId: string; providerBId: string }): Promise<{ success: boolean; battle?: Battle; error?: string }> {
+    const battleId = uuid()
     const battle: Battle = {
-      id: uuid(),
+      id: battleId,
       prompt: params.prompt,
       providerAId: params.providerAId,
       providerBId: params.providerBId,
@@ -100,9 +265,23 @@ export class BattleService {
       `).run(battle.id, battle.prompt, battle.providerAId, battle.providerBId,
           battle.status, null, null, '[]', battle.createdAt, null)
 
-      // 标记为 running
-      battle.status = 'running'
       db.prepare('UPDATE battles SET status = ? WHERE id = ?').run('running', battle.id)
+      battle.status = 'running'
+
+      // 异步执行对决（不阻塞 IPC）
+      this.execute(battle.id, battle.prompt, battle.providerAId, battle.providerBId)
+        .then((result) => {
+          if (result) {
+            // 简单判定：字数 + 含代码块加分
+            const scoreA = result.providerA.response.length + (result.providerA.response.match(/```/g) || []).length * 200
+            const scoreB = result.providerB.response.length + (result.providerB.response.match(/```/g) || []).length * 200
+            const winner: 'A' | 'B' | 'tie' = scoreA > scoreB ? 'A' : scoreB > scoreA ? 'B' : 'tie'
+            this.complete(battle.id, result, winner)
+          } else {
+            this.fail(battle.id)
+          }
+        })
+        .catch(() => this.fail(battle.id))
 
       return { success: true, battle }
     } catch (err: any) {
@@ -110,17 +289,14 @@ export class BattleService {
     }
   }
 
-  /** 完成对决（由外部调用，当两个 AI 都返回后） */
-  async complete(battleId: string, result: BattleResult): Promise<{ success: boolean; battle?: Battle }> {
+  /** 完成对决 */
+  async complete(battleId: string, result: BattleResult, winner: 'A' | 'B' | 'tie'): Promise<{ success: boolean; battle?: Battle }> {
     try {
       const db = this.getRawDb()
-      db.prepare(`
-        UPDATE battles SET status = 'completed', result = ?, completed_at = ?
-        WHERE id = ?
-      `).run(JSON.stringify(result), new Date().toISOString(), battleId)
-
-      const battle = this.mapRow(db.prepare('SELECT * FROM battles WHERE id = ?').get(battleId) as any)
-      return { success: true, battle }
+      db.prepare(`UPDATE battles SET status = 'completed', result = ?, winner = ?, completed_at = ? WHERE id = ?`)
+        .run(JSON.stringify(result), winner, new Date().toISOString(), battleId)
+      const row = db.prepare('SELECT * FROM battles WHERE id = ?').get(battleId) as any
+      return { success: true, battle: this.mapRow(row) }
     } catch {
       return { success: true }
     }
@@ -129,8 +305,7 @@ export class BattleService {
   /** 标记对决失败 */
   async fail(battleId: string): Promise<{ success: boolean }> {
     try {
-      const db = this.getRawDb()
-      db.prepare("UPDATE battles SET status = 'failed', completed_at = ? WHERE id = ?")
+      this.getRawDb().prepare("UPDATE battles SET status = 'failed', completed_at = ? WHERE id = ?")
         .run(new Date().toISOString(), battleId)
       return { success: true }
     } catch {
@@ -141,8 +316,7 @@ export class BattleService {
   /** 获取对决 */
   async get(id: string): Promise<{ success: boolean; battle?: Battle }> {
     try {
-      const db = this.getRawDb()
-      const row = db.prepare('SELECT * FROM battles WHERE id = ?').get(id) as any
+      const row = this.getRawDb().prepare('SELECT * FROM battles WHERE id = ?').get(id) as any
       if (!row) return { success: true }
       return { success: true, battle: this.mapRow(row) }
     } catch {
@@ -153,8 +327,7 @@ export class BattleService {
   /** 列出对决 */
   async list(limit?: number): Promise<{ success: boolean; battles: Battle[] }> {
     try {
-      const db = this.getRawDb()
-      const rows = db.prepare('SELECT * FROM battles ORDER BY created_at DESC LIMIT ?').all(limit || 50) as any[]
+      const rows = this.getRawDb().prepare('SELECT * FROM battles ORDER BY created_at DESC LIMIT ?').all(limit || 50) as any[]
       return { success: true, battles: rows.map(r => this.mapRow(r)) }
     } catch {
       return { success: true, battles: [] }
@@ -164,12 +337,10 @@ export class BattleService {
   /** 投票 */
   async vote(battleId: string, voterId: string, choice: 'A' | 'B' | 'tie', comment?: string): Promise<{ success: boolean; battle?: Battle }> {
     try {
-      const db = this.getRawDb()
-      const row = db.prepare('SELECT * FROM battles WHERE id = ?').get(battleId) as any
+      const row = this.getRawDb().prepare('SELECT * FROM battles WHERE id = ?').get(battleId) as any
       if (!row) return { success: false }
 
       const votes = JSON.parse(row.votes || '[]')
-      // 同一投票者只能投一次
       const existingIdx = votes.findIndex((v: any) => v.voterId === voterId)
       if (existingIdx >= 0) {
         votes[existingIdx] = { voterId, choice, comment: comment || '' }
@@ -177,16 +348,15 @@ export class BattleService {
         votes.push({ voterId, choice, comment: comment || '' })
       }
 
-      // 统计胜者
       const aWins = votes.filter((v: any) => v.choice === 'A').length
       const bWins = votes.filter((v: any) => v.choice === 'B').length
       const winner = aWins > bWins ? 'A' : bWins > aWins ? 'B' : 'tie'
 
-      db.prepare('UPDATE battles SET votes = ?, winner = ? WHERE id = ?')
+      this.getRawDb().prepare('UPDATE battles SET votes = ?, winner = ? WHERE id = ?')
         .run(JSON.stringify(votes), winner, battleId)
 
-      const updated = this.mapRow(db.prepare('SELECT * FROM battles WHERE id = ?').get(battleId) as any)
-      return { success: true, battle: updated }
+      const updated = this.getRawDb().prepare('SELECT * FROM battles WHERE id = ?').get(battleId) as any
+      return { success: true, battle: this.mapRow(updated) }
     } catch {
       return { success: true }
     }
@@ -195,8 +365,7 @@ export class BattleService {
   /** 删除对决 */
   async delete(id: string): Promise<{ success: boolean }> {
     try {
-      const db = this.getRawDb()
-      db.prepare('DELETE FROM battles WHERE id = ?').run(id)
+      this.getRawDb().prepare('DELETE FROM battles WHERE id = ?').run(id)
       return { success: true }
     } catch {
       return { success: true }
@@ -206,29 +375,20 @@ export class BattleService {
   /** 获取统计 */
   async getStats(): Promise<{ success: boolean; stats: BattleStats }> {
     try {
-      const db = this.getRawDb()
-      const rows = db.prepare('SELECT * FROM battles').all() as any[]
+      const rows = this.getRawDb().prepare('SELECT * FROM battles').all() as any[]
       const completed = rows.filter(r => r.status === 'completed')
       const providerWins: Record<string, number> = {}
       let totalDuration = 0
       let tieCount = 0
 
       for (const b of completed) {
-        const winner = b.winner
-        if (winner === 'A') {
-          providerWins[b.provider_a_id] = (providerWins[b.provider_a_id] || 0) + 1
-        } else if (winner === 'B') {
-          providerWins[b.provider_b_id] = (providerWins[b.provider_b_id] || 0) + 1
-        } else if (winner === 'tie') {
-          tieCount++
-        }
+        if (b.winner === 'A') providerWins[b.provider_a_id] = (providerWins[b.provider_a_id] || 0) + 1
+        else if (b.winner === 'B') providerWins[b.provider_b_id] = (providerWins[b.provider_b_id] || 0) + 1
+        else if (b.winner === 'tie') tieCount++
 
-        // 从 result 中提取时长
         try {
           const result = JSON.parse(b.result || 'null')
-          if (result) {
-            totalDuration += (result.providerA?.duration || 0) + (result.providerB?.duration || 0)
-          }
+          if (result) totalDuration += (result.providerA?.duration || 0) + (result.providerB?.duration || 0)
         } catch { /* ignore */ }
       }
 
