@@ -1080,6 +1080,8 @@ export default function Sidebar() {
       return <StatsPanel />
     case 'team':
       return <TeamSidebarView />
+    case 'sessions':
+      return <SessionsContent />
     // === 其他功能统一整合到工具箱 ===
     default:
       return <ToolboxView />
