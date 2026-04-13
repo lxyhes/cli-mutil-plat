@@ -9,8 +9,7 @@ import {
   ChevronDown, ChevronRight, Edit3, Check, X, Zap, FileText, Bot, User,
   CheckSquare, Download, Upload
 } from 'lucide-react'
-import { useKnowledgeStore } from '../../stores/knowledgeStore'
-import type { KnowledgeEntry } from '../../shared/types'
+import { useKnowledgeStore, type KnowledgeEntry } from '../../stores/knowledgeStore'
 import { useSessionStore } from '../../stores/sessionStore'
 
 const CATEGORIES = [
@@ -70,7 +69,7 @@ function EntryForm({ initial, projectPath, onSave, onCancel }: {
       {/* Category + Priority */}
       <div className="flex items-center gap-1 flex-wrap">
         {CATEGORIES.map(c => (
-          <button key={c.value} onClick={() => setCategory(c.value)}
+          <button key={c.value} onClick={() => setCategory(c.value as KnowledgeEntry['category'])}
             className={`px-1.5 py-0.5 rounded text-[10px] transition-colors ${
               category === c.value ? `${c.color} ${c.bg}` : 'text-text-muted hover:text-text-primary'
             }`}>
@@ -79,7 +78,7 @@ function EntryForm({ initial, projectPath, onSave, onCancel }: {
         ))}
         <span className="mx-1 text-border">|</span>
         {PRIORITIES.map(p => (
-          <button key={p.value} onClick={() => setPriority(p.value)}
+          <button key={p.value} onClick={() => setPriority(p.value as KnowledgeEntry['priority'])}
             className={`px-1.5 py-0.5 rounded text-[10px] ${priority === p.value ? p.color : 'text-text-muted'}`}>
             {p.label}
           </button>
