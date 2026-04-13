@@ -977,6 +977,7 @@ if (!ctxBr) {
     search: (projectPath: string, query: string, limit?: number) => ipcRenderer.invoke(IPC.PROJECT_KB_SEARCH, projectPath, query, limit),
     getPrompt: (projectPath: string) => ipcRenderer.invoke(IPC.PROJECT_KB_GET_PROMPT, projectPath),
     autoExtract: (projectPath: string) => ipcRenderer.invoke(IPC.PROJECT_KB_AUTO_EXTRACT, projectPath),
+    extractFromSession: (sessionId: string, projectPath: string) => ipcRenderer.invoke(IPC.PROJECT_KB_EXTRACT_SESSION, sessionId, projectPath),
     deleteBatch: (ids: string[]) => ipcRenderer.invoke(IPC.PROJECT_KB_DELETE_BATCH, ids),
     updateBatch: (ids: string[], updates: any) => ipcRenderer.invoke(IPC.PROJECT_KB_UPDATE_BATCH, ids, updates),
     export: (projectPath: string) => ipcRenderer.invoke(IPC.PROJECT_KB_EXPORT, projectPath),

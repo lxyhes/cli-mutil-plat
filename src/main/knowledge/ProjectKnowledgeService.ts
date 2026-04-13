@@ -356,6 +356,169 @@ export class ProjectKnowledgeService {
     return { success: true, count, extracted }
   }
 
+  /** 从会话对话中提取知识（分析 assistant 消息，提取架构决策、规范、API 设计等） */
+  async extractFromSession(sessionId: string, projectPath: string): Promise<{ success: boolean; count: number; extracted: string[] }> {
+    let count = 0
+    const extracted: string[] = []
+
+    try {
+      // 从 conversation_messages 表获取 assistant 消息
+      const rows = this.rawDb.prepare(`
+        SELECT content FROM conversation_messages
+        WHERE session_id = ? AND role = 'assistant'
+        ORDER BY timestamp ASC
+      `).all(sessionId) as any[]
+
+      if (rows.length === 0) return { success: true, count: 0, extracted: [] }
+
+      // 拼接所有 assistant 回复文本
+      const fullText = rows
+        .map((r: any) => r.content || '')
+        .filter(Boolean)
+        .join('\n\n---\n\n')
+
+      if (!fullText.trim()) return { success: true, count: 0, extracted: [] }
+
+      // 提取标题（h1/h2/h3）
+      const headingPattern = /^#{1,3}\s+(.+)$/gm
+      const headings: string[] = []
+      let match
+      while ((match = headingPattern.exec(fullText)) !== null) {
+        const heading = match[1].trim()
+        if (heading.length > 3 && heading.length < 100) {
+          headings.push(heading)
+        }
+      }
+
+      // 提取代码块（语言标注的）
+      const codeBlockPattern = /```(\w+)?\n([\s\S]*?)```/g
+      const codeBlocks: { lang: string; code: string }[] = []
+      while ((match = codeBlockPattern.exec(fullText)) !== null) {
+        const lang = match[1] || 'text'
+        const code = match[2].trim()
+        if (code.length > 20 && code.length < 1000) {
+          codeBlocks.push({ lang, code })
+        }
+      }
+
+      // 提取反引号包裹的关键术语
+      const termPattern = /`([^`\n]{4,60})`/g
+      const terms = new Set<string>()
+      while ((match = termPattern.exec(fullText)) !== null) {
+        const term = match[1].trim()
+        // 过滤掉命令行参数、文件路径等非术语
+        if (!term.startsWith('--') && !term.includes('"') && !term.includes('\\') && !/^[a-z]:/i.test(term)) {
+          terms.add(term)
+        }
+      }
+
+      // 提取 API 端点（GET/POST/PUT/DELETE 等）
+      const apiPattern = /(GET|POST|PUT|DELETE|PATCH)\s+(\/[a-zA-Z0-9_\/{}:-]+)/g
+      const apis: string[] = []
+      while ((match = apiPattern.exec(fullText)) !== null) {
+        apis.push(`${match[1]} ${match[2]}`)
+      }
+
+      // 从标题中提取知识条目（按分类匹配）
+      for (const heading of headings) {
+        const lower = heading.toLowerCase()
+        let category: string = 'custom'
+        let title = heading
+
+        // 分类映射
+        if (/架构|architecture|结构|模块|分层/.test(lower)) {
+          category = 'architecture'
+        } else if (/api|接口|endpoint|端点|路由|route/.test(lower)) {
+          category = 'api'
+        } else if (/规范|convention|约定|规则|style|pattern/.test(lower)) {
+          category = 'convention'
+        } else if (/决策|decision|选择|方案|决定/.test(lower)) {
+          category = 'decision'
+        } else if (/技术栈|依赖|包|技术|tech/.test(lower)) {
+          category = 'tech-stack'
+        }
+
+        // 跳过已存在的
+        if (await this.checkExistsByTitle(projectPath, title)) continue
+
+        // 提取该标题下的内容块（到下一个标题为止）
+        const headingIndex = fullText.indexOf(heading)
+        const nextHeadingIndex = headings.indexOf(heading) < headings.length - 1
+          ? fullText.indexOf(headings[headings.indexOf(heading) + 1], headingIndex + heading.length)
+          : -1
+        const sectionContent = nextHeadingIndex > 0
+          ? fullText.slice(headingIndex + heading.length, nextHeadingIndex)
+          : fullText.slice(headingIndex + heading.length)
+
+        // 清理内容：去掉 markdown 标记，保留核心文字
+        const cleaned = sectionContent
+          .replace(/```[\s\S]*?```/g, '[代码块]')
+          .replace(/`([^`]+)`/g, '$1')
+          .replace(/#{1,6}\s+/g, '')
+          .replace(/\*\*(.+?)\*\*/g, '$1')
+          .replace(/\*(.+?)\*/g, '$1')
+          .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+          .trim()
+          .slice(0, 2000)
+
+        await this.createEntry({
+          projectPath, category: category as import('../../shared/types').KnowledgeCategory, title,
+          content: cleaned,
+          tags: ['session-extract', 'auto'],
+          priority: category === 'decision' || category === 'architecture' ? 'high' : 'medium',
+          autoInject: true,
+          source: 'ai-generated',
+        })
+        count++
+        extracted.push(title)
+      }
+
+      // 如果没有提取到标题条目，但有 API 端点，创建 API 知识
+      if (count === 0 && apis.length > 0) {
+        const uniqueApis = [...new Set(apis)]
+        const apiContent = uniqueApis.slice(0, 20).join('\n')
+        if (!(await this.checkExistsByTitle(projectPath, 'API 端点'))) {
+          await this.createEntry({
+            projectPath, category: 'api', title: 'API 端点',
+            content: `从会话中提取的 API 端点：\n${apiContent}`,
+            tags: ['api', 'session-extract', 'auto'],
+            priority: 'high', autoInject: true, source: 'ai-generated',
+          })
+          count++
+          extracted.push('API 端点')
+        }
+      }
+
+      // 如果仍无提取，尝试提取代码模式
+      if (count === 0 && codeBlocks.length > 0) {
+        const langCounts: Record<string, number> = {}
+        for (const cb of codeBlocks) {
+          langCounts[cb.lang] = (langCounts[cb.lang] || 0) + 1
+        }
+        const topLang = Object.entries(langCounts).sort((a, b) => b[1] - a[1])[0]?.[0]
+        if (topLang && topLang !== 'text') {
+          const patternTitle = `${topLang} 代码模式`
+          if (!(await this.checkExistsByTitle(projectPath, patternTitle))) {
+            const sampleCode = codeBlocks.filter(c => c.lang === topLang).slice(0, 3).map(c => c.code).join('\n\n')
+            await this.createEntry({
+              projectPath, category: 'convention', title: patternTitle,
+              content: `从会话中提取的 ${topLang} 代码模式示例：\n\`\`\`${topLang}\n${sampleCode.slice(0, 1000)}\n\`\`\``,
+              tags: [topLang, 'session-extract', 'auto'],
+              priority: 'medium', autoInject: true, source: 'ai-generated',
+            })
+            count++
+            extracted.push(patternTitle)
+          }
+        }
+      }
+
+    } catch (err) {
+      console.error('[KnowledgeService] extractFromSession failed:', err)
+    }
+
+    return { success: true, count, extracted }
+  }
+
   /** 导出知识库为 JSON */
   async exportData(projectPath: string): Promise<{ success: boolean; data: any | null }> {
     try {

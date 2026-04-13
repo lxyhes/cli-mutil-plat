@@ -75,6 +75,7 @@ export function registerNewFeatureHandlers(deps: NewFeatureDeps): void {
     ipcMain.handle(IPC.PROJECT_KB_SEARCH, async (_, path, q, limit?) => kb.search(path, q, limit))
     ipcMain.handle(IPC.PROJECT_KB_GET_PROMPT, async (_, path) => kb.getPrompt(path))
     ipcMain.handle(IPC.PROJECT_KB_AUTO_EXTRACT, async (_, path) => kb.autoExtract(path))
+    ipcMain.handle(IPC.PROJECT_KB_EXTRACT_SESSION, async (_, sessionId, projectPath) => kb.extractFromSession(sessionId, projectPath))
     ipcMain.handle(IPC.PROJECT_KB_DELETE_BATCH, async (_, ids) => kb.deleteBatch(ids))
     ipcMain.handle(IPC.PROJECT_KB_UPDATE_BATCH, async (_, ids, updates) => kb.updateBatch(ids, updates))
     ipcMain.handle(IPC.PROJECT_KB_EXPORT, async (_, path) => kb.exportData(path))

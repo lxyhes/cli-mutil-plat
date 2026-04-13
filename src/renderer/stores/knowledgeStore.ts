@@ -29,6 +29,7 @@ interface KnowledgeState {
   search: (projectPath: string, query: string) => Promise<KnowledgeEntry[]>
   getPrompt: (projectPath: string) => Promise<string>
   autoExtract: (projectPath: string) => Promise<{ count: number; extracted: string[] }>
+  extractFromSession: (sessionId: string, projectPath: string) => Promise<{ count: number; extracted: string[] }>
   // 批量操作
   deleteBatch: (ids: string[]) => Promise<number>
   updateBatch: (ids: string[], updates: any) => Promise<number>
@@ -187,6 +188,14 @@ export const useKnowledgeStore = create<KnowledgeState>((set, get) => ({
   autoExtract: async (projectPath) => {
     try {
       const r = await api()?.autoExtract(projectPath)
+      if (r?.success && get().projectPath) await get().fetchList(get().projectPath!)
+      return { count: r?.count || 0, extracted: r?.extracted || [] }
+    } catch { return { count: 0, extracted: [] } }
+  },
+
+  extractFromSession: async (sessionId, projectPath) => {
+    try {
+      const r = await api()?.extractFromSession(sessionId, projectPath)
       if (r?.success && get().projectPath) await get().fetchList(get().projectPath!)
       return { count: r?.count || 0, extracted: r?.extracted || [] }
     } catch { return { count: 0, extracted: [] } }

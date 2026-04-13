@@ -7,7 +7,7 @@ import { useState, useEffect } from 'react'
 import {
   BookMarked, Plus, Search, Trash2, RefreshCw, Sparkles,
   ChevronDown, ChevronRight, Edit3, Check, X, Zap, FileText, Bot, User,
-  CheckSquare, Download, Upload
+  CheckSquare, Download, Upload, MessageSquare
 } from 'lucide-react'
 import { useKnowledgeStore, type KnowledgeEntry } from '../../stores/knowledgeStore'
 import { useSessionStore } from '../../stores/sessionStore'
@@ -186,12 +186,13 @@ export default function KnowledgeView() {
   const loading = useKnowledgeStore(s => s.loading)
   const pagination = useKnowledgeStore(s => s.pagination)
   const selectedIds = useKnowledgeStore(s => s.selectedIds)
-  const activeSessionId = useSessionStore(s => s.currentSessionId)
+  const selectedSessionId = useSessionStore(s => s.selectedSessionId)
   const sessions = useSessionStore(s => s.sessions)
   const [searchQ, setSearchQ] = useState('')
   const [showAdd, setShowAdd] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [extracting, setExtracting] = useState(false)
+  const [extractingSession, setExtractingSession] = useState(false)
   const [extractResult, setExtractResult] = useState<{ count: number; extracted: string[] } | null>(null)
   const [extractSteps, setExtractSteps] = useState<{ name: string; status: 'pending' | 'done' | 'skip' }[]>([
     { name: 'README', status: 'pending' },
@@ -206,7 +207,7 @@ export default function KnowledgeView() {
   const [batchCategory, setBatchCategory] = useState<string>('')
   const [batchPriority, setBatchPriority] = useState<string>('')
 
-  const session = sessions.find(s => s.id === activeSessionId)
+  const session = sessions.find(s => s.id === selectedSessionId)
   const projectPath = session?.config?.workingDirectory || (session as any)?.workDir || ''
 
   useEffect(() => {
@@ -323,6 +324,19 @@ export default function KnowledgeView() {
     }
   }
 
+  /** 从当前会话对话中提取知识 */
+  const handleExtractFromSession = async () => {
+    if (!projectPath || !selectedSessionId) return
+    setExtractingSession(true)
+    setExtractResult(null)
+    try {
+      const result = await store.extractFromSession(selectedSessionId, projectPath)
+      setExtractResult(result)
+    } finally {
+      setExtractingSession(false)
+    }
+  }
+
   const handleToggleInject = async (id: string, autoInject: boolean) => {
     await store.updateEntry(id, { autoInject })
   }
@@ -351,6 +365,7 @@ export default function KnowledgeView() {
       <div className="flex flex-col items-center justify-center h-full text-text-muted p-6">
         <BookMarked className="w-8 h-8 mb-3 opacity-40" />
         <p className="text-sm">请先选择一个会话</p>
+        {!selectedSessionId && <p className="text-xs mt-1 opacity-60">建议：打开一个有对话历史的会话，再用右侧 🔮 按钮提取知识</p>}
       </div>
     )
   }
@@ -382,9 +397,14 @@ export default function KnowledgeView() {
             className="p-1 rounded hover:bg-bg-hover text-text-muted hover:text-accent-purple transition-colors">
             <Upload className="w-3.5 h-3.5" />
           </button>
-          <button onClick={handleAutoExtract} title="自动提取知识" disabled={extracting}
+          <button onClick={handleAutoExtract} title="从项目文件提取知识" disabled={extracting}
             className="p-1 rounded hover:bg-bg-hover text-text-muted hover:text-accent-blue transition-colors disabled:opacity-50">
             <Sparkles className={`w-3.5 h-3.5 ${extracting ? 'animate-pulse' : ''}`} />
+          </button>
+          <button onClick={handleExtractFromSession} title="从当前会话提取知识" disabled={extractingSession || !selectedSessionId}
+            className="p-1 rounded hover:bg-bg-hover text-text-muted hover:text-accent-purple transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            style={{ opacity: (!selectedSessionId) ? 0.4 : 1 }}>
+            <MessageSquare className={`w-3.5 h-3.5 ${extractingSession ? 'animate-pulse' : ''}`} />
           </button>
           <button onClick={() => setShowAdd(!showAdd)} title="添加知识"
             className="p-1 rounded hover:bg-bg-hover text-text-muted hover:text-accent-green transition-colors">
@@ -499,7 +519,7 @@ export default function KnowledgeView() {
           <div className="flex flex-col items-center justify-center py-12 text-text-muted">
             <BookMarked className="w-7 h-7 mb-3 opacity-30" />
             <p className="text-sm mb-1">{searchQ || filterCategory ? '未找到匹配' : '暂无知识条目'}</p>
-            <p className="text-[10px]">点击 ✨ 自动从项目提取知识</p>
+            <p className="text-[10px]">点击 ✨ 从项目文件提取 · 🔮 从会话对话提取</p>
           </div>
         ) : (
           <div className="divide-y divide-border">
