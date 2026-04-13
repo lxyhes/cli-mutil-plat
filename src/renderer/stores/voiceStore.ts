@@ -109,11 +109,30 @@ class VoiceStore {
     }
   }
 
-  /** 模拟语音输入（用于测试） */
+  /** 获取 preload 暴露的 session API */
+  private sessionApi() {
+    return (window as any).spectrAI?.session
+  }
+
+  /** 获取当前活跃会话 ID（优先从 store 获取，回退到 localStorage） */
+  private getActiveSessionId(): string | null {
+    // 通过 spectrAI API 获取
+    const sessionApi = this.sessionApi()
+    if (sessionApi?.getActive?.()) return sessionApi.getActive()
+    // 回退到 localStorage
+    return localStorage.getItem('active-session-id')
+  }
+
+  /** 模拟语音输入（用于测试）- 同时发送到活跃会话 */
   async simulateInput(text: string) {
     try {
       await this.api()?.simulateInput?.(text)
       this.status.lastTranscript = text
+      // 发送到活跃会话
+      const sessionId = this.getActiveSessionId()
+      if (sessionId) {
+        await this.sessionApi()?.sendMessage?.(sessionId, text)
+      }
       await this.loadHistory()
     } catch (e: any) {
       this.error = e.message

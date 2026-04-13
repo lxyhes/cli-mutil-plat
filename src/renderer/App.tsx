@@ -11,6 +11,7 @@ import { useTaskStore } from './stores/taskStore'
 import { useSkillStore } from './stores/skillStore'
 import { useUIStore } from './stores/uiStore'
 import { useSettingsStore } from './stores/settingsStore'
+import { voiceStore } from './stores/voiceStore'
 import type { ViewMode } from '../shared/types'
 import { isPrimaryModifierPressed } from './utils/shortcut'
 import './styles/globals.css'
@@ -54,6 +55,9 @@ export default function App() {
       useSessionStore.getState().initAgentListeners()
       useSessionStore.getState().initConversationListeners()  // SDK V2 对话事件
       useTaskStore.getState().initTaskListeners()
+      // ★ 语音配置预加载（用于 autoSpeak 事件监听）
+      voiceStore.loadConfig()
+      voiceStore.loadStatus()
 
       // MCP install_skill 通知监听：AI 通过 MCP 安装技能后自动刷新列表
       cleanups.push(useSkillStore.getState().initMcpInstallListener())

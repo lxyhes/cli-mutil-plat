@@ -14,6 +14,7 @@ import type {
 } from '../../shared/types'
 import { sanitizeDisplayText } from '../utils/textSanitizer'
 import { safeAPI } from '../utils/api'
+import { voiceStore } from './voiceStore'
 
 /** Agent 信息（从主进程同步） */
 interface AgentInfo {
@@ -851,6 +852,11 @@ export const useSessionStore = create<SessionState>((set, get) => ({
             return { suppressNextEcho: next }
           })
           return
+        }
+        // ★ autoSpeak: AI 回复时自动播报
+        if (msg.role === 'assistant' && voiceStore.config?.autoSpeak) {
+          const text = msg.content || ''
+          if (text) voiceStore.speak(text)
         }
         get().addConversationMessage(sessionId, msg)
       }
