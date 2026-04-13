@@ -105,12 +105,56 @@ export class VoiceService {
 
   /** 转录音频 */
   async transcribe(audioData: Buffer): Promise<{ success: boolean; text: string; confidence: number }> {
-    // TODO: 接入 Whisper API
     if (this.config.transcriptionProvider === 'whisper-api' && this.config.whisperApiKey) {
-      return { success: false, text: '', confidence: 0 }
+      return this.transcribeWithWhisper(audioData)
     }
     // 本地模式暂不支持
     return { success: false, text: '', confidence: 0 }
+  }
+
+  /** 使用 Whisper API 转录 */
+  private async transcribeWithWhisper(audioData: Buffer): Promise<{ success: boolean; text: string; confidence: number }> {
+    try {
+      const apiUrl = this.config.whisperApiUrl || 'https://api.openai.com/v1/audio/transcriptions'
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${this.config.whisperApiKey}`,
+          'Content-Type': 'multipart/form-data',
+        },
+        body: this.createFormData(audioData),
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        throw new Error(errorData.error?.message || `API error: ${response.status}`)
+      }
+
+      const data = await response.json()
+      const transcript = data.text || ''
+      this.status.lastTranscript = transcript
+      this.addHistory('input', transcript)
+      
+      return {
+        success: true,
+        text: transcript,
+        confidence: 0.9, // Whisper API doesn't return confidence, using default
+      }
+    } catch (err: any) {
+      console.error('[VoiceService] Whisper API error:', err)
+      return { success: false, text: '', confidence: 0 }
+    }
+  }
+
+  /** 创建 FormData 用于 Whisper API */
+  private createFormData(audioData: Buffer): FormData {
+    const formData = new FormData()
+    const blob = new Blob([audioData], { type: 'audio/wav' })
+    formData.append('file', blob, 'audio.wav')
+    formData.append('model', 'whisper-1')
+    formData.append('language', this.config.language === 'zh-CN' ? 'zh' : 'en')
+    formData.append('response_format', 'json')
+    return formData
   }
 
   /** 获取状态 */

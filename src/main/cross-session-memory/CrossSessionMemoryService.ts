@@ -349,39 +349,96 @@ export class CrossSessionMemoryService extends EventEmitter {
 
   // ── Private ─────────────────────────────────────────────
 
-  /** 提取关键词（简易中英文混合） */
+  /** 提取关键词（增强版中英文混合） */
   private extractKeywords(text: string): string[] {
     const keywords: string[] = []
     const seen = new Set<string>()
 
-    // 英文关键词（3+ 字符）
+    // 1. 提取代码相关术语（变量名、函数名、类名）
+    const codeTerms = text.match(/[a-zA-Z_][a-zA-Z0-9_]{2,}/g) || []
+    for (const term of codeTerms) {
+      if (term.length >= 3 && !seen.has(term)) {
+        seen.add(term)
+        keywords.push(term)
+      }
+    }
+
+    // 2. 提取数字和版本号
+    const numbers = text.match(/\b\d+\.\d+\.\d+\b|\b\d+\b/g) || []
+    for (const num of numbers) {
+      if (!seen.has(num)) {
+        seen.add(num)
+        keywords.push(num)
+      }
+    }
+
+    // 3. 英文关键词（3+ 字符）
     const englishWords = text.toLowerCase().match(/[a-z][a-z0-9_-]{2,}/g) || []
     const stopWords = new Set([
       'the', 'and', 'for', 'are', 'but', 'not', 'you', 'all', 'can',
       'had', 'her', 'was', 'one', 'our', 'out', 'has', 'have', 'this',
       'that', 'with', 'from', 'they', 'been', 'said', 'each', 'which',
       'their', 'will', 'other', 'about', 'many', 'then', 'them',
+      'what', 'when', 'where', 'why', 'how', 'if', 'as', 'is',
     ])
     for (const w of englishWords) {
-      if (!stopWords.has(w) && !seen.has(w)) {
+      if (!stopWords.has(w) && !seen.has(w) && w.length >= 3) {
         seen.add(w)
         keywords.push(w)
       }
     }
 
-    // 中文关键词（2字组合）
+    // 4. 中文关键词（智能分词）
     const chineseSegments = text.match(/[\u4e00-\u9fff]+/g) || []
     const cnStopWords = new Set(['的', '了', '是', '在', '和', '有', '不', '这', '我', '你', '个', '上', '也', '到', '说', '要'])
+    
     for (const segment of chineseSegments) {
-      for (let i = 0; i < segment.length - 1; i++) {
-        const bigram = segment.slice(i, i + 2)
+      // 提取单字词（有意义的）
+      if (segment.length === 1) {
+        const char = segment[0]
+        if (!cnStopWords.has(char) && !seen.has(char)) {
+          seen.add(char)
+          keywords.push(char)
+        }
+      }
+      // 提取双字词
+      else if (segment.length === 2) {
+        const bigram = segment
         if (!cnStopWords.has(bigram) && !seen.has(bigram)) {
           seen.add(bigram)
           keywords.push(bigram)
         }
       }
+      // 提取多字词（3+ 字）
+      else {
+        // 提取整个短语
+        if (!seen.has(segment)) {
+          seen.add(segment)
+          keywords.push(segment)
+        }
+        // 提取双字组合作为补充
+        for (let i = 0; i < segment.length - 1; i++) {
+          const bigram = segment.slice(i, i + 2)
+          if (!cnStopWords.has(bigram) && !seen.has(bigram)) {
+            seen.add(bigram)
+            keywords.push(bigram)
+          }
+        }
+      }
     }
 
-    return keywords.slice(0, 20)  // 限制关键词数量
+    // 5. 提取技术术语（如 JSON、API、HTTP 等）
+    const techTerms = text.match(/\b[A-Z]+[A-Z0-9_]*\b/g) || []
+    for (const term of techTerms) {
+      if (term.length >= 2 && !seen.has(term)) {
+        seen.add(term)
+        keywords.push(term)
+      }
+    }
+
+    // 限制关键词数量，优先保留长词
+    return keywords
+      .sort((a, b) => b.length - a.length)  // 长词优先
+      .slice(0, 30)  // 增加关键词数量
   }
 }

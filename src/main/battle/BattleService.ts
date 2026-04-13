@@ -241,6 +241,102 @@ export class BattleService {
     }
   }
 
+  /** 综合评分算法 */
+  private calculateWinner(result: BattleResult): 'A' | 'B' | 'tie' {
+    const scoreA = this.calculateScore(result.providerA.response, result.providerA.tokenCount, result.providerA.duration)
+    const scoreB = this.calculateScore(result.providerB.response, result.providerB.tokenCount, result.providerB.duration)
+    
+    const threshold = 5 // 分数差阈值，小于此值视为平局
+    if (scoreA > scoreB + threshold) return 'A'
+    if (scoreB > scoreA + threshold) return 'B'
+    return 'tie'
+  }
+
+  /** 计算单个 AI 的综合得分 */
+  private calculateScore(response: string, tokenCount: number, duration: number): number {
+    let score = 0
+    
+    // 1. 内容质量（40%）
+    // - 代码块数量（每个 +20 分）
+    const codeBlocks = (response.match(/```/g) || []).length / 2
+    score += codeBlocks * 20
+    
+    // - 结构化程度（标题、列表等）
+    const structureScore = this.calculateStructureScore(response)
+    score += structureScore * 0.4
+    
+    // 2. 响应长度（20%）
+    // - 适中长度最佳，过长或过短都有惩罚
+    const lengthScore = this.calculateLengthScore(response.length)
+    score += lengthScore * 0.2
+    
+    // 3. 令牌效率（20%）
+    // - 单位令牌的内容长度
+    if (tokenCount > 0) {
+      const efficiency = response.length / tokenCount
+      score += Math.min(efficiency * 10, 20) // 上限 20 分
+    }
+    
+    // 4. 响应速度（20%）
+    // - 越快越好，但有最低阈值
+    const speedScore = this.calculateSpeedScore(duration)
+    score += speedScore * 0.2
+    
+    return Math.round(score)
+  }
+
+  /** 计算结构得分 */
+  private calculateStructureScore(response: string): number {
+    let score = 0
+    
+    // 标题（#）
+    if (response.includes('# ')) score += 5
+    
+    // 列表（- 或 *）
+    if (response.includes('\n- ') || response.includes('\n* ')) score += 5
+    
+    // 粗体/斜体
+    if (response.includes('**') || response.includes('*')) score += 3
+    
+    // 引用（>）
+    if (response.includes('\n> ')) score += 3
+    
+    // 表格
+    if (response.includes('|') && response.includes('-|-')) score += 10
+    
+    return score
+  }
+
+  /** 计算长度得分 */
+  private calculateLengthScore(length: number): number {
+    if (length < 50) return 0      // 过短
+    if (length < 200) return 5     // 较短
+    if (length < 1000) return 10   // 适中
+    if (length < 3000) return 15   // 较长
+    if (length < 5000) return 18   // 很长
+    return 20                      // 超长
+  }
+
+  /** 计算速度得分 */
+  private calculateSpeedScore(duration: number): number {
+    const seconds = duration / 1000
+    
+    if (seconds < 5) return 20     // 非常快
+    if (seconds < 15) return 18    // 很快
+    if (seconds < 30) return 15    // 适中
+    if (seconds < 60) return 10    // 较慢
+    if (seconds < 120) return 5    // 很慢
+    return 0                       // 极慢
+  }
+
+  /** 创建对决（异步触发执行） */catch (err) {
+      console.error('[BattleService] Battle execution error:', err)
+      try { sm.terminateSession(sessionAId) } catch {}
+      try { sm.terminateSession(sessionBId) } catch {}
+      return null
+    }
+  }
+
   /** 创建对决（异步触发执行） */
   async create(params: { prompt: string; providerAId: string; providerBId: string }): Promise<{ success: boolean; battle?: Battle; error?: string }> {
     const battleId = uuid()
@@ -272,10 +368,8 @@ export class BattleService {
       this.execute(battle.id, battle.prompt, battle.providerAId, battle.providerBId)
         .then((result) => {
           if (result) {
-            // 简单判定：字数 + 含代码块加分
-            const scoreA = result.providerA.response.length + (result.providerA.response.match(/```/g) || []).length * 200
-            const scoreB = result.providerB.response.length + (result.providerB.response.match(/```/g) || []).length * 200
-            const winner: 'A' | 'B' | 'tie' = scoreA > scoreB ? 'A' : scoreB > scoreA ? 'B' : 'tie'
+            // 综合评分算法
+            const winner: 'A' | 'B' | 'tie' = this.calculateWinner(result)
             this.complete(battle.id, result, winner)
           } else {
             this.fail(battle.id)

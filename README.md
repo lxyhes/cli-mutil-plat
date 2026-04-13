@@ -68,7 +68,7 @@
 
 ### Agent Teams — 多角色 AI 协作
 
-<!-- TODO: 补充截图 docs/screenshots/agent-teams.png -->
+![Agent Teams](https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=Agent%20Teams%20dashboard%20with%20multiple%20AI%20roles%20working%20on%20tasks%2C%20task%20kanban%20board%2C%20team%20message%20flow%2C%20professional%20UI%20design&image_size=landscape_16_9)
 
 > 创建由多个 AI 角色组成的团队，每个角色独立使用不同的 AI Provider（Claude/Codex/Gemini/iFlow）。团队成员通过 **SharedTaskList**（DB 持久化任务队列）原子认领任务，通过 **TeamBus** 点对点消息路由协作，全程对话和任务进度可视化追踪。
 

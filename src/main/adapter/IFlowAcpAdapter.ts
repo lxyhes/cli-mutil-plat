@@ -407,13 +407,14 @@ export class IFlowAcpAdapter extends BaseProviderAdapter {
       }
 
       // ★ 发出 session-init-data 事件（包含模型信息，供前端 /model 命令使用）
+      const availableModels = await this.getAvailableModels()
       this.emit('session-init-data', sessionId, {
         model: config.model || 'default',
         tools: [],
         mcpServers: [],
         skills: [],
         plugins: [],
-        availableModels: this.getAvailableModels(),
+        availableModels,
       })
 
       // 4. 如果有初始 prompt，立即发送
@@ -592,13 +593,14 @@ export class IFlowAcpAdapter extends BaseProviderAdapter {
       }
 
       // ★ 发出 session-init-data（与 startSession 相同）
+      const availableModels = await this.getAvailableModels()
       this.emit('session-init-data', sessionId, {
         model: config.model || 'default',
         tools: [],
         mcpServers: [],
         skills: [],
         plugins: [],
-        availableModels: this.getAvailableModels(),
+        availableModels,
       })
 
       console.log(`[IFlowAcpAdapter][${sessionId}] Prewarm completed successfully (iflowSessionId: ${session.iflowSessionId})`)
@@ -800,16 +802,124 @@ export class IFlowAcpAdapter extends BaseProviderAdapter {
 
   /**
    * 获取 IFlow 可用的模型列表
-   * TODO: 未来可以从 IFlow CLI 的 API 动态获取
+   * 优先从 IFlow CLI 动态获取，失败则返回默认列表
    */
-  private getAvailableModels(): Array<{ id: string; name: string; description?: string }> {
-    // IFlow 支持的常见模型列表（基于 IFlow 文档和常见配置）
+  private async getAvailableModels(): Promise<Array<{ id: string; name: string; description?: string }>> {
+    try {
+      // 尝试从 IFlow CLI 获取模型列表
+      const models = await this.fetchModelsFromIFlow()
+      if (models && models.length > 0) {
+        return models
+      }
+    } catch (err) {
+      console.warn(`[IFlowAcpAdapter] Failed to fetch models from IFlow:`, err)
+    }
+    
+    // 默认模型列表（当动态获取失败时使用）
     return [
       { id: 'claude-sonnet-4-20250514', name: 'Claude Sonnet 4', description: '默认模型，平衡性能与成本' },
       { id: 'claude-opus-4-20250514', name: 'Claude Opus 4', description: '最强模型，适合复杂任务' },
       { id: 'claude-sonnet-3-5-20241022', name: 'Claude Sonnet 3.5', description: '上一代 Sonnet' },
       { id: 'claude-3-5-haiku-20241022', name: 'Claude Haiku 3.5', description: '快速响应，适合简单任务' },
     ]
+  }
+
+  /**
+   * 从 IFlow CLI 获取模型列表
+   */
+  private async fetchModelsFromIFlow(): Promise<Array<{ id: string; name: string; description?: string }>> {
+    return new Promise((resolve, reject) => {
+      try {
+        // 使用 iflow --help 命令来查看可用的模型选项
+        // 或者尝试 iflow --list-models（如果支持）
+        const { command: iflowCmd, extraArgs: iflowPrefix, useShell: iflowShell } = findIFlowLaunchConfig()
+        const args = [...iflowPrefix, '--help']
+        
+        console.log(`[IFlowAcpAdapter] Fetching models from IFlow:`, iflowCmd, args)
+        
+        const proc = spawn(iflowCmd, args, {
+          cwd: process.cwd(),
+          stdio: ['pipe', 'pipe', 'pipe'],
+          shell: iflowShell,
+        })
+        
+        let stdout = ''
+        let stderr = ''
+        
+        proc.stdout?.on('data', (data) => {
+          stdout += data.toString()
+        })
+        
+        proc.stderr?.on('data', (data) => {
+          stderr += data.toString()
+        })
+        
+        proc.on('exit', (code) => {
+          if (code !== 0) {
+            console.warn(`[IFlowAcpAdapter] iflow --help failed with code ${code}:`, stderr)
+            resolve([])
+            return
+          }
+          
+          // 从帮助信息中提取模型列表
+          const models = this.parseModelsFromHelp(stdout)
+          resolve(models)
+        })
+        
+        proc.on('error', (err) => {
+          console.warn(`[IFlowAcpAdapter] Failed to spawn iflow:`, err)
+          resolve([])
+        })
+        
+        // 超时处理
+        setTimeout(() => {
+          proc.kill()
+          resolve([])
+        }, 10000)
+        
+      } catch (err) {
+        console.warn(`[IFlowAcpAdapter] Error fetching models:`, err)
+        resolve([])
+      }
+    })
+  }
+
+  /**
+   * 从帮助信息中解析模型列表
+   */
+  private parseModelsFromHelp(helpText: string): Array<{ id: string; name: string; description?: string }> {
+    const models: Array<{ id: string; name: string; description?: string }> = []
+    
+    // 尝试匹配模型相关的帮助信息
+    // 例如：--model <model>  Specify model to use (default: claude-sonnet-4-20250514)
+    const modelMatch = helpText.match(/--model\s+<model>\s+Specify model to use.*?\(default: ([^)]+)\)/i)
+    if (modelMatch && modelMatch[1]) {
+      const defaultModel = modelMatch[1].trim()
+      models.push({
+        id: defaultModel,
+        name: defaultModel,
+        description: '默认模型'
+      })
+    }
+    
+    // 常见的 Claude 模型
+    const commonModels = [
+      { id: 'claude-sonnet-4-20250514', name: 'Claude Sonnet 4', description: '默认模型，平衡性能与成本' },
+      { id: 'claude-opus-4-20250514', name: 'Claude Opus 4', description: '最强模型，适合复杂任务' },
+      { id: 'claude-sonnet-3-5-20241022', name: 'Claude Sonnet 3.5', description: '上一代 Sonnet' },
+      { id: 'claude-3-5-haiku-20241022', name: 'Claude Haiku 3.5', description: '快速响应，适合简单任务' },
+    ]
+    
+    // 合并去重
+    const modelMap = new Map<string, typeof commonModels[0]>()
+    models.forEach(m => modelMap.set(m.id, m))
+    commonModels.forEach(m => {
+      if (!modelMap.has(m.id)) {
+        modelMap.set(m.id, m)
+      }
+    })
+    
+    return Array.from(modelMap.values())
   }
 
   // ---- ACP NDJSON 行处理 ----

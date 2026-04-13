@@ -97,15 +97,8 @@ export class SkillArenaService {
         submittedAt: new Date().toISOString(),
       }
 
-      // 模拟基准测试评分（随机生成，真实场景应跑实际 benchmark）
-      skill.codeQualityScore = Math.floor(Math.random() * 40 + 60)
-      skill.executionSpeedScore = Math.floor(Math.random() * 40 + 60)
-      skill.tokenEfficiencyScore = Math.floor(Math.random() * 40 + 60)
-      skill.overallScore = Math.round(
-        skill.codeQualityScore * 0.4 +
-        skill.executionSpeedScore * 0.3 +
-        skill.tokenEfficiencyScore * 0.3
-      )
+      // 基于技能内容进行真实评分
+      this.calculateScores(skill)
 
       const db = this.getRawDb()
       db.prepare(`
@@ -126,6 +119,66 @@ export class SkillArenaService {
     } catch (err: any) {
       return { success: false, error: err.message }
     }
+  }
+
+  /** 计算技能评分 */
+  private calculateScores(skill: ArenaSkill): void {
+    const prompt = skill.promptTemplate
+    
+    // 1. 代码质量评分 (40%)
+    // 基于：结构化程度、清晰的指令、错误处理、示例等
+    let codeQuality = 70 // 基础分
+    
+    // 加分项
+    if (prompt.includes('```') || prompt.includes('code')) codeQuality += 5
+    if (prompt.includes('example') || prompt.includes('示例')) codeQuality += 5
+    if (prompt.includes('error') || prompt.includes('错误')) codeQuality += 5
+    if (prompt.includes('input') && prompt.includes('output')) codeQuality += 5
+    if (prompt.length > 200 && prompt.length < 1000) codeQuality += 5
+    if (prompt.includes('best practices') || prompt.includes('最佳实践')) codeQuality += 5
+    
+    // 减分项
+    if (prompt.length < 50) codeQuality -= 10
+    if (prompt.length > 2000) codeQuality -= 5
+    if (prompt.includes('TODO') || prompt.includes('待完成')) codeQuality -= 10
+    
+    // 2. 执行速度评分 (30%)
+    // 基于：prompt 长度、复杂度
+    let executionSpeed = 70 // 基础分
+    
+    // 加分项
+    if (prompt.length < 300) executionSpeed += 10
+    if (prompt.includes('quick') || prompt.includes('快速')) executionSpeed += 5
+    if (prompt.includes('efficient') || prompt.includes('高效')) executionSpeed += 5
+    
+    // 减分项
+    if (prompt.length > 1000) executionSpeed -= 10
+    if (prompt.includes('detailed') || prompt.includes('详细')) executionSpeed -= 5
+    
+    // 3. 令牌效率评分 (30%)
+    // 基于：简洁性、关键词使用、避免冗余
+    let tokenEfficiency = 70 // 基础分
+    
+    // 加分项
+    if (prompt.length < 200) tokenEfficiency += 10
+    if (prompt.includes('concise') || prompt.includes('简洁')) tokenEfficiency += 5
+    if (prompt.includes('focus') || prompt.includes('专注')) tokenEfficiency += 5
+    
+    // 减分项
+    if (prompt.length > 1500) tokenEfficiency -= 10
+    if (prompt.includes('please') && prompt.includes('请')) tokenEfficiency -= 5 // 冗余礼貌用语
+    
+    // 确保评分在 0-100 范围内
+    skill.codeQualityScore = Math.max(0, Math.min(100, Math.round(codeQuality)))
+    skill.executionSpeedScore = Math.max(0, Math.min(100, Math.round(executionSpeed)))
+    skill.tokenEfficiencyScore = Math.max(0, Math.min(100, Math.round(tokenEfficiency)))
+    
+    // 计算总分
+    skill.overallScore = Math.round(
+      skill.codeQualityScore * 0.4 +
+      skill.executionSpeedScore * 0.3 +
+      skill.tokenEfficiencyScore * 0.3
+    )
   }
 
   /** 列出竞技场技能 */
