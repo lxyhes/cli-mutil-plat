@@ -724,8 +724,9 @@ export class ClaudeSdkAdapter extends BaseProviderAdapter {
           `Resolved candidates: ${allPaths.join(', ')}`
         )
       }
-    } catch (err) {
-      logger.warn(`[ClaudeSdkAdapter] Could not resolve command "${normalizedCommand}" from PATH:`, err)
+    } catch (err: any) {
+      const reason = err?.status === 1 ? 'not found on PATH' : (err?.message || String(err))
+      logger.warn(`[ClaudeSdkAdapter] Could not resolve command "${normalizedCommand}" from PATH: ${reason}`)
     }
  
     // 策略 2：直接探测常见路径

@@ -41,6 +41,11 @@ export interface SavedReference {
 export class ReferenceProjectService {
   private rawDb: any
   private githubToken: string | null = null
+  private lastApiCallTime = 0
+  private apiCallCount = 0
+  private apiCallCountResetTime = 0
+  private static readonly MIN_CALL_INTERVAL_MS = 1500  // 最小调用间隔
+  private static readonly MAX_CALLS_PER_MINUTE = 8     // 未认证限制更保守
 
   constructor(db: DatabaseManager) {
     this.rawDb = (db as any).db || db
@@ -87,6 +92,9 @@ export class ReferenceProjectService {
   }
 
   private async githubFetch(url: string): Promise<any> {
+    // 速率控制：确保调用间隔和频率
+    await this.enforceRateLimit()
+
     const headers: Record<string, string> = {
       'Accept': 'application/vnd.github.v3+json',
       'User-Agent': 'SpectrAI-Desktop/1.0',
@@ -97,17 +105,45 @@ export class ReferenceProjectService {
     const res = await fetch(url, { headers })
     if (res.status === 403) {
       const remaining = res.headers.get('x-ratelimit-remaining')
+      const resetTime = res.headers.get('x-ratelimit-reset')
       if (remaining === '0') {
-        throw new Error('GitHub API rate limit exceeded. Please add a GitHub token in settings.')
+        const resetMsg = resetTime ? `重置时间: ${new Date(parseInt(resetTime) * 1000).toLocaleTimeString()}` : ''
+        throw new Error(`GitHub API 速率限制已用完。${resetMsg} 请在设置中添加 GitHub Token 以提高限额。`)
       }
+      throw new Error('GitHub API 403 Forbidden，可能是临时限制。请稍后再试或添加 GitHub Token。')
     }
     if (res.status === 429) {
-      throw new Error('GitHub API rate limited. Please try again later.')
+      throw new Error('GitHub API 请求过于频繁，请稍后再试。')
     }
     if (!res.ok) {
-      throw new Error(`GitHub API error: ${res.status} ${res.statusText}`)
+      throw new Error(`GitHub API 错误: ${res.status} ${res.statusText}`)
     }
     return res.json()
+  }
+
+  /**
+   * 速率控制：确保两次 API 调用之间有最小间隔，且每分钟不超过限制
+   */
+  private async enforceRateLimit(): Promise<void> {
+    const now = Date.now()
+    // 每分钟重置计数
+    if (now - this.apiCallCountResetTime > 60_000) {
+      this.apiCallCount = 0
+      this.apiCallCountResetTime = now
+    }
+    const limit = this.githubToken
+      ? 30  // 认证后限额更宽松
+      : ReferenceProjectService.MAX_CALLS_PER_MINUTE
+    if (this.apiCallCount >= limit) {
+      throw new Error(`GitHub API 调用已达本分钟上限(${limit}次)，请稍后再试。`)
+    }
+    // 确保最小调用间隔
+    const elapsed = now - this.lastApiCallTime
+    if (elapsed < ReferenceProjectService.MIN_CALL_INTERVAL_MS) {
+      await new Promise(r => setTimeout(r, ReferenceProjectService.MIN_CALL_INTERVAL_MS - elapsed))
+    }
+    this.lastApiCallTime = Date.now()
+    this.apiCallCount++
   }
 
   /**
@@ -402,7 +438,7 @@ export class ReferenceProjectService {
       const deps = Object.keys(pkg.dependencies || {})
       if (deps.length === 0) return { success: true, repos: [] }
 
-      // 取最重要的几个依赖作为搜索词
+      // 取最重要的几个依赖作为搜索词（过滤掉工具类依赖）
       const keyDeps = deps.filter(d =>
         !d.startsWith('@types') &&
         !d.startsWith('@babel') &&
@@ -412,10 +448,15 @@ export class ReferenceProjectService {
 
       if (keyDeps.length === 0) return { success: true, repos: [] }
 
+      // 只发一次搜索请求，避免触发速率限制
       const query = keyDeps.join(' ')
       const result = await this.searchRepos(query, pkg.language || undefined, limit)
       return result
-    } catch {
+    } catch (err: any) {
+      // 速率限制时静默返回空结果，不刷屏日志
+      if (err?.message?.includes('速率') || err?.message?.includes('rate')) {
+        return { success: true, repos: [] }
+      }
       return { success: true, repos: [] }
     }
   }
