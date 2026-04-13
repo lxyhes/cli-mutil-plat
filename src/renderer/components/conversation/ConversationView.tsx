@@ -8,7 +8,7 @@
  */
 
 import React, { useEffect, useLayoutEffect, useRef, useMemo, useState, useCallback } from 'react'
-import { FolderOpen, RotateCcw, Copy, ArrowUp, ArrowDown, Download, X } from 'lucide-react'
+import { FolderOpen, RotateCcw, Copy, ArrowUp, ArrowDown, Download, X, BookMarked } from 'lucide-react'
 import type { ConversationMessage, UserQuestionMeta, AskUserQuestionMeta } from '../../../shared/types'
 import ContextMenu from '../common/ContextMenu'
 import type { MenuItem } from '../common/ContextMenu'
@@ -25,6 +25,7 @@ import UserQuestionBar from './UserQuestionBar'
 import AskUserQuestionPanel from './AskUserQuestionPanel'
 import PlanApprovalPanel from './PlanApprovalPanel'
 import CrossSessionSearch from './CrossSessionSearch'
+import SessionKnowledgePanel from './SessionKnowledgePanel'
 import { isPrimaryModifierPressed, toPlatformShortcutLabel } from '../../utils/shortcut'
 
 
@@ -110,6 +111,8 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
   // 跨会话搜索面板开关 + 模式（cross: 所有会话 | current: 当前会话）
   const [crossSessionSearchOpen, setCrossSessionSearchOpen] = useState(false)
   const [searchMode, setSearchMode] = useState<'cross' | 'current'>('cross')
+  // 知识库抽屉面板开关
+  const [knowledgePanelOpen, setKnowledgePanelOpen] = useState(false)
   // 右键菜单显示状态
   const [ctxMenu, setCtxMenu] = useState({ visible: false, x: 0, y: 0 })
   const [queuedMessages, setQueuedMessages] = useState<QueuedMessage[]>([])
@@ -382,16 +385,29 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
   ]
 
   return (
-    <div className="flex flex-col flex-1 min-h-0 bg-bg-primary">
-      {/* 消息列表 */}
-      <div
-        ref={scrollRef}
-        className="flex-1 overflow-y-auto px-4 py-3"
-        onContextMenu={(e) => {
-          e.preventDefault()
-          setCtxMenu({ visible: true, x: e.clientX, y: e.clientY })
-        }}
-      >
+    <div className="flex flex-row flex-1 min-h-0 bg-bg-primary">
+      {/* 左侧：消息区域 */}
+      <div className="flex flex-col flex-1 min-h-0 relative">
+        {/* 消息列表 */}
+        <div
+          ref={scrollRef}
+          className="flex-1 overflow-y-auto px-4 py-3"
+          onContextMenu={(e) => {
+            e.preventDefault()
+            setCtxMenu({ visible: true, x: e.clientX, y: e.clientY })
+          }}
+        >
+          {/* 知识库 FAB */}
+          {workingDirectory && !knowledgePanelOpen && (
+            <button
+              onClick={() => setKnowledgePanelOpen(true)}
+              title="打开项目知识库"
+              className="absolute top-3 right-4 z-10 flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-bg-secondary/90 border border-border text-xs text-text-secondary hover:text-accent-purple hover:border-accent-purple/40 transition-all backdrop-blur-sm shadow-sm"
+            >
+              <BookMarked className="w-3.5 h-3.5" />
+              <span>知识库</span>
+            </button>
+          )}
         {messages.length === 0 ? (
           <div className="flex items-center justify-center h-full text-text-muted text-sm">
             {isLoading ? (
@@ -672,6 +688,16 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
           onJumpToSession={handleJumpToSession}
           onClose={() => setCrossSessionSearchOpen(false)}
           initialMode={searchMode}
+        />
+      )}
+      </div>
+
+      {/* 右侧：知识库抽屉 */}
+      {knowledgePanelOpen && workingDirectory && (
+        <SessionKnowledgePanel
+          sessionId={sessionId}
+          projectPath={workingDirectory}
+          onClose={() => setKnowledgePanelOpen(false)}
         />
       )}
     </div>

@@ -11,7 +11,7 @@
  */
 
 import { useState, useEffect } from 'react'
-import { Bot, FolderTree, GitBranch, BarChart2, Settings, Activity, PieChart, Plug, Zap, Users, Wrench, Brain, BookOpen, Flame, History, DollarSign, BookMarked, ShieldCheck, Swords, Video, Trophy, Gauge, Calendar, Mic } from 'lucide-react'
+import { Bot, FolderTree, GitBranch, BarChart2, Settings, Activity, PieChart, Plug, Zap, Users, Wrench, Brain, BookOpen, Flame, History, DollarSign, ShieldCheck, Swords, Video, Trophy, Gauge, Calendar, Mic } from 'lucide-react'
 import type { PanelId, PanelSide } from '../../stores/uiStore'
 import { useUIStore } from '../../stores/uiStore'
 
@@ -44,7 +44,6 @@ const PANEL_DEFS: {
   { id: 'trending' as PanelId, icon: Flame, label: '热门' },
   { id: 'checkpoint' as PanelId, icon: History, label: '回溯' },
   { id: 'cost' as PanelId,      icon: DollarSign, label: '成本' },
-  { id: 'knowledge' as PanelId, icon: BookMarked, label: '库' },
   { id: 'review' as PanelId,    icon: ShieldCheck, label: '审查' },
   { id: 'battle' as PanelId,    icon: Swords, label: '对决' },
   { id: 'replay' as PanelId,    icon: Video, label: '录像' },
