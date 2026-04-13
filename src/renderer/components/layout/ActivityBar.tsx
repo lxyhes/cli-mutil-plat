@@ -22,29 +22,34 @@ const PANEL_DEFS: {
   label: string
   disabled?: boolean
 }[] = [
-  { id: 'sessions',  icon: Bot,        label: '会话管理' },
-  { id: 'explorer',  icon: FolderTree, label: '文件资源管理器' },
-  { id: 'git',       icon: GitBranch,  label: 'Git 分支' },
-  { id: 'dashboard', icon: BarChart2,  label: '监控看板' },
-  { id: 'team' as PanelId,    icon: Users, label: 'Agent Teams' },
-  { id: 'timeline',  icon: Activity,   label: '时间线' },
-  { id: 'stats',     icon: PieChart,   label: '统计' },
-  { id: 'mcp' as PanelId,    icon: Plug,  label: 'MCP 工具' },
-  { id: 'skills' as PanelId, icon: Zap,   label: '技能库' },
+  // === 核心功能（左侧区域）===
+  { id: 'sessions',  icon: Bot,        label: '会话' },
+  { id: 'explorer',  icon: FolderTree, label: '文件' },
+  { id: 'git',       icon: GitBranch,  label: 'Git' },
+  { id: 'team' as PanelId,    icon: Users, label: '团队' },
+  { id: 'dashboard', icon: BarChart2,  label: '看板' },
+  // === 工具箱整合区 ===
   { id: 'toolbox' as PanelId, icon: Wrench, label: '工具箱' },
-  { id: 'trending' as PanelId, icon: Flame, label: '热门项目' },
-  { id: 'context' as PanelId, icon: Brain, label: '工作记忆' },
-  { id: 'memory' as PanelId,  icon: BookOpen, label: '跨会话记忆' },
-  { id: 'checkpoint' as PanelId, icon: History, label: '智能回溯' },
-  { id: 'cost' as PanelId,      icon: DollarSign, label: '成本仪表盘' },
-  { id: 'knowledge' as PanelId, icon: BookMarked, label: '项目知识库' },
-  { id: 'review' as PanelId,    icon: ShieldCheck, label: '代码审查' },
-  { id: 'battle' as PanelId,    icon: Swords, label: 'AI 对决' },
-  { id: 'replay' as PanelId,    icon: Video, label: '会话录像' },
-  { id: 'arena' as PanelId,     icon: Trophy, label: '技能竞技场' },
-  { id: 'context-budget' as PanelId, icon: Gauge, label: '上下文预算' },
-  { id: 'daily-report' as PanelId, icon: Calendar, label: '每日 AI 日报' },
-  { id: 'voice' as PanelId, icon: Mic, label: '语音交互' },
+  // === 辅助功能（右侧区域）===
+  { id: 'stats',     icon: PieChart,   label: '统计' },
+  { id: 'timeline',  icon: Activity,   label: '时间线' },
+  // === 专业工具（默认折叠到工具箱）===
+  { id: 'mcp' as PanelId,    icon: Plug,  label: 'MCP' },
+  { id: 'skills' as PanelId, icon: Zap,   label: '技能' },
+  { id: 'context' as PanelId, icon: Brain, label: '记忆' },
+  { id: 'memory' as PanelId,  icon: BookOpen, label: '知识' },
+  { id: 'arena' as PanelId,     icon: Trophy, label: '竞技' },
+  { id: 'voice' as PanelId, icon: Mic, label: '语音' },
+  // === 高级功能（默认隐藏）===
+  { id: 'trending' as PanelId, icon: Flame, label: '热门' },
+  { id: 'checkpoint' as PanelId, icon: History, label: '回溯' },
+  { id: 'cost' as PanelId,      icon: DollarSign, label: '成本' },
+  { id: 'knowledge' as PanelId, icon: BookMarked, label: '库' },
+  { id: 'review' as PanelId,    icon: ShieldCheck, label: '审查' },
+  { id: 'battle' as PanelId,    icon: Swords, label: '对决' },
+  { id: 'replay' as PanelId,    icon: Video, label: '录像' },
+  { id: 'context-budget' as PanelId, icon: Gauge, label: '预算' },
+  { id: 'daily-report' as PanelId, icon: Calendar, label: '日报' },
 ]
 
 // ─────────────────────────────────────────────────────────────────────────────

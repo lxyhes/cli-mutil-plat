@@ -1078,42 +1078,10 @@ export default function Sidebar() {
       return <TimelinePanel />
     case 'stats':
       return <StatsPanel />
-    case 'mcp':
-      return <ToolboxView />
-    case 'skills':
-      return <ToolboxView />
-    case 'toolbox':
-      return <ToolboxView />
-    case 'trending':
-      return <ToolboxView />
     case 'team':
       return <TeamSidebarView />
-    case 'context':
-      return <WorkingContextView />
-    case 'memory':
-      return <CrossMemoryView />
-    case 'checkpoint':
-      return <CheckpointView />
-    case 'cost':
-      return <CostDashboardView />
-    case 'knowledge':
-      return <KnowledgeView />
-    case 'review':
-      return <CodeReviewView />
-    case 'battle':
-      return <BattleView />
-    case 'replay':
-      return <ReplayView />
-    case 'arena':
-      return <ArenaView />
-    case 'context-budget':
-      return <ContextBudgetView />
-    case 'daily-report':
-      return <DailyReportView />
-    case 'voice':
-      return <VoiceView />
-    case 'sessions':
+    // === 其他功能统一整合到工具箱 ===
     default:
-      return <SessionsContent />
+      return <ToolboxView />
   }
 }

@@ -198,6 +198,7 @@ export class SessionManagerV2 extends EventEmitter implements MemoryManagedCompo
   private adapterRegistry: AdapterRegistry
   private database?: any   // DatabaseManager（可选，用于 Skill 拦截）
   private lockManager?: LockManager
+  private projectKnowledgeService?: any  // ProjectKnowledgeService（可选，用于新会话注入项目知识）
   private lastCleanupTime?: Date
 
   private thinkingBuffers: Map<string, string> = new Map()
@@ -221,6 +222,11 @@ export class SessionManagerV2 extends EventEmitter implements MemoryManagedCompo
   /** 注入 LockManager 实例（用于会话清理时释放锁） */
   setLockManager(lockManager: LockManager): void {
     this.lockManager = lockManager
+  }
+
+  /** 注入项目知识服务（用于新会话自动注入项目知识） */
+  setProjectKnowledgeService(service: any): void {
+    this.projectKnowledgeService = service
   }
 
   private queueTextDelta(sessionId: string, text: string, timestamp: string): void {
@@ -493,8 +499,25 @@ export class SessionManagerV2 extends EventEmitter implements MemoryManagedCompo
         const base = (config.supervisorMode && !useFileBasedSupervisor)
           ? this.getSupervisorPrompt(config)
           : undefined
-        if (config.systemPromptAppend) {
-          const appendText = base ? base + '\n\n' + config.systemPromptAppend : config.systemPromptAppend
+
+        // ★ 获取项目知识（自动注入标记的知识条目）
+        let projectKnowledgePrompt = ''
+        if (this.projectKnowledgeService && config.workingDirectory) {
+          try {
+            const result = this.projectKnowledgeService.getPrompt(config.workingDirectory)
+            if (result?.success && result.prompt) {
+              projectKnowledgePrompt = '\n\n' + result.prompt
+              console.log(`[SessionManagerV2] Injected project knowledge: ${result.prompt.length} chars`)
+            }
+          } catch (err) {
+            console.warn('[SessionManagerV2] Failed to get project knowledge:', err)
+          }
+        }
+
+        if (config.systemPromptAppend || projectKnowledgePrompt) {
+          const appendText = base
+            ? base + '\n\n' + (config.systemPromptAppend || '') + projectKnowledgePrompt
+            : (config.systemPromptAppend || '') + projectKnowledgePrompt
           console.log(`[SessionManagerV2] systemPromptAppend present, appendText.length=${appendText.length}`)
           // ★ {type:'preset'} 格式仅 claude-sdk 适配器理解（→ --append-system-prompt CLI 参数）
           // 其他 provider（Codex/Gemini 等）的 systemPrompt 必须是纯字符串，否则变成 [object Object]
@@ -1066,18 +1089,14 @@ export class SessionManagerV2 extends EventEmitter implements MemoryManagedCompo
       adapter.off('auth-required', onAuthRequired)
     }
 
-    // 构建 Adapter 配置
+    // 构建 Adapter 配置（iFlow 不支持 systemPrompt preset，直接传递）
     const adapterConfig: AdapterSessionConfig = {
       command: resolvedProvider.command,
       workingDirectory: config.workingDirectory,
       initialPrompt: config.initialPrompt,
       initialPromptVisibility: config.initialPromptVisibility,
       autoAccept: config.autoAccept ?? false,
-      systemPrompt: config.systemPromptAppend
-        ? (resolvedProvider.adapterType === 'claude-sdk'
-            ? { type: 'preset' as const, preset: 'claude_code', append: config.systemPromptAppend }
-            : config.systemPromptAppend)
-        : undefined,
+      systemPrompt: config.systemPromptAppend, // iFlow 直接使用 string
       mcpConfigPath: config.mcpConfigPath,
       envOverrides: { ...resolvedProvider.envOverrides, ...config.env },
       model: resolvedProvider.defaultModel,
@@ -1099,7 +1118,10 @@ export class SessionManagerV2 extends EventEmitter implements MemoryManagedCompo
       metadata: { config, providerId: resolvedProvider.id },
     } as ActivityEvent)
 
-    // 调用 adapter 的预热方法
+    // 调用 adapter 的预热方法（仅 iFlow adapter 有此方法）
+    if (!adapter.prewarmSession) {
+      throw new Error(`Adapter ${resolvedProvider.id} does not support prewarmSession`)
+    }
     const result = await adapter.prewarmSession(id, adapterConfig)
 
     console.log(`[SessionManagerV2] Prewarmed session ${id}: iflowSessionId=${result.iflowSessionId}`)

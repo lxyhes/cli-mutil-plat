@@ -23,17 +23,20 @@ const ALL_PANEL_IDS: PanelId[] = ['sessions', 'explorer', 'git', 'dashboard', 't
 
 /** 默认面板分配（left = 左侧边栏，right = 右侧面板） */
 const DEFAULT_PANEL_SIDES: Record<PanelId, PanelSide> = {
+  // === 核心功能（左侧边栏）===
   sessions:  'left',
   explorer:  'left',
   git:       'left',
-  dashboard: 'left',
   team:      'left',
-  timeline:  'right',
-  stats:     'right',
-  mcp:       'left',
-  skills:    'left',
+  dashboard: 'left',
   toolbox:   'left',
-  trending:  'left',
+  // === 辅助功能（右侧面板）===
+  stats:     'right',
+  timeline:  'right',
+  // === 专业工具（整合到工具箱）===
+  mcp:       'right',
+  skills:    'right',
+  trending:  'right',
   context:   'right',
   memory:    'right',
   checkpoint: 'right',

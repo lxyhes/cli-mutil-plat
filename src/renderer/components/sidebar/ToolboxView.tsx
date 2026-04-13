@@ -11,6 +11,7 @@ import {
   ArrowLeft, Plug, Zap, Layers, Sparkles, Clock,
   FileText, Brain, Workflow, Target, BarChart2, Wrench, Flame,
   History, DollarSign, BookMarked, ShieldCheck, Swords, Video, Trophy,
+  Mic, Calendar, Gauge,
 } from 'lucide-react'
 import { useUIStore } from '../../stores/uiStore'
 import { useMcpStore } from '../../stores/mcpStore'
@@ -28,24 +29,35 @@ interface FeatureDef {
 }
 
 const FEATURES: FeatureDef[] = [
+  // === 开发工具 ===
   { id: 'mcp',              label: 'MCP 工具',    description: '管理和配置 MCP 服务器',    icon: Plug,     color: 'text-accent-blue' },
   { id: 'skills',           label: '技能库',      description: '浏览和启用技能模板',       icon: Zap,      color: 'text-accent-purple' },
-  { id: 'trending',         label: '热门项目',     description: '发现热门 AI 开源项目',     icon: Flame,    color: 'text-orange-400' },
   { id: 'workspace',        label: '工作区',      description: '管理工作区和代码仓库',      icon: Layers,   color: 'text-accent-green' },
   { id: 'prompt-optimizer', label: '提示词优化',   description: 'AI 驱动的提示词工程',      icon: Sparkles, color: 'text-accent-yellow' },
+  // === 任务与工作流 ===
   { id: 'scheduler',        label: '定时任务',     description: '调度定时执行任务',         icon: Clock,    color: 'text-accent-blue' },
   { id: 'summary',          label: '会话摘要',     description: '自动生成会话总结',         icon: FileText, color: 'text-accent-green' },
   { id: 'planner',          label: '规划引擎',     description: '任务规划和分解策略',       icon: Brain,    color: 'text-accent-purple' },
   { id: 'workflow',         label: '工作流',      description: '自动化工作流编排',         icon: Workflow, color: 'text-accent-blue' },
-  { id: 'evaluation',       label: '任务评估',     description: '评估任务质量和效果',       icon: Target,   color: 'text-accent-yellow' },
   { id: 'goal',             label: '目标锚点',     description: '设定和跟踪目标',          icon: BarChart2, color: 'text-accent-green' },
+  { id: 'evaluation',       label: '任务评估',     description: '评估任务质量和效果',       icon: Target,   color: 'text-accent-yellow' },
+  // === 知识与记忆 ===
+  { id: 'knowledge',        label: '项目知识库',   description: '持久化项目上下文',        icon: BookMarked, color: 'text-accent-purple' },
+  { id: 'memory',           label: '跨会话记忆',   description: '共享上下文记忆',          icon: Brain,    color: 'text-accent-blue' },
+  { id: 'context',          label: '工作记忆',     description: '当前会话上下文',          icon: Layers,   color: 'text-accent-green' },
+  // === 高级工具 ===
   { id: 'checkpoint',       label: '智能回溯',     description: '代码快照与一键回滚',       icon: History,  color: 'text-accent-blue' },
   { id: 'cost',             label: '成本仪表盘',   description: 'Token 消耗换算实际金额',   icon: DollarSign, color: 'text-accent-green' },
-  { id: 'knowledge',        label: '项目知识库',   description: '持久化项目上下文',        icon: BookMarked, color: 'text-accent-purple' },
+  { id: 'context-budget',   label: '上下文预算',   description: '管理和优化上下文用量',     icon: Gauge,    color: 'text-accent-yellow' },
   { id: 'review',           label: '代码审查',     description: 'AI 自动代码审查',         icon: ShieldCheck, color: 'text-accent-green' },
+  // === AI 竞技 ===
   { id: 'battle',           label: 'AI 对决',     description: '同任务两 AI 对比',        icon: Swords,   color: 'text-accent-yellow' },
-  { id: 'replay',           label: '会话录像',     description: '录制和回放 AI 操作',       icon: Video,    color: 'text-accent-purple' },
   { id: 'arena',            label: '技能竞技场',   description: '社区技能评分排行',        icon: Trophy,   color: 'text-accent-yellow' },
+  { id: 'replay',           label: '会话录像',     description: '录制和回放 AI 操作',       icon: Video,    color: 'text-accent-purple' },
+  // === 实用工具 ===
+  { id: 'daily-report',     label: '每日日报',     description: 'AI 日报生成与订阅',       icon: Calendar, color: 'text-accent-blue' },
+  { id: 'voice',            label: '语音交互',     description: '语音输入与 TTS 播报',       icon: Mic,      color: 'text-accent-green' },
+  { id: 'trending',         label: '热门项目',     description: '发现热门 AI 开源项目',     icon: Flame,    color: 'text-orange-400' },
 ]
 
 // ── 懒加载功能组件映射 ──
@@ -68,6 +80,11 @@ import CodeReviewView from './CodeReviewView'
 import BattleView from './BattleView'
 import ReplayView from './ReplayView'
 import ArenaView from './ArenaView'
+import VoiceView from './VoiceView'
+import DailyReportView from './DailyReportView'
+import ContextBudgetView from './ContextBudgetView'
+import ContextView from './WorkingContextView'
+import MemoryView from './CrossMemoryView'
 
 function FeatureComponent({ featureId }: { featureId: string }) {
   switch (featureId) {
@@ -89,6 +106,11 @@ function FeatureComponent({ featureId }: { featureId: string }) {
     case 'battle':           return <BattleView />
     case 'replay':           return <ReplayView />
     case 'arena':            return <ArenaView />
+    case 'daily-report':     return <DailyReportView />
+    case 'voice':            return <VoiceView />
+    case 'context-budget':   return <ContextBudgetView />
+    case 'context':          return <ContextView />
+    case 'memory':           return <MemoryView />
     default:                 return <div className="p-4 text-text-muted text-sm">未知功能</div>
   }
 }

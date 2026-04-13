@@ -469,6 +469,9 @@ function initializeManagers(): void {
   // ★ 注入 database 到 SessionManagerV2，用于 Skill 拦截
   sessionManagerV2.setDatabase(database)
 
+  // ★ 注入项目知识服务到 SessionManagerV2，用于新会话自动注入项目知识
+  sessionManagerV2.setProjectKnowledgeService(projectKnowledgeService)
+
   // ★ 注入 bridgePort 到 agentManagerV2，使子会话（团队成员、spawn_agent）也能获得 MCP 工具
   // 必须在 spawnAgent() 首次调用前完成注入，否则子会话无法使用 list_sessions 等跨会话感知工具
   agentManagerV2.setBridgePort(63721)
@@ -1184,7 +1187,7 @@ app.whenReady().then(() => {
     }) => {
       try {
         const session = sessionManagerV2.getSession(sessionId)
-        const providerId = session?.config?.providerId || session?.providerId || ''
+        const providerId = session?.config?.providerId || session?.provider?.id || ''
         // 只在有实际 token 变化时记录（跳过初始化时 total=0 的情况）
         if (usage.inputTokens > 0 || usage.outputTokens > 0) {
           costService.saveUsageDetail(sessionId, providerId, usage.inputTokens, usage.outputTokens)
@@ -1228,6 +1231,24 @@ app.whenReady().then(() => {
           if (sessionReplayService.isRecording(sessionId)) {
             sessionReplayService.stopRecording(sessionId)
           }
+          // ★ 会话完成时自动触发代码审查
+          if (codeReviewService) {
+            const session = sessionManagerV2.getSession(sessionId)
+            const workDir = session?.workingDirectory
+            if (workDir) {
+              const changedFiles = fileChangeTracker?.getSessionChanges(sessionId) || []
+              if (changedFiles.length > 0) {
+                console.log(`[Main] Triggering auto code review for session ${sessionId}, ${changedFiles.length} files changed`)
+                codeReviewService.startReview({
+                  sessionId,
+                  sessionName: session?.name || sessionId.slice(0, 8),
+                  repoPath: workDir,
+                }).catch((err: unknown) => {
+                  console.warn('[Main] Auto code review failed:', err)
+                })
+              }
+            }
+          }
         }
       }
       // 始终录制 status_change 事件
@@ -1257,6 +1278,37 @@ app.whenReady().then(() => {
 
   // 启动状态推断引擎
   stateInference.start()
+
+  // ★ 每日日报自动生成（每天 22:00 检查并生成）
+  if (dailyReportService) {
+    let lastReportDate = ''
+    const checkAndGenerateReport = () => {
+      const now = new Date()
+      const today = now.toISOString().slice(0, 10)
+      const currentHour = now.getHours()
+      const currentMinute = now.getMinutes()
+
+      // 在 22:00-22:10 之间检查（给 10 分钟窗口）
+      if (currentHour === 22 && currentMinute < 10 && today !== lastReportDate) {
+        lastReportDate = today
+        console.log('[Main] Auto-generating daily report for', today)
+        dailyReportService.generate(today).then((result: { success: boolean; error?: string }) => {
+          if (result.success) {
+            console.log('[Main] Daily report generated successfully')
+          } else {
+            console.warn('[Main] Daily report generation failed:', result.error)
+          }
+        }).catch((err: unknown) => {
+          console.error('[Main] Daily report generation error:', err)
+        })
+      }
+    }
+
+    // 每分钟检查一次
+    setInterval(checkAndGenerateReport, 60000)
+    // 启动时立即检查一次
+    checkAndGenerateReport()
+  }
 
   // 设置自定义菜单：
   // - macOS 保留 Edit 菜单，恢复系统级 Cmd+C/Cmd+V 行为
