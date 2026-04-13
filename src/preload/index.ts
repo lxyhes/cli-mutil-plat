@@ -973,10 +973,14 @@ if (!ctxBr) {
     get: (id: string) => ipcRenderer.invoke(IPC.PROJECT_KB_GET, id),
     update: (id: string, updates: any) => ipcRenderer.invoke(IPC.PROJECT_KB_UPDATE, id, updates),
     delete: (id: string) => ipcRenderer.invoke(IPC.PROJECT_KB_DELETE, id),
-    list: (projectPath: string) => ipcRenderer.invoke(IPC.PROJECT_KB_LIST, projectPath),
+    list: (projectPath: string, options?: { page?: number; pageSize?: number }) => ipcRenderer.invoke(IPC.PROJECT_KB_LIST, projectPath, options),
     search: (projectPath: string, query: string, limit?: number) => ipcRenderer.invoke(IPC.PROJECT_KB_SEARCH, projectPath, query, limit),
     getPrompt: (projectPath: string) => ipcRenderer.invoke(IPC.PROJECT_KB_GET_PROMPT, projectPath),
     autoExtract: (projectPath: string) => ipcRenderer.invoke(IPC.PROJECT_KB_AUTO_EXTRACT, projectPath),
+    deleteBatch: (ids: string[]) => ipcRenderer.invoke(IPC.PROJECT_KB_DELETE_BATCH, ids),
+    updateBatch: (ids: string[], updates: any) => ipcRenderer.invoke(IPC.PROJECT_KB_UPDATE_BATCH, ids, updates),
+    export: (projectPath: string) => ipcRenderer.invoke(IPC.PROJECT_KB_EXPORT, projectPath),
+    import: (projectPath: string, data: any) => ipcRenderer.invoke(IPC.PROJECT_KB_IMPORT, projectPath, data),
   },
 
   // ==================== Code Review API ====================

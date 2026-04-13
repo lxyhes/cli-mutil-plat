@@ -10,7 +10,9 @@ import { CSS } from '@dnd-kit/utilities'
 import {
   Play, Eye, Pencil, Trash2, Copy, Flag, ArrowRight, GitBranch,
 } from 'lucide-react'
-import { TaskCard as TaskCardType, Session } from '../../../shared/types'
+import Markdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
+import type { TaskCard as TaskCardType, Session } from '../../../shared/types'
 import { useUIStore } from '../../stores/uiStore'
 import { useTaskStore } from '../../stores/taskStore'
 import { useSessionStore } from '../../stores/sessionStore'
@@ -178,8 +180,8 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, sessions = [] }) => {
 
         {/* 任务标题 + 会话按钮 */}
         <div className="flex items-start gap-2 mb-1 pl-2">
-          <h3 className="text-sm font-semibold text-text-primary flex-1 line-clamp-2 leading-snug">
-            {task.title}
+          <h3 className="text-sm font-semibold text-text-primary flex-1 line-clamp-2 leading-snug [&>p]:mb-0">
+            <Markdown remarkPlugins={[remarkGfm]}>{task.title}</Markdown>
           </h3>
           {/* 启动/聚焦会话按钮 - hover 才显示（有活跃会话时始终显示） */}
           {task.status !== 'done' && (
@@ -201,8 +203,8 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, sessions = [] }) => {
 
         {/* 任务描述 */}
         {task.description && (
-          <p className="text-xs text-text-secondary mb-2 pl-2 line-clamp-2 leading-relaxed">
-            {task.description}
+          <p className="text-xs text-text-secondary mb-2 pl-2 line-clamp-2 leading-relaxed [&>p]:mb-0">
+            <Markdown remarkPlugins={[remarkGfm]}>{task.description}</Markdown>
           </p>
         )}
 

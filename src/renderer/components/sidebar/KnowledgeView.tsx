@@ -6,9 +6,11 @@
 import { useState, useEffect } from 'react'
 import {
   BookMarked, Plus, Search, Trash2, RefreshCw, Sparkles,
-  ChevronDown, ChevronRight, Edit3, Check, X, Zap, FileText, Bot, User
+  ChevronDown, ChevronRight, Edit3, Check, X, Zap, FileText, Bot, User,
+  CheckSquare, Download, Upload
 } from 'lucide-react'
-import { useKnowledgeStore, type KnowledgeEntry } from '../../stores/knowledgeStore'
+import { useKnowledgeStore } from '../../stores/knowledgeStore'
+import type { KnowledgeEntry } from '../../shared/types'
 import { useSessionStore } from '../../stores/sessionStore'
 
 const CATEGORIES = [
@@ -107,11 +109,13 @@ function EntryForm({ initial, projectPath, onSave, onCancel }: {
 }
 
 /** 条目卡片 */
-function EntryCard({ entry, onEdit, onDelete, onToggleInject }: {
+function EntryCard({ entry, onEdit, onDelete, onToggleInject, selected, onToggleSelect }: {
   entry: KnowledgeEntry
   onEdit: () => void
   onDelete: () => void
   onToggleInject: (autoInject: boolean) => void
+  selected?: boolean
+  onToggleSelect?: () => void
 }) {
   const [expanded, setExpanded] = useState(false)
   const cat = CATEGORIES.find(c => c.value === entry.category)
@@ -121,6 +125,11 @@ function EntryCard({ entry, onEdit, onDelete, onToggleInject }: {
     <div className="px-3 py-2.5 hover:bg-bg-hover transition-colors">
       <div className="flex items-center justify-between cursor-pointer" onClick={() => setExpanded(!expanded)}>
         <div className="flex items-center gap-1.5 min-w-0">
+          {onToggleSelect && (
+            <input type="checkbox" checked={!!selected} onChange={onToggleSelect}
+              onClick={e => e.stopPropagation()}
+              className="w-3 h-3 accent-accent-blue shrink-0" />
+          )}
           {expanded ? <ChevronDown className="w-3 h-3 text-text-muted shrink-0" /> : <ChevronRight className="w-3 h-3 text-text-muted shrink-0" />}
           <span className={`text-[9px] px-1 py-0.5 rounded ${cat?.color || 'text-text-muted'} ${cat?.bg || 'bg-bg-tertiary'}`}>
             {cat?.label || entry.category}
@@ -176,6 +185,8 @@ export default function KnowledgeView() {
   const store = useKnowledgeStore()
   const entries = useKnowledgeStore(s => s.entries)
   const loading = useKnowledgeStore(s => s.loading)
+  const pagination = useKnowledgeStore(s => s.pagination)
+  const selectedIds = useKnowledgeStore(s => s.selectedIds)
   const activeSessionId = useSessionStore(s => s.currentSessionId)
   const sessions = useSessionStore(s => s.sessions)
   const [searchQ, setSearchQ] = useState('')
@@ -183,6 +194,18 @@ export default function KnowledgeView() {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [extracting, setExtracting] = useState(false)
   const [extractResult, setExtractResult] = useState<{ count: number; extracted: string[] } | null>(null)
+  const [extractSteps, setExtractSteps] = useState<{ name: string; status: 'pending' | 'done' | 'skip' }[]>([
+    { name: 'README', status: 'pending' },
+    { name: 'package.json', status: 'pending' },
+    { name: 'tsconfig.json', status: 'pending' },
+    { name: '.env.example', status: 'pending' },
+    { name: '项目结构', status: 'pending' },
+    { name: 'AI 配置', status: 'pending' },
+  ])
+  // 批量操作状态
+  const [showBatchOps, setShowBatchOps] = useState(false)
+  const [batchCategory, setBatchCategory] = useState<string>('')
+  const [batchPriority, setBatchPriority] = useState<string>('')
 
   const session = sessions.find(s => s.id === activeSessionId)
   const projectPath = session?.config?.workingDirectory || (session as any)?.workDir || ''
@@ -190,6 +213,13 @@ export default function KnowledgeView() {
   useEffect(() => {
     if (projectPath) store.fetchList(projectPath)
   }, [projectPath])
+
+  // 切换全选时清空选择
+  useEffect(() => {
+    if (!showBatchOps) {
+      store.clearSelection()
+    }
+  }, [showBatchOps])
 
   const handleAdd = async (params: any) => {
     await store.createEntry(params)
@@ -201,12 +231,93 @@ export default function KnowledgeView() {
     setEditingId(null)
   }
 
+  const handleBatchDelete = async () => {
+    const ids = Array.from(selectedIds)
+    if (!ids.length) return
+    if (confirm(`确定删除选中的 ${ids.length} 条知识？`)) {
+      await store.deleteBatch(ids)
+    }
+  }
+
+  const handleBatchUpdate = async () => {
+    const ids = Array.from(selectedIds)
+    if (!ids.length) return
+    const updates: any = {}
+    if (batchCategory) updates.category = batchCategory
+    if (batchPriority) updates.priority = batchPriority
+    if (Object.keys(updates).length === 0) return
+    await store.updateBatch(ids, updates)
+    setBatchCategory('')
+    setBatchPriority('')
+  }
+
+  const handleExport = async () => {
+    const data = await store.exportData()
+    if (!data) return
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `knowledge-${Date.now()}.json`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  const handleImport = () => {
+    const input = document.createElement('input')
+    input.type = 'file'
+    input.accept = '.json'
+    input.onchange = async (e: any) => {
+      const file = e.target.files?.[0]
+      if (!file) return
+      try {
+        const text = await file.text()
+        const data = JSON.parse(text)
+        const count = await store.importData(data)
+        alert(`成功导入 ${count} 条知识`)
+      } catch {
+        alert('导入失败：无效的 JSON 文件')
+      }
+    }
+    input.click()
+  }
+
   const handleAutoExtract = async () => {
     if (!projectPath) return
     setExtracting(true)
     setExtractResult(null)
+    // 重置步骤状态
+    setExtractSteps([
+      { name: 'README', status: 'pending' },
+      { name: 'package.json', status: 'pending' },
+      { name: 'tsconfig.json', status: 'pending' },
+      { name: '.env.example', status: 'pending' },
+      { name: '项目结构', status: 'pending' },
+      { name: 'AI 配置', status: 'pending' },
+    ])
+
+    // 模拟步骤进度（因为后端一次性返回结果）
+    const stepOrder = ['README', 'package.json', 'tsconfig.json', '.env.example', '项目结构', 'AI 配置']
+    for (let i = 0; i < stepOrder.length; i++) {
+      await new Promise(r => setTimeout(r, 150)) // 模拟处理时间
+      setExtractSteps(s => s.map((step, idx) =>
+        idx === i ? { ...step, status: 'done' as const } : step
+      ))
+    }
+
     try {
       const result = await store.autoExtract(projectPath)
+      // 更新最终结果，将完成的改为 skip（表示已经处理过，不会重复提取）
+      const extractedNames = result.extracted
+      setExtractSteps(s => s.map(step => {
+        const stepName = step.name === 'package.json' ? '技术栈' :
+                         step.name === 'tsconfig.json' ? 'TypeScript 配置' :
+                         step.name === '.env.example' ? '环境变量' : step.name
+        if (extractedNames.includes(stepName)) {
+          return { ...step, status: 'done' as const }
+        }
+        return step
+      }))
       setExtractResult(result)
     } finally {
       setExtracting(false)
@@ -219,6 +330,10 @@ export default function KnowledgeView() {
 
   const handleDelete = async (id: string) => {
     await store.deleteEntry(id)
+  }
+
+  const handleLoadMore = async () => {
+    await store.loadMore()
   }
 
   // 分类过滤
@@ -250,8 +365,24 @@ export default function KnowledgeView() {
         <div className="flex items-center gap-2 text-sm font-medium text-text-primary">
           <BookMarked className="w-4 h-4 text-accent-purple" />
           项目知识库
+          {showBatchOps && selectedIds.size > 0 && (
+            <span className="text-xs text-accent-blue">已选 {selectedIds.size}</span>
+          )}
         </div>
         <div className="flex items-center gap-1">
+          {/* 批量操作按钮 */}
+          <button onClick={() => setShowBatchOps(!showBatchOps)} title="批量操作"
+            className={`p-1 rounded transition-colors ${showBatchOps ? 'bg-accent-blue/20 text-accent-blue' : 'hover:bg-bg-hover text-text-muted hover:text-accent-blue'}`}>
+            <CheckSquare className="w-3.5 h-3.5" />
+          </button>
+          <button onClick={handleImport} title="导入"
+            className="p-1 rounded hover:bg-bg-hover text-text-muted hover:text-accent-green transition-colors">
+            <Download className="w-3.5 h-3.5" />
+          </button>
+          <button onClick={handleExport} title="导出"
+            className="p-1 rounded hover:bg-bg-hover text-text-muted hover:text-accent-purple transition-colors">
+            <Upload className="w-3.5 h-3.5" />
+          </button>
           <button onClick={handleAutoExtract} title="自动提取知识" disabled={extracting}
             className="p-1 rounded hover:bg-bg-hover text-text-muted hover:text-accent-blue transition-colors disabled:opacity-50">
             <Sparkles className={`w-3.5 h-3.5 ${extracting ? 'animate-pulse' : ''}`} />
@@ -267,19 +398,67 @@ export default function KnowledgeView() {
         </div>
       </div>
 
-      {/* Extract Result */}
-      {extractResult && (
-        <div className="flex items-start gap-2 px-3 py-2 bg-accent-green/5 border-b border-accent-green/20 text-xs text-accent-green">
-          <Sparkles className="w-3.5 h-3.5 shrink-0 mt-0.5" />
-          <div>
-            <span>已提取 {extractResult.count} 条知识</span>
-            {extractResult.extracted.length > 0 && (
-              <span className="text-accent-green/70 ml-1">({extractResult.extracted.join(', ')})</span>
-            )}
-          </div>
-          <button onClick={() => setExtractResult(null)} className="ml-auto text-text-muted hover:text-text-primary shrink-0">
-            <X className="w-3 h-3" />
+      {/* Batch Operations Bar */}
+      {showBatchOps && selectedIds.size > 0 && (
+        <div className="flex items-center gap-2 px-3 py-2 bg-accent-blue/5 border-b border-accent-blue/20">
+          <span className="text-xs text-accent-blue">批量操作：</span>
+          <select value={batchCategory} onChange={e => setBatchCategory(e.target.value)}
+            className="px-1.5 py-0.5 text-xs bg-bg-secondary border border-border rounded text-text-primary">
+            <option value="">不改分类</option>
+            {CATEGORIES.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
+          </select>
+          <select value={batchPriority} onChange={e => setBatchPriority(e.target.value)}
+            className="px-1.5 py-0.5 text-xs bg-bg-secondary border border-border rounded text-text-primary">
+            <option value="">不改优先级</option>
+            {PRIORITIES.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
+          </select>
+          <button onClick={handleBatchUpdate}
+            className="px-2 py-0.5 text-xs bg-accent-blue/15 text-accent-blue rounded hover:bg-accent-blue/25">
+            应用
           </button>
+          <button onClick={handleBatchDelete}
+            className="px-2 py-0.5 text-xs bg-accent-red/15 text-accent-red rounded hover:bg-accent-red/25">
+            删除
+          </button>
+          <button onClick={() => store.clearSelection()} className="ml-auto text-xs text-text-muted hover:text-text-primary">
+            清除选择
+          </button>
+        </div>
+      )}
+
+      {/* Extract Result / Steps */}
+      {(extractResult || extracting) && (
+        <div className="flex flex-col gap-1 px-3 py-2 bg-bg-secondary/50 border-b border-border">
+          {extracting ? (
+            <div className="space-y-1">
+              <div className="flex items-center gap-2 text-xs text-text-secondary">
+                <Sparkles className="w-3.5 h-3.5 animate-pulse text-accent-blue" />
+                <span>正在提取知识...</span>
+              </div>
+              <div className="flex flex-wrap gap-x-3 gap-y-1 ml-5">
+                {extractSteps.map((step, i) => (
+                  <div key={i} className="flex items-center gap-1 text-[10px]">
+                    {step.status === 'done' && <Check className="w-2.5 h-2.5 text-accent-green" />}
+                    {step.status === 'pending' && <div className="w-2.5 h-2.5 rounded-full border border-text-muted/30 animate-pulse" />}
+                    <span className={step.status === 'done' ? 'text-accent-green' : 'text-text-muted'}>{step.name}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : extractResult && (
+            <div className="flex items-start gap-2 text-xs text-accent-green">
+              <Sparkles className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+              <div>
+                <span>已提取 {extractResult.count} 条知识</span>
+                {extractResult.extracted.length > 0 && (
+                  <span className="text-accent-green/70 ml-1">({extractResult.extracted.join(', ')})</span>
+                )}
+              </div>
+              <button onClick={() => setExtractResult(null)} className="ml-auto text-text-muted hover:text-text-primary shrink-0">
+                <X className="w-3 h-3" />
+              </button>
+            </div>
+          )}
         </div>
       )}
 
@@ -328,18 +507,29 @@ export default function KnowledgeView() {
             {filtered.map(entry => (
               <div key={entry.id} className="group">
                 <EntryCard entry={entry}
+                  selected={selectedIds.has(entry.id)}
+                  onToggleSelect={showBatchOps ? () => store.toggleSelect(entry.id) : undefined}
                   onEdit={() => setEditingId(entry.id)}
                   onDelete={() => handleDelete(entry.id)}
                   onToggleInject={(autoInject) => handleToggleInject(entry.id, autoInject)} />
               </div>
             ))}
+            {/* Load More */}
+            {pagination.hasMore && (
+              <div className="px-3 py-2 flex justify-center">
+                <button onClick={handleLoadMore} disabled={loading}
+                  className="px-3 py-1 text-xs text-text-secondary hover:text-accent-blue disabled:opacity-50 transition-colors">
+                  {loading ? '加载中...' : '加载更多'}
+                </button>
+              </div>
+            )}
           </div>
         )}
       </div>
 
       {/* Stats */}
       <div className="px-3 py-2 border-t border-border flex items-center justify-between text-[10px] text-text-muted">
-        <span>{entries.length} 条知识 · {entries.filter(e => e.autoInject).length} 条自动注入</span>
+        <span>{pagination.total > 0 ? `${entries.length}/${pagination.total}` : entries.length} 条知识 · {entries.filter(e => e.autoInject).length} 条自动注入</span>
         <span>标记"自动注入"的知识在新会话时注入 AI 上下文</span>
       </div>
     </div>

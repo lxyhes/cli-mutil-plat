@@ -69,12 +69,16 @@ export function registerNewFeatureHandlers(deps: NewFeatureDeps): void {
     ipcMain.handle(IPC.PROJECT_KB_GET, async (_, id) => kb.get(id))
     ipcMain.handle(IPC.PROJECT_KB_UPDATE, async (_, id, updates) => kb.update(id, updates))
     ipcMain.handle(IPC.PROJECT_KB_DELETE, async (_, id) => kb.delete(id))
-    ipcMain.handle(IPC.PROJECT_KB_LIST, async (_, path) => kb.list(path))
+    ipcMain.handle(IPC.PROJECT_KB_LIST, async (_, path, options?) => kb.list(path, options))
     ipcMain.handle(IPC.PROJECT_KB_ADD_ENTRY, async (_, p) => kb.createEntry(p))
     ipcMain.handle(IPC.PROJECT_KB_REMOVE_ENTRY, async (_, id) => kb.delete(id))
     ipcMain.handle(IPC.PROJECT_KB_SEARCH, async (_, path, q, limit?) => kb.search(path, q, limit))
     ipcMain.handle(IPC.PROJECT_KB_GET_PROMPT, async (_, path) => kb.getPrompt(path))
     ipcMain.handle(IPC.PROJECT_KB_AUTO_EXTRACT, async (_, path) => kb.autoExtract(path))
+    ipcMain.handle(IPC.PROJECT_KB_DELETE_BATCH, async (_, ids) => kb.deleteBatch(ids))
+    ipcMain.handle(IPC.PROJECT_KB_UPDATE_BATCH, async (_, ids, updates) => kb.updateBatch(ids, updates))
+    ipcMain.handle(IPC.PROJECT_KB_EXPORT, async (_, path) => kb.exportData(path))
+    ipcMain.handle(IPC.PROJECT_KB_IMPORT, async (_, path, data) => kb.importData(path, data))
   }
 
   // ── 4. Code Review ──

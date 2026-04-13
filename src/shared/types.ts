@@ -1220,3 +1220,58 @@ export interface WorkContextFullView {
   decisions: WorkContextDecision[]
   todos: WorkContextTodo[]
 }
+
+// ============================================================
+// 项目知识库类型定义
+// ============================================================
+
+export type KnowledgeCategory = 'architecture' | 'tech-stack' | 'convention' | 'api' | 'decision' | 'custom'
+export type KnowledgePriority = 'high' | 'medium' | 'low'
+export type KnowledgeSource = 'manual' | 'auto-extract' | 'ai-generated'
+
+export interface KnowledgeEntry {
+  id: string
+  projectPath: string
+  category: KnowledgeCategory
+  title: string
+  content: string
+  tags: string[]
+  priority: KnowledgePriority
+  autoInject: boolean
+  source: KnowledgeSource
+  createdAt: string
+  updatedAt: string
+}
+
+export interface CreateKnowledgeEntryParams {
+  projectPath: string
+  category: KnowledgeCategory
+  title: string
+  content: string
+  tags: string[]
+  priority: KnowledgePriority
+  autoInject: boolean
+  source: KnowledgeSource
+}
+
+export interface UpdateKnowledgeEntryParams {
+  category?: KnowledgeCategory
+  title?: string
+  content?: string
+  tags?: string[]
+  priority?: KnowledgePriority
+  autoInject?: boolean
+  source?: KnowledgeSource
+}
+
+export interface ListKnowledgeOptions {
+  page?: number
+  pageSize?: number
+}
+
+export interface ImportExportKnowledgeData {
+  version: string
+  exportedAt: string
+  projectPath: string
+  entries: KnowledgeEntry[]
+}

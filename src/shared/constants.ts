@@ -445,6 +445,10 @@ export const IPC = {
   PROJECT_KB_SEARCH:        'project-kb:search',
   PROJECT_KB_GET_PROMPT:    'project-kb:get-prompt',
   PROJECT_KB_AUTO_EXTRACT:  'project-kb:auto-extract',
+  PROJECT_KB_DELETE_BATCH:  'project-kb:delete-batch',
+  PROJECT_KB_UPDATE_BATCH: 'project-kb:update-batch',
+  PROJECT_KB_EXPORT:        'project-kb:export',
+  PROJECT_KB_IMPORT:        'project-kb:import',
 
   // 4. AI 代码审查员 (Code Review Copilot)
   CODE_REVIEW_START:        'code-review:start',
