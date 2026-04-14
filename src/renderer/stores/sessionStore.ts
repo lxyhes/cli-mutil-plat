@@ -465,16 +465,36 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       if (get().selectedSessionId === id) {
         set({ selectedSessionId: null })
       }
-      // 从本地 state 中移除
-      set((state) => ({
-        sessions: state.sessions.filter((s) => s.id !== id),
-        activities: Object.fromEntries(
-          Object.entries(state.activities).filter(([k]) => k !== id)
-        ),
-        lastActivities: Object.fromEntries(
-          Object.entries(state.lastActivities).filter(([k]) => k !== id)
-        ),
-      }))
+      // 从本地 state 中移除（清理所有相关字段）
+      set((state) => {
+        const newStreaming = new Set(state.streamingSessions)
+        newStreaming.delete(id)
+        const newHistoryLoaded = new Set(state.activityHistoryLoaded)
+        newHistoryLoaded.delete(id)
+        const newSuppressEcho = new Set(state.suppressNextEcho)
+        newSuppressEcho.delete(id)
+        return {
+          sessions: state.sessions.filter((s) => s.id !== id),
+          activities: Object.fromEntries(
+            Object.entries(state.activities).filter(([k]) => k !== id)
+          ),
+          lastActivities: Object.fromEntries(
+            Object.entries(state.lastActivities).filter(([k]) => k !== id)
+          ),
+          conversations: Object.fromEntries(
+            Object.entries(state.conversations).filter(([k]) => k !== id)
+          ),
+          conversationLoading: Object.fromEntries(
+            Object.entries(state.conversationLoading).filter(([k]) => k !== id)
+          ),
+          sessionInitData: Object.fromEntries(
+            Object.entries(state.sessionInitData).filter(([k]) => k !== id)
+          ),
+          streamingSessions: newStreaming,
+          activityHistoryLoaded: newHistoryLoaded,
+          suppressNextEcho: newSuppressEcho,
+        }
+      })
     } catch (error) {
       console.error('Failed to delete session:', error)
       throw error

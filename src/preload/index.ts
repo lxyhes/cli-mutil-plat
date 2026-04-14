@@ -536,7 +536,9 @@ if (!ctxBr) {
     // Stream A: MCP 一键安装
     install: (id: string) => ipcRenderer.invoke(IPC.MCP_INSTALL, id),
     onInstallProgress: (cb: (data: { id: string; line: string; type: string }) => void) => {
-      ipcRenderer.on(IPC.MCP_INSTALL_PROGRESS, (_e, data) => cb(data))
+      const handler = (_e: any, data: any) => cb(data)
+      ipcRenderer.on(IPC.MCP_INSTALL_PROGRESS, handler)
+      return () => ipcRenderer.removeListener(IPC.MCP_INSTALL_PROGRESS, handler)
     },
   },
 
@@ -688,12 +690,14 @@ if (!ctxBr) {
     addMapping: (mapping: any) => ipcRenderer.invoke(IPC.TELEGRAM_ADD_MAPPING, mapping),
     removeMapping: (id: string) => ipcRenderer.invoke(IPC.TELEGRAM_REMOVE_MAPPING, id),
     onStatusChanged: (callback: (status: string) => void) => {
-      ipcRenderer.on(IPC.TELEGRAM_STATUS_CHANGED, (_e, status) => callback(status))
-      return () => ipcRenderer.removeListener(IPC.TELEGRAM_STATUS_CHANGED, () => {})
+      const handler = (_e: any, status: string) => callback(status)
+      ipcRenderer.on(IPC.TELEGRAM_STATUS_CHANGED, handler)
+      return () => ipcRenderer.removeListener(IPC.TELEGRAM_STATUS_CHANGED, handler)
     },
     onMessageSent: (callback: (chatId: string, msg: string) => void) => {
-      ipcRenderer.on(IPC.TELEGRAM_MESSAGE_SENT, (_e, chatId, msg) => callback(chatId, msg))
-      return () => ipcRenderer.removeListener(IPC.TELEGRAM_MESSAGE_SENT, () => {})
+      const handler = (_e: any, chatId: string, msg: string) => callback(chatId, msg)
+      ipcRenderer.on(IPC.TELEGRAM_MESSAGE_SENT, handler)
+      return () => ipcRenderer.removeListener(IPC.TELEGRAM_MESSAGE_SENT, handler)
     },
   },
 
@@ -708,12 +712,14 @@ if (!ctxBr) {
     addMapping: (mapping: any) => ipcRenderer.invoke(IPC.FEISHU_ADD_MAPPING, mapping),
     removeMapping: (id: string) => ipcRenderer.invoke(IPC.FEISHU_REMOVE_MAPPING, id),
     onStatusChanged: (callback: (status: string) => void) => {
-      ipcRenderer.on(IPC.FEISHU_STATUS_CHANGED, (_e, status) => callback(status))
-      return () => ipcRenderer.removeListener(IPC.FEISHU_STATUS_CHANGED, () => {})
+      const handler = (_e: any, status: string) => callback(status)
+      ipcRenderer.on(IPC.FEISHU_STATUS_CHANGED, handler)
+      return () => ipcRenderer.removeListener(IPC.FEISHU_STATUS_CHANGED, handler)
     },
     onMessageSent: (callback: (chatId: string, msg: string) => void) => {
-      ipcRenderer.on(IPC.FEISHU_MESSAGE_SENT, (_e, chatId, msg) => callback(chatId, msg))
-      return () => ipcRenderer.removeListener(IPC.FEISHU_MESSAGE_SENT, () => {})
+      const handler = (_e: any, chatId: string, msg: string) => callback(chatId, msg)
+      ipcRenderer.on(IPC.FEISHU_MESSAGE_SENT, handler)
+      return () => ipcRenderer.removeListener(IPC.FEISHU_MESSAGE_SENT, handler)
     },
   },
 
@@ -729,8 +735,9 @@ if (!ctxBr) {
     getRecentRuns: (limit?: number) => ipcRenderer.invoke(IPC.SCHEDULER_GET_RECENT_RUNS, limit),
     validateCron: (expression: string) => ipcRenderer.invoke('scheduler:validate-cron', expression),
     onTaskStatus: (callback: (status: any) => void) => {
-      ipcRenderer.on(IPC.SCHEDULER_TASK_STATUS, (_e, status) => callback(status))
-      return () => ipcRenderer.removeListener(IPC.SCHEDULER_TASK_STATUS, () => {})
+      const handler = (_e: any, status: any) => callback(status)
+      ipcRenderer.on(IPC.SCHEDULER_TASK_STATUS, handler)
+      return () => ipcRenderer.removeListener(IPC.SCHEDULER_TASK_STATUS, handler)
     },
   },
 
@@ -751,8 +758,9 @@ if (!ctxBr) {
     skipStep: (stepId: string) => ipcRenderer.invoke('plan:skip-step', stepId),
     getStatus: () => ipcRenderer.invoke(IPC.PLAN_STATUS),
     onStatus: (callback: (status: any) => void) => {
-      ipcRenderer.on(IPC.PLAN_STATUS, (_e, status) => callback(status))
-      return () => ipcRenderer.removeListener(IPC.PLAN_STATUS, () => {})
+      const handler = (_e: any, status: any) => callback(status)
+      ipcRenderer.on(IPC.PLAN_STATUS, handler)
+      return () => ipcRenderer.removeListener(IPC.PLAN_STATUS, handler)
     },
   },
 
@@ -771,8 +779,9 @@ if (!ctxBr) {
     getExecution: (executionId: string) => ipcRenderer.invoke(IPC.WORKFLOW_GET_EXECUTION, executionId),
     getExecutions: (workflowId: string, limit?: number) => ipcRenderer.invoke(IPC.WORKFLOW_GET_EXECUTIONS, workflowId, limit),
     onStatus: (callback: (status: any) => void) => {
-      ipcRenderer.on(IPC.WORKFLOW_STATUS, (_e, status) => callback(status))
-      return () => ipcRenderer.removeListener(IPC.WORKFLOW_STATUS, () => {})
+      const handler = (_e: any, status: any) => callback(status)
+      ipcRenderer.on(IPC.WORKFLOW_STATUS, handler)
+      return () => ipcRenderer.removeListener(IPC.WORKFLOW_STATUS, handler)
     },
   },
 
@@ -788,8 +797,9 @@ if (!ctxBr) {
     getRun: (runId: string) => ipcRenderer.invoke(IPC.EVAL_GET_RUN, runId),
     getResults: (runId: string) => ipcRenderer.invoke(IPC.EVAL_GET_RESULTS, runId),
     onRunStatus: (callback: (status: any) => void) => {
-      ipcRenderer.on(IPC.EVAL_RUN_STATUS, (_e, status) => callback(status))
-      return () => ipcRenderer.removeListener(IPC.EVAL_RUN_STATUS, () => {})
+      const handler = (_e: any, status: any) => callback(status)
+      ipcRenderer.on(IPC.EVAL_RUN_STATUS, handler)
+      return () => ipcRenderer.removeListener(IPC.EVAL_RUN_STATUS, handler)
     },
   },
 
@@ -807,8 +817,9 @@ if (!ctxBr) {
     getSessions: (goalId: string) => ipcRenderer.invoke(IPC.GOAL_GET_SESSIONS, goalId),
     getStats: () => ipcRenderer.invoke(IPC.GOAL_GET_STATS),
     onStatus: (callback: (status: any) => void) => {
-      ipcRenderer.on(IPC.GOAL_STATUS, (_e, status) => callback(status))
-      return () => ipcRenderer.removeListener(IPC.GOAL_STATUS, () => {})
+      const handler = (_e: any, status: any) => callback(status)
+      ipcRenderer.on(IPC.GOAL_STATUS, handler)
+      return () => ipcRenderer.removeListener(IPC.GOAL_STATUS, handler)
     },
   },
 
@@ -853,8 +864,9 @@ if (!ctxBr) {
       ipcRenderer.invoke(IPC.PROMPT_GET_EVOLUTION, templateId),
     // Events
     onStatus: (callback: (status: any) => void) => {
-      ipcRenderer.on(IPC.PROMPT_OPTIMIZATION_STATUS, (_e, status) => callback(status))
-      return () => ipcRenderer.removeListener(IPC.PROMPT_OPTIMIZATION_STATUS, () => {})
+      const handler = (_e: any, status: any) => callback(status)
+      ipcRenderer.on(IPC.PROMPT_OPTIMIZATION_STATUS, handler)
+      return () => ipcRenderer.removeListener(IPC.PROMPT_OPTIMIZATION_STATUS, handler)
     },
   },
 
@@ -879,8 +891,9 @@ if (!ctxBr) {
     createSnapshot: (sessionId: string, trigger?: string) => ipcRenderer.invoke(IPC.WORKING_CONTEXT_CREATE_SNAPSHOT, sessionId, trigger),
     getPrompt: (sessionId: string) => ipcRenderer.invoke(IPC.WORKING_CONTEXT_GET_PROMPT, sessionId),
     onStatus: (callback: (status: any) => void) => {
-      ipcRenderer.on(IPC.WORKING_CONTEXT_STATUS, (_e, status) => callback(status))
-      return () => ipcRenderer.removeListener(IPC.WORKING_CONTEXT_STATUS, () => {})
+      const handler = (_e: any, status: any) => callback(status)
+      ipcRenderer.on(IPC.WORKING_CONTEXT_STATUS, handler)
+      return () => ipcRenderer.removeListener(IPC.WORKING_CONTEXT_STATUS, handler)
     },
   },
 
@@ -894,8 +907,9 @@ if (!ctxBr) {
     updateConfig: (updates: any) => ipcRenderer.invoke(IPC.DRIFT_GUARD_UPDATE_CONFIG, updates),
     getConfig: () => ipcRenderer.invoke(IPC.DRIFT_GUARD_GET_CONFIG),
     onStatus: (callback: (status: any) => void) => {
-      ipcRenderer.on(IPC.DRIFT_GUARD_STATUS, (_e, status) => callback(status))
-      return () => ipcRenderer.removeListener(IPC.DRIFT_GUARD_STATUS, () => {})
+      const handler = (_e: any, status: any) => callback(status)
+      ipcRenderer.on(IPC.DRIFT_GUARD_STATUS, handler)
+      return () => ipcRenderer.removeListener(IPC.DRIFT_GUARD_STATUS, handler)
     },
   },
 
@@ -920,8 +934,9 @@ if (!ctxBr) {
     delete: (id: string) => ipcRenderer.invoke(IPC.SESSION_TEMPLATE_DELETE, id),
     getCategories: () => ipcRenderer.invoke(IPC.SESSION_TEMPLATE_GET_CATEGORIES),
     onStatus: (callback: (status: any) => void) => {
-      ipcRenderer.on(IPC.SESSION_TEMPLATE_STATUS, (_e, status) => callback(status))
-      return () => ipcRenderer.removeListener(IPC.SESSION_TEMPLATE_STATUS, () => {})
+      const handler = (_e: any, status: any) => callback(status)
+      ipcRenderer.on(IPC.SESSION_TEMPLATE_STATUS, handler)
+      return () => ipcRenderer.removeListener(IPC.SESSION_TEMPLATE_STATUS, handler)
     },
   },
 

@@ -837,6 +837,9 @@ export class SessionManagerV2 extends EventEmitter implements MemoryManagedCompo
     if (!session) throw new Error(`Session ${id} not found`)
 
     const adapter = this.adapterRegistry.get(session.provider.id)
+    if (typeof (adapter as any).sendQuestionAnswer !== 'function') {
+      throw new Error(`Adapter ${session.provider.id} does not support sendQuestionAnswer`)
+    }
     await (adapter as any).sendQuestionAnswer(id, answers)
 
     // 清除等待状态
@@ -857,6 +860,9 @@ export class SessionManagerV2 extends EventEmitter implements MemoryManagedCompo
     if (!session) throw new Error(`Session ${id} not found`)
 
     const adapter = this.adapterRegistry.get(session.provider.id)
+    if (typeof (adapter as any).sendPlanApproval !== 'function') {
+      throw new Error(`Adapter ${session.provider.id} does not support sendPlanApproval`)
+    }
     await (adapter as any).sendPlanApproval(id, approved)
 
     // 清除等待状态

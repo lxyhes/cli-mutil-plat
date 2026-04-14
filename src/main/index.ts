@@ -1145,20 +1145,7 @@ app.whenReady().then(() => {
     voiceService,
   }, fileChangeTracker)
 
-  // ── ReferenceProjectService IPC handlers（内联注册，确保热更新后生效）──
-  if (referenceProjectService) {
-    const { ipcMain } = require('electron')
-    const rp = referenceProjectService
-    ipcMain.handle(IPC.REFERENCE_SEARCH, async (_, query, language) => rp.searchRepos(query, language))
-    ipcMain.handle(IPC.REFERENCE_REPO_TREE, async (_, owner, repo, branch) => rp.getRepoTree(owner, repo, branch))
-    ipcMain.handle(IPC.REFERENCE_FILE_CONTENT, async (_, owner, repo, filePath, branch) => rp.getFileContent(owner, repo, filePath, branch))
-    ipcMain.handle(IPC.REFERENCE_SAVE_TO_KB, async (_, params) => rp.saveToKnowledge(params))
-    ipcMain.handle(IPC.REFERENCE_SAVE, async (_, params) => rp.saveReference(params))
-    ipcMain.handle(IPC.REFERENCE_LIST, async (_, projectPath) => rp.listReferences(projectPath))
-    ipcMain.handle(IPC.REFERENCE_DELETE, async (_, id) => rp.deleteReference(id))
-    ipcMain.handle(IPC.REFERENCE_SUGGEST, async (_, projectPath) => rp.suggestSimilarProjects(projectPath))
-    console.log('[Main] ReferenceProjectService IPC handlers registered')
-  }
+  // ── ReferenceProjectService IPC handlers 已在 newFeatureHandlers.ts 中注册，此处不再重复 ──
 
   // 连接事件流
   wireEvents()

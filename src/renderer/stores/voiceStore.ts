@@ -2,7 +2,6 @@
  * 语音交互 Store
  */
 import { makeAutoObservable } from 'mobx'
-import { ipcRenderer } from 'electron'
 
 export interface VoiceConfig {
   enabled: boolean
