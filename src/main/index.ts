@@ -200,6 +200,7 @@ let battleService: any = null
 let dailyReportService: any = null
 let skillArenaService: any = null
 let voiceService: any = null
+let communityPublishService: any = null
 
 /**
  * 创建主窗口

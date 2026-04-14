@@ -446,13 +446,16 @@ export class DatabaseManager implements MemoryManagedComponent {
         if (!cols.includes('type')) this.db.exec('ALTER TABLE team_messages ADD COLUMN type TEXT NOT NULL DEFAULT \'role_message\'')
 
         // 兼容旧 schema: from_role/to_role/message_type → from_member_id/to_member_id/type
-        this.db.exec(`
-          UPDATE team_messages
-          SET
-            from_member_id = COALESCE(from_member_id, from_role),
-            to_member_id = COALESCE(to_member_id, to_role),
-            type = COALESCE(type, message_type, 'role_message')
-        `)
+        // 先检查旧列是否存在，避免 "no such column" 错误
+        if (cols.includes('from_role') || cols.includes('to_role') || cols.includes('message_type')) {
+          const setClauses: string[] = []
+          if (cols.includes('from_role')) setClauses.push('from_member_id = COALESCE(from_member_id, from_role)')
+          if (cols.includes('to_role')) setClauses.push('to_member_id = COALESCE(to_member_id, to_role)')
+          if (cols.includes('message_type')) setClauses.push("type = COALESCE(type, message_type, 'role_message')")
+          if (setClauses.length > 0) {
+            this.db.exec(`UPDATE team_messages SET ${setClauses.join(', ')}`)
+          }
+        }
       }
       
       if (!existingTables.includes('team_templates')) {
