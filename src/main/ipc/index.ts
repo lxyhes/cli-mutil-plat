@@ -69,6 +69,7 @@ export interface IpcDependencies {
   skillArenaService?: any       // SkillArenaService（可选）
   voiceService?: any            // VoiceService（可选）
   communityPublishService?: any // CommunityPublishService（可选）
+  knowledgeCenterService?: any  // KnowledgeCenterService（可选）
 }
 
 // 各子模块 handler 注册函数
@@ -102,6 +103,7 @@ import { registerSessionTemplateHandlers } from './sessionTemplateHandlers'
 import { registerCodeContextHandlers } from './codeContextHandlers'
 import { registerOpenAICompatHandlers } from './openAICompatHandlers'
 import { registerNewFeatureHandlers, type NewFeatureDeps } from './newFeatureHandlers'
+import { registerKnowledgeCenterHandlers } from './knowledgeCenterHandlers'
 import type { FileChangeTracker } from '../tracker/FileChangeTracker'
 
 // re-export wireSessionManagerV2Events from systemHandlers
@@ -172,4 +174,9 @@ export function registerIpcHandlers(deps: IpcDependencies, fileChangeTracker?: F
     voiceService: deps.voiceService,
     communityPublishService: deps.communityPublishService,
   })
+
+  // ★ 知识中心 IPC 注册
+  if (deps.knowledgeCenterService) {
+    registerKnowledgeCenterHandlers(deps.knowledgeCenterService)
+  }
 }

@@ -41,10 +41,8 @@ const FEATURES: FeatureDef[] = [
   { id: 'workflow',         label: '工作流',      description: '自动化工作流编排',         icon: Workflow, color: 'text-accent-blue' },
   { id: 'goal',             label: '目标锚点',     description: '设定和跟踪目标',          icon: BarChart2, color: 'text-accent-green' },
   { id: 'evaluation',       label: '任务评估',     description: '评估任务质量和效果',       icon: Target,   color: 'text-accent-yellow' },
-  // === 知识与记忆 ===
-  { id: 'knowledge',        label: '项目知识库',   description: '持久化项目上下文',        icon: BookMarked, color: 'text-accent-purple' },
-  { id: 'memory',           label: '跨会话记忆',   description: '共享上下文记忆',          icon: Brain,    color: 'text-accent-blue' },
-  { id: 'context',          label: '工作记忆',     description: '当前会话上下文',          icon: Layers,   color: 'text-accent-green' },
+  // === 知识与记忆（三合一） ===
+  { id: 'knowledge',        label: '知识中心',     description: '知识库+记忆+工作上下文',    icon: BookMarked, color: 'text-accent-purple' },
   // === 高级工具 ===
   { id: 'checkpoint',       label: '智能回溯',     description: '代码快照与一键回滚',       icon: History,  color: 'text-accent-blue' },
   { id: 'cost',             label: '成本仪表盘',   description: 'Token 消耗换算实际金额',   icon: DollarSign, color: 'text-accent-green' },
@@ -83,8 +81,7 @@ import ArenaView from './ArenaView'
 import VoiceView from './VoiceView'
 import DailyReportView from './DailyReportView'
 import ContextBudgetView from './ContextBudgetView'
-import ContextView from './WorkingContextView'
-import MemoryView from './CrossMemoryView'
+import KnowledgeView from './KnowledgeView'
 
 function FeatureComponent({ featureId }: { featureId: string }) {
   switch (featureId) {
@@ -109,8 +106,6 @@ function FeatureComponent({ featureId }: { featureId: string }) {
     case 'daily-report':     return <DailyReportView />
     case 'voice':            return <VoiceView />
     case 'context-budget':   return <ContextBudgetView />
-    case 'context':          return <ContextView />
-    case 'memory':           return <MemoryView />
     default:                 return <div className="p-4 text-text-muted text-sm">未知功能</div>
   }
 }

@@ -64,6 +64,7 @@ import { CodeContextInjectionService } from './code-context/CodeContextInjection
 import { CheckpointService } from './checkpoint/CheckpointService'
 import { CostService } from './cost/CostService'
 import { ProjectKnowledgeService } from './knowledge/ProjectKnowledgeService'
+import { KnowledgeCenterService } from './knowledge/KnowledgeCenterService'
 import { ReferenceProjectService } from './reference/ReferenceProjectService'
 import { CodeReviewService } from './review/CodeReviewService'
 import { SessionReplayService } from './replay/SessionReplayService'
@@ -192,6 +193,7 @@ let gitWorktreeServiceRef: any = null
 let checkpointService: any = null
 let costService: any = null
 let projectKnowledgeService: any = null
+let knowledgeCenterService: any = null
 let referenceProjectService: any = null
 let codeReviewService: any = null
 let sessionReplayService: any = null
@@ -987,6 +989,16 @@ app.whenReady().then(() => {
   referenceProjectService = new ReferenceProjectService(database)
   // ★ 注入项目知识服务到 SessionManagerV2，用于新会话自动注入项目知识
   sessionManagerV2.setProjectKnowledgeService(projectKnowledgeService)
+  
+  // ★ 知识中心服务（三合一：项目知识库 + 跨会话记忆 + 工作记忆）
+  knowledgeCenterService = new KnowledgeCenterService()
+  await knowledgeCenterService.initialize(
+    database.db,
+    projectKnowledgeService,
+    crossSessionMemoryService,
+    workingContextService
+  )
+  
   codeReviewService = new CodeReviewService(database, fileChangeTracker, gitWorktreeServiceRef)
   sessionReplayService = new SessionReplayService(database)
   contextBudgetService = new ContextBudgetService(database)
@@ -1149,6 +1161,7 @@ app.whenReady().then(() => {
     skillArenaService,
     voiceService,
     communityPublishService,
+    knowledgeCenterService,
   }, fileChangeTracker)
 
   // ── ReferenceProjectService IPC handlers 已在 newFeatureHandlers.ts 中注册，此处不再重复 ──
