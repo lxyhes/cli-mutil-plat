@@ -293,6 +293,8 @@ if (!ctxBr) {
     testExecutable: (executablePath?: string) => ipcRenderer.invoke(IPC.PROVIDER_TEST_EXECUTABLE, executablePath),
     /** 在系统终端中运行 Provider 认证命令（如 qwen auth） */
     runAuthCli: (command: string, args?: string[]) => ipcRenderer.invoke(IPC.PROVIDER_RUN_AUTH_CLI, command, args),
+    /** 收藏/取消收藏 Provider */
+    togglePin: (id: string) => ipcRenderer.invoke(IPC.PROVIDER_TOGGLE_PIN, id),
   },
 
   // ==================== NVM API ====================
@@ -1097,6 +1099,21 @@ if (!ctxBr) {
     delete: (id: string) => ipcRenderer.invoke(IPC.SKILL_ARENA_DELETE, id),
     getCategories: () => ipcRenderer.invoke(IPC.SKILL_ARENA_CATEGORIES),
     getStats: () => ipcRenderer.invoke(IPC.SKILL_ARENA_GET_STATS),
+  },
+
+  // ==================== Community Publish API ====================
+  community: {
+    publishSkill: (skillId: string, author: string) => ipcRenderer.invoke(IPC.COMMUNITY_PUBLISH_SKILL, skillId, author),
+    publishMcp: (mcpId: string, author: string) => ipcRenderer.invoke(IPC.COMMUNITY_PUBLISH_MCP, mcpId, author),
+    publishWorkflow: (workflowId: string, author: string) => ipcRenderer.invoke(IPC.COMMUNITY_PUBLISH_WORKFLOW, workflowId, author),
+    publishPrompt: (promptTemplate: any, author: string) => ipcRenderer.invoke(IPC.COMMUNITY_PUBLISH_PROMPT, promptTemplate, author),
+    importFromJson: (packageJson: string) => ipcRenderer.invoke(IPC.COMMUNITY_IMPORT_JSON, packageJson),
+    importFromUrl: (url: string) => ipcRenderer.invoke(IPC.COMMUNITY_IMPORT_URL, url),
+    onPublishStatus: (callback: (status: any) => void) => {
+      const handler = (_e: any, status: any) => callback(status)
+      ipcRenderer.on(IPC.COMMUNITY_PUBLISH_STATUS, handler)
+      return () => ipcRenderer.removeListener(IPC.COMMUNITY_PUBLISH_STATUS, handler)
+    },
   },
 
   // ==================== Voice API ====================

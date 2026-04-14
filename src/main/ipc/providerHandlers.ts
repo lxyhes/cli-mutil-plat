@@ -84,6 +84,24 @@ export function registerProviderHandlers(deps: IpcDependencies): void {
     }
   })
 
+  ipcMain.handle(IPC.PROVIDER_TOGGLE_PIN, async (_event, id: string) => {
+    try {
+      const toggled = database.toggleProviderPin(id)
+      if (!toggled) {
+        throw new SpectrAIError({
+          code: ErrorCode.NOT_FOUND,
+          message: 'Provider not found',
+          userMessage: 'Provider 未找到',
+          context: { providerId: id }
+        })
+      }
+      return createSuccessResponse({})
+    } catch (error: any) {
+      console.error('[IPC] PROVIDER_TOGGLE_PIN error:', error)
+      return createErrorResponse(error, { operation: 'provider' })
+    }
+  })
+
   // ==================== CLI 安装检测 ====================
 
   ipcMain.handle(IPC.PROVIDER_CHECK_CLI, async (_event, command: string) => {

@@ -4,7 +4,7 @@
  */
 
 import { useState, useEffect, useRef } from 'react'
-import { X, Plus, Pencil, Trash2, Terminal, Cpu, Save, Sparkles, Code2, GripVertical, Zap, FolderOpen, FlaskConical, CheckCircle, AlertCircle, Loader } from 'lucide-react'
+import { X, Plus, Pencil, Trash2, Terminal, Cpu, Save, Sparkles, Code2, GripVertical, Zap, FolderOpen, FlaskConical, CheckCircle, AlertCircle, Loader, Star, Wifi, Boxes } from 'lucide-react'
 import type { AIProvider } from '../../../shared/types'
 import { v4 as uuidv4 } from 'uuid'
 
@@ -20,6 +20,13 @@ const PROVIDER_ICON_MAP: Record<string, { icon: typeof Terminal; color: string }
   qwen: { icon: Sparkles, color: 'text-purple-400' },
   opencode: { icon: Zap, color: 'text-orange-400' },
   custom: { icon: Cpu, color: 'text-text-muted' },
+}
+
+/** Provider 分类定义 */
+const CATEGORY_CONFIG: Record<string, { label: string; icon: typeof Terminal; color: string; description: string }> = {
+  'builtin-cli': { label: '内置 CLI', icon: Terminal, color: 'text-accent-blue', description: '官方 CLI 工具' },
+  'api-relay': { label: 'API 中转', icon: Wifi, color: 'text-accent-green', description: 'API 协议适配' },
+  'custom': { label: '自定义', icon: Boxes, color: 'text-accent-purple', description: '用户自定义' },
 }
 
 function ProviderIcon({ icon, className }: { icon?: string; className?: string }) {
@@ -85,6 +92,8 @@ export default function ProviderManager({ onClose }: ProviderManagerProps) {
   // 拖拽排序状态
   const dragIndex = useRef<number | null>(null)
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null)
+  // 分类过滤
+  const [categoryFilter, setCategoryFilter] = useState<string>('all')
 
   useEffect(() => {
     loadProviders()
@@ -257,6 +266,7 @@ export default function ProviderManager({ onClose }: ProviderManagerProps) {
         name: form.name.trim(),
         command: form.command.trim(),
         icon: form.icon || 'custom',
+        category: 'custom',
         defaultArgs: args,
         autoAcceptArg: form.autoAcceptArg?.trim() || undefined,
         resumeArg: form.resumeArg?.trim() || undefined,
@@ -323,6 +333,18 @@ export default function ProviderManager({ onClose }: ProviderManagerProps) {
     }
   }
 
+  const handleTogglePin = async (id: string) => {
+    try {
+      await window.spectrAI.provider.togglePin(id)
+      await loadProviders()
+    } catch { /* ignore */ }
+  }
+
+  // 按分类过滤 Provider
+  const filteredProviders = categoryFilter === 'all'
+    ? providers
+    : providers.filter(p => (p.category || (p.isBuiltin ? 'builtin-cli' : 'custom')) === categoryFilter)
+
   return (
     <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 backdrop-blur-sm">
       <div className="bg-bg-secondary rounded-lg shadow-2xl w-full max-w-lg border border-border max-h-[80vh] flex flex-col">
@@ -338,8 +360,40 @@ export default function ProviderManager({ onClose }: ProviderManagerProps) {
         </div>
 
         <div className="flex-1 overflow-y-auto p-4 space-y-2">
+          {/* 分类过滤标签 */}
+          <div className="flex gap-1.5 mb-3">
+            <button
+              onClick={() => setCategoryFilter('all')}
+              className={`px-2.5 py-1 rounded text-[11px] font-medium btn-transition ${
+                categoryFilter === 'all'
+                  ? 'bg-accent-blue/15 text-accent-blue border border-accent-blue/30'
+                  : 'bg-bg-hover text-text-muted border border-transparent hover:text-text-primary'
+              }`}
+            >
+              全部 ({providers.length})
+            </button>
+            {Object.entries(CATEGORY_CONFIG).map(([key, cfg]) => {
+              const count = providers.filter(p => (p.category || (p.isBuiltin ? 'builtin-cli' : 'custom')) === key).length
+              if (count === 0) return null
+              return (
+                <button
+                  key={key}
+                  onClick={() => setCategoryFilter(key)}
+                  className={`flex items-center gap-1 px-2.5 py-1 rounded text-[11px] font-medium btn-transition ${
+                    categoryFilter === key
+                      ? 'bg-accent-blue/15 text-accent-blue border border-accent-blue/30'
+                      : 'bg-bg-hover text-text-muted border border-transparent hover:text-text-primary'
+                  }`}
+                >
+                  <cfg.icon className="w-3 h-3" />
+                  {cfg.label} ({count})
+                </button>
+              )
+            })}
+          </div>
+
           {/* Provider 列表（支持拖拽） */}
-          {providers.map((p, index) => (
+          {filteredProviders.map((p, index) => (
             <div
               key={p.id}
               draggable={editingId === null}
@@ -639,6 +693,16 @@ export default function ProviderManager({ onClose }: ProviderManagerProps) {
                       >
                         <GripVertical className="w-3.5 h-3.5" />
                       </div>
+                      {/* 收藏按钮 */}
+                      <button
+                        onClick={() => handleTogglePin(p.id)}
+                        className={`flex-shrink-0 btn-transition ${
+                          p.isPinned ? 'text-yellow-400' : 'text-text-muted/30 hover:text-yellow-400/60'
+                        }`}
+                        title={p.isPinned ? '取消收藏' : '收藏置顶'}
+                      >
+                        <Star className="w-3.5 h-3.5" fill={p.isPinned ? 'currentColor' : 'none'} />
+                      </button>
                       <ProviderIcon icon={p.icon} />
                       <div className="min-w-0">
                         <div className="flex items-center gap-1.5">
@@ -646,6 +710,18 @@ export default function ProviderManager({ onClose }: ProviderManagerProps) {
                           {p.isBuiltin && (
                             <span className="px-1 py-0.5 rounded text-[9px] bg-accent-blue/15 text-accent-blue leading-none">内置</span>
                           )}
+                          {/* 分类标签 */}
+                          {(() => {
+                            const cat = p.category || (p.isBuiltin ? 'builtin-cli' : 'custom')
+                            const cfg = CATEGORY_CONFIG[cat]
+                            if (!cfg) return null
+                            return (
+                              <span className={`px-1 py-0.5 rounded text-[9px] ${cfg.color} bg-current/10 leading-none flex items-center gap-0.5`}>
+                                <cfg.icon className="w-2.5 h-2.5" style={{ color: 'currentColor' }} />
+                                <span style={{ color: 'currentColor' }}>{cfg.label}</span>
+                              </span>
+                            )
+                          })()}
                         </div>
                         <span className="text-[11px] text-text-muted font-mono">{p.command}</span>
                         <ProviderBadges provider={p} />

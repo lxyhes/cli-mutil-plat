@@ -10,7 +10,7 @@ export class ProviderRepository {
   getAllProviders(): AIProvider[] {
     if (this.usingSqlite) {
       try {
-        const rows = this.db.prepare('SELECT * FROM ai_providers ORDER BY sort_order ASC, created_at ASC').all() as any[]
+        const rows = this.db.prepare('SELECT * FROM ai_providers ORDER BY is_pinned DESC, sort_order ASC, created_at ASC').all() as any[]
         const seenIds = new Set<string>()
         const results: AIProvider[] = rows.map((row: any) => {
           const mapped = this.mapProvider(row)
@@ -32,6 +32,8 @@ export class ProviderRepository {
                 stateConfig: builtinPreset.stateConfig,
                 promptMarkerPatterns: builtinPreset.promptMarkerPatterns,
                 printModeArgs: builtinPreset.printModeArgs,
+                // category 优先用硬编码值（内置 Provider 分类固定）
+                category: builtinPreset.category || mapped.category,
               }
             }
           }
@@ -91,14 +93,16 @@ export class ProviderRepository {
     const full: AIProvider = {
       ...provider,
       isBuiltin: false,
+      category: provider.category || 'custom',
+      isPinned: provider.isPinned || false,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     }
 
     if (this.usingSqlite) {
       this.db.prepare(`
-        INSERT INTO ai_providers (id, name, command, is_builtin, icon, default_args, auto_accept_arg, resume_arg, resume_format, prompt_pass_mode, session_id_detection, session_id_pattern, node_version, env_overrides, executable_path, git_bash_path, default_model)
-        VALUES (?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO ai_providers (id, name, command, is_builtin, icon, default_args, auto_accept_arg, resume_arg, resume_format, prompt_pass_mode, session_id_detection, session_id_pattern, node_version, env_overrides, executable_path, git_bash_path, default_model, is_pinned, category)
+        VALUES (?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).run(
         full.id, full.name, full.command,
         full.icon || null,
@@ -114,6 +118,8 @@ export class ProviderRepository {
         full.executablePath || null,
         full.gitBashPath || null,
         full.defaultModel || null,
+        full.isPinned ? 1 : 0,
+        full.category || 'custom',
       )
     }
 
@@ -140,6 +146,8 @@ export class ProviderRepository {
     if (updates.executablePath !== undefined) { fields.push('executable_path = ?'); values.push(updates.executablePath || null) }
     if (updates.gitBashPath !== undefined) { fields.push('git_bash_path = ?'); values.push(updates.gitBashPath || null) }
     if (updates.defaultModel !== undefined) { fields.push('default_model = ?'); values.push(updates.defaultModel || null) }
+    if (updates.isPinned !== undefined) { fields.push('is_pinned = ?'); values.push(updates.isPinned ? 1 : 0) }
+    if (updates.category !== undefined) { fields.push('category = ?'); values.push(updates.category) }
 
     if (fields.length > 0) {
       fields.push('updated_at = CURRENT_TIMESTAMP')
@@ -170,6 +178,20 @@ export class ProviderRepository {
     update()
   }
 
+  /** 收藏/取消收藏 Provider */
+  togglePin(id: string): boolean {
+    if (!this.usingSqlite) return false
+    try {
+      const row = this.db.prepare('SELECT is_pinned FROM ai_providers WHERE id = ?').get(id) as any
+      if (!row) return false
+      const newPinned = row.is_pinned ? 0 : 1
+      this.db.prepare('UPDATE ai_providers SET is_pinned = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(newPinned, id)
+      return true
+    } catch {
+      return false
+    }
+  }
+
   private mapProvider(row: any): AIProvider {
     return {
       id: row.id,
@@ -177,6 +199,8 @@ export class ProviderRepository {
       command: row.command,
       isBuiltin: row.is_builtin === 1,
       icon: row.icon || undefined,
+      isPinned: row.is_pinned === 1,
+      category: row.category || undefined,
       defaultArgs: row.default_args ? JSON.parse(row.default_args) : [],
       autoAcceptArg: row.auto_accept_arg || undefined,
       resumeArg: row.resume_arg || undefined,

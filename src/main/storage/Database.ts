@@ -520,6 +520,7 @@ export class DatabaseManager implements MemoryManagedComponent {
   updateProvider = (...args: Parameters<ProviderRepository['updateProvider']>) => this.providerRepo.updateProvider(...args)
   deleteProvider = (...args: Parameters<ProviderRepository['deleteProvider']>) => this.providerRepo.deleteProvider(...args)
   reorderProviders = (...args: Parameters<ProviderRepository['reorderProviders']>) => this.providerRepo.reorderProviders(...args)
+  toggleProviderPin = (...args: Parameters<ProviderRepository['togglePin']>) => this.providerRepo.togglePin(...args)
 
   // Directories
   recordDirectoryUsage = (...args: Parameters<DirectoryRepository['recordDirectoryUsage']>) => this.directoryRepo.recordDirectoryUsage(...args)

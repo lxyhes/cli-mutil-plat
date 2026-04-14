@@ -14,6 +14,7 @@ import type { BattleService } from '../battle/BattleService'
 import type { DailyReportService } from '../daily-report/DailyReportService'
 import type { SkillArenaService } from '../arena/SkillArenaService'
 import type { VoiceService } from '../voice/VoiceService'
+import type { CommunityPublishService } from '../community/CommunityPublishService'
 import { IPC } from '../../shared/constants'
 
 export interface NewFeatureDeps {
@@ -28,6 +29,7 @@ export interface NewFeatureDeps {
   dailyReportService?: DailyReportService
   skillArenaService?: SkillArenaService
   voiceService?: VoiceService
+  communityPublishService?: CommunityPublishService
 }
 
 export function registerNewFeatureHandlers(deps: NewFeatureDeps): void {
@@ -197,5 +199,16 @@ export function registerNewFeatureHandlers(deps: NewFeatureDeps): void {
     ipcMain.handle(IPC.VOICE_GET_HISTORY, async (_, limit?) => vc.getHistory(limit))
     ipcMain.handle(IPC.VOICE_CLEAR_HISTORY, async () => vc.clearHistory())
     ipcMain.handle(IPC.VOICE_SIMULATE_INPUT, async (_, text) => vc.simulateInput(text))
+  }
+
+  // ── 11. Community Publish ──
+  if (deps.communityPublishService) {
+    const cp = deps.communityPublishService
+    ipcMain.handle(IPC.COMMUNITY_PUBLISH_SKILL, async (_, skillId: string, author: string) => cp.publishSkill(skillId, author))
+    ipcMain.handle(IPC.COMMUNITY_PUBLISH_MCP, async (_, mcpId: string, author: string) => cp.publishMcp(mcpId, author))
+    ipcMain.handle(IPC.COMMUNITY_PUBLISH_WORKFLOW, async (_, workflowId: string, author: string) => cp.publishWorkflow(workflowId, author))
+    ipcMain.handle(IPC.COMMUNITY_PUBLISH_PROMPT, async (_, promptTemplate: any, author: string) => cp.publishPrompt(promptTemplate, author))
+    ipcMain.handle(IPC.COMMUNITY_IMPORT_JSON, async (_, packageJson: string) => cp.importFromJson(packageJson))
+    ipcMain.handle(IPC.COMMUNITY_IMPORT_URL, async (_, url: string) => cp.importFromUrl(url))
   }
 }

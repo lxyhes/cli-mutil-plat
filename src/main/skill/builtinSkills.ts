@@ -326,4 +326,267 @@ export const BUILTIN_SKILLS: Skill[] = [
     createdAt: NOW,
     updatedAt: NOW,
   },
+
+  // ─────────────────────────────────────────────────────────────
+  // v2 新增内置技能
+  // ─────────────────────────────────────────────────────────────
+
+  // ---- CSO 安全审计 ----
+  {
+    id: 'builtin-cso-security-audit',
+    name: 'CSO 安全审计',
+    description: '以 CSO 视角对代码/架构进行全面安全审计，覆盖 OWASP Top 10 和业务逻辑漏洞',
+    category: 'security',
+    slashCommand: 'security-audit',
+    type: 'prompt',
+    compatibleProviders: 'all',
+    inputVariables: [
+      {
+        name: 'scope',
+        description: '审计范围',
+        required: false,
+        defaultValue: 'full',
+        type: 'select',
+        options: ['full', 'api', 'auth', 'data', 'infra', 'frontend'],
+      },
+    ],
+    promptTemplate: `请以 CSO（首席安全官）的视角对以下内容进行安全审计（范围：{{scope}}）：
+
+{{user_input}}
+
+## 审计框架
+
+### 1. OWASP Top 10 检查
+- **A01 权限控制失效** — 越权访问、IDOR、角色绕过
+- **A02 密码学失败** — 弱加密、硬编码密钥、不安全随机数
+- **A03 注入** — SQL/NoSQL/命令/XSS/模板注入
+- **A04 不安全设计** — 业务逻辑漏洞、竞态条件、缺少安全控制
+- **A05 安全配置错误** — 默认凭证、调试模式开启、CORS 过宽
+- **A06 易受攻击组件** — 过时依赖、已知 CVE
+- **A07 身份认证失败** — 弱密码策略、Session 固定、Token 泄露
+- **A08 数据完整性失败** — 不安全反序列化、缺少签名校验
+- **A09 安全日志不足** — 敏感操作无日志、日志泄露敏感信息
+- **A10 服务端请求伪造** — SSRF、内网探测
+
+### 2. 业务逻辑安全
+- 资金/积分操作是否有防重放
+- 敏感操作是否有二次确认
+- 数据隔离是否完善（多租户）
+
+### 3. 输出格式
+每个发现按以下格式：
+| 编号 | 严重级别(Critical/High/Medium/Low) | 类别 | 描述 | 修复建议 | 修复代码示例 |
+
+最后给出：
+- **风险评分**（1-10，10 最危险）
+- **优先修复顺序**（Top 3）
+- **整体安全架构改进建议**`,
+    isInstalled: true,
+    isEnabled: true,
+    source: 'builtin',
+    version: '1.0.0',
+    author: 'ClaudeOps',
+    tags: ['security', 'audit', 'OWASP', 'CSO'],
+    createdAt: NOW,
+    updatedAt: NOW,
+  },
+
+  // ---- Retro 工程复盘 ----
+  {
+    id: 'builtin-retro-engineering',
+    name: 'Retro 工程复盘',
+    description: '以技术 Leader 视角对已完成的项目/迭代进行结构化复盘，沉淀经验教训',
+    category: 'management',
+    slashCommand: 'retro',
+    type: 'prompt',
+    compatibleProviders: 'all',
+    inputVariables: [
+      {
+        name: 'mode',
+        description: '复盘模式',
+        required: false,
+        defaultValue: 'full',
+        type: 'select',
+        options: ['full', 'incident', 'milestone', 'sprint'],
+      },
+    ],
+    promptTemplate: `请以技术 Leader 的视角对以下内容进行工程复盘（模式：{{mode}}）：
+
+{{user_input}}
+
+## 复盘框架
+
+### 1. 目标回顾
+- 原始目标是什么？
+- 实际达成了什么？
+- 差距有多大？
+
+### 2. 过程分析
+- **做得好的（Keep）**
+  - 哪些决策带来了积极结果？
+  - 哪些实践值得继续？
+- **做得不好的（Problem）**
+  - 哪些环节出了问题？
+  - 根因是什么？（5-Why 分析）
+- **可以改进的（Try）**
+  - 具体的改进措施
+  - 如何避免同类问题？
+
+### 3. 关键指标
+- 时间预估 vs 实际
+- 代码质量指标（Bug 率、返工率）
+- 技术债务增减
+
+### 4. 经验沉淀
+- **可复用的模式**（设计模式、架构决策、工具链）
+- **需警惕的反模式**（踩过的坑、误用）
+- **团队成长点**（新掌握的技能、认知升级）
+
+### 5. 行动项（Action Items）
+| 编号 | 行动项 | 负责人建议 | 截止时间 | 优先级 |
+
+输出要求：客观、数据驱动、避免归因于个人，聚焦系统和流程改进。`,
+    isInstalled: true,
+    isEnabled: true,
+    source: 'builtin',
+    version: '1.0.0',
+    author: 'ClaudeOps',
+    tags: ['retro', 'review', 'management', 'engineering'],
+    createdAt: NOW,
+    updatedAt: NOW,
+  },
+
+  // ---- Office Hours 产品思考 ----
+  {
+    id: 'builtin-office-hours-product',
+    name: 'Office Hours 产品思考',
+    description: '模拟产品经理 Office Hours，从用户价值、商业模型、技术可行性三维度深度分析产品方案',
+    category: 'product',
+    slashCommand: 'office-hours',
+    type: 'prompt',
+    compatibleProviders: 'all',
+    inputVariables: [
+      {
+        name: 'lens',
+        description: '分析视角',
+        required: false,
+        defaultValue: 'all',
+        type: 'select',
+        options: ['all', 'user-value', 'business', 'technical', 'competition'],
+      },
+    ],
+    promptTemplate: `请以资深产品经理的视角对以下产品方案/想法进行深度分析（视角：{{lens}}）：
+
+{{user_input}}
+
+## 分析框架
+
+### 1. 用户价值分析
+- **目标用户**是谁？画像描述
+- **核心痛点**是什么？频率和强度如何？
+- **现有替代方案**有哪些？为什么不满意？
+- **价值主张**：一句话说清楚用户为什么选择你
+- **用户旅程**：从发现到留存的关键触点
+
+### 2. 商业模型分析
+- **变现模式**：订阅/交易/广告/增值服务？
+- **单位经济**：LTV / CAC 估算
+- **增长飞轮**：自增长机制在哪里？
+- **市场规模**：TAM → SAM → SOM
+- **护城河**：网络效应/切换成本/规模效应/品牌？
+
+### 3. 技术可行性分析
+- **技术难度**评估（1-5 分）
+- **关键技术风险**及缓解策略
+- **MVP 技术方案**建议
+- **技术债务容忍度**：哪些可以先简后优？
+
+### 4. 竞争格局
+- 直接竞品 vs 间接竞品
+- 差异化定位
+- 防御策略
+
+### 5. 决策建议
+- **做/不做**的判断及理由
+- 如果做，**优先级排序**（MoSCoW 法则）
+- **3 个最关键的风险**及应对
+- **下一步行动建议**
+
+输出要求：诚实直接，不回避问题，用数据和逻辑支撑观点。`,
+    isInstalled: true,
+    isEnabled: true,
+    source: 'builtin',
+    version: '1.0.0',
+    author: 'ClaudeOps',
+    tags: ['product', 'strategy', 'analysis', 'office-hours'],
+    createdAt: NOW,
+    updatedAt: NOW,
+  },
+
+  // ---- Benchmark 性能基线 ----
+  {
+    id: 'builtin-benchmark-performance',
+    name: 'Benchmark 性能基线',
+    description: '对代码/系统进行性能基线评估，建立 Benchmark 并给出优化路线图',
+    category: 'performance',
+    slashCommand: 'benchmark',
+    type: 'prompt',
+    compatibleProviders: 'all',
+    inputVariables: [
+      {
+        name: 'target',
+        description: '性能目标',
+        required: false,
+        defaultValue: 'general',
+        type: 'select',
+        options: ['general', 'latency', 'throughput', 'memory', 'startup', 'bundle-size'],
+      },
+    ],
+    promptTemplate: `请对以下代码/系统进行性能基线评估（性能目标：{{target}}）：
+
+{{user_input}}
+
+## Benchmark 评估框架
+
+### 1. 性能现状分析
+- **时间复杂度**分析（关键路径 Big-O）
+- **空间复杂度**分析（内存占用峰值、GC 压力）
+- **I/O 瓶颈**识别（网络/磁盘/数据库）
+- **并发能力**评估（线程安全、锁竞争、连接池）
+
+### 2. 基线指标建立
+| 指标 | 当前值 | 行业基准 | 差距 |
+|------|--------|---------|------|
+| 响应时间 P50 | - | - | - |
+| 响应时间 P99 | - | - | - |
+| 吞吐量 QPS | - | - | - |
+| 内存占用 | - | - | - |
+| CPU 利用率 | - | - | - |
+| 冷启动时间 | - | - | - |
+
+### 3. 热点分析
+- 识别 **Top 5 性能热点**（耗时最多的代码路径）
+- 每个热点的 **优化潜力**（高/中/低）
+- 每个热点的 **优化成本**（开发时间估算）
+
+### 4. 优化路线图
+- **Quick Wins**（1 天内可完成，收益 > 20%）
+- **中期优化**（1 周内，收益 > 50%）
+- **架构级优化**（1 月内，收益 > 2x）
+
+### 5. Benchmark 方案
+- 推荐 **压测工具**和配置
+- **测试场景**设计（正常/峰值/持久）
+- **回归检测**方案（CI 集成建议）
+
+输出要求：量化为主，给出具体数值和百分比，避免模糊描述。`,
+    isInstalled: true,
+    isEnabled: true,
+    source: 'builtin',
+    version: '1.0.0',
+    author: 'ClaudeOps',
+    tags: ['performance', 'benchmark', 'optimization', 'baseline'],
+    createdAt: NOW,
+    updatedAt: NOW,
+  },
 ]

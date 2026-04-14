@@ -648,68 +648,83 @@ export class WorkflowService extends EventEmitter {
     const exec = this.runningExecutions.get(executionId)
     if (!exec) return
 
-    // 按 stepOrder 排序
-    const sorted = [...steps].sort((a, b) => a.id.localeCompare(b.id))
-    // 实际按数组顺序 + dependsOn 依赖解析
-    const executed = new Set<string>()
-    let currentContext = { ...context }
-    let currentVariables = { ...variables }
-    const results: Record<string, string> = {}
-
     try {
-      for (const step of sorted) {
+      // ── DAG 波次并行执行 ──
+      // 1. 计算执行波次（拓扑排序分层）
+      const waves = this.computeExecutionWaves(steps)
+
+      const executed = new Set<string>()
+      let currentContext = { ...context }
+      let currentVariables = { ...variables }
+      const results: Record<string, string> = {}
+
+      // 2. 逐波执行，同一波次内的步骤并行执行
+      for (let waveIdx = 0; waveIdx < waves.length; waveIdx++) {
         if (exec.paused) {
           this.db.updateWorkflowExecution(executionId, { status: 'paused' })
           return
         }
 
-        // 检查依赖
-        if (step.dependsOn && step.dependsOn.length > 0) {
-          const missingDeps = step.dependsOn.filter(d => !executed.has(d))
-          if (missingDeps.length > 0) {
-            // 等待依赖完成
-            await new Promise<void>(resolve => {
-              const checkInterval = setInterval(() => {
-                if (missingDeps.every(d => executed.has(d)) || exec.paused) {
-                  clearInterval(checkInterval)
-                  resolve()
-                }
-              }, 500)
-            })
-          }
-        }
+        const wave = waves[waveIdx]
+        sendToRenderer(IPC.WORKFLOW_STATUS, {
+          type: 'wave-started',
+          executionId,
+          waveIndex: waveIdx,
+          stepIds: wave.map(s => s.id),
+        })
 
-        // 条件分支处理
-        if (step.type === 'condition') {
-          const conditionResult = this.evaluateCondition(
-            step.conditionExpression || 'false',
-            { ...currentContext, ...currentVariables }
+        // 并行执行同一波次的所有步骤
+        const stepPromises = wave.map(async (step) => {
+          // 条件分支特殊处理
+          if (step.type === 'condition') {
+            const conditionResult = this.evaluateCondition(
+              step.conditionExpression || 'false',
+              { ...currentContext, ...currentVariables }
+            )
+            if (!conditionResult && step.falseSteps && step.falseSteps.length > 0) {
+              const runId = `wrun-${Date.now()}-skip`
+              this.db.createWorkflowRun({
+                id: runId, executionId, stepId: step.id,
+                stepOrder: waveIdx,
+                status: 'skipped',
+                input: { ...currentContext, ...currentVariables },
+                retries: 0,
+              })
+              return { stepId: step.id, output: 'skipped', newContext: {}, newVariables: {} }
+            }
+            if (conditionResult && step.trueSteps && step.trueSteps.length > 0) {
+              return { stepId: step.id, output: 'condition-true', newContext: {}, newVariables: {} }
+            }
+          }
+
+          const result = await this.executeStep(
+            step, waveIdx, executionId, currentContext, currentVariables
           )
-          if (!conditionResult && step.falseSteps && step.falseSteps.length > 0) {
-            // 跳过当前步骤，标记为 skipped
-            const runId = `wrun-${Date.now()}-skip`
-            this.db.createWorkflowRun({
-              id: runId, executionId, stepId: step.id,
-              stepOrder: sorted.indexOf(step),
-              status: 'skipped',
-              input: { ...currentContext, ...currentVariables },
-              retries: 0,
-            })
-            continue
-          }
-          if (conditionResult && step.trueSteps && step.trueSteps.length > 0) {
-            // 只执行 true 分支中的步骤
-            continue
+          return { stepId: step.id, ...result }
+        })
+
+        // 等待本波次所有步骤完成
+        const waveResults = await Promise.allSettled(stepPromises)
+
+        // 收集结果
+        for (const result of waveResults) {
+          if (result.status === 'fulfilled') {
+            const { stepId, output, newContext, newVariables } = result.value
+            executed.add(stepId)
+            results[stepId] = output
+            if (newContext) currentContext = { ...currentContext, ...newContext }
+            if (newVariables) currentVariables = { ...currentVariables, ...newVariables }
+          } else {
+            // 某步骤失败，整个执行标记为失败
+            throw result.reason
           }
         }
 
-        const { output, newContext, newVariables } = await this.executeStep(
-          step, sorted.indexOf(step), executionId, currentContext, currentVariables
-        )
-        executed.add(step.id)
-        currentContext = newContext
-        currentVariables = newVariables
-        results[step.id] = output
+        sendToRenderer(IPC.WORKFLOW_STATUS, {
+          type: 'wave-completed',
+          executionId,
+          waveIndex: waveIdx,
+        })
       }
 
       // 全部完成
@@ -743,6 +758,58 @@ export class WorkflowService extends EventEmitter {
         error: String(err),
       })
     }
+  }
+
+  /** 计算执行波次（Kahn 拓扑排序分层，同一波次内的步骤无依赖可并行执行） */
+  private computeExecutionWaves(steps: WorkflowStep[]): WorkflowStep[][] {
+    const stepMap = new Map(steps.map(s => [s.id, s]))
+    const inDegree = new Map<string, number>()
+    const dependents = new Map<string, string[]>() // stepId → 被依赖的 stepIds
+
+    // 初始化
+    for (const step of steps) {
+      inDegree.set(step.id, 0)
+      dependents.set(step.id, [])
+    }
+
+    // 计算入度
+    for (const step of steps) {
+      for (const dep of (step.dependsOn || [])) {
+        if (stepMap.has(dep)) {
+          inDegree.set(step.id, (inDegree.get(step.id) || 0) + 1)
+          dependents.get(dep)?.push(step.id)
+        }
+      }
+    }
+
+    // BFS 分层
+    const waves: WorkflowStep[][] = []
+    let queue = steps.filter(s => (inDegree.get(s.id) || 0) === 0)
+
+    while (queue.length > 0) {
+      waves.push(queue)
+      const nextQueue: WorkflowStep[] = []
+      for (const step of queue) {
+        const deps = dependents.get(step.id) || []
+        for (const depId of deps) {
+          const newDeg = (inDegree.get(depId) || 1) - 1
+          inDegree.set(depId, newDeg)
+          if (newDeg === 0) {
+            nextQueue.push(stepMap.get(depId)!)
+          }
+        }
+      }
+      queue = nextQueue
+    }
+
+    // 如果有节点未被处理（存在环），将剩余节点放入最后一波
+    const processedIds = new Set(waves.flat().map(s => s.id))
+    const remaining = steps.filter(s => !processedIds.has(s.id))
+    if (remaining.length > 0) {
+      waves.push(remaining)
+    }
+
+    return waves
   }
 
   // ── CRUD ────────────────────────────────────────────────

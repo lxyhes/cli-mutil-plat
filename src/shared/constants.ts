@@ -79,6 +79,8 @@ export const IPC = {
   PROVIDER_TEST_EXECUTABLE: 'provider:test-executable',
   /** 在系统终端中运行 Provider 认证命令（如 qwen auth） */
   PROVIDER_RUN_AUTH_CLI: 'provider:run-auth-cli',
+  /** 收藏/取消收藏 Provider */
+  PROVIDER_TOGGLE_PIN: 'provider:toggle-pin',
   /** 打开文件选择对话框，返回选中文件路径 */
   DIALOG_SELECT_FILE: 'dialog:select-file',
 
@@ -518,6 +520,15 @@ export const IPC = {
   SKILL_ARENA_DELETE:       'skill-arena:delete',
   SKILL_ARENA_CATEGORIES:   'skill-arena:categories',
   SKILL_ARENA_GET_STATS:    'skill-arena:get-stats',
+
+  // 社区一键发布
+  COMMUNITY_PUBLISH_SKILL:    'community:publish-skill',
+  COMMUNITY_PUBLISH_MCP:      'community:publish-mcp',
+  COMMUNITY_PUBLISH_WORKFLOW: 'community:publish-workflow',
+  COMMUNITY_PUBLISH_PROMPT:   'community:publish-prompt',
+  COMMUNITY_IMPORT_JSON:      'community:import-json',
+  COMMUNITY_IMPORT_URL:       'community:import-url',
+  COMMUNITY_PUBLISH_STATUS:   'community:publish-status',
 
   // 10. 语音交互 (Voice Mode)
   VOICE_START_LISTENING:    'voice:start-listening',

@@ -71,6 +71,7 @@ import { ContextBudgetService } from './context-budget/ContextBudgetService'
 import { BattleService } from './battle/BattleService'
 import { DailyReportService } from './daily-report/DailyReportService'
 import { SkillArenaService } from './arena/SkillArenaService'
+import { CommunityPublishService } from './community/CommunityPublishService'
 import { VoiceService } from './voice/VoiceService'
 
 
@@ -994,6 +995,7 @@ app.whenReady().then(() => {
   dailyReportService = new DailyReportService(database)
   skillArenaService = new SkillArenaService(database)
   voiceService = new VoiceService()
+  communityPublishService = new CommunityPublishService(database)
 
   // ★ 注册 team_* 方法处理器到 AgentBridge，使 agents 可以调用团队工具
   agentBridge.setTeamBridgeHandler(async (request) => {
@@ -1143,6 +1145,7 @@ app.whenReady().then(() => {
     dailyReportService,
     skillArenaService,
     voiceService,
+    communityPublishService,
   }, fileChangeTracker)
 
   // ── ReferenceProjectService IPC handlers 已在 newFeatureHandlers.ts 中注册，此处不再重复 ──

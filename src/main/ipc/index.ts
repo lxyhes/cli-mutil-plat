@@ -68,6 +68,7 @@ export interface IpcDependencies {
   dailyReportService?: any      // DailyReportService（可选）
   skillArenaService?: any       // SkillArenaService（可选）
   voiceService?: any            // VoiceService（可选）
+  communityPublishService?: any // CommunityPublishService（可选）
 }
 
 // 各子模块 handler 注册函数
@@ -169,5 +170,6 @@ export function registerIpcHandlers(deps: IpcDependencies, fileChangeTracker?: F
     dailyReportService: deps.dailyReportService,
     skillArenaService: deps.skillArenaService,
     voiceService: deps.voiceService,
+    communityPublishService: deps.communityPublishService,
   })
 }

@@ -1419,4 +1419,34 @@ export const MIGRATIONS: Migration[] = [
       }
     },
   },
+
+  // ── v45: Provider 收藏 + 分类 ──
+  {
+    version: 45,
+    description: 'add is_pinned and category fields to ai_providers',
+    up(db) {
+      try {
+        addColumnIfNotExists(db, 'ai_providers', 'is_pinned', 'INTEGER NOT NULL DEFAULT 0')
+        addColumnIfNotExists(db, 'ai_providers', 'category', 'TEXT DEFAULT NULL')
+
+        // 为现有内置 Provider 设置默认分类
+        const builtinCliIds = ['claude-code', 'codex', 'gemini-cli', 'qwen-coder']
+        const apiRelayIds = ['iflow', 'opencode']
+
+        const updateStmt = db.prepare('UPDATE ai_providers SET category = ? WHERE id = ? AND category IS NULL')
+        for (const id of builtinCliIds) {
+          updateStmt.run('builtin-cli', id)
+        }
+        for (const id of apiRelayIds) {
+          updateStmt.run('api-relay', id)
+        }
+        // 非内置 Provider 默认 custom
+        db.prepare("UPDATE ai_providers SET category = 'custom' WHERE category IS NULL AND is_builtin = 0").run()
+
+        console.log('[Migration v45] Provider is_pinned + category fields added successfully')
+      } catch (err) {
+        console.error('[Migration v45] Failed to add Provider fields:', err)
+      }
+    },
+  },
 ]

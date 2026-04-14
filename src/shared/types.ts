@@ -5,12 +5,19 @@
 
 // ---- AI Provider ----
 
+/** Provider 分类类型 */
+export type ProviderCategory = 'builtin-cli' | 'api-relay' | 'custom'
+
 export interface AIProvider {
   id: string                // 'claude-code' | uuid
   name: string              // "Claude Code", "Codex CLI"
   command: string           // "claude", "cc", "codex"
   isBuiltin: boolean        // 内置不可删除
   icon?: string             // 'claude' | 'codex' | 'custom'
+  /** 收藏/置顶 */
+  isPinned?: boolean
+  /** Provider 分类：builtin-cli=内置CLI / api-relay=API中转 / custom=自定义 */
+  category?: ProviderCategory
   defaultArgs?: string[]    // 每次启动时附加的参数
   autoAcceptArg?: string    // 跳过确认的参数，如 '--dangerously-skip-permissions'
   resumeArg?: string        // 恢复参数，如 '--resume'（Claude）或 'resume'（Codex 子命令），留空=不支持恢复
@@ -66,6 +73,7 @@ export const BUILTIN_CLAUDE_PROVIDER: AIProvider = {
   command: 'claude',
   isBuiltin: true,
   icon: 'claude',
+  category: 'builtin-cli',
   adapterType: 'claude-sdk',
   defaultArgs: [],
   autoAcceptArg: '--dangerously-skip-permissions',
@@ -103,6 +111,7 @@ export const BUILTIN_CODEX_PROVIDER: AIProvider = {
   command: 'codex',
   isBuiltin: true,
   icon: 'codex',
+  category: 'builtin-cli',
   adapterType: 'codex-appserver',
   defaultArgs: [],
   autoAcceptArg: '--full-auto',
@@ -137,6 +146,7 @@ export const BUILTIN_GEMINI_PROVIDER: AIProvider = {
   command: 'gemini',
   isBuiltin: true,
   icon: 'gemini',
+  category: 'builtin-cli',
   adapterType: 'gemini-headless',
   nodeVersion: '24.11.0',
   defaultArgs: [],
@@ -170,6 +180,7 @@ export const BUILTIN_OPENCODE_PROVIDER: AIProvider = {
   command: 'opencode',
   isBuiltin: true,
   icon: 'opencode',
+  category: 'api-relay',
   adapterType: 'opencode-sdk',
   autoAcceptArg: undefined,
   resumeArg: undefined,
@@ -194,6 +205,7 @@ export const BUILTIN_IFLOW_PROVIDER: AIProvider = {
   command: 'iflow',
   isBuiltin: true,
   icon: 'iflow',
+  category: 'api-relay',
   adapterType: 'iflow-acp',
   defaultArgs: [],
   autoAcceptArg: '--yolo',
@@ -209,6 +221,7 @@ export const BUILTIN_QWEN_PROVIDER: AIProvider = {
   command: 'qwen',
   isBuiltin: true,
   icon: 'qwen',
+  category: 'builtin-cli',
   adapterType: 'qwen-sdk',
   defaultArgs: [],
   autoAcceptArg: '--yes',

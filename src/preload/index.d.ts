@@ -116,6 +116,8 @@ export interface SpectrAIAPI {
     testExecutable: (executablePath?: string) => Promise<any>
     /** 在系统终端中运行 Provider 认证命令（如 qwen auth） */
     runAuthCli: (command: string, args?: string[]) => Promise<{ success: boolean; error?: string }>
+    /** 收藏/取消收藏 Provider */
+    togglePin: (id: string) => Promise<any>
   }
 
   nvm: {
