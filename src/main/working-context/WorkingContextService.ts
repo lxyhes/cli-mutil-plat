@@ -4,12 +4,16 @@
  * 每个会话关联一个轻量工作上下文（当前任务、遇到的问题、已做决策、待办、关键代码片段）
  * 切换会话时自动快照，切回来时一键恢复
  *
+ * 持久化：SQLite 存储，重启后自动恢复
+ *
  * @author weibin
  */
 
 import { EventEmitter } from 'events'
 import { sendToRenderer } from '../ipc/shared'
 import { IPC } from '../../shared/constants'
+import type { DatabaseManager } from '../storage/Database'
+import type BetterSqlite3 from 'better-sqlite3'
 
 // ─── 类型定义 ─────────────────────────────────────────────
 
@@ -70,9 +74,220 @@ export interface ContextSnapshot {
 export class WorkingContextService extends EventEmitter {
   private contexts: Map<string, WorkingContext> = new Map()
   private autoExtractInterval: ReturnType<typeof setInterval> | null = null
+  private rawDb: BetterSqlite3.Database | null = null
+  private db: DatabaseManager
 
-  constructor() {
+  constructor(db: DatabaseManager) {
     super()
+    this.db = db
+    this.initDatabase()
+    this.loadFromDatabase()
+  }
+
+  private getRawDb(): BetterSqlite3.Database {
+    if (!this.rawDb) {
+      this.rawDb = (this.db as any).db as BetterSqlite3.Database
+    }
+    return this.rawDb!
+  }
+
+  /** 初始化数据库表 */
+  private initDatabase(): void {
+    const db = this.getRawDb()
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS working_contexts (
+        session_id TEXT PRIMARY KEY,
+        current_task TEXT NOT NULL DEFAULT '',
+        auto_extracted_points TEXT NOT NULL DEFAULT '[]',
+        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )
+    `)
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS working_context_items (
+        id TEXT PRIMARY KEY,
+        session_id TEXT NOT NULL,
+        category TEXT NOT NULL,
+        content TEXT NOT NULL,
+        file_path TEXT,
+        line_range TEXT,
+        note TEXT,
+        resolved INTEGER NOT NULL DEFAULT 0,
+        resolved_at TEXT,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (session_id) REFERENCES working_contexts(session_id) ON DELETE CASCADE
+      )
+    `)
+    db.exec('CREATE INDEX IF NOT EXISTS idx_wci_session ON working_context_items(session_id, category)')
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS working_context_snapshots (
+        id TEXT PRIMARY KEY,
+        session_id TEXT NOT NULL,
+        trigger_type TEXT NOT NULL,
+        summary TEXT NOT NULL,
+        items_json TEXT NOT NULL DEFAULT '{}',
+        timestamp TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (session_id) REFERENCES working_contexts(session_id) ON DELETE CASCADE
+      )
+    `)
+    db.exec('CREATE INDEX IF NOT EXISTS idx_wcs_session ON working_context_snapshots(session_id)')
+  }
+
+  /** 从数据库恢复所有上下文 */
+  private loadFromDatabase(): void {
+    try {
+      const db = this.getRawDb()
+
+      // 加载所有上下文
+      const contexts = db.prepare('SELECT * FROM working_contexts').all() as any[]
+      for (const row of contexts) {
+        const sessionId = row.session_id
+        const ctx: WorkingContext = {
+          sessionId,
+          currentTask: row.current_task || '',
+          problems: [],
+          decisions: [],
+          todos: [],
+          codeSnippets: [],
+          autoExtractedPoints: JSON.parse(row.auto_extracted_points || '[]'),
+          updatedAt: row.updated_at,
+          snapshots: [],
+        }
+
+        // 加载条目
+        const items = db.prepare('SELECT * FROM working_context_items WHERE session_id = ? ORDER BY created_at').all(sessionId) as any[]
+        for (const item of items) {
+          const baseItem: ContextItem = {
+            id: item.id,
+            content: item.content,
+            createdAt: item.created_at,
+            resolved: item.resolved === 1,
+            resolvedAt: item.resolved_at || undefined,
+          }
+
+          switch (item.category) {
+            case 'problem':
+              ctx.problems.push(baseItem)
+              break
+            case 'decision':
+              ctx.decisions.push(baseItem)
+              break
+            case 'todo':
+              ctx.todos.push(baseItem)
+              break
+            case 'codeSnippet':
+              ctx.codeSnippets.push({
+                id: item.id,
+                filePath: item.file_path || '',
+                lineRange: item.line_range || undefined,
+                content: item.content,
+                note: item.note || undefined,
+                createdAt: item.created_at,
+              })
+              break
+          }
+        }
+
+        // 加载快照
+        const snapshots = db.prepare('SELECT * FROM working_context_snapshots WHERE session_id = ? ORDER BY timestamp').all(sessionId) as any[]
+        for (const snap of snapshots) {
+          ctx.snapshots.push({
+            id: snap.id,
+            timestamp: snap.timestamp,
+            trigger: snap.trigger_type as ContextSnapshot['trigger'],
+            summary: snap.summary,
+            items: JSON.parse(snap.items_json || '{}'),
+          })
+        }
+
+        this.contexts.set(sessionId, ctx)
+      }
+
+      console.log(`[WorkingContext] 从数据库恢复了 ${contexts.length} 个工作上下文`)
+    } catch (err) {
+      console.error('[WorkingContext] 加载数据失败:', err)
+    }
+  }
+
+  /** 持久化上下文元数据到 DB */
+  private persistContext(ctx: WorkingContext): void {
+    try {
+      const db = this.getRawDb()
+      db.prepare(`
+        INSERT OR REPLACE INTO working_contexts (session_id, current_task, auto_extracted_points, updated_at)
+        VALUES (?, ?, ?, ?)
+      `).run(ctx.sessionId, ctx.currentTask, JSON.stringify(ctx.autoExtractedPoints), ctx.updatedAt)
+    } catch (err) {
+      console.error('[WorkingContext] 持久化上下文失败:', err)
+    }
+  }
+
+  /** 持久化单个条目到 DB */
+  private persistItem(sessionId: string, category: string, item: ContextItem | CodeSnippet): void {
+    try {
+      const db = this.getRawDb()
+      if (category === 'codeSnippet') {
+        const snippet = item as CodeSnippet
+        db.prepare(`
+          INSERT OR REPLACE INTO working_context_items (id, session_id, category, content, file_path, line_range, note, resolved, resolved_at, created_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, 0, NULL, ?)
+        `).run(snippet.id, sessionId, category, snippet.content, snippet.filePath, snippet.lineRange || null, snippet.note || null, snippet.createdAt)
+      } else {
+        const ctxItem = item as ContextItem
+        db.prepare(`
+          INSERT OR REPLACE INTO working_context_items (id, session_id, category, content, resolved, resolved_at, created_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?)
+        `).run(ctxItem.id, sessionId, category, ctxItem.content, ctxItem.resolved ? 1 : 0, ctxItem.resolvedAt || null, ctxItem.createdAt)
+      }
+    } catch (err) {
+      console.error('[WorkingContext] 持久化条目失败:', err)
+    }
+  }
+
+  /** 更新条目解决状态 */
+  private persistItemResolved(sessionId: string, itemId: string, resolved: boolean, resolvedAt: string | undefined): void {
+    try {
+      const db = this.getRawDb()
+      db.prepare(`
+        UPDATE working_context_items SET resolved = ?, resolved_at = ? WHERE id = ?
+      `).run(resolved ? 1 : 0, resolvedAt || null, itemId)
+    } catch (err) {
+      console.error('[WorkingContext] 更新条目状态失败:', err)
+    }
+  }
+
+  /** 从 DB 删除条目 */
+  private deleteItemFromDb(itemId: string): void {
+    try {
+      const db = this.getRawDb()
+      db.prepare('DELETE FROM working_context_items WHERE id = ?').run(itemId)
+    } catch (err) {
+      console.error('[WorkingContext] 删除条目失败:', err)
+    }
+  }
+
+  /** 持久化快照 */
+  private persistSnapshot(sessionId: string, snapshot: ContextSnapshot): void {
+    try {
+      const db = this.getRawDb()
+      db.prepare(`
+        INSERT OR REPLACE INTO working_context_snapshots (id, session_id, trigger_type, summary, items_json, timestamp)
+        VALUES (?, ?, ?, ?, ?, ?)
+      `).run(snapshot.id, sessionId, snapshot.trigger, snapshot.summary, JSON.stringify(snapshot.items), snapshot.timestamp)
+    } catch (err) {
+      console.error('[WorkingContext] 持久化快照失败:', err)
+    }
+  }
+
+  /** 从 DB 删除上下文 */
+  private deleteContextFromDb(sessionId: string): void {
+    try {
+      const db = this.getRawDb()
+      db.prepare('DELETE FROM working_context_snapshots WHERE session_id = ?').run(sessionId)
+      db.prepare('DELETE FROM working_context_items WHERE session_id = ?').run(sessionId)
+      db.prepare('DELETE FROM working_contexts WHERE session_id = ?').run(sessionId)
+    } catch (err) {
+      console.error('[WorkingContext] 删除上下文失败:', err)
+    }
   }
 
   // ── CRUD ────────────────────────────────────────────────
@@ -80,7 +295,7 @@ export class WorkingContextService extends EventEmitter {
   /** 获取或创建会话的工作上下文 */
   getOrCreateContext(sessionId: string): WorkingContext {
     if (!this.contexts.has(sessionId)) {
-      this.contexts.set(sessionId, {
+      const ctx: WorkingContext = {
         sessionId,
         currentTask: '',
         problems: [],
@@ -90,7 +305,9 @@ export class WorkingContextService extends EventEmitter {
         autoExtractedPoints: [],
         updatedAt: new Date().toISOString(),
         snapshots: [],
-      })
+      }
+      this.contexts.set(sessionId, ctx)
+      this.persistContext(ctx)
     }
     return this.contexts.get(sessionId)!
   }
@@ -105,6 +322,7 @@ export class WorkingContextService extends EventEmitter {
     const ctx = this.getOrCreateContext(sessionId)
     ctx.currentTask = task
     ctx.updatedAt = new Date().toISOString()
+    this.persistContext(ctx)
     this.emitChange(sessionId, 'task-updated', ctx)
     return ctx
   }
@@ -112,12 +330,15 @@ export class WorkingContextService extends EventEmitter {
   /** 添加问题 */
   addProblem(sessionId: string, content: string): WorkingContext {
     const ctx = this.getOrCreateContext(sessionId)
-    ctx.problems.push({
+    const item: ContextItem = {
       id: `prob-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
       content,
       createdAt: new Date().toISOString(),
-    })
+    }
+    ctx.problems.push(item)
     ctx.updatedAt = new Date().toISOString()
+    this.persistContext(ctx)
+    this.persistItem(sessionId, 'problem', item)
     this.emitChange(sessionId, 'problem-added', ctx)
     return ctx
   }
@@ -130,6 +351,8 @@ export class WorkingContextService extends EventEmitter {
       prob.resolved = true
       prob.resolvedAt = new Date().toISOString()
       ctx.updatedAt = new Date().toISOString()
+      this.persistContext(ctx)
+      this.persistItemResolved(sessionId, problemId, true, prob.resolvedAt)
       this.emitChange(sessionId, 'problem-resolved', ctx)
     }
     return ctx
@@ -138,12 +361,15 @@ export class WorkingContextService extends EventEmitter {
   /** 添加决策 */
   addDecision(sessionId: string, content: string): WorkingContext {
     const ctx = this.getOrCreateContext(sessionId)
-    ctx.decisions.push({
+    const item: ContextItem = {
       id: `dec-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
       content,
       createdAt: new Date().toISOString(),
-    })
+    }
+    ctx.decisions.push(item)
     ctx.updatedAt = new Date().toISOString()
+    this.persistContext(ctx)
+    this.persistItem(sessionId, 'decision', item)
     this.emitChange(sessionId, 'decision-added', ctx)
     return ctx
   }
@@ -151,12 +377,15 @@ export class WorkingContextService extends EventEmitter {
   /** 添加待办 */
   addTodo(sessionId: string, content: string): WorkingContext {
     const ctx = this.getOrCreateContext(sessionId)
-    ctx.todos.push({
+    const item: ContextItem = {
       id: `todo-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
       content,
       createdAt: new Date().toISOString(),
-    })
+    }
+    ctx.todos.push(item)
     ctx.updatedAt = new Date().toISOString()
+    this.persistContext(ctx)
+    this.persistItem(sessionId, 'todo', item)
     this.emitChange(sessionId, 'todo-added', ctx)
     return ctx
   }
@@ -169,6 +398,8 @@ export class WorkingContextService extends EventEmitter {
       todo.resolved = true
       todo.resolvedAt = new Date().toISOString()
       ctx.updatedAt = new Date().toISOString()
+      this.persistContext(ctx)
+      this.persistItemResolved(sessionId, todoId, true, todo.resolvedAt)
       this.emitChange(sessionId, 'todo-resolved', ctx)
     }
     return ctx
@@ -177,12 +408,15 @@ export class WorkingContextService extends EventEmitter {
   /** 添加代码片段 */
   addCodeSnippet(sessionId: string, snippet: Omit<CodeSnippet, 'id' | 'createdAt'>): WorkingContext {
     const ctx = this.getOrCreateContext(sessionId)
-    ctx.codeSnippets.push({
+    const item: CodeSnippet = {
       id: `snippet-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
       ...snippet,
       createdAt: new Date().toISOString(),
-    })
+    }
+    ctx.codeSnippets.push(item)
     ctx.updatedAt = new Date().toISOString()
+    this.persistContext(ctx)
+    this.persistItem(sessionId, 'codeSnippet', item)
     this.emitChange(sessionId, 'snippet-added', ctx)
     return ctx
   }
@@ -195,6 +429,8 @@ export class WorkingContextService extends EventEmitter {
     if (idx >= 0) {
       list.splice(idx, 1)
       ctx.updatedAt = new Date().toISOString()
+      this.persistContext(ctx)
+      this.deleteItemFromDb(itemId)
       this.emitChange(sessionId, 'item-removed', ctx)
     }
     return ctx
@@ -223,6 +459,8 @@ export class WorkingContextService extends EventEmitter {
 
     ctx.snapshots.push(snapshot)
     ctx.updatedAt = new Date().toISOString()
+    this.persistContext(ctx)
+    this.persistSnapshot(sessionId, snapshot)
     this.emitChange(sessionId, 'snapshot-created', ctx)
     return snapshot
   }
@@ -273,6 +511,7 @@ export class WorkingContextService extends EventEmitter {
     const ctx = this.getOrCreateContext(sessionId)
     ctx.autoExtractedPoints = points
     ctx.updatedAt = new Date().toISOString()
+    this.persistContext(ctx)
     this.emitChange(sessionId, 'auto-extracted', ctx)
   }
 
@@ -282,6 +521,7 @@ export class WorkingContextService extends EventEmitter {
   removeContext(sessionId: string): boolean {
     const deleted = this.contexts.delete(sessionId)
     if (deleted) {
+      this.deleteContextFromDb(sessionId)
       this.emitChange(sessionId, 'context-removed', null)
     }
     return deleted
@@ -310,7 +550,7 @@ export class WorkingContextService extends EventEmitter {
     }
   }
 
-  /** 清理所有上下文 */
+  /** 清理所有上下文（仅内存，不删DB） */
   cleanup(): void {
     this.stopAutoExtract()
     this.contexts.clear()

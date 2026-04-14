@@ -465,12 +465,12 @@ export class WorkflowService extends EventEmitter {
       switch (step.type) {
         case 'prompt': {
           if (!this.sessionManagerV2) throw new Error('SessionManagerV2 not available')
-          const sessionId = await this.createWorkflowSession(step, {
+          const result = await this.createWorkflowSession(step, {
             ...context,
             ...variables,
           })
-          output = `Session started: ${sessionId}`
-          newContext = { ...newContext, lastSessionId: sessionId }
+          output = result.output
+          newContext = { ...newContext, lastSessionId: result.sessionId, lastPromptOutput: output }
           break
         }
 
@@ -530,29 +530,60 @@ export class WorkflowService extends EventEmitter {
     }
   }
 
-  private async createWorkflowSession(step: WorkflowStep, context: Record<string, any>): Promise<string> {
+  private async createWorkflowSession(step: WorkflowStep, context: Record<string, any>): Promise<{ sessionId: string; output: string }> {
     const sessionId = `workflow-${randomUUID()}`
     if (!this.sessionManagerV2) throw new Error('SessionManagerV2 not available')
 
     const prompt = this.resolveVariables(step.prompt || '', context)
+    let output = ''
+    let resolved = false
 
-    // 监听一轮完成
+    // 监听 AI 完成回复
     const handler = (sid: string, msg: any) => {
       if (sid !== sessionId) return
+      if (msg.isDelta && msg.content) {
+        output += msg.content
+      }
+      if (!msg.isDelta && msg.role === 'assistant' && msg.content) {
+        output = typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content)
+        resolved = true
+        this.sessionManagerV2.removeListener('conversation-message', handler)
+      }
     }
 
-    this.sessionManagerV2.createSession({
-      id: sessionId,
-      name: `[工作流] ${step.name || step.id}`,
-      workingDirectory: step.workspaceId || context.workDir || process.cwd(),
-      providerId: step.providerId || context.providerId || 'claude-code',
-      initialPrompt: prompt,
+    this.sessionManagerV2.on('conversation-message', handler)
+
+    try {
+      this.sessionManagerV2.createSession({
+        id: sessionId,
+        name: `[工作流] ${step.name || step.id}`,
+        workingDirectory: step.workspaceId || context.workDir || process.cwd(),
+        providerId: step.providerId || context.providerId || 'claude-code',
+        initialPrompt: prompt,
+      })
+    } catch (err) {
+      this.sessionManagerV2.removeListener('conversation-message', handler)
+      throw err
+    }
+
+    // 等待 AI 完成回复（事件驱动 + 超时兜底）
+    const timeoutMs = (step.timeoutSeconds || 120) * 1000
+    await new Promise<void>((resolve) => {
+      const checkInterval = setInterval(() => {
+        if (resolved) {
+          clearInterval(checkInterval)
+          resolve()
+        }
+      }, 500)
+
+      setTimeout(() => {
+        clearInterval(checkInterval)
+        this.sessionManagerV2.removeListener('conversation-message', handler)
+        resolve()
+      }, timeoutMs)
     })
 
-    // 等待 60 秒后返回
-    return new Promise<string>((resolve) => {
-      setTimeout(() => resolve(sessionId), 60000)
-    })
+    return { sessionId, output: output || `Session completed: ${sessionId}` }
   }
 
   private resolveVariables(text: string, variables: Record<string, any>): string {

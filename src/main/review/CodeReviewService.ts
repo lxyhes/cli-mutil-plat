@@ -52,6 +52,8 @@ export class CodeReviewService {
   private lastReviewTime = new Map<string, number>()
   /** 审查间隔（毫秒），默认 5 分钟 */
   private autoReviewInterval = 5 * 60 * 1000
+  /** AI 审查模式：'rule-only' | 'ai-enhanced' */
+  private reviewMode: 'rule-only' | 'ai-enhanced' = 'ai-enhanced'
 
   constructor(db: DatabaseManager, fileChangeTracker?: FileChangeTracker, gitService?: GitWorktreeService) {
     this.rawDb = (db as any).db || db
@@ -116,6 +118,7 @@ export class CodeReviewService {
         const settings = JSON.parse(row.value)
         if (settings.autoReviewEnabled !== undefined) this.autoReviewEnabled = settings.autoReviewEnabled
         if (settings.autoReviewInterval) this.autoReviewInterval = settings.autoReviewInterval
+        if (settings.reviewMode) this.reviewMode = settings.reviewMode
       }
     } catch { /* ignore */ }
   }
@@ -125,6 +128,7 @@ export class CodeReviewService {
       const value = JSON.stringify({
         autoReviewEnabled: this.autoReviewEnabled,
         autoReviewInterval: this.autoReviewInterval,
+        reviewMode: this.reviewMode,
       })
       this.rawDb.prepare(`
         INSERT INTO code_review_settings (key, value) VALUES ('settings', ?)
@@ -253,11 +257,15 @@ export class CodeReviewService {
     return changes.map(c => c.filePath)
   }
 
-  /** 执行实际审查（读取改动文件内容，生成审查结果） */
+  /** 执行实际审查（规则审查 + AI 增强） */
   private async executeReview(review: CodeReview, changedFiles: string[]): Promise<void> {
     const comments: Omit<ReviewComment, 'id' | 'createdAt'>[] = []
     let totalScore = 100
 
+    // 收集所有文件内容（供 AI 审查用）
+    const fileContents: { path: string; content: string; ext: string }[] = []
+
+    // Phase 1: 基于规则的静态审查（快速，不需要 AI）
     for (const filePath of changedFiles) {
       try {
         const fullPath = path.join(review.repoPath, filePath)
@@ -267,11 +275,11 @@ export class CodeReviewService {
         const lines = content.split('\n')
         const ext = path.extname(filePath).toLowerCase()
 
-        // 基于规则的静态审查（快速，不需要 AI 调用）
+        fileContents.push({ path: filePath, content, ext })
+
         const ruleComments = this.runRuleBasedReview(filePath, content, lines, ext)
         comments.push(...ruleComments)
 
-        // 根据规则结果扣分
         for (const c of ruleComments) {
           if (c.severity === 'error') totalScore -= 10
           else if (c.severity === 'warning') totalScore -= 5
@@ -279,6 +287,44 @@ export class CodeReviewService {
         }
       } catch (err) {
         console.warn(`[CodeReviewService] Failed to review ${filePath}:`, err)
+      }
+    }
+
+    // Phase 2: AI 增强审查（深度分析，生成修复建议）
+    if (this.reviewMode === 'ai-enhanced' && fileContents.length > 0) {
+      try {
+        const aiComments = await this.runAiEnhancedReview(fileContents, comments)
+        // AI 审查结果不重复扣分，但补充修复建议和深层问题
+        for (const ac of aiComments) {
+          // 检查是否与规则审查重复（同文件同类别的相似消息）
+          const isDuplicate = comments.some(rc =>
+            rc.filePath === ac.filePath &&
+            rc.category === ac.category &&
+            this.isSimilarMessage(rc.message, ac.message)
+          )
+          if (!isDuplicate) {
+            comments.push(ac)
+            if (ac.severity === 'error') totalScore -= 8
+            else if (ac.severity === 'warning') totalScore -= 3
+          }
+        }
+
+        // 用 AI 增强规则审查的 suggestion（规则审查的 suggestion 通常是模板文本）
+        for (const rc of comments) {
+          if (!rc.suggestion || rc.suggestion.length < 20) {
+            // 尝试从 AI 审查结果中找到对应建议
+            const aiMatch = aiComments.find(ac =>
+              ac.filePath === rc.filePath &&
+              Math.abs(ac.lineStart - rc.lineStart) <= 3 &&
+              ac.category === rc.category
+            )
+            if (aiMatch?.suggestion && aiMatch.suggestion.length > rc.suggestion.length) {
+              rc.suggestion = aiMatch.suggestion
+            }
+          }
+        }
+      } catch (err) {
+        console.warn('[CodeReviewService] AI 增强审查失败，仅使用规则审查:', err)
       }
     }
 
@@ -290,6 +336,126 @@ export class CodeReviewService {
 
     // 保存结果
     await this.completeReview(review.id, summary, score, comments)
+  }
+
+  /** AI 增强审查：调用 AI 对代码进行深度分析 */
+  private async runAiEnhancedReview(
+    fileContents: { path: string; content: string; ext: string }[],
+    existingComments: Omit<ReviewComment, 'id' | 'createdAt'>[],
+  ): Promise<Omit<ReviewComment, 'id' | 'createdAt'>[]> {
+    // 构建审查 prompt
+    const codeBlock = fileContents
+      .map(f => `### ${f.path}\n\`\`\`${f.ext.slice(1)}\n${f.content.slice(0, 8000)}\n\`\`\``)
+      .join('\n\n')
+
+    const existingSummary = existingComments.length > 0
+      ? `\n已有的规则审查结果（不需要重复报告）：\n${existingComments.map(c => `- ${c.filePath}:${c.lineStart} [${c.severity}] ${c.message}`).join('\n')}`
+      : ''
+
+    const prompt = `你是一个资深代码审查员。请审查以下代码，找出规则检查无法发现的深层问题。
+
+重点关注：
+1. **逻辑 Bug**：边界条件、竞态条件、空指针、资源泄漏
+2. **安全隐患**：注入攻击、权限绕过、数据泄露
+3. **性能问题**：N+1 查询、内存泄漏、不必要的重渲染
+4. **架构问题**：耦合过紧、职责不清、可扩展性差
+5. **具体修复代码**：每条建议必须包含可执行的修复代码片段
+
+输出 JSON 数组格式，每个元素包含：
+{
+  "filePath": "文件路径",
+  "lineStart": 起始行号,
+  "lineEnd": 结束行号,
+  "severity": "error|warning|suggestion",
+  "category": "bug|security|performance|architecture|best-practice",
+  "message": "问题描述",
+  "suggestion": "修复建议（包含代码片段）"
+}
+
+如果没有发现问题，返回空数组 []。只返回 JSON，不要其他文本。
+${existingSummary}
+
+待审查代码：
+${codeBlock}`
+
+    try {
+      const aiResponse = await this.callAiDirectly(prompt)
+      const jsonMatch = aiResponse.match(/\[[\s\S]*\]/)
+      if (!jsonMatch) return []
+
+      const parsed = JSON.parse(jsonMatch[0])
+      if (!Array.isArray(parsed)) return []
+
+      return parsed.filter((item: any) =>
+        item.filePath && item.message && item.severity && item.category
+      ).map((item: any) => ({
+        reviewId: '',
+        filePath: item.filePath,
+        lineStart: item.lineStart || 1,
+        lineEnd: item.lineEnd || item.lineStart || 1,
+        severity: ['error', 'warning', 'suggestion'].includes(item.severity) ? item.severity : 'suggestion',
+        category: ['bug', 'security', 'performance', 'style', 'best-practice', 'architecture'].includes(item.category)
+          ? item.category : 'best-practice',
+        message: item.message,
+        suggestion: item.suggestion || '',
+        resolved: false,
+      }))
+    } catch (err) {
+      console.warn('[CodeReviewService] AI 审查解析失败:', err)
+      return []
+    }
+  }
+
+  /** 判断两条消息是否相似（避免重复报告） */
+  private isSimilarMessage(a: string, b: string): boolean {
+    const normalize = (s: string) => s.toLowerCase().replace(/[^a-z0-9\u4e00-\u9fff]/g, '')
+    const na = normalize(a)
+    const nb = normalize(b)
+    if (na === nb) return true
+    // 简单的包含关系检查
+    if (na.length > 10 && nb.length > 10 && (na.includes(nb) || nb.includes(na))) return true
+    return false
+  }
+
+  /** 直接调用 AI */
+  private async callAiDirectly(prompt: string): Promise<string> {
+    // 方案1: Anthropic SDK
+    try {
+      const { Anthropic } = await import('@anthropic-ai/sdk')
+      const client = new Anthropic()
+      const msg = await client.messages.create({
+        model: 'claude-sonnet-4-7',
+        max_tokens: 4096,
+        messages: [{ role: 'user', content: prompt }],
+      })
+      const text = msg.content
+        .filter((block: any) => block.type === 'text')
+        .map((block: any) => block.text)
+        .join('\n')
+      return text || ''
+    } catch (sdkErr) {
+      console.warn('[CodeReviewService] Anthropic SDK 不可用，尝试 CLI:', (sdkErr as Error).message)
+    }
+
+    // 方案2: CLI
+    return this.callCliDirectly(prompt)
+  }
+
+  /** 通过 CLI 调用 AI */
+  private callCliDirectly(prompt: string): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const { spawn } = require('child_process')
+      const proc = spawn('claude', ['--print', '--no-input', prompt], { timeout: 120000 })
+      let stdout = ''
+      let stderr = ''
+      proc.stdout.on('data', (data: Buffer) => { stdout += data.toString() })
+      proc.stderr.on('data', (data: Buffer) => { stderr += data.toString() })
+      proc.on('close', (code: number) => {
+        if (code === 0) resolve(stdout.trim())
+        else reject(new Error(`claude CLI exit code ${code}: ${stderr}`))
+      })
+      proc.on('error', reject)
+    })
   }
 
   /** 基于规则的静态审查（不依赖 AI 调用，快速执行） */
@@ -494,24 +660,69 @@ export class CodeReviewService {
     }
   }
 
-  /** 应用修复建议（将 suggestion 写入文件） */
+  /** 应用修复建议（将 suggestion 中的代码写入文件对应行） */
   async applyFix(commentId: string): Promise<{ success: boolean; message: string }> {
     try {
       const row = this.rawDb.prepare('SELECT * FROM review_comments WHERE id = ?').get(commentId) as any
       if (!row) return { success: false, message: '评论不存在' }
       if (!row.suggestion) return { success: false, message: '无修复建议' }
 
-      // 如果建议是代码片段（包含换行或代码块标记），尝试写入
       const suggestion = row.suggestion
-      if (suggestion.includes('\n') || suggestion.includes('```')) {
-        return { success: true, message: '修复建议已复制，请手动确认后应用' }
+
+      // 尝试从建议中提取代码块
+      const codeBlockMatch = suggestion.match(/```[\w]*\n([\s\S]*?)```/)
+      const fixCode = codeBlockMatch ? codeBlockMatch[1].trim() : null
+
+      if (!fixCode) {
+        // 没有可自动应用的代码块，标记为已处理
+        this.rawDb.prepare('UPDATE review_comments SET resolved = 1 WHERE id = ?').run(commentId)
+        return { success: true, message: '建议已标记处理（无可自动应用的代码块）' }
       }
+
+      // 获取对应的 review 以确定 repoPath
+      const reviewRow = this.rawDb.prepare('SELECT * FROM code_reviews WHERE id = ?').get(row.review_id) as any
+      if (!reviewRow) return { success: false, message: '关联审查不存在' }
+
+      const fullPath = path.join(reviewRow.repo_path, row.file_path)
+      if (!fs.existsSync(fullPath)) {
+        return { success: false, message: `文件不存在: ${row.file_path}` }
+      }
+
+      // 读取文件内容
+      const content = fs.readFileSync(fullPath, 'utf-8')
+      const lines = content.split('\n')
+      const lineStart = row.line_start || 1
+      const lineEnd = row.line_end || lineStart
+
+      // 验证行号有效性
+      if (lineStart < 1 || lineEnd > lines.length || lineStart > lineEnd) {
+        return { success: false, message: `行号无效: ${lineStart}-${lineEnd}` }
+      }
+
+      // 替换目标行
+      const fixLines = fixCode.split('\n')
+      lines.splice(lineStart - 1, lineEnd - lineStart + 1, ...fixLines)
+
+      // 写回文件
+      fs.writeFileSync(fullPath, lines.join('\n'), 'utf-8')
 
       // 标记评论为已解决
       this.rawDb.prepare('UPDATE review_comments SET resolved = 1 WHERE id = ?').run(commentId)
-      return { success: true, message: '建议已标记处理' }
-    } catch {
-      return { success: false, message: '应用失败' }
+
+      sendToRenderer(IPC.CODE_REVIEW_STATUS, {
+        type: 'fix-applied',
+        commentId,
+        filePath: row.file_path,
+        lineStart,
+        lineEnd: lineStart + fixLines.length - 1,
+      })
+
+      return {
+        success: true,
+        message: `已将修复应用到 ${row.file_path}:${lineStart}-${lineStart + fixLines.length - 1}`,
+      }
+    } catch (err: any) {
+      return { success: false, message: `应用失败: ${err.message}` }
     }
   }
 
@@ -567,13 +778,14 @@ export class CodeReviewService {
   }
 
   /** 获取/设置配置 */
-  getSettings(): { autoReviewEnabled: boolean; autoReviewInterval: number } {
-    return { autoReviewEnabled: this.autoReviewEnabled, autoReviewInterval: this.autoReviewInterval }
+  getSettings(): { autoReviewEnabled: boolean; autoReviewInterval: number; reviewMode: string } {
+    return { autoReviewEnabled: this.autoReviewEnabled, autoReviewInterval: this.autoReviewInterval, reviewMode: this.reviewMode }
   }
 
-  updateSettings(updates: { autoReviewEnabled?: boolean; autoReviewInterval?: number }): void {
+  updateSettings(updates: { autoReviewEnabled?: boolean; autoReviewInterval?: number; reviewMode?: string }): void {
     if (updates.autoReviewEnabled !== undefined) this.autoReviewEnabled = updates.autoReviewEnabled
     if (updates.autoReviewInterval !== undefined) this.autoReviewInterval = updates.autoReviewInterval
+    if (updates.reviewMode) this.reviewMode = updates.reviewMode as any
     this.saveSettings()
   }
 }

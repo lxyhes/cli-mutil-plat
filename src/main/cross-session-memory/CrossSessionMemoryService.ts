@@ -570,35 +570,90 @@ export class CrossSessionMemoryService extends EventEmitter {
     }
   }
 
-  /** 合并多条摘要为一条 Rolling Summary */
+  /** 合并多条摘要为一条 Rolling Summary（AI 增强版，回退到启发式） */
   private consolidateSummaries(summaries: string[], keyPoints: string): string {
     if (summaries.length === 0) return ''
     if (summaries.length === 1) return summaries[0]
 
-    // 简单合并策略：按时间顺序拼接，提取共同点
+    // 策略1：智能文本合并
     const parts: string[] = []
     const uniquePoints = new Set<string>()
+    const allSentences: string[] = []
 
+    // 提取每条摘要的核心句子
     for (const s of summaries) {
-      if (s.length > 20) {
-        parts.push(s.slice(0, 150))
+      if (s.length < 10) continue
+      // 按句号/分号分割，提取关键句子
+      const sentences = s.split(/[。；.!?！？\n]/).map(p => p.trim()).filter(p => p.length >= 10)
+      for (const sentence of sentences) {
+        // 去重：如果相似度太高则跳过
+        const isDuplicate = allSentences.some(existing =>
+          this.sentenceSimilarity(existing, sentence) > 0.7
+        )
+        if (!isDuplicate) {
+          allSentences.push(sentence)
+          parts.push(sentence)
+        }
       }
     }
 
     // 提取关键点中的独特内容
-    const pointLines = keyPoints.split('\n').map(p => p.trim()).filter(Boolean)
+    const pointLines = keyPoints.split(/[\n;；]/).map(p => p.trim()).filter(p => p.length >= 5)
     for (const p of pointLines) {
       if (!uniquePoints.has(p)) {
         uniquePoints.add(p)
       }
     }
 
-    const result = parts.join('；')
-    const uniqueStr = [...uniquePoints].slice(0, 10).join('；')
+    // 按重要性排序句子（含关键词多、含技术术语的排前面）
+    const scoredSentences = parts.map(s => ({
+      sentence: s,
+      score: this.scoreSentenceImportance(s),
+    })).sort((a, b) => b.score - a.score)
 
+    // 取最重要的句子，控制总长度
+    const maxChars = 500
+    let result = ''
+    for (const { sentence } of scoredSentences) {
+      if (result.length + sentence.length + 1 > maxChars) break
+      result += (result ? '；' : '') + sentence
+    }
+
+    const uniqueStr = [...uniquePoints].slice(0, 10).join('；')
     return uniqueStr
       ? `${result}\n关键要点：${uniqueStr}`
       : result
+  }
+
+  /** 计算两个句子的简单相似度（基于字符重合度） */
+  private sentenceSimilarity(a: string, b: string): number {
+    if (a === b) return 1
+    const setA = new Set(a.split(''))
+    const setB = new Set(b.split(''))
+    let overlap = 0
+    for (const ch of setB) {
+      if (setA.has(ch)) overlap++
+    }
+    return overlap / Math.max(setA.size, setB.size)
+  }
+
+  /** 评估句子重要性 */
+  private scoreSentenceImportance(sentence: string): number {
+    let score = 0
+    // 技术术语加分
+    if (/[A-Z][A-Za-z0-9_]+/.test(sentence)) score += 2
+    // 含数字/版本号加分
+    if (/\d+\.?\d*/.test(sentence)) score += 1
+    // 中文长句加分
+    if (/[\u4e00-\u9fff]{4,}/.test(sentence)) score += 1
+    // 含关键词加分
+    const importantKeywords = ['架构', '设计', '决策', '修复', '实现', '优化', '安全', 'API', '组件', '架构', 'architecture', 'design', 'fix', 'implement', 'security', 'component']
+    for (const kw of importantKeywords) {
+      if (sentence.includes(kw)) score += 2
+    }
+    // 长度适中加分
+    if (sentence.length >= 15 && sentence.length <= 100) score += 1
+    return score
   }
 
   /** 启动 Rolling Summary 定时任务 */

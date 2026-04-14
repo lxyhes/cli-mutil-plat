@@ -958,7 +958,7 @@ app.whenReady().then(() => {
   }
 
   // ★ 会话级工作记忆服务
-  workingContextService = new WorkingContextService()
+  workingContextService = new WorkingContextService(database)
 
   // ★ 漂移检测护栏服务
   driftGuardService = new DriftGuardService()
@@ -990,12 +990,14 @@ app.whenReady().then(() => {
   codeReviewService = new CodeReviewService(database, fileChangeTracker, gitWorktreeServiceRef)
   sessionReplayService = new SessionReplayService(database)
   contextBudgetService = new ContextBudgetService(database)
+  contextBudgetService.setSessionManager(sessionManagerV2)
   battleService = new BattleService(database)
   // ★ 注入 SessionManagerV2 到 BattleService（用于并行 AI 对决执行）
   battleService.setSessionManager(sessionManagerV2)
-  dailyReportService = new DailyReportService(database)
+  dailyReportService = new DailyReportService(database, fileChangeTracker || undefined)
   skillArenaService = new SkillArenaService(database)
   voiceService = new VoiceService()
+  voiceService.setMainWindow(mainWindow)
   communityPublishService = new CommunityPublishService(database)
 
   // ★ 注册 team_* 方法处理器到 AgentBridge，使 agents 可以调用团队工具

@@ -240,11 +240,11 @@ Your summary:`
       // 方案1: 通过临时会话调用
       const result = await this.callAiDirectly(prompt, providerId, model)
 
-      // 估算 token (粗略: 字符数 / 4)
-      const inputTokens = Math.ceil(prompt.length / 4)
-      const outputTokens = Math.ceil(result.length / 4)
+      // 使用真实 token 用量（如果 SDK 返回了），否则估算
+      const inputTokens = this._lastUsage?.inputTokens ?? Math.ceil(prompt.length / 4)
+      const outputTokens = this._lastUsage?.outputTokens ?? Math.ceil(result.length / 4)
       const tokensUsed = inputTokens + outputTokens
-      const costUsd = this.estimateCost(tokensUsed, model)
+      const costUsd = this.estimateCost(inputTokens, outputTokens, model)
 
       return {
         summary: result,
@@ -292,33 +292,73 @@ Key points (in Chinese if conversation is Chinese, otherwise English):`
 
   /**
    * 直接调用 AI（不创建会话，用于摘要生成）
-   * 使用 Claude SDK 或其他可用 SDK
+   * 支持：Claude SDK / OpenAI SDK / CLI fallback
    */
   private async callAiDirectly(prompt: string, providerId: string, model: string): Promise<string> {
     // 尝试使用 Claude SDK
-    try {
-      const { Anthropic } = await import('@anthropic-ai/sdk')
-      const client = new Anthropic()
+    if (providerId === 'claude' || providerId === 'claude-code') {
+      try {
+        const { Anthropic } = await import('@anthropic-ai/sdk')
+        const client = new Anthropic()
 
-      const msg = await client.messages.create({
-        model: 'claude-sonnet-4-7',
-        max_tokens: 2048,
-        messages: [{ role: 'user', content: prompt }],
-      })
+        const msg = await client.messages.create({
+          model: model || 'claude-sonnet-4-7',
+          max_tokens: 2048,
+          messages: [{ role: 'user', content: prompt }],
+        })
 
-      const text = msg.content
-        .filter((block) => block.type === 'text')
-        .map((block) => (block as any).text)
-        .join('\n')
+        const text = msg.content
+          .filter((block) => block.type === 'text')
+          .map((block) => (block as any).text)
+          .join('\n')
 
-      return text || 'No response from AI'
-    } catch (sdkErr) {
-      console.warn('[SummaryService] Claude SDK unavailable, trying process spawn:', sdkErr)
+        // 使用真实 token 用量
+        if (msg.usage) {
+          this._lastUsage = {
+            inputTokens: msg.usage.input_tokens,
+            outputTokens: msg.usage.output_tokens,
+          }
+        }
+
+        return text || 'No response from AI'
+      } catch (sdkErr) {
+        console.warn('[SummaryService] Claude SDK unavailable, trying other providers:', (sdkErr as Error).message)
+      }
     }
 
-    // 备选: 使用 process spawn 调用 claude CLI
+    // 尝试使用 OpenAI SDK
+    if (providerId === 'openai' || providerId === 'gpt') {
+      try {
+        const OpenAI = (await import('openai')).default
+        const client = new OpenAI()
+
+        const response = await client.chat.completions.create({
+          model: model || 'gpt-4o',
+          max_tokens: 2048,
+          messages: [{ role: 'user', content: prompt }],
+        })
+
+        const text = response.choices[0]?.message?.content || 'No response from AI'
+
+        if (response.usage) {
+          this._lastUsage = {
+            inputTokens: response.usage.prompt_tokens,
+            outputTokens: response.usage.completion_tokens,
+          }
+        }
+
+        return text
+      } catch (sdkErr) {
+        console.warn('[SummaryService] OpenAI SDK unavailable, trying CLI:', (sdkErr as Error).message)
+      }
+    }
+
+    // 备选: 使用 process spawn 调用 CLI
     return this.callCliDirectly(prompt)
   }
+
+  /** 上一次 AI 调用的 token 用量（SDK 返回的真实值） */
+  private _lastUsage: { inputTokens: number; outputTokens: number } | null = null
 
   /**
    * 通过 CLI 直接调用 AI
@@ -347,20 +387,24 @@ Key points (in Chinese if conversation is Chinese, otherwise English):`
   }
 
   /**
-   * 估算 API 调用成本
+   * 估算 API 调用成本（区分 input/output token 价格）
    */
-  private estimateCost(tokens: number, model: string): number {
-    // 估算价格 (USD per 1M tokens)
-    const pricePerM: Record<string, number> = {
-      'claude-sonnet-4-7': 3,
-      'claude-opus-4-7': 15,
-      'claude-3-5-sonnet': 3,
-      'claude-3-5-haiku': 0.8,
-      'claude-3-opus': 15,
-      'claude-3-sonnet': 3,
-      'claude-3-haiku': 0.8,
+  private estimateCost(inputTokens: number, outputTokens: number, model: string): number {
+    // 价格表 (USD per 1M tokens)，格式: [input, output]
+    const pricePerM: Record<string, [number, number]> = {
+      'claude-sonnet-4-7': [3, 15],
+      'claude-opus-4-7': [15, 75],
+      'claude-3-5-sonnet': [3, 15],
+      'claude-3-5-haiku': [0.8, 4],
+      'claude-3-opus': [15, 75],
+      'claude-3-sonnet': [3, 15],
+      'claude-3-haiku': [0.8, 4],
+      'gpt-4o': [2.5, 10],
+      'gpt-4o-mini': [0.15, 0.6],
+      'gpt-4-turbo': [10, 30],
+      'gpt-3.5-turbo': [0.5, 1.5],
     }
-    const price = pricePerM[model] || 3
-    return (tokens / 1_000_000) * price
+    const [inputPrice, outputPrice] = pricePerM[model] || [3, 15]
+    return (inputTokens / 1_000_000) * inputPrice + (outputTokens / 1_000_000) * outputPrice
   }
 }

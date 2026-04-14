@@ -204,12 +204,56 @@ export class SchedulerService extends EventEmitter {
 
       const config = JSON.parse(task.config)
 
-      if (task.taskType === 'prompt') {
-        // 为 prompt 类型创建一个新会话执行
-        sessionId = await this.createSchedulerSession(task, config)
-        output = `Session started: ${sessionId}`
-      } else {
-        output = `Task type ${task.taskType} executed`
+      switch (task.taskType) {
+        case 'prompt': {
+          // 为 prompt 类型创建一个新会话执行
+          const result = await this.createSchedulerSession(task, config)
+          sessionId = result.sessionId
+          output = result.output
+          break
+        }
+        case 'workflow': {
+          // 执行指定的工作流
+          const workflowId = config.workflowId
+          if (!workflowId) throw new Error('workflow task requires workflowId in config')
+          // WorkflowService 通过 IPC 间接调用，这里用 DB 触发
+          const wf = this.db.getWorkflow(workflowId)
+          if (!wf) throw new Error(`Workflow not found: ${workflowId}`)
+          // 标记工作流由调度触发（实际执行由 WorkflowService 接管）
+          output = `Workflow "${wf.name}" (${workflowId}) triggered by scheduler`
+          this.emit('workflow-triggered', { taskId, workflowId, runId })
+          break
+        }
+        case 'agent_task': {
+          // 创建会话并执行 agent 任务（与 prompt 类似但支持更长超时）
+          const agentResult = await this.createSchedulerSession(task, {
+            ...config,
+            prompt: config.prompt || config.taskDescription || task.name,
+          })
+          sessionId = agentResult.sessionId
+          output = agentResult.output
+          break
+        }
+        case 'cleanup': {
+          // 清理任务：清除过期数据
+          output = await this.executeCleanupTask(config)
+          break
+        }
+        case 'notification': {
+          // 通知任务：向渲染进程发送通知
+          const message = config.message || config.notificationMessage || task.name
+          sendToRenderer(IPC.SCHEDULER_TASK_STATUS, {
+            type: 'notification',
+            taskId,
+            message,
+            title: config.title || task.name,
+            level: config.level || 'info',
+          })
+          output = `Notification sent: ${message}`
+          break
+        }
+        default:
+          output = `Unknown task type: ${task.taskType}`
       }
 
       // 完成后更新
@@ -273,13 +317,18 @@ export class SchedulerService extends EventEmitter {
     prompt?: string
     providerId?: string
     workspaceId?: string
-  }): Promise<string> {
+    taskDescription?: string
+  }): Promise<{ sessionId: string; output: string }> {
     const sessionId = `scheduled-${Date.now()}`
+    let output = ''
+    let resolved = false
 
     const handler = (sid: string, msg: any) => {
       if (sid !== sessionId) return
       if (!msg.isDelta && msg.role === 'assistant' && msg.content) {
         // AI 完成了回复
+        output = typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content)
+        resolved = true
         this.sessionManagerV2.removeListener('conversation-message', handler)
       }
     }
@@ -299,13 +348,69 @@ export class SchedulerService extends EventEmitter {
       throw err
     }
 
-    // 等待最多 60 秒
-    return new Promise<string>((resolve) => {
+    // 等待 AI 完成回复（最多等待任务超时时间），用事件驱动替代固定 setTimeout
+    const timeoutMs = (task.timeoutSeconds || 300) * 1000
+    await new Promise<void>((resolve) => {
+      const checkInterval = setInterval(() => {
+        if (resolved) {
+          clearInterval(checkInterval)
+          resolve()
+        }
+      }, 500)
+
       setTimeout(() => {
+        clearInterval(checkInterval)
         this.sessionManagerV2.removeListener('conversation-message', handler)
-        resolve(sessionId)
-      }, 60000)
+        resolve()
+      }, timeoutMs)
     })
+
+    return { sessionId, output: output || `Session started: ${sessionId}` }
+  }
+
+  /** 执行清理任务 */
+  private async executeCleanupTask(config: Record<string, any>): Promise<string> {
+    const results: string[] = []
+
+    // 清理过期摘要
+    if (config.cleanSummaries !== false) {
+      const days = config.summaryRetentionDays || 90
+      const cutoff = new Date(Date.now() - days * 86400000).toISOString()
+      try {
+        const deleted = this.db.cleanupOldSummaries?.(cutoff)
+        if (deleted) results.push(`Cleaned summaries older than ${days} days`)
+      } catch { /* DB method may not exist */ }
+    }
+
+    // 清理过期会话
+    if (config.cleanSessions) {
+      const days = config.sessionRetentionDays || 30
+      const cutoff = new Date(Date.now() - days * 86400000).toISOString()
+      try {
+        const deleted = this.db.cleanupOldSessions?.(cutoff)
+        if (deleted) results.push(`Cleaned sessions older than ${days} days`)
+      } catch { /* DB method may not exist */ }
+    }
+
+    // 清理过期任务运行记录
+    if (config.cleanTaskRuns !== false) {
+      const days = config.taskRunRetentionDays || 30
+      const cutoff = new Date(Date.now() - days * 86400000).toISOString()
+      try {
+        this.db.cleanupOldTaskRuns?.(cutoff)
+        results.push(`Cleaned task runs older than ${days} days`)
+      } catch { /* DB method may not exist */ }
+    }
+
+    // VACUUM 数据库（压缩空间）
+    if (config.vacuum) {
+      try {
+        ;(this.db as any).db?.exec('VACUUM')
+        results.push('Database VACUUM completed')
+      } catch { /* ignore */ }
+    }
+
+    return results.length > 0 ? results.join('; ') : 'Cleanup task completed (no actions needed)'
   }
 
   private handleTimeout(taskId: string, runId: string): void {

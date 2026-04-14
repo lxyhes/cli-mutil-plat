@@ -224,10 +224,8 @@ ${conversationText.slice(0, 30000)}
 
 只返回 JSON，不要有其他文字。`
 
-    // 创建一个临时评估会话
-    const session = this.sessionManagerV2.getSession(evalSessionId)
-    const workDir = process.cwd()
     let responseText = ''
+    let resolved = false
 
     const handler = (sid: string, msg: any) => {
       if (sid !== evalSessionId) return
@@ -235,7 +233,8 @@ ${conversationText.slice(0, 30000)}
         responseText += msg.content
       }
       if (!msg.isDelta && msg.role === 'assistant' && msg.content) {
-        responseText = msg.content
+        responseText = typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content)
+        resolved = true
         this.sessionManagerV2.removeListener('conversation-message', handler)
       }
     }
@@ -247,7 +246,7 @@ ${conversationText.slice(0, 30000)}
       this.sessionManagerV2.createSession({
         id: evalSessionId,
         name: '[评估] AI 评分',
-        workingDirectory: workDir,
+        workingDirectory: process.cwd(),
         providerId: 'claude-code',
         initialPrompt: prompt,
       })
@@ -256,9 +255,17 @@ ${conversationText.slice(0, 30000)}
       throw err
     }
 
-    // 等待最多 120 秒
+    // 事件驱动等待 AI 完成（+ 120s 超时兜底）
     await new Promise<void>((resolve) => {
+      const checkInterval = setInterval(() => {
+        if (resolved) {
+          clearInterval(checkInterval)
+          resolve()
+        }
+      }, 500)
+
       setTimeout(() => {
+        clearInterval(checkInterval)
         this.sessionManagerV2.removeListener('conversation-message', handler)
         resolve()
       }, 120000)

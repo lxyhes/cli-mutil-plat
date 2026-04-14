@@ -7,6 +7,7 @@ import { DatabaseManager } from '../storage/Database'
 import { sendToRenderer } from '../ipc/shared'
 import { IPC } from '../../shared/constants'
 import type BetterSqlite3 from 'better-sqlite3'
+import type { SessionManagerV2 } from '../session/SessionManagerV2'
 
 export interface ContextBudget {
   sessionId: string
@@ -40,11 +41,17 @@ export class ContextBudgetService {
   private config: ContextBudgetConfig = { ...DEFAULT_CONFIG }
   /** 追踪每个会话的累计 token 使用量（用于告警判断） */
   private sessionUsage = new Map<string, number>()
+  private sessionManagerV2: SessionManagerV2 | null = null
 
   constructor(db: DatabaseManager) {
     this.db = db
     this.initDatabase()
     this.loadConfig()
+  }
+
+  /** 注入 SessionManagerV2（由 index.ts 调用） */
+  setSessionManager(sm: SessionManagerV2): void {
+    this.sessionManagerV2 = sm
   }
 
   /**
@@ -205,17 +212,111 @@ export class ContextBudgetService {
   }
 
   /** 压缩上下文（发送 /compact 指令到会话） */
-  async compress(sessionId: string): Promise<{ success: boolean; message: string }> {
-    // 这里通过 SessionManagerV2 发送 /compact 指令
-    // 实际由 index.ts 中的连接逻辑处理
-    return { success: true, message: '已发送上下文压缩请求' }
+  async compress(sessionId: string): Promise<{ success: boolean; message: string; savings?: number }> {
+    try {
+      if (!this.sessionManagerV2) {
+        return { success: false, message: 'SessionManagerV2 未初始化' }
+      }
+
+      const session = this.sessionManagerV2.getSession(sessionId)
+      if (!session) {
+        return { success: false, message: `会话 ${sessionId} 不存在` }
+      }
+
+      // 获取当前使用量（用于估算压缩效果）
+      const budgetResult = await this.get(sessionId)
+      const currentTokens = budgetResult.budget?.usedTokens || 0
+
+      // 发送 /compact 命令到会话
+      await this.sessionManagerV2.sendMessage(sessionId, '/compact')
+
+      // 重置该会话的追踪计数
+      this.sessionUsage.delete(sessionId)
+
+      const estimatedSavings = Math.round(currentTokens * 0.4)
+
+      sendToRenderer(IPC.CONTEXT_BUDGET_ALERT, {
+        sessionId,
+        level: 'compressed',
+        savings: estimatedSavings,
+        message: `上下文已压缩，预计节省 ${estimatedSavings} tokens`,
+      })
+
+      return {
+        success: true,
+        message: `已发送压缩指令，预计节省约 ${estimatedSavings} tokens`,
+        savings: estimatedSavings,
+      }
+    } catch (err: any) {
+      return { success: false, message: `压缩失败: ${err.message}` }
+    }
   }
 
   /** 迁移到新会话（保留关键上下文，重置 token 计数） */
   async migrate(sessionId: string): Promise<{ success: boolean; newSessionId?: string; message: string }> {
-    // 创建续接会话的逻辑需要 SessionManagerV2
-    // 实际由 index.ts 中的连接逻辑处理
-    return { success: true, message: '已创建续接会话' }
+    try {
+      if (!this.sessionManagerV2) {
+        return { success: false, message: 'SessionManagerV2 未初始化' }
+      }
+
+      const session = this.sessionManagerV2.getSession(sessionId)
+      if (!session) {
+        return { success: false, message: `会话 ${sessionId} 不存在` }
+      }
+
+      // 1. 从旧会话提取关键上下文（最近的消息摘要）
+      const db = this.getRawDb()
+      const recentMessages = db.prepare(`
+        SELECT role, content
+        FROM conversation_messages
+        WHERE session_id = ?
+        ORDER BY timestamp DESC
+        LIMIT 10
+      `).all(sessionId) as any[]
+
+      // 2. 构建续接 prompt：包含旧会话摘要 + 最后的上下文
+      const contextLines: string[] = ['[上下文续接 - 从上一个会话迁移]\n']
+      contextLines.push('以下是上一个会话的关键上下文摘要：\n')
+
+      for (const msg of recentMessages.reverse()) {
+        const content = (msg.content || '').slice(0, 500) // 截断避免过长
+        if (msg.role === 'user') {
+          contextLines.push(`用户: ${content}`)
+        } else if (msg.role === 'assistant') {
+          contextLines.push(`助手: ${content}`)
+        }
+      }
+
+      contextLines.push('\n请基于以上上下文继续工作。')
+
+      const migrationPrompt = contextLines.join('\n')
+
+      // 3. 创建新会话
+      const newSessionId = this.sessionManagerV2.createSession({
+        name: `${session.name || 'Session'} (续接)`,
+        workingDirectory: session.workingDirectory || process.cwd(),
+        providerId: session.provider?.id,
+        initialPrompt: migrationPrompt,
+      })
+
+      // 4. 清理旧会话追踪
+      this.sessionUsage.delete(sessionId)
+
+      sendToRenderer(IPC.CONTEXT_BUDGET_ALERT, {
+        sessionId,
+        level: 'migrated',
+        newSessionId,
+        message: `上下文已迁移到新会话 ${newSessionId.slice(0, 8)}`,
+      })
+
+      return {
+        success: true,
+        newSessionId,
+        message: `已创建续接会话 ${newSessionId.slice(0, 8)}，关键上下文已迁移`,
+      }
+    } catch (err: any) {
+      return { success: false, message: `迁移失败: ${err.message}` }
+    }
   }
 
   /** 检查是否需要自动压缩 */

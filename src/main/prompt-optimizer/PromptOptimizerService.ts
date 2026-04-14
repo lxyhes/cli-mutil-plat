@@ -164,29 +164,23 @@ export class PromptOptimizerService extends EventEmitter {
     let output = ''
     let tokensUsed: number | undefined
 
-    if (this.sessionManagerV2) {
-      const testSessionId = `test-${Date.now()}`
-      try {
-        this.sessionManagerV2.createSession({
-          id: testSessionId,
-          name: `[Test] ${versionId.slice(0, 8)}`,
-          workingDirectory: process.cwd(),
-          providerId: providerId || 'claude-code',
-          initialPrompt: version.content.replace(/\{\{(\w+)\}\}/g, (_, v) => {
-            return version.variablesValues?.[v] || `{{${v}}}`
-          }),
-        })
-        // Wait for response (simplified - just capture output)
-        await new Promise(resolve => setTimeout(resolve, 30000))
-        output = `[Test completed for version ${version.versionNumber}]`
-      } catch (err) {
-        output = `[Test error: ${err}]`
-      }
-    } else {
-      output = `[No session manager - test simulated for version ${version.versionNumber}]`
+    try {
+      // 渲染模板变量
+      const renderedPrompt = version.content.replace(/\{\{(\w+)\}\}/g, (_, v) => {
+        return version.variablesValues?.[v] || testInput || `{{${v}}}`
+      })
+
+      // 直接调用 AI 获取输出
+      output = await this.callAiDirectly(renderedPrompt, providerId)
+      tokensUsed = Math.ceil((renderedPrompt.length + output.length) / 4)
+    } catch (err: any) {
+      output = `[Test error: ${err.message}]`
     }
 
     const durationMs = Date.now() - startTime
+
+    // 自动评分：基于输出质量的启发式评估
+    const score = this.evaluateTestOutput(output, testInput)
 
     const test = this.repo.createTest({
       id,
@@ -195,7 +189,7 @@ export class PromptOptimizerService extends EventEmitter {
       testOutput: output,
       tokensUsed,
       durationMs,
-      score: 0, // Score set after evaluation
+      score,
     })
 
     this.emit('test-completed', test)
@@ -332,13 +326,45 @@ export class PromptOptimizerService extends EventEmitter {
     hints: string | undefined,
     _sm: SessionManagerV2 | undefined,
   ): Promise<string> {
-    // Generate improved prompt using AI analysis
-    // In production this would use SessionManagerV2 to call the AI
-    const analysis = hints
-      ? `Original: ${prompt}\n\nHints: ${hints}\n\nImprove clarity, specificity, and effectiveness.`
-      : `Analyze and improve this prompt for clarity, specificity, and effectiveness.\n\nPrompt: ${prompt}\n\nReturn ONLY the improved prompt, no explanation.`
-    // Simplified AI call - in production would use sessionManagerV2
-    return `${prompt}\n\n[AI-Optimized: Made more specific and actionable]`
+    const systemPrompt = `你是一个专业的 Prompt 工程师。你的任务是优化用户给出的 Prompt，使其更清晰、更具体、更有效。
+
+优化原则：
+1. **明确性**: 消除模糊表述，明确输入/输出格式和约束
+2. **结构化**: 使用分节、编号、Markdown 格式组织复杂指令
+3. **具体性**: 添加具体示例、边界条件、错误处理要求
+4. **角色设定**: 如适用，为 AI 设定专业角色和背景
+5. **约束条件**: 添加长度限制、风格要求、禁止事项
+6. **输出格式**: 明确指定输出格式（JSON、Markdown、代码等）
+
+重要：只返回优化后的 Prompt，不要添加任何解释或评论。不要用 markdown 代码块包裹。`
+
+    const userMessage = hints
+      ? `请优化以下 Prompt。
+
+优化提示/方向：${hints}
+
+原始 Prompt：
+---
+${prompt}
+---
+
+返回优化后的完整 Prompt：`
+      : `请优化以下 Prompt，使其更清晰、更具体、更有效。
+
+原始 Prompt：
+---
+${prompt}
+---
+
+返回优化后的完整 Prompt：`
+
+    try {
+      const result = await this.callAiWithSystemPrompt(systemPrompt, userMessage)
+      return result.trim() || prompt
+    } catch (err) {
+      console.error('[PromptOptimizer] AI 优化失败，返回原 prompt:', err)
+      return prompt
+    }
   }
 
   getBestVersion(templateId: string): PromptVersion | null {
@@ -385,5 +411,124 @@ export class PromptOptimizerService extends EventEmitter {
 
   listFeedback(runId: string): PromptFeedback[] {
     return this.repo.listFeedbackByRun(runId)
+  }
+
+  // ═══════════════════════════════════════════════════════
+  // AI CALLING (真实 AI 调用)
+  // ═══════════════════════════════════════════════════════
+
+  /**
+   * 直接调用 AI（Anthropic SDK → CLI 回退）
+   */
+  private async callAiDirectly(prompt: string, providerId?: string): Promise<string> {
+    // 方案1: Anthropic SDK
+    try {
+      const { Anthropic } = await import('@anthropic-ai/sdk')
+      const client = new Anthropic()
+      const msg = await client.messages.create({
+        model: 'claude-sonnet-4-7',
+        max_tokens: 4096,
+        messages: [{ role: 'user', content: prompt }],
+      })
+      const text = msg.content
+        .filter((block: any) => block.type === 'text')
+        .map((block: any) => block.text)
+        .join('\n')
+      return text || 'No response from AI'
+    } catch (sdkErr) {
+      console.warn('[PromptOptimizer] Anthropic SDK 不可用，尝试 CLI:', (sdkErr as Error).message)
+    }
+
+    // 方案2: claude CLI
+    return this.callCliDirectly(prompt)
+  }
+
+  /**
+   * 带系统提示的 AI 调用
+   */
+  private async callAiWithSystemPrompt(systemPrompt: string, userMessage: string): Promise<string> {
+    // 方案1: Anthropic SDK
+    try {
+      const { Anthropic } = await import('@anthropic-ai/sdk')
+      const client = new Anthropic()
+      const msg = await client.messages.create({
+        model: 'claude-sonnet-4-7',
+        max_tokens: 4096,
+        system: systemPrompt,
+        messages: [{ role: 'user', content: userMessage }],
+      })
+      const text = msg.content
+        .filter((block: any) => block.type === 'text')
+        .map((block: any) => block.text)
+        .join('\n')
+      return text || 'No response from AI'
+    } catch (sdkErr) {
+      console.warn('[PromptOptimizer] Anthropic SDK 不可用，尝试 CLI:', (sdkErr as Error).message)
+    }
+
+    // 方案2: CLI（将 system prompt 合并到 user prompt）
+    const combinedPrompt = `${systemPrompt}\n\n---\n\n${userMessage}`
+    return this.callCliDirectly(combinedPrompt)
+  }
+
+  /**
+   * 通过 CLI 调用 AI
+   */
+  private callCliDirectly(prompt: string): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const { spawn } = require('child_process')
+      const proc = spawn('claude', ['--print', '--no-input', prompt], {
+        timeout: 60000,
+      })
+
+      let stdout = ''
+      let stderr = ''
+
+      proc.stdout.on('data', (data: Buffer) => { stdout += data.toString() })
+      proc.stderr.on('data', (data: Buffer) => { stderr += data.toString() })
+      proc.on('close', (code: number) => {
+        if (code === 0) {
+          resolve(stdout.trim())
+        } else {
+          reject(new Error(`claude CLI exit code ${code}: ${stderr}`))
+        }
+      })
+      proc.on('error', reject)
+    })
+  }
+
+  /**
+   * 启发式评估测试输出质量
+   * 评分维度：长度适当性(30%) + 结构化(30%) + 相关性(40%)
+   */
+  private evaluateTestOutput(output: string, testInput: string): number {
+    if (!output || output.startsWith('[Test error')) return 0
+
+    let score = 0.5 // 基础分
+
+    // 1. 长度适当性（30%）
+    const len = output.length
+    if (len > 50 && len < 5000) score += 0.1
+    else if (len >= 5000) score += 0.05   // 太长扣分
+    if (len < 20) score -= 0.1             // 太短扣分
+
+    // 2. 结构化程度（30%）——有编号、分节、列表
+    if (/\d+\.\s/.test(output)) score += 0.05   // 编号列表
+    if (/#{1,3}\s/.test(output)) score += 0.05  // Markdown 标题
+    if (/-\s|\*\s/.test(output)) score += 0.03   // 无序列表
+    if (/```/.test(output)) score += 0.05        // 代码块
+    if (output.includes('\n\n')) score += 0.02    // 段落分隔
+
+    // 3. 相关性（40%）——输出是否与输入相关
+    if (testInput) {
+      const inputWords = testInput.toLowerCase().split(/\s+/).filter(w => w.length > 2)
+      const outputLower = output.toLowerCase()
+      const matchCount = inputWords.filter(w => outputLower.includes(w)).length
+      const relevanceRatio = inputWords.length > 0 ? matchCount / inputWords.length : 0
+      score += relevanceRatio * 0.15
+    }
+
+    // Clamp 0-1
+    return Math.max(0, Math.min(1, Math.round(score * 100) / 100))
   }
 }

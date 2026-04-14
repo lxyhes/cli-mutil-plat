@@ -153,7 +153,7 @@ export class DriftGuardService extends EventEmitter {
 
   // ── 漂移检测 ────────────────────────────────────────────
 
-  /** 执行漂移检查 */
+  /** 执行漂移检查（先启发式快速判断，如果需要则异步 LLM 增强） */
   private performCheck(sessionId: string): DriftCheckResult | null {
     const state = this.sessionStates.get(sessionId)
     if (!state) return null
@@ -165,10 +165,16 @@ export class DriftGuardService extends EventEmitter {
     // 获取最近对话内容（用于判断漂移）
     const recentContext = this.getRecentConversationContext(sessionId)
 
-    // 执行漂移判断（同步启发式 + 异步 LLM 增强两种方式）
+    // 执行启发式漂移判断
     const result = this.heuristicDriftCheck(sessionId, goal.title, goal.description || '', recentContext, state.turnCount)
 
     state.history.push(result)
+
+    // 如果启发式检测到轻微/中度漂移，异步触发 LLM 增强检测
+    if (result.severity === 'minor' || result.severity === 'moderate') {
+      this.runLlmEnhancedCheck(sessionId, goal.title, goal.description || '', recentContext, result)
+        .catch(err => console.warn('[DriftGuard] LLM enhanced check failed:', err))
+    }
 
     if (result.severity !== 'none') {
       state.consecutiveDrifts++
@@ -376,5 +382,116 @@ export class DriftGuardService extends EventEmitter {
       if (setA.has(keyword)) overlap++
     }
     return overlap / Math.min(setA.size, setB.size)
+  }
+
+  /** LLM 增强漂移检测（异步，结果会更新已有检测结果） */
+  private async runLlmEnhancedCheck(
+    sessionId: string,
+    goalTitle: string,
+    goalDescription: string,
+    recentContext: string,
+    heuristicResult: DriftCheckResult,
+  ): Promise<void> {
+    if (!this.sessionManagerV2) return
+
+    const prompt = `你是一个AI行为漂移检测专家。请判断以下对话内容是否偏离了目标。
+
+目标：${goalTitle}
+${goalDescription ? `目标描述：${goalDescription}` : ''}
+
+最近的对话内容：
+${recentContext.slice(0, 4000)}
+
+启发式初步判断：${heuristicResult.severity}（${heuristicResult.description}）
+
+请用以下JSON格式返回你的判断：
+{
+  "isDrifted": true/false,
+  "severity": "none"/"minor"/"moderate"/"severe",
+  "reasoning": "详细理由（50-200字）",
+  "suggestion": "纠正建议"
+}
+
+只返回JSON，不要其他文字。`
+
+    const evalSessionId = `drift-eval-${Date.now()}`
+    let responseText = ''
+    let resolved = false
+
+    const handler = (sid: string, msg: any) => {
+      if (sid !== evalSessionId) return
+      if (msg.isDelta && msg.content) {
+        responseText += msg.content
+      }
+      if (!msg.isDelta && msg.role === 'assistant' && msg.content) {
+        responseText = typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content)
+        resolved = true
+        this.sessionManagerV2.removeListener('conversation-message', handler)
+      }
+    }
+
+    this.sessionManagerV2.on('conversation-message', handler)
+
+    try {
+      this.sessionManagerV2.createSession({
+        id: evalSessionId,
+        name: '[漂移检测] LLM 增强',
+        workingDirectory: process.cwd(),
+        providerId: 'claude-code',
+        initialPrompt: prompt,
+      })
+    } catch (err) {
+      this.sessionManagerV2.removeListener('conversation-message', handler)
+      return
+    }
+
+    // 等待最多 30 秒
+    await new Promise<void>((resolve) => {
+      const checkInterval = setInterval(() => {
+        if (resolved) {
+          clearInterval(checkInterval)
+          resolve()
+        }
+      }, 500)
+      setTimeout(() => {
+        clearInterval(checkInterval)
+        this.sessionManagerV2.removeListener('conversation-message', handler)
+        resolve()
+      }, 30000)
+    })
+
+    // 解析 LLM 结果，更新现有检测结果
+    try {
+      const jsonMatch = responseText.match(/\{[\s\S]*\}/)
+      if (!jsonMatch) return
+      const parsed = JSON.parse(jsonMatch[0])
+
+      const state = this.sessionStates.get(sessionId)
+      if (!state) return
+
+      // 只有 LLM 判断的严重程度更高时才更新
+      const severityOrder: Record<string, number> = { none: 0, minor: 1, moderate: 2, severe: 3 }
+      const llmSeverity = parsed.severity || 'none'
+      if (severityOrder[llmSeverity] > severityOrder[heuristicResult.severity]) {
+        // 更新历史记录中的最新检查结果
+        const lastHistory = state.history[state.history.length - 1]
+        if (lastHistory && lastHistory.id === heuristicResult.id) {
+          lastHistory.severity = llmSeverity
+          lastHistory.description = parsed.reasoning || heuristicResult.description
+          lastHistory.suggestion = parsed.suggestion || heuristicResult.suggestion
+
+          // 重新广播更新后的结果
+          this.emit('drift-updated', lastHistory)
+          try {
+            sendToRenderer(IPC.DRIFT_GUARD_STATUS, {
+              type: 'drift-updated',
+              result: lastHistory,
+            })
+          } catch { /* ignore */ }
+        }
+      }
+    } catch (err) {
+      console.warn('[DriftGuard] Failed to parse LLM enhanced check result:', err)
+    }
   }
 }

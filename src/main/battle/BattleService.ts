@@ -241,7 +241,7 @@ export class BattleService {
     }
   }
 
-  /** 综合评分算法 */
+  /** 综合评分算法（启发式 + 异步 AI 评判） */
   private calculateWinner(result: BattleResult): 'A' | 'B' | 'tie' {
     const scoreA = this.calculateScore(result.providerA.response, result.providerA.tokenCount, result.providerA.duration)
     const scoreB = this.calculateScore(result.providerB.response, result.providerB.tokenCount, result.providerB.duration)
@@ -250,6 +250,97 @@ export class BattleService {
     if (scoreA > scoreB + threshold) return 'A'
     if (scoreB > scoreA + threshold) return 'B'
     return 'tie'
+  }
+
+  /** 异步 AI 评判（补充启发式评分） */
+  async aiJudge(battleId: string, prompt: string, result: BattleResult): Promise<'A' | 'B' | 'tie'> {
+    const sm = this.sessionManagerV2
+    if (!sm) return this.calculateWinner(result)
+
+    const judgePrompt = `你是AI对决的裁判。请根据以下标准评判两个AI的回复质量：
+
+原始问题：
+${prompt.slice(0, 2000)}
+
+── AI A 的回复 ──
+${result.providerA.response.slice(0, 4000)}
+
+── AI B 的回复 ──
+${result.providerB.response.slice(0, 4000)}
+
+评分标准：
+1. 回答准确性：是否正确回答了问题
+2. 代码质量（如有）：是否简洁、正确、有最佳实践
+3. 结构清晰度：是否有清晰的逻辑和组织
+4. 完整性：是否充分回答了所有方面
+
+请用以下JSON格式返回：
+{
+  "winner": "A"/"B"/"tie",
+  "reasoning": "评判理由（100-300字）",
+  "scores": {
+    "A": { "accuracy": 0-10, "codeQuality": 0-10, "clarity": 0-10, "completeness": 0-10 },
+    "B": { "accuracy": 0-10, "codeQuality": 0-10, "clarity": 0-10, "completeness": 0-10 }
+  }
+}
+
+只返回JSON。`
+
+    const judgeSessionId = `judge-${Date.now()}`
+    let responseText = ''
+    let resolved = false
+
+    const handler = (sid: string, msg: any) => {
+      if (sid !== judgeSessionId) return
+      if (msg.isDelta && msg.content) responseText += msg.content
+      if (!msg.isDelta && msg.role === 'assistant' && msg.content) {
+        responseText = typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content)
+        resolved = true
+        sm.removeListener('conversation-message', handler)
+      }
+    }
+
+    sm.on('conversation-message', handler)
+
+    try {
+      sm.createSession({
+        id: judgeSessionId,
+        name: '[Battle裁判] AI 评判',
+        workingDirectory: process.cwd(),
+        providerId: 'claude-code',
+        initialPrompt: judgePrompt,
+      })
+    } catch (err) {
+      sm.removeListener('conversation-message', handler)
+      return this.calculateWinner(result)
+    }
+
+    // 等待最多 60 秒
+    await new Promise<void>((resolve) => {
+      const checkInterval = setInterval(() => {
+        if (resolved) { clearInterval(checkInterval); resolve() }
+      }, 500)
+      setTimeout(() => {
+        clearInterval(checkInterval)
+        sm.removeListener('conversation-message', handler)
+        resolve()
+      }, 60000)
+    })
+
+    try {
+      const jsonMatch = responseText.match(/\{[\s\S]*\}/)
+      if (!jsonMatch) return this.calculateWinner(result)
+      const parsed = JSON.parse(jsonMatch[0])
+      if (['A', 'B', 'tie'].includes(parsed.winner)) {
+        // 更新数据库中的对决结果
+        try {
+          this.getRawDb().prepare('UPDATE battles SET winner = ? WHERE id = ?').run(parsed.winner, battleId)
+        } catch { /* ignore */ }
+        return parsed.winner
+      }
+    } catch { /* ignore */ }
+
+    return this.calculateWinner(result)
   }
 
   /** 计算单个 AI 的综合得分 */

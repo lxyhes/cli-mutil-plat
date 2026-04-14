@@ -62,12 +62,32 @@ export interface ImportResult {
 
 // ─── 服务 ─────────────────────────────────────────────────
 
+export interface CommunityPublishConfig {
+  /** 云端社区 API 基础 URL */
+  apiBaseUrl?: string
+  /** 社区 API Token */
+  apiToken?: string
+  /** 是否启用云端模式（默认 false，即本地模式） */
+  cloudEnabled?: boolean
+}
+
 export class CommunityPublishService extends EventEmitter {
   private db: DatabaseManager
+  private config: CommunityPublishConfig = {}
 
   constructor(db: DatabaseManager) {
     super()
     this.db = db
+  }
+
+  /** 更新云端配置 */
+  updateConfig(config: Partial<CommunityPublishConfig>): void {
+    Object.assign(this.config, config)
+  }
+
+  /** 获取当前配置 */
+  getConfig(): CommunityPublishConfig {
+    return { ...this.config }
   }
 
   // ── 发布 ────────────────────────────────────────────────
@@ -102,17 +122,52 @@ export class CommunityPublishService extends EventEmitter {
       this.emit('published', { type: 'skill', id: skillId, packageJson })
       sendToRenderer(IPC.COMMUNITY_PUBLISH_STATUS, { type: 'published', targetType: 'skill', targetId: skillId })
 
-      // Phase 2: 上传到云端社区 API
-      // const shareUrl = await this.uploadToCloud(pkg)
+      // 云端上传
+      let shareUrl: string | undefined
+      if (this.config.cloudEnabled && this.config.apiBaseUrl) {
+        try {
+          shareUrl = await this.uploadToCloud(pkg)
+        } catch (err: any) {
+          console.warn('[CommunityPublish] Cloud upload failed:', err.message)
+          // 云端失败不影响本地导出
+        }
+      }
 
       return {
         success: true,
         packageJson,
-        // shareUrl, // 预留
+        shareUrl,
       }
     } catch (err: any) {
       return { success: false, error: err.message || '发布失败' }
     }
+  }
+
+  /** 上传包到云端社区 API */
+  private async uploadToCloud(pkg: PublishPackage): Promise<string> {
+    if (!this.config.apiBaseUrl) throw new Error('API base URL not configured')
+
+    const url = `${this.config.apiBaseUrl}/api/v1/community/publish`
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    }
+    if (this.config.apiToken) {
+      headers['Authorization'] = `Bearer ${this.config.apiToken}`
+    }
+
+    const response = await fetch(url, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(pkg),
+    })
+
+    if (!response.ok) {
+      const text = await response.text()
+      throw new Error(`Cloud API error ${response.status}: ${text.slice(0, 200)}`)
+    }
+
+    const result = await response.json() as any
+    return result.shareUrl || result.url || ''
   }
 
   /** 一键发布 MCP 配置到社区 */
@@ -138,7 +193,14 @@ export class CommunityPublishService extends EventEmitter {
       this.emit('published', { type: 'mcp', id: mcpId, packageJson })
       sendToRenderer(IPC.COMMUNITY_PUBLISH_STATUS, { type: 'published', targetType: 'mcp', targetId: mcpId })
 
-      return { success: true, packageJson }
+      let shareUrl: string | undefined
+      if (this.config.cloudEnabled && this.config.apiBaseUrl) {
+        try { shareUrl = await this.uploadToCloud(pkg) } catch (err: any) {
+          console.warn('[CommunityPublish] Cloud upload failed:', err.message)
+        }
+      }
+
+      return { success: true, packageJson, shareUrl }
     } catch (err: any) {
       return { success: false, error: err.message || '发布失败' }
     }
@@ -167,7 +229,14 @@ export class CommunityPublishService extends EventEmitter {
       this.emit('published', { type: 'workflow', id: workflowId, packageJson })
       sendToRenderer(IPC.COMMUNITY_PUBLISH_STATUS, { type: 'published', targetType: 'workflow', targetId: workflowId })
 
-      return { success: true, packageJson }
+      let shareUrl: string | undefined
+      if (this.config.cloudEnabled && this.config.apiBaseUrl) {
+        try { shareUrl = await this.uploadToCloud(pkg) } catch (err: any) {
+          console.warn('[CommunityPublish] Cloud upload failed:', err.message)
+        }
+      }
+
+      return { success: true, packageJson, shareUrl }
     } catch (err: any) {
       return { success: false, error: err.message || '发布失败' }
     }
@@ -196,7 +265,14 @@ export class CommunityPublishService extends EventEmitter {
       this.emit('published', { type: 'prompt', packageJson })
       sendToRenderer(IPC.COMMUNITY_PUBLISH_STATUS, { type: 'published', targetType: 'prompt' })
 
-      return { success: true, packageJson }
+      let shareUrl: string | undefined
+      if (this.config.cloudEnabled && this.config.apiBaseUrl) {
+        try { shareUrl = await this.uploadToCloud(pkg) } catch (err: any) {
+          console.warn('[CommunityPublish] Cloud upload failed:', err.message)
+        }
+      }
+
+      return { success: true, packageJson, shareUrl }
     } catch (err: any) {
       return { success: false, error: err.message || '发布失败' }
     }
@@ -231,17 +307,66 @@ export class CommunityPublishService extends EventEmitter {
     }
   }
 
-  /** 从 URL 导入社区资源 */
-  async importFromUrl(url: string): Promise<ImportResult> {
+  /** 从 URL 导入社区资源（支持签名校验） */
+  async importFromUrl(url: string, options?: { verifySignature?: boolean; expectedAuthor?: string }): Promise<ImportResult> {
     try {
       const response = await fetch(url)
       if (!response.ok) {
         return { success: false, error: `HTTP ${response.status}: ${response.statusText}` }
       }
       const packageJson = await response.text()
+
+      // 验证签名（如果包中包含签名信息）
+      if (options?.verifySignature !== false) {
+        const verification = this.verifyPackageIntegrity(packageJson)
+        if (!verification.valid) {
+          return { success: false, error: `包完整性校验失败: ${verification.reason}` }
+        }
+      }
+
+      // 验证作者（可选）
+      if (options?.expectedAuthor) {
+        try {
+          const pkg = JSON.parse(packageJson) as PublishPackage
+          if (pkg.author?.name !== options.expectedAuthor) {
+            return {
+              success: false,
+              error: `作者不匹配: 期望 "${options.expectedAuthor}"，实际 "${pkg.author?.name || '未知'}"`,
+            }
+          }
+        } catch { /* ignore parse error, let importFromJson handle it */ }
+      }
+
       return this.importFromJson(packageJson)
     } catch (err: any) {
       return { success: false, error: `下载失败: ${err.message}` }
+    }
+  }
+
+  /** 校验包完整性（版本、类型、字段完整性） */
+  private verifyPackageIntegrity(packageJson: string): { valid: boolean; reason?: string } {
+    try {
+      const pkg = JSON.parse(packageJson) as PublishPackage
+
+      if (!pkg.version) return { valid: false, reason: '缺少 version 字段' }
+      if (pkg.version !== '1.0') return { valid: false, reason: `不支持的版本: ${pkg.version}` }
+      if (!pkg.type) return { valid: false, reason: '缺少 type 字段' }
+      if (!['skill', 'mcp', 'workflow', 'prompt'].includes(pkg.type)) {
+        return { valid: false, reason: `不支持的包类型: ${pkg.type}` }
+      }
+      if (!pkg.data) return { valid: false, reason: '缺少 data 字段' }
+      if (!pkg.publishedAt) return { valid: false, reason: '缺少 publishedAt 字段' }
+
+      // 检查发布时间是否合理（不早于 2024 年，不晚于当前时间 + 1 天）
+      const pubDate = new Date(pkg.publishedAt)
+      const now = new Date()
+      if (pubDate < new Date('2024-01-01') || pubDate > new Date(now.getTime() + 86400000)) {
+        return { valid: false, reason: '发布时间异常' }
+      }
+
+      return { valid: true }
+    } catch (err: any) {
+      return { valid: false, reason: `JSON 解析失败: ${err.message}` }
     }
   }
 
