@@ -49,7 +49,7 @@ interface SessionState {
   conversations: Record<string, ConversationMessage[]>  // SDK V2: sessionId → 对话消息
   streamingSessions: Set<string>  // SDK V2: 正在流式响应的会话
   conversationLoading: Record<string, boolean>  // SDK V2: 对话历史加载状态
-  sessionInitData: Record<string, { model: string; tools: string[]; skills: any[]; mcpServers: any[] }>  // SDK V2: 会话初始化数据
+  sessionInitData: Record<string, { model: string; tools: string[]; skills: any[]; mcpServers: any[]; availableModels: Array<{ id: string; name: string; description?: string }> }>  // SDK V2: 会话初始化数据
   activityHistoryLoaded: Set<string>  // 已从数据库加载过历史活动的会话 ID（防止 session_start 竞态导致跳过加载）
   suppressNextEcho: Set<string>  // 静默执行 Skill 时，需要屏蔽 SDK 回显的会话 ID 集合
   authRequiredData: { sessionId: string; providerId: string; message: string; authCommand: string; requiredEnvKey?: string } | null  // Provider 需要认证
@@ -997,10 +997,12 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       sessionInitData: {
         ...state.sessionInitData,
         [sessionId]: {
+          ...state.sessionInitData[sessionId],
           model: data.model || '',
           tools: data.tools || [],
           skills: data.skills || [],
           mcpServers: data.mcpServers || [],
+          availableModels: data.availableModels || [],
         }
       }
     }))

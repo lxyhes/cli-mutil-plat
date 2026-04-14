@@ -1685,6 +1685,7 @@ export class ClaudeSdkAdapter extends BaseProviderAdapter {
     this.emit('session-init-data', sessionId, {
       model: msg.model, tools,
       mcpServers: msg.mcp_servers || [], skills: msg.skills || [], plugins: msg.plugins || [],
+      availableModels: this.getAvailableModels(),
     })
     const q = this.sdkQueries.get(sessionId)
     if (q) {
@@ -1694,6 +1695,7 @@ export class ClaudeSdkAdapter extends BaseProviderAdapter {
           this.emit('session-init-data', sessionId, {
             model: msg.model, tools,
             mcpServers: msg.mcp_servers || [], skills: commands, plugins: msg.plugins || [],
+            availableModels: this.getAvailableModels(),
           })
         }
       }).catch(err => { logger.warn(`[ClaudeSdkAdapter] supportedCommands() failed:`, err) })
@@ -1900,6 +1902,7 @@ export class ClaudeSdkAdapter extends BaseProviderAdapter {
             mcpServers: [],
             skills: commands,
             plugins: [],
+            availableModels: this.getAvailableModels(),
           })
         }
       }).catch(err => {
@@ -1917,6 +1920,7 @@ export class ClaudeSdkAdapter extends BaseProviderAdapter {
                 mcpServers: [],
                 skills: commands,
                 plugins: [],
+                availableModels: this.getAvailableModels(),
               })
             }
           }).catch(retryErr => {
@@ -1929,5 +1933,16 @@ export class ClaudeSdkAdapter extends BaseProviderAdapter {
 
   private emitEvent(sessionId: string, event: ProviderEvent): void {
     this.emit('event', event)
+  }
+
+  /** 获取 Claude Code 可用的模型列表 */
+  private getAvailableModels(): Array<{ id: string; name: string; description?: string }> {
+    return [
+      { id: 'claude-sonnet-4-20250514', name: 'Claude Sonnet 4', description: '默认模型，平衡性能与成本' },
+      { id: 'claude-opus-4-20250514', name: 'Claude Opus 4', description: '最强模型，适合复杂任务' },
+      { id: 'claude-sonnet-4-6-20250514', name: 'Claude Sonnet 4.6', description: '最新 Sonnet，性能提升' },
+      { id: 'claude-sonnet-3-5-20241022', name: 'Claude Sonnet 3.5', description: '上一代 Sonnet' },
+      { id: 'claude-3-5-haiku-20241022', name: 'Claude Haiku 3.5', description: '快速响应，适合简单任务' },
+    ]
   }
 }

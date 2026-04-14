@@ -91,6 +91,28 @@ interface ModelInfo {
   description?: string
 }
 
+/** 按 providerId 的内置模型列表（fallback，当 initData 无 availableModels 时使用） */
+const BUILTIN_MODELS: Record<string, ModelInfo[]> = {
+  'claude-code': [
+    { id: 'claude-sonnet-4-20250514', name: 'Claude Sonnet 4', description: '默认模型，平衡性能与成本' },
+    { id: 'claude-opus-4-20250514', name: 'Claude Opus 4', description: '最强模型，适合复杂任务' },
+    { id: 'claude-sonnet-4-6-20250514', name: 'Claude Sonnet 4.6', description: '最新 Sonnet，性能提升' },
+    { id: 'claude-sonnet-3-5-20241022', name: 'Claude Sonnet 3.5', description: '上一代 Sonnet' },
+    { id: 'claude-3-5-haiku-20241022', name: 'Claude Haiku 3.5', description: '快速响应，适合简单任务' },
+  ],
+  'iflow': [
+    { id: 'claude-sonnet-4-20250514', name: 'Claude Sonnet 4', description: '默认模型，平衡性能与成本' },
+    { id: 'claude-opus-4-20250514', name: 'Claude Opus 4', description: '最强模型，适合复杂任务' },
+    { id: 'claude-sonnet-3-5-20241022', name: 'Claude Sonnet 3.5', description: '上一代 Sonnet' },
+    { id: 'claude-3-5-haiku-20241022', name: 'Claude Haiku 3.5', description: '快速响应，适合简单任务' },
+  ],
+  'qwen-sdk': [
+    { id: 'qwen-coder-plus', name: 'Qwen Coder Plus', description: '最强代码模型' },
+    { id: 'qwen-coder-turbo', name: 'Qwen Coder Turbo', description: '快速响应' },
+    { id: 'qwen2.5-coder-32b', name: 'Qwen2.5 Coder 32B', description: '开源模型' },
+  ],
+}
+
 /** 粘贴/拖拽文件时，根据扩展名判断是否为图片 */
 const IMAGE_EXTS = new Set(['.png', '.jpg', '.jpeg', '.gif', '.bmp', '.webp', '.svg', '.ico', '.tiff', '.avif'])
 
@@ -258,10 +280,22 @@ const MessageInput: React.FC<MessageInputProps> = ({
     sessionId ? state.sessions.find(s => s.id === sessionId)?.config?.workingDirectory : undefined
   )
 
-  // ★ 可用模型列表（从 initData 中读取）
+  // 当前会话的 providerId（用于 fallback 模型列表）
+  const providerId = useSessionStore(state =>
+    sessionId ? state.sessions.find(s => s.id === sessionId)?.providerId : undefined
+  )
+
+  // ★ 可用模型列表（优先从 initData 读取，否则按 providerId 使用内置列表）
   const availableModels = useMemo((): ModelInfo[] => {
-    return (initData as any)?.availableModels || []
-  }, [initData])
+    if (initData?.availableModels && initData.availableModels.length > 0) {
+      return initData.availableModels
+    }
+    // fallback：按 providerId 提供内置模型列表
+    if (providerId && BUILTIN_MODELS[providerId]) {
+      return BUILTIN_MODELS[providerId]
+    }
+    return []
+  }, [initData, providerId])
 
   const slashCommands = useMemo(() => {
     return extractSlashCommands(initData?.skills || [])
@@ -294,13 +328,14 @@ const MessageInput: React.FC<MessageInputProps> = ({
     }
   }, [text, filteredCommands.length])
 
-  // ★ 检测 /model 命令，显示模型选择面板
+  // ★ 检测 /model 命令，显示模型选择面板（同时关闭 slash 菜单避免冲突）
   useEffect(() => {
     const isModelCommand = text.startsWith('/model') || text.startsWith('/model ')
     const shouldShow = isModelCommand && !text.includes('\n') && availableModels.length > 0
     setShowModelMenu(shouldShow)
     if (shouldShow) {
       setSelectedModelIndex(0)
+      setShowSlashMenu(false)  // 模型面板优先，隐藏 slash 菜单
     }
   }, [text, availableModels.length])
 
