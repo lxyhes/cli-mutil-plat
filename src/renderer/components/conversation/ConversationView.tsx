@@ -9,6 +9,7 @@
 
 import React, { useEffect, useLayoutEffect, useRef, useMemo, useState, useCallback } from 'react'
 import { FolderOpen, RotateCcw, Copy, ArrowUp, ArrowDown, Download, X, BookMarked } from 'lucide-react'
+import type { ReactNode } from 'react'
 import type { ConversationMessage, UserQuestionMeta, AskUserQuestionMeta } from '../../../shared/types'
 import ContextMenu from '../common/ContextMenu'
 import type { MenuItem } from '../common/ContextMenu'
@@ -429,8 +430,9 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
                 <span>加载对话历史...</span>
               </div>
             ) : isSessionEnded ? '会话已结束，点击下方恢复继续对话' : (
-              /* 会话元信息卡片 */
-              <div className="max-w-md w-full bg-bg-secondary border border-border rounded-xl p-5 space-y-4">
+              /* 会话元信息卡片 - 渐变边框 */
+              <div className="max-w-md w-full rounded-xl p-[1px] bg-gradient-to-br from-accent-blue/30 via-transparent to-accent-purple/30">
+              <div className="bg-bg-secondary border border-border rounded-xl p-5 space-y-4">
                 {/* 顶部：Provider 徽章 + 会话 ID */}
                 <div className="flex items-center justify-between">
                   <span
@@ -474,31 +476,54 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
                   ))}
                 </div>
               </div>
+              </div>
             )}
           </div>
         ) : (
-          messageGroups.map((group) => {
+          messageGroups.map((group, idx) => {
+            // 时间分割线：相邻 message 类型消息间隔超过 5 分钟时显示
+            const elements: ReactNode[] = []
+            if (group.type === 'message') {
+              const prevGroup = idx > 0 ? messageGroups[idx - 1] : null
+              if (prevGroup?.type === 'message') {
+                const prevTime = new Date(prevGroup.message.timestamp || '').getTime()
+                const curTime = new Date(group.message.timestamp || '').getTime()
+                if (prevTime && curTime && (curTime - prevTime) > 5 * 60 * 1000) {
+                  const timeLabel = new Date(curTime).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
+                  elements.push(
+                    <div key={`divider-${group.message.id}`} className="flex items-center gap-3 my-4">
+                      <div className="flex-1 border-t border-border/40" />
+                      <span className="text-[10px] text-text-muted">{timeLabel}</span>
+                      <div className="flex-1 border-t border-border/40" />
+                    </div>
+                  )
+                }
+              }
+            }
+
             if (group.type === 'tool_group') {
               const groupKey = `tg-${group.messages[0]?.id}`
-              return (
+              elements.push(
                 <ToolOperationGroup
                   key={groupKey}
                   messages={group.messages}
                   isActive={group.isActive && isStreaming}
                 />
               )
+            } else if (group.type === 'file_change') {
+              elements.push(<FileChangeCard key={group.message.id} message={group.message} />)
+            } else {
+              elements.push(<MessageBubble key={group.message.id} message={group.message} isStreaming={isStreaming} />)
             }
-            if (group.type === 'file_change') {
-              return <FileChangeCard key={group.message.id} message={group.message} />
-            }
-            return <MessageBubble key={group.message.id} message={group.message} isStreaming={isStreaming} />
+            return <React.Fragment key={group.type === 'message' ? group.message.id : `tg-${group.messages?.[0]?.id || idx}`}>{elements}</React.Fragment>
           })
         )}
 
-        {/* 流式响应指示器 - 带实时计时器 */}
+        {/* 流式响应指示器 - 带实时计时器 + 渐变扫光动画 */}
         {isStreaming && (
           <div className="flex justify-start mb-3">
-            <div className="bg-bg-secondary rounded-lg px-3 py-2 text-sm text-text-muted flex items-center gap-2">
+            <div className="bg-bg-secondary rounded-lg px-3 py-2 text-sm text-text-muted flex items-center gap-2 relative overflow-hidden">
+              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-accent-blue/5 to-transparent animate-pulse" />
               <span className="inline-block w-3 h-3 border border-text-muted/50 border-t-accent-blue rounded-full animate-spin flex-shrink-0" />
               <span>AI 正在思考...</span>
               {thinkingSeconds > 0 && (
@@ -567,6 +592,20 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
           />
         )}
 
+        {/* AI 运行中：停止按钮（sticky 定位在滚动区域底部） */}
+        {isStreaming && (
+          <div className="sticky bottom-0 flex justify-center py-2 bg-gradient-to-t from-bg-primary via-bg-primary/95 to-transparent z-10">
+            <button
+              onClick={abortSession}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-bg-secondary border border-border rounded-full text-xs text-text-secondary hover:text-accent-red hover:border-accent-red/50 hover:bg-accent-red/5 transition-all shadow-sm"
+              title="停止 AI 思考（软中断，会话保持可用）"
+            >
+              <span className="inline-block w-2 h-2 rounded-sm bg-current opacity-80" />
+              停止生成
+            </button>
+          </div>
+        )}
+
         {/* 右键菜单（Portal 渲染，挂在 body 上） */}
         <ContextMenu
           visible={ctxMenu.visible}
@@ -580,20 +619,6 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
       {/* 输入区域 */}
       {!isSessionEnded && (
         <div className="relative">
-          {/* AI 运行中：显示停止按钮栏 */}
-          {isStreaming && (
-            <div className="absolute -top-10 left-0 right-0 flex justify-center z-10">
-              <button
-                onClick={abortSession}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-bg-secondary border border-border rounded-full text-xs text-text-secondary hover:text-accent-red hover:border-accent-red/50 hover:bg-accent-red/5 transition-all shadow-sm"
-                title="停止 AI 思考（软中断，会话保持可用）"
-              >
-                <span className="inline-block w-2 h-2 rounded-sm bg-current opacity-80" />
-                停止生成
-              </button>
-            </div>
-          )}
-
           {/* Skill 快捷按钮 + MCP 状态 */}
           <SessionToolbar
             sessionId={sessionId}

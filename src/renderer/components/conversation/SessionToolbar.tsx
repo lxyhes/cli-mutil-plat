@@ -14,6 +14,7 @@
  */
 
 import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react'
+import { Zap, Plug } from 'lucide-react'
 import { useSessionStore } from '../../stores/sessionStore'
 import { useSkillStore } from '../../stores/skillStore'
 import { useMcpStore } from '../../stores/mcpStore'
@@ -278,7 +279,7 @@ const SessionToolbar: React.FC<SessionToolbarProps> = ({ sessionId, onSkillClick
               transition-colors cursor-pointer select-none
               ${skillPopoverOpen ? 'border-accent-blue/40 text-text-secondary' : 'border-border'}`}
           >
-            <span>⚡</span>
+            <Zap size={12} />
             <span>{skillList.length} 个 Skill</span>
           </button>
 
@@ -408,7 +409,7 @@ const SessionToolbar: React.FC<SessionToolbarProps> = ({ sessionId, onSkillClick
               transition-colors cursor-pointer select-none
               ${mcpPopoverOpen ? 'border-accent-blue/40 text-text-secondary' : 'border-border'}`}
           >
-            <span>🔌</span>
+            <Plug size={12} />
             <span>{mcpList.length} 个 MCP</span>
           </button>
 

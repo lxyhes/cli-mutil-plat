@@ -273,12 +273,15 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({ message, isStreaming }) =
         }}
       >
         <div
-          className={`max-w-[80%] rounded-lg px-3 py-2 text-sm ${
+          className={`max-w-[80%] rounded-lg px-3 py-2 text-sm relative ${
             isUser
-              ? 'bg-accent-blue/20 text-text-primary'
+              ? 'bg-accent-blue/15 border-l-2 border-accent-blue/50 text-text-primary'
               : 'bg-bg-secondary text-text-primary'
           }`}
         >
+          {/* AI 消息左侧竖线标识 */}
+          {!isUser && <div className="absolute left-0 top-2 bottom-2 w-0.5 rounded-full bg-accent-purple/30" />}
+
           {/* 思考内容（折叠显示） */}
           {thinkingText && <ThinkingBlock text={thinkingText} />}
 
@@ -340,7 +343,7 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({ message, isStreaming }) =
           {timestamp && (
             <div className={`flex mt-1 ${isUser ? 'justify-end' : 'justify-end'}`}>
               <span
-                className="text-[10px] text-text-muted/40 cursor-default select-none hover:text-text-muted/70 transition-colors"
+                className="text-[10px] text-text-muted/50 cursor-default select-none hover:text-text-muted/80 transition-colors"
                 title={formatExactTime(timestamp)}
               >
                 {formatRelativeTime(timestamp)}
@@ -404,11 +407,14 @@ const ThinkingBlock: React.FC<{ text: string }> = ({ text }) => {
         <span className="italic">思考过程</span>
         <span className="text-[10px] text-text-muted/40">({Math.ceil(text.length / 100) * 100}字符)</span>
       </button>
-      {expanded && (
+      <div
+        className="overflow-hidden transition-all duration-300 ease-in-out"
+        style={{ maxHeight: expanded ? '2000px' : '0px', opacity: expanded ? 1 : 0 }}
+      >
         <div className="mt-1 text-xs text-text-muted/70 whitespace-pre-wrap border-l-2 border-accent-purple/30 pl-2 bg-bg-tertiary/30 rounded-r py-1">
           {text}
         </div>
-      )}
+      </div>
     </div>
   )
 }

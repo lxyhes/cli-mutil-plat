@@ -1119,7 +1119,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
       )}
 
       <div className={`flex flex-col p-2 bg-bg-input border rounded-xl transition-colors shadow-sm
-        ${dragOver ? 'border-accent-blue' : 'border-border'}`}>
+        ${dragOver ? 'border-accent-blue' : 'border-border'} focus-within:border-accent-blue/50`}>
 
         {/* 附件区域：图片预览 + 文件引用卡片（有附件时显示） */}
         {hasAttachments && (
@@ -1266,7 +1266,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
               disabled:opacity-30 disabled:cursor-not-allowed
               transition-colors whitespace-nowrap flex-shrink-0"
           >
-            {sending ? '...' : '发送'}
+            {sending ? <span className="inline-block w-3 h-3 border-2 border-white/40 border-t-white rounded-full animate-spin" /> : '发送'}
           </button>
         </div>
       </div>

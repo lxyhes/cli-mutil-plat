@@ -133,7 +133,7 @@ export const SessionItem = React.memo(function SessionItem({
             <AlertCircle className="w-3 h-3 text-accent-yellow" />
           )}
           <div
-            className="w-1.5 h-1.5 rounded-full"
+            className={`w-2 h-2 rounded-full ${session.status === 'running' ? 'animate-pulse' : ''}`}
             style={{ backgroundColor: isStuck ? '#f97316' : statusColor }}
           />
           <span className="text-[10px]" style={{ color: isStuck ? '#f97316' : statusColor }}>
