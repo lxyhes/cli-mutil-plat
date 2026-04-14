@@ -717,6 +717,206 @@ export class KnowledgeCenterService {
   }
 
   /**
+   * 公开迁移方法 - 从所有旧表迁移数据到新统一表
+   * 可被主进程调用以执行初始数据迁移
+   */
+  async migrateAllData(): Promise<{
+    projectKnowledge: number
+    crossSessionMemory: number
+    workingMemory: number
+    total: number
+  }> {
+    const result = {
+      projectKnowledge: 0,
+      crossSessionMemory: 0,
+      workingMemory: 0,
+      total: 0
+    }
+
+    if (!this.db) {
+      console.error('[KnowledgeCenter] 数据库未初始化，无法迁移')
+      return result
+    }
+
+    try {
+      // 1. 从 project_knowledge 迁移
+      if (this.projectKnowledgeService) {
+        const projectEntries = this.rawDbAll('SELECT * FROM project_knowledge')
+        for (const row of projectEntries) {
+          const existing = this.db.prepare(
+            'SELECT id FROM unified_knowledge WHERE id = ?'
+          ).get(row.id) as any
+
+          if (!existing) {
+            await this.createEntry({
+              type: 'project-knowledge',
+              scope: 'project',
+              lifecycle: 'persistent',
+              projectPath: row.project_path,
+              category: row.category as any,
+              title: row.title,
+              content: row.content,
+              tags: JSON.parse(row.tags || '[]'),
+              priority: row.priority as any,
+              autoInject: Boolean(row.auto_inject),
+              source: row.source as any,
+              metadata: {}
+            })
+            result.projectKnowledge++
+          }
+        }
+      }
+
+      // 2. 从 cross_session_memory 迁移 (如果表存在)
+      if (this.crossSessionMemoryService) {
+        try {
+          const memoryEntries = this.rawDbAll(`
+            SELECT * FROM cross_session_memory
+            ORDER BY created_at DESC
+            LIMIT 1000
+          `)
+          for (const row of memoryEntries) {
+            // 为每个记忆生成统一条目
+            await this.createEntry({
+              type: 'cross-session-memory',
+              scope: 'global',
+              lifecycle: 'persistent',
+              sessionId: row.session_id,
+              category: 'summary',
+              title: row.session_name || '会话摘要',
+              content: row.summary || '',
+              tags: JSON.parse(row.keywords || '[]'),
+              priority: 'medium',
+              autoInject: true,
+              source: 'ai-generated',
+              metadata: {
+                keyPoints: row.key_points || '',
+                originalId: row.id
+              }
+            })
+            result.crossSessionMemory++
+          }
+        } catch (err) {
+          console.warn('[KnowledgeCenter] 跨会话记忆表可能不存在:', err)
+        }
+      }
+
+      // 3. 从 working_context 迁移 (如果表存在)
+      if (this.workingContextService) {
+        try {
+          const contextEntries = this.rawDbAll(`
+            SELECT * FROM working_context
+            ORDER BY updated_at DESC
+            LIMIT 1000
+          `)
+          for (const row of contextEntries) {
+            const context = JSON.parse(row.context_data || '{}')
+            
+            // 迁移当前任务
+            if (context.currentTask) {
+              await this.createEntry({
+                type: 'working-memory',
+                scope: 'project',
+                lifecycle: 'temporary',
+                sessionId: row.session_id,
+                category: 'task',
+                title: '当前任务',
+                content: context.currentTask,
+                priority: 'medium',
+                autoInject: true,
+                source: 'manual',
+                metadata: { itemType: 'task' }
+              })
+            }
+
+            // 迁移问题
+            if (context.problems) {
+              for (const problem of context.problems) {
+                await this.createEntry({
+                  type: 'working-memory',
+                  scope: 'project',
+                  lifecycle: 'temporary',
+                  sessionId: row.session_id,
+                  category: 'task',
+                  title: '问题',
+                  content: problem.content,
+                  priority: 'medium',
+                  autoInject: false,
+                  source: 'manual',
+                  metadata: { itemType: 'problem', resolved: problem.resolved }
+                })
+                result.workingMemory++
+              }
+            }
+
+            // 迁移决策
+            if (context.decisions) {
+              for (const decision of context.decisions) {
+                await this.createEntry({
+                  type: 'working-memory',
+                  scope: 'project',
+                  lifecycle: 'temporary',
+                  sessionId: row.session_id,
+                  category: 'task',
+                  title: '决策',
+                  content: decision.content,
+                  priority: 'medium',
+                  autoInject: false,
+                  source: 'manual',
+                  metadata: { itemType: 'decision' }
+                })
+                result.workingMemory++
+              }
+            }
+
+            // 迁移待办
+            if (context.todos) {
+              for (const todo of context.todos) {
+                await this.createEntry({
+                  type: 'working-memory',
+                  scope: 'project',
+                  lifecycle: 'temporary',
+                  sessionId: row.session_id,
+                  category: 'task',
+                  title: '待办',
+                  content: todo.content,
+                  priority: 'medium',
+                  autoInject: false,
+                  source: 'manual',
+                  metadata: { itemType: 'todo', resolved: todo.resolved }
+                })
+                result.workingMemory++
+              }
+            }
+          }
+        } catch (err) {
+          console.warn('[KnowledgeCenter] 工作记忆表可能不存在:', err)
+        }
+      }
+
+      result.total = result.projectKnowledge + result.crossSessionMemory + result.workingMemory
+      console.log(`[KnowledgeCenter] 数据迁移完成: 项目知识 ${result.projectKnowledge}, 跨会话记忆 ${result.crossSessionMemory}, 工作记忆 ${result.workingMemory}`)
+    } catch (err) {
+      console.error('[KnowledgeCenter] 数据迁移失败:', err)
+    }
+
+    return result
+  }
+
+  /**
+   * 辅助方法 - 执行原始 SQL 查询获取所有行
+   */
+  private rawDbAll(sql: string): any[] {
+    if (!this.db) return []
+    try {
+      const stmt = this.db.prepare(sql)
+      return stmt.all()
+    } catch {
+      return []
+    }
+  }
+
+  /**
    * 行数据转换为条目对象
    */
   private rowToEntry(row: any): UnifiedKnowledgeEntry {

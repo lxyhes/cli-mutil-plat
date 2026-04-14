@@ -999,6 +999,19 @@ app.whenReady().then(() => {
     workingContextService
   )
   
+  // ★ 执行数据迁移（从旧表到新统一表）
+  try {
+    const migrationResult = await knowledgeCenterService.migrateAllData()
+    if (migrationResult.total > 0) {
+      console.log(`[KnowledgeCenter] 数据迁移成功: ${migrationResult.total} 条 (项目知识: ${migrationResult.projectKnowledge}, 跨会话记忆: ${migrationResult.crossSessionMemory}, 工作记忆: ${migrationResult.workingMemory})`)
+    }
+  } catch (err) {
+    console.warn('[KnowledgeCenter] 数据迁移失败（可能是首次使用，无旧数据）:', err)
+  }
+  
+  // ★ 注入知识中心服务到 SessionManagerV2，用于新会话统一注入知识
+  sessionManagerV2.setKnowledgeCenterService(knowledgeCenterService)
+  
   codeReviewService = new CodeReviewService(database, fileChangeTracker, gitWorktreeServiceRef)
   sessionReplayService = new SessionReplayService(database)
   contextBudgetService = new ContextBudgetService(database)

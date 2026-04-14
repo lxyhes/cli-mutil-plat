@@ -199,6 +199,7 @@ export class SessionManagerV2 extends EventEmitter implements MemoryManagedCompo
   private database?: any   // DatabaseManager（可选，用于 Skill 拦截）
   private lockManager?: LockManager
   private projectKnowledgeService?: any  // ProjectKnowledgeService（可选，用于新会话注入项目知识）
+  private knowledgeCenterService?: any   // KnowledgeCenterService（统一知识注入）
   private lastCleanupTime?: Date
 
   private thinkingBuffers: Map<string, string> = new Map()
@@ -227,6 +228,10 @@ export class SessionManagerV2 extends EventEmitter implements MemoryManagedCompo
   /** 注入项目知识服务（用于新会话自动注入项目知识） */
   setProjectKnowledgeService(service: any): void {
     this.projectKnowledgeService = service
+  }
+
+  setKnowledgeCenterService(service: any): void {
+    this.knowledgeCenterService = service
   }
 
   private queueTextDelta(sessionId: string, text: string, timestamp: string): void {
@@ -501,13 +506,34 @@ export class SessionManagerV2 extends EventEmitter implements MemoryManagedCompo
           : undefined
 
         // ★ 获取项目知识（自动注入标记的知识条目）
+        // 优先使用 KnowledgeCenterService（统一注入），回退到 projectKnowledgeService
         let projectKnowledgePrompt = ''
-        if (this.projectKnowledgeService && config.workingDirectory) {
+        
+        if (this.knowledgeCenterService && config.workingDirectory) {
+          // 使用统一知识中心注入
+          try {
+            const result = await this.knowledgeCenterService.generateInjectionPrompt(
+              config.workingDirectory,
+              config.initialPrompt,  // 会话目标用于匹配记忆
+              id                      // 会话ID用于工作记忆
+            )
+            if (result?.prompt) {
+              projectKnowledgePrompt = '\n\n' + result.prompt
+              console.log(`[SessionManagerV2] Injected unified knowledge: ${result.totalLength} chars, ${result.injectedEntries?.length || 0} entries`)
+            }
+          } catch (err) {
+            console.warn('[SessionManagerV2] Failed to get unified knowledge:', err)
+            // 回退到旧方法
+          }
+        }
+        
+        // 回退:如果统一注入失败或未配置,使用旧的项目知识服务
+        if (!projectKnowledgePrompt && this.projectKnowledgeService && config.workingDirectory) {
           try {
             const result = this.projectKnowledgeService.getPrompt(config.workingDirectory)
             if (result?.success && result.prompt) {
               projectKnowledgePrompt = '\n\n' + result.prompt
-              console.log(`[SessionManagerV2] Injected project knowledge: ${result.prompt.length} chars`)
+              console.log(`[SessionManagerV2] Injected project knowledge (fallback): ${result.prompt.length} chars`)
             }
           } catch (err) {
             console.warn('[SessionManagerV2] Failed to get project knowledge:', err)

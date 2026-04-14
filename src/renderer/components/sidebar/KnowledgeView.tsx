@@ -19,6 +19,7 @@ import { useSessionStore } from '../../stores/sessionStore'
 import type { UnifiedKnowledgeType, UnifiedKnowledgeEntry } from '../../../shared/knowledgeCenterTypes'
 import KnowledgeCard, { CategoryBadge, TypeIcon } from '../knowledge/KnowledgeCard'
 import EntryForm from '../knowledge/EntryForm'
+import WorkingMemoryPanel from '../knowledge/WorkingMemoryPanel'
 
 // Tab 配置
 const TABS: { id: UnifiedKnowledgeType; label: string; icon: React.ComponentType<{ className?: string }>; description: string; color: string }[] = [
@@ -496,8 +497,13 @@ export default function KnowledgeView() {
 
       {/* ===== 内容列表 ===== */}
       <div className="flex-1 overflow-y-auto">
+        {/* 工作记忆专用面板 */}
+        {currentTab === 'working-memory' && selectedSessionId && projectPath && (
+          <WorkingMemoryPanel sessionId={selectedSessionId} projectPath={projectPath} />
+        )}
+
         {/* 跨会话记忆搜索结果 */}
-        {currentTab === 'cross-session-memory' && memorySearchResults.length > 0 && (
+        {currentTab !== 'working-memory' && currentTab === 'cross-session-memory' && memorySearchResults.length > 0 && (
           <div className="px-3 py-2 border-b border-border bg-accent-blue/5">
             <div className="flex items-center justify-between mb-2">
               <span className="text-xs text-accent-blue">搜索结果 ({memorySearchResults.length})</span>
@@ -522,47 +528,49 @@ export default function KnowledgeView() {
         )}
 
         {/* 主列表 */}
-        {filteredEntries.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-12 text-text-muted">
-            <TabIcon className="w-7 h-7 mb-3 opacity-30" />
-            <p className="text-sm mb-1">
-              {searchQuery || filterCategory ? '未找到匹配' : '暂无知识条目'}
-            </p>
-            <p className="text-[10px]">
-              {currentTab === 'project-knowledge' && '点击 ✨ 从项目文件提取 · 🔮 从会话对话提取'}
-              {currentTab === 'cross-session-memory' && '会话结束后自动生成摘要'}
-              {currentTab === 'working-memory' && '工作过程中自动记录关键信息'}
-            </p>
-          </div>
-        ) : (
-          <div className="divide-y divide-border">
-            {filteredEntries.map(entry => (
-              <div key={entry.id} className="group">
-                <KnowledgeCard
-                  entry={entry}
-                  selected={selectedIds.has(entry.id)}
-                  onToggleSelect={showBatchOps ? () => store.toggleSelect(entry.id) : undefined}
-                  onEdit={currentTab === 'project-knowledge' ? () => setEditingId(entry.id) : undefined}
-                  onDelete={() => handleDelete(entry.id)}
-                  onToggleInject={(autoInject) => handleToggleInject(entry.id, autoInject)}
-                  batchMode={showBatchOps}
-                />
-              </div>
-            ))}
+        {currentTab !== 'working-memory' && (
+          filteredEntries.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-12 text-text-muted">
+              <TabIcon className="w-7 h-7 mb-3 opacity-30" />
+              <p className="text-sm mb-1">
+                {searchQuery || filterCategory ? '未找到匹配' : '暂无知识条目'}
+              </p>
+              <p className="text-[10px]">
+                {currentTab === 'project-knowledge' && '点击 ✨ 从项目文件提取 · 🔮 从会话对话提取'}
+                {currentTab === 'cross-session-memory' && '会话结束后自动生成摘要'}
+                {currentTab === 'working-memory' && '工作过程中自动记录关键信息'}
+              </p>
+            </div>
+          ) : (
+            <div className="divide-y divide-border">
+              {filteredEntries.map(entry => (
+                <div key={entry.id} className="group">
+                  <KnowledgeCard
+                    entry={entry}
+                    selected={selectedIds.has(entry.id)}
+                    onToggleSelect={showBatchOps ? () => store.toggleSelect(entry.id) : undefined}
+                    onEdit={currentTab === 'project-knowledge' ? () => setEditingId(entry.id) : undefined}
+                    onDelete={() => handleDelete(entry.id)}
+                    onToggleInject={(autoInject) => handleToggleInject(entry.id, autoInject)}
+                    batchMode={showBatchOps}
+                  />
+                </div>
+              ))}
 
-            {/* 加载更多 */}
-            {pagination.hasMore && (
-              <div className="px-3 py-2 flex justify-center">
-                <button
-                  onClick={handleLoadMore}
-                  disabled={loading}
-                  className="px-3 py-1 text-xs text-text-secondary hover:text-accent-blue disabled:opacity-50 transition-colors"
-                >
-                  {loading ? '加载中...' : '加载更多'}
-                </button>
-              </div>
-            )}
-          </div>
+              {/* 加载更多 */}
+              {pagination.hasMore && (
+                <div className="px-3 py-2 flex justify-center">
+                  <button
+                    onClick={handleLoadMore}
+                    disabled={loading}
+                    className="px-3 py-1 text-xs text-text-secondary hover:text-accent-blue disabled:opacity-50 transition-colors"
+                  >
+                    {loading ? '加载中...' : '加载更多'}
+                  </button>
+                </div>
+              )}
+            </div>
+          )
         )}
       </div>
 
