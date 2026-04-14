@@ -366,7 +366,8 @@ const SessionToolbar: React.FC<SessionToolbarProps> = ({ sessionId, onSkillClick
                     builtin: '内置技能',
                     native:  'CLI 原生命令',
                   }
-                  for (const skill of filteredSkillList) {
+                  for (let i = 0; i < filteredSkillList.length; i++) {
+                    const skill = filteredSkillList[i]
                     if (skill.source !== lastSource) {
                       // 分组 header（除第一组外加上间距）
                       elements.push(
@@ -385,7 +386,7 @@ const SessionToolbar: React.FC<SessionToolbarProps> = ({ sessionId, onSkillClick
                     }
                     elements.push(
                       <button
-                        key={skill.slashCommand}
+                        key={`skill-${i}-${skill.source}-${skill.slashCommand}`}
                         onClick={() => handleSkillSelect(skill)}
                         className="w-full px-3 py-1.5 flex items-start gap-2 text-left
                           hover:bg-bg-hover transition-colors"
