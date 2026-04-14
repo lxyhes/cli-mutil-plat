@@ -14,7 +14,7 @@
  */
 
 import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react'
-import { Zap, Plug } from 'lucide-react'
+import { Zap, Plug, Cpu, Users } from 'lucide-react'
 import { useSessionStore } from '../../stores/sessionStore'
 import { useSkillStore } from '../../stores/skillStore'
 import { useMcpStore } from '../../stores/mcpStore'
@@ -110,6 +110,12 @@ const SessionToolbar: React.FC<SessionToolbarProps> = ({ sessionId, onSkillClick
   const providerId = useSessionStore(s =>
     s.sessions.find(sess => sess.id === sessionId)?.providerId
   )
+  // 当前会话是否为 Supervisor 模式
+  const isSupervisor = useSessionStore(s =>
+    !!s.sessions.find(sess => sess.id === sessionId)?.config?.supervisorMode
+  )
+  // 当前使用的模型
+  const currentModel = initData?.model || ''
   const allSkills = useSkillStore(s => s.skills)
   const fetchSkills = useSkillStore(s => s.fetchAll)
   const allMcpServers = useMcpStore(s => s.servers)
@@ -261,11 +267,29 @@ const SessionToolbar: React.FC<SessionToolbarProps> = ({ sessionId, onSkillClick
     }
   }, [onSkillClick, onSkillExecute])
 
-  // 无内容时不渲染，保持原有布局不变
-  if (skillList.length === 0 && mcpList.length === 0) return null
-
   return (
     <div className="px-4 pt-1.5 pb-0 flex items-center gap-1.5 bg-bg-primary">
+
+      {/* ---- 会话模式 + 模型信息 ---- */}
+      <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-md text-xs bg-bg-secondary border border-border text-text-muted select-none">
+        <span className={`inline-block w-1.5 h-1.5 rounded-full ${isSupervisor ? 'bg-accent-green' : 'bg-accent-blue'}`} />
+        {isSupervisor ? (
+          <Users size={11} className="text-accent-green flex-shrink-0" />
+        ) : (
+          <Cpu size={11} className="text-accent-blue/60 flex-shrink-0" />
+        )}
+        <span className="text-text-secondary font-medium">
+          {isSupervisor ? 'Supervisor' : '普通会话'}
+        </span>
+        {currentModel && (
+          <>
+            <span className="text-text-muted/40">·</span>
+            <span className="text-text-muted truncate max-w-[180px]" title={currentModel}>
+              {currentModel}
+            </span>
+          </>
+        )}
+      </div>
 
       {/* ---- Skill 按钮 ---- */}
       {skillList.length > 0 && (
@@ -425,11 +449,11 @@ const SessionToolbar: React.FC<SessionToolbarProps> = ({ sessionId, onSkillClick
                 当前会话已启用 MCP
               </div>
               <div className="max-h-72 overflow-y-auto" style={{ scrollbarWidth: 'thin' }}>
-                {mcpList.map(mcp => {
+                {mcpList.map((mcp, mcpIdx) => {
                   const isExpanded = expandedMcps.has(mcp.key)
                   const hasTools = mcp.tools && mcp.tools.length > 0
                   return (
-                    <div key={mcp.key}>
+                    <div key={`mcp-${mcpIdx}-${mcp.key}`}>
                       {/* MCP 服务器行 */}
                       <div
                         className={`px-3 py-1.5 flex items-center gap-2 ${hasTools ? 'cursor-pointer hover:bg-bg-hover' : ''} transition-colors`}
@@ -454,8 +478,8 @@ const SessionToolbar: React.FC<SessionToolbarProps> = ({ sessionId, onSkillClick
                           <div className="px-4 py-0.5 text-[10px] text-text-muted">
                             {mcp.tools.length} 个工具
                           </div>
-                          {mcp.tools.map((tool: string) => (
-                            <div key={tool} className="px-5 py-0.5 flex items-center gap-1.5">
+                          {mcp.tools.map((tool: string, toolIdx: number) => (
+                            <div key={`tool-${mcpIdx}-${toolIdx}`} className="px-5 py-0.5 flex items-center gap-1.5">
                               <span className="text-text-muted text-[10px]">›</span>
                               <span className="text-[11px] text-text-secondary font-mono truncate">{tool}</span>
                             </div>
