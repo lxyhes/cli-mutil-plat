@@ -238,11 +238,11 @@ Your summary:`
       // 通过 AI SDK 直接调用（不创建会话）
 
       // 方案1: 通过临时会话调用
-      const result = await this.callAiDirectly(prompt, providerId, model)
+      const { text: result, usage } = await this.callAiDirectly(prompt, providerId, model)
 
       // 使用真实 token 用量（如果 SDK 返回了），否则估算
-      const inputTokens = this._lastUsage?.inputTokens ?? Math.ceil(prompt.length / 4)
-      const outputTokens = this._lastUsage?.outputTokens ?? Math.ceil(result.length / 4)
+      const inputTokens = usage?.inputTokens ?? Math.ceil(prompt.length / 4)
+      const outputTokens = usage?.outputTokens ?? Math.ceil(result.length / 4)
       const tokensUsed = inputTokens + outputTokens
       const costUsd = this.estimateCost(inputTokens, outputTokens, model)
 
@@ -282,8 +282,8 @@ ${conversationText}
 Key points (in Chinese if conversation is Chinese, otherwise English):`
 
     try {
-      const result = await this.callAiDirectly(prompt, providerId, model)
-      return result
+      const { text } = await this.callAiDirectly(prompt, providerId, model)
+      return text
     } catch (err) {
       console.error('[SummaryService] callAiForKeyPoints error:', err)
       return `Key points extraction failed: ${(err as Error).message}`
@@ -293,8 +293,13 @@ Key points (in Chinese if conversation is Chinese, otherwise English):`
   /**
    * 直接调用 AI（不创建会话，用于摘要生成）
    * 支持：Claude SDK / OpenAI SDK / CLI fallback
+   * 返回文本和 token 用量（避免实例变量并发问题）
    */
-  private async callAiDirectly(prompt: string, providerId: string, model: string): Promise<string> {
+  private async callAiDirectly(
+    prompt: string,
+    providerId: string,
+    model: string,
+  ): Promise<{ text: string; usage?: { inputTokens: number; outputTokens: number } }> {
     // 尝试使用 Claude SDK
     if (providerId === 'claude' || providerId === 'claude-code') {
       try {
@@ -312,15 +317,11 @@ Key points (in Chinese if conversation is Chinese, otherwise English):`
           .map((block) => (block as any).text)
           .join('\n')
 
-        // 使用真实 token 用量
-        if (msg.usage) {
-          this._lastUsage = {
-            inputTokens: msg.usage.input_tokens,
-            outputTokens: msg.usage.output_tokens,
-          }
-        }
+        const usage = msg.usage
+          ? { inputTokens: msg.usage.input_tokens, outputTokens: msg.usage.output_tokens }
+          : undefined
 
-        return text || 'No response from AI'
+        return { text: text || 'No response from AI', usage }
       } catch (sdkErr) {
         console.warn('[SummaryService] Claude SDK unavailable, trying other providers:', (sdkErr as Error).message)
       }
@@ -339,34 +340,37 @@ Key points (in Chinese if conversation is Chinese, otherwise English):`
         })
 
         const text = response.choices[0]?.message?.content || 'No response from AI'
+        const usage = response.usage
+          ? { inputTokens: response.usage.prompt_tokens, outputTokens: response.usage.completion_tokens }
+          : undefined
 
-        if (response.usage) {
-          this._lastUsage = {
-            inputTokens: response.usage.prompt_tokens,
-            outputTokens: response.usage.completion_tokens,
-          }
-        }
-
-        return text
+        return { text, usage }
       } catch (sdkErr) {
         console.warn('[SummaryService] OpenAI SDK unavailable, trying CLI:', (sdkErr as Error).message)
       }
     }
 
-    // 备选: 使用 process spawn 调用 CLI
-    return this.callCliDirectly(prompt)
+    // 备选: 使用 CLI 直接调用
+    const cliResult = await this.callCliDirectly(prompt, providerId)
+    return { text: cliResult }
   }
 
-  /** 上一次 AI 调用的 token 用量（SDK 返回的真实值） */
-  private _lastUsage: { inputTokens: number; outputTokens: number } | null = null
-
   /**
-   * 通过 CLI 直接调用 AI
+   * 通过 CLI 直接调用 AI（支持多种 CLI provider）
    */
-  private callCliDirectly(prompt: string): Promise<string> {
+  private callCliDirectly(prompt: string, providerId?: string): Promise<string> {
     return new Promise((resolve, reject) => {
       const { spawn } = require('child_process')
-      const proc = spawn('claude', ['--print', '--no-input', prompt], {
+      // 根据 provider 选择对应的 CLI
+      const cliMap: Record<string, string> = {
+        'claude-code': 'claude',
+        'claude': 'claude',
+        'gemini-cli': 'gemini',
+        'qwen-coder': 'qwen',
+        'opencode': 'opencode',
+      }
+      const cliCmd = cliMap[providerId || ''] || 'claude'
+      const proc = spawn(cliCmd, ['--print', prompt], {
         timeout: 30000,
       })
 
@@ -379,7 +383,7 @@ Key points (in Chinese if conversation is Chinese, otherwise English):`
         if (code === 0) {
           resolve(stdout.trim())
         } else {
-          reject(new Error(`claude CLI exit code ${code}: ${stderr}`))
+          reject(new Error(`${cliCmd} CLI exit code ${code}: ${stderr}`))
         }
       })
       proc.on('error', reject)

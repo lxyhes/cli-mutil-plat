@@ -113,6 +113,8 @@ export class CrossSessionMemoryService extends EventEmitter {
   private sqliteDb: any = null
   /** 信号去重指纹缓存（fingerprint → timestamp） */
   private dedupCache: Map<string, number> = new Map()
+  /** 定期清理 dedupCache 的定时器 */
+  private dedupCleanupTimer: ReturnType<typeof setInterval> | null = null
   /** Rolling Summary 配置 */
   private rollingSummaryInterval: ReturnType<typeof setInterval> | null = null
 
@@ -123,6 +125,8 @@ export class CrossSessionMemoryService extends EventEmitter {
     // 获取底层 SQLite 实例
     this.sqliteDb = (db as any).db || null
     this.ensureSchema()
+    // 每 10 分钟清理过期的 dedupCache 条目
+    this.dedupCleanupTimer = setInterval(() => this.cleanupDedupCache(), 600000)
   }
 
   /** 注入 SummaryService */
@@ -576,8 +580,7 @@ export class CrossSessionMemoryService extends EventEmitter {
     if (summaries.length === 1) return summaries[0]
 
     // 策略1：智能文本合并
-    const parts: string[] = []
-    const uniquePoints = new Set<string>()
+    const uniqueSentences: string[] = []
     const allSentences: string[] = []
 
     // 提取每条摘要的核心句子
@@ -592,36 +595,39 @@ export class CrossSessionMemoryService extends EventEmitter {
         )
         if (!isDuplicate) {
           allSentences.push(sentence)
-          parts.push(sentence)
+          uniqueSentences.push(sentence)
         }
       }
     }
 
     // 提取关键点中的独特内容
+    const uniquePoints: string[] = []
     const pointLines = keyPoints.split(/[\n;；]/).map(p => p.trim()).filter(p => p.length >= 5)
+    const seenPoints = new Set<string>()
     for (const p of pointLines) {
-      if (!uniquePoints.has(p)) {
-        uniquePoints.add(p)
+      if (!seenPoints.has(p)) {
+        seenPoints.add(p)
+        uniquePoints.push(p)
       }
     }
 
     // 按重要性排序句子（含关键词多、含技术术语的排前面）
-    const scoredSentences = parts.map(s => ({
+    const scoredSentences = uniqueSentences.map(s => ({
       sentence: s,
       score: this.scoreSentenceImportance(s),
     })).sort((a, b) => b.score - a.score)
 
     // 取最重要的句子，控制总长度
-    const maxChars = 500
+    const maxChars = 800
     let result = ''
     for (const { sentence } of scoredSentences) {
       if (result.length + sentence.length + 1 > maxChars) break
       result += (result ? '；' : '') + sentence
     }
 
-    const uniqueStr = [...uniquePoints].slice(0, 10).join('；')
-    return uniqueStr
-      ? `${result}\n关键要点：${uniqueStr}`
+    const keyPointsStr = uniquePoints.slice(0, 10).join('；')
+    return keyPointsStr
+      ? `${result}\n关键要点：${keyPointsStr}`
       : result
   }
 
@@ -647,7 +653,7 @@ export class CrossSessionMemoryService extends EventEmitter {
     // 中文长句加分
     if (/[\u4e00-\u9fff]{4,}/.test(sentence)) score += 1
     // 含关键词加分
-    const importantKeywords = ['架构', '设计', '决策', '修复', '实现', '优化', '安全', 'API', '组件', '架构', 'architecture', 'design', 'fix', 'implement', 'security', 'component']
+    const importantKeywords = ['架构', '设计', '决策', '修复', '实现', '优化', '安全', 'API', '组件', 'architecture', 'design', 'fix', 'implement', 'security', 'component']
     for (const kw of importantKeywords) {
       if (sentence.includes(kw)) score += 2
     }
@@ -686,7 +692,7 @@ export class CrossSessionMemoryService extends EventEmitter {
       const freq: Map<string, number> = new Map()
       for (const row of rows) {
         if (!row.keywords) continue
-        for (const kw of row.keywords.split(',').map(k => k.trim()).filter(Boolean)) {
+        for (const kw of row.keywords.split(',').map((k: string) => k.trim()).filter(Boolean)) {
           freq.set(kw, (freq.get(kw) || 0) + 1)
         }
       }
@@ -772,8 +778,23 @@ export class CrossSessionMemoryService extends EventEmitter {
   /** 清理所有资源 */
   cleanup(): void {
     this.stopRollingSummary()
+    if (this.dedupCleanupTimer) {
+      clearInterval(this.dedupCleanupTimer)
+      this.dedupCleanupTimer = null
+    }
     this.dedupCache.clear()
     this.removeAllListeners()
+  }
+
+  /** 清理过期的 dedupCache 条目（1 小时过期） */
+  private cleanupDedupCache(): void {
+    const now = Date.now()
+    const expiryMs = 3600000 // 1 小时
+    for (const [key, timestamp] of this.dedupCache) {
+      if (now - timestamp > expiryMs) {
+        this.dedupCache.delete(key)
+      }
+    }
   }
 
   // ── Private ─────────────────────────────────────────────

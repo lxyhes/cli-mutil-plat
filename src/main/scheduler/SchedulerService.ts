@@ -171,7 +171,7 @@ export class SchedulerService extends EventEmitter {
 
   // ── 任务执行 ────────────────────────────────────────────
 
-  async executeTask(taskId: string): Promise<void> {
+  async executeTask(taskId: string, triggerType: 'scheduled' | 'manual' = 'scheduled'): Promise<void> {
     const task = this.db.getScheduledTask(taskId)
     if (!task || !task.isEnabled || task.isPaused) return
 
@@ -183,7 +183,7 @@ export class SchedulerService extends EventEmitter {
       id: runId,
       scheduledTaskId: taskId,
       status: 'running',
-      triggerType: 'scheduled',
+      triggerType,
       attemptNumber: 1,
     })
 
@@ -442,17 +442,11 @@ export class SchedulerService extends EventEmitter {
     const task = this.db.getScheduledTask(taskId)
     if (!task) throw new Error(`Task not found: ${taskId}`)
 
-    const runId = `run-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
-    this.db.createTaskRun({
-      id: runId,
-      scheduledTaskId: taskId,
-      status: 'running',
-      triggerType: 'manual',
-      attemptNumber: 1,
-    })
+    // 异步执行（executeTask 内部会创建 TaskRun）
+    this.executeTask(taskId, 'manual').catch(console.error)
 
-    // 异步执行，不阻塞
-    this.executeTask(taskId).catch(console.error)
+    // 返回一个临时 runId 供调用方追踪
+    const runId = `run-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
     return { runId }
   }
 

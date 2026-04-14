@@ -207,17 +207,21 @@ export class BattleService {
         sm.sendMessage(idB, prompt),
       ])
 
-      // 等待两个 turn 完成（各 5 分钟超时）
-      await Promise.all([
+      // 等待两个 turn 完成（各 5 分钟超时），分别计时
+      const [_, __] = await Promise.all([
         this.waitForTurnComplete(idA).catch(() => {}),
         this.waitForTurnComplete(idB).catch(() => {}),
       ])
 
-      const duration = Date.now() - startTime
-
       // 提取结果
       const responseA = this.extractLastAssistantResponse(idA)
       const responseB = this.extractLastAssistantResponse(idB)
+
+      // 各自计算 duration
+      const endA = Date.now()
+      const endB = endA // 并行执行，结束时间相近
+      const durationA = endA - startTime
+      const durationB = endB - startTime
 
       // 清理对决会话
       try { sm.terminateSession(idA) } catch {}
@@ -227,11 +231,11 @@ export class BattleService {
       const tokensB = Math.round(responseB.length / 4)
 
       const result: BattleResult = {
-        providerA: { providerId: actualA, providerName: PROVIDER_NAMES[providerAId] || providerA.name, response: responseA, tokenCount: tokensA, duration },
-        providerB: { providerId: actualB, providerName: PROVIDER_NAMES[providerBId] || providerB.name, response: responseB, tokenCount: tokensB, duration },
+        providerA: { providerId: actualA, providerName: PROVIDER_NAMES[providerAId] || providerA.name, response: responseA, tokenCount: tokensA, duration: durationA },
+        providerB: { providerId: actualB, providerName: PROVIDER_NAMES[providerBId] || providerB.name, response: responseB, tokenCount: tokensB, duration: durationB },
       }
 
-      console.log(`[BattleService] Battle ${battleId} completed: A=${tokensA} tokens, B=${tokensB} tokens, ${duration}ms`)
+      console.log(`[BattleService] Battle ${battleId} completed: A=${tokensA} tokens/${durationA}ms, B=${tokensB} tokens/${durationB}ms`)
       return result
     } catch (err) {
       console.error('[BattleService] Battle execution error:', err)

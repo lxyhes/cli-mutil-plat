@@ -426,14 +426,14 @@ ${recentContext.slice(0, 4000)}
       if (!msg.isDelta && msg.role === 'assistant' && msg.content) {
         responseText = typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content)
         resolved = true
-        this.sessionManagerV2.removeListener('conversation-message', handler)
+        this.sessionManagerV2?.removeListener('conversation-message', handler)
       }
     }
 
-    this.sessionManagerV2.on('conversation-message', handler)
+    this.sessionManagerV2?.on('conversation-message', handler)
 
     try {
-      this.sessionManagerV2.createSession({
+      this.sessionManagerV2?.createSession({
         id: evalSessionId,
         name: '[漂移检测] LLM 增强',
         workingDirectory: process.cwd(),
@@ -441,7 +441,7 @@ ${recentContext.slice(0, 4000)}
         initialPrompt: prompt,
       })
     } catch (err) {
-      this.sessionManagerV2.removeListener('conversation-message', handler)
+      this.sessionManagerV2?.removeListener('conversation-message', handler)
       return
     }
 
@@ -455,7 +455,7 @@ ${recentContext.slice(0, 4000)}
       }, 500)
       setTimeout(() => {
         clearInterval(checkInterval)
-        this.sessionManagerV2.removeListener('conversation-message', handler)
+        this.sessionManagerV2?.removeListener('conversation-message', handler)
         resolve()
       }, 30000)
     })
@@ -473,22 +473,28 @@ ${recentContext.slice(0, 4000)}
       const severityOrder: Record<string, number> = { none: 0, minor: 1, moderate: 2, severe: 3 }
       const llmSeverity = parsed.severity || 'none'
       if (severityOrder[llmSeverity] > severityOrder[heuristicResult.severity]) {
-        // 更新历史记录中的最新检查结果
-        const lastHistory = state.history[state.history.length - 1]
-        if (lastHistory && lastHistory.id === heuristicResult.id) {
-          lastHistory.severity = llmSeverity
-          lastHistory.description = parsed.reasoning || heuristicResult.description
-          lastHistory.suggestion = parsed.suggestion || heuristicResult.suggestion
-
-          // 重新广播更新后的结果
-          this.emit('drift-updated', lastHistory)
-          try {
-            sendToRenderer(IPC.DRIFT_GUARD_STATUS, {
-              type: 'drift-updated',
-              result: lastHistory,
-            })
-          } catch { /* ignore */ }
+        // 创建新的更新结果对象，避免修改已返回给调用者的引用
+        const updatedResult: DriftCheckResult = {
+          ...heuristicResult,
+          severity: llmSeverity,
+          description: parsed.reasoning || heuristicResult.description,
+          suggestion: parsed.suggestion || heuristicResult.suggestion,
         }
+
+        // 替换历史记录中的最新检查结果
+        const lastIdx = state.history.length - 1
+        if (lastIdx >= 0 && state.history[lastIdx].id === heuristicResult.id) {
+          state.history[lastIdx] = updatedResult
+        }
+
+        // 重新广播更新后的结果
+        this.emit('drift-updated', updatedResult)
+        try {
+          sendToRenderer(IPC.DRIFT_GUARD_STATUS, {
+            type: 'drift-updated',
+            result: updatedResult,
+          })
+        } catch { /* ignore */ }
       }
     } catch (err) {
       console.warn('[DriftGuard] Failed to parse LLM enhanced check result:', err)

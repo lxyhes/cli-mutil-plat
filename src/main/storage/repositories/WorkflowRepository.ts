@@ -23,6 +23,7 @@ export interface WorkflowStep {
   trueSteps?: string[]   // step ids
   falseSteps?: string[]  // step ids
   delayMs?: number
+  timeoutSeconds?: number
   retries?: number
   dependsOn?: string[]
 }
@@ -62,6 +63,7 @@ export interface WorkflowRun {
   status: RunStatus
   startedAt?: Date
   completedAt?: Date
+  durationMs?: number
   input: Record<string, any>
   output?: string
   error?: string

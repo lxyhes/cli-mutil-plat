@@ -510,6 +510,7 @@ export class WorkflowService extends EventEmitter {
       this.db.updateWorkflowRun(runId, {
         status: 'completed',
         completedAt: new Date(),
+        durationMs,
         output,
       })
 
@@ -521,6 +522,7 @@ export class WorkflowService extends EventEmitter {
       this.db.updateWorkflowRun(runId, {
         status: 'failed',
         completedAt: new Date(),
+        durationMs,
         error: String(err),
       })
 
@@ -547,14 +549,14 @@ export class WorkflowService extends EventEmitter {
       if (!msg.isDelta && msg.role === 'assistant' && msg.content) {
         output = typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content)
         resolved = true
-        this.sessionManagerV2.removeListener('conversation-message', handler)
+        this.sessionManagerV2?.removeListener('conversation-message', handler)
       }
     }
 
-    this.sessionManagerV2.on('conversation-message', handler)
+    this.sessionManagerV2?.on('conversation-message', handler)
 
     try {
-      this.sessionManagerV2.createSession({
+      this.sessionManagerV2?.createSession({
         id: sessionId,
         name: `[工作流] ${step.name || step.id}`,
         workingDirectory: step.workspaceId || context.workDir || process.cwd(),
@@ -562,7 +564,7 @@ export class WorkflowService extends EventEmitter {
         initialPrompt: prompt,
       })
     } catch (err) {
-      this.sessionManagerV2.removeListener('conversation-message', handler)
+      this.sessionManagerV2?.removeListener('conversation-message', handler)
       throw err
     }
 
@@ -578,7 +580,7 @@ export class WorkflowService extends EventEmitter {
 
       setTimeout(() => {
         clearInterval(checkInterval)
-        this.sessionManagerV2.removeListener('conversation-message', handler)
+        this.sessionManagerV2?.removeListener('conversation-message', handler)
         resolve()
       }, timeoutMs)
     })
