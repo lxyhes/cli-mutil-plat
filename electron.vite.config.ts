@@ -11,6 +11,7 @@ const nativeExternals = [
   'better-sqlite3',
   'bufferutil',
   'utf-8-validate',
+  'openai',
   ...builtinModules,
   ...builtinModules.map((m) => `node:${m}`)
 ]
