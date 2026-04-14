@@ -173,4 +173,149 @@ export class GoalService extends EventEmitter {
     }
     return null
   }
+
+  // ── ★ 链条打通: Goal → Planner ─────────────────────────
+
+  private plannerService: any = null  // PlannerService 引用
+
+  /**
+   * 设置 PlannerService 引用
+   */
+  setPlannerService(plannerService: any): void {
+    this.plannerService = plannerService
+    console.log('[GoalService] PlannerService 已连接')
+  }
+
+  /**
+   * 从 Goal 一键生成 Planner 规划
+   * 将目标自动分解为规划任务列表
+   * 
+   * @param goalId 目标ID
+   * @param sessionId 执行分解的会话ID
+   * @returns 创建的规划对象,如果失败返回null
+   */
+  async generatePlanFromGoal(goalId: string, sessionId: string): Promise<any> {
+    if (!this.plannerService) {
+      throw new Error('PlannerService 未配置,无法生成规划')
+    }
+
+    // 获取目标详情
+    const goal = this.db.getGoal(goalId)
+    if (!goal) {
+      throw new Error(`目标 ${goalId} 不存在`)
+    }
+
+    // 构建目标描述用于 AI 分解
+    const goalDescription = `${goal.title}\n\n${goal.description || ''}`
+
+    console.log(`[GoalService] 从目标生成规划: ${goal.title}`)
+
+    // 调用 PlannerService 创建规划
+    const plan = await this.plannerService.createPlan({
+      sessionId,
+      goal: goalDescription,
+      status: 'idle'
+    })
+
+    if (!plan) {
+      throw new Error('创建规划失败')
+    }
+
+    // 将规划与目标关联(通过活动记录)
+    this.addActivity({
+      goalId,
+      type: 'note',
+      content: JSON.stringify({ planId: plan.id, type: 'plan-generated' }),
+      progressAfter: goal.progress
+    })
+
+    // 触发事件
+    this.emit('plan-generated', { goalId, planId: plan.id })
+
+    return plan
+  }
+
+  /**
+   * ★ 链条打通: Evaluation → Goal
+   * 根据评估结果更新目标进度
+   * 
+   * @param goalId 目标ID
+   * @param evaluationScore 评估分数 (0-100)
+   * @param evaluationSummary 评估摘要
+   */
+  updateProgressFromEvaluation(goalId: string, evaluationScore: number, evaluationSummary?: string): void {
+    const goal = this.db.getGoal(goalId)
+    if (!goal) {
+      throw new Error(`目标 ${goalId} 不存在`)
+    }
+
+    // 计算新进度 (评估分数占70%权重,当前进度占30%)
+    const currentProgress = goal.progress || 0
+    const newProgress = Math.round(currentProgress * 0.3 + evaluationScore * 0.7)
+    const clampedProgress = Math.min(100, Math.max(0, newProgress))
+
+    // 更新目标进度
+    this.db.updateGoal(goalId, { progress: clampedProgress })
+
+    // 记录评估活动
+    this.addActivity({
+      goalId,
+      type: 'review',
+      content: `评估得分: ${evaluationScore}/100${evaluationSummary ? `\n${evaluationSummary}` : ''}`,
+      progressBefore: currentProgress,
+      progressAfter: clampedProgress
+    })
+
+    // 如果进度达到100%,自动标记为已达成
+    if (clampedProgress >= 100 && goal.status !== 'achieved') {
+      this.db.updateGoal(goalId, { status: 'achieved' })
+    }
+
+    console.log(`[GoalService] 目标进度更新: ${goal.title} ${currentProgress}% → ${clampedProgress}% (评估: ${evaluationScore})`)
+
+    this.emit('evaluation-updated', { goalId, score: evaluationScore, newProgress: clampedProgress })
+  }
+
+  /**
+   * ★ 链条打通: DriftGuard → Goal
+   * 检测到漂移时回退目标进度
+   * 
+   * @param goalId 目标ID
+   * @param driftSeverity 漂移严重程度
+   * @param driftSummary 漂移摘要
+   */
+  regressProgressFromDrift(goalId: string, driftSeverity: string, driftSummary?: string): void {
+    const goal = this.db.getGoal(goalId)
+    if (!goal) {
+      throw new Error(`目标 ${goalId} 不存在`)
+    }
+
+    // 根据漂移严重程度决定回退幅度
+    const regressAmount = {
+      'minor': 5,
+      'moderate': 10,
+      'severe': 20
+    }[driftSeverity] || 0
+
+    if (regressAmount === 0) return  // 无漂移,不回退
+
+    const currentProgress = goal.progress || 0
+    const newProgress = Math.max(0, currentProgress - regressAmount)
+
+    // 更新目标进度
+    this.db.updateGoal(goalId, { progress: newProgress })
+
+    // 记录漂移活动
+    this.addActivity({
+      goalId,
+      type: 'note',
+      content: `⚠️ 检测到${driftSeverity}漂移,进度回退 ${regressAmount}%${driftSummary ? `\n${driftSummary}` : ''}`,
+      progressBefore: currentProgress,
+      progressAfter: newProgress
+    })
+
+    console.log(`[GoalService] 漂移检测回退: ${goal.title} ${currentProgress}% → ${newProgress}% (漂移: ${driftSeverity})`)
+
+    this.emit('drift-regressed', { goalId, severity: driftSeverity, newProgress })
+  }
 }
