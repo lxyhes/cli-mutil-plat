@@ -489,7 +489,7 @@ export function SessionsContent() {
       <div className="p-4 border-t border-border">
         <button
           onClick={() => openNewSessionDialog()}
-          className="w-full py-2 px-4 bg-accent-blue text-white rounded hover:bg-opacity-90 btn-transition flex items-center justify-center gap-2"
+          className="w-full py-2 px-4 bg-gradient-to-r from-accent-blue to-accent-blue/80 hover:from-accent-blue/90 hover:to-accent-blue/70 text-white rounded btn-transition flex items-center justify-center gap-2 shadow-sm"
         >
           <Terminal className="w-4 h-4" />
           <span>新建会话</span>

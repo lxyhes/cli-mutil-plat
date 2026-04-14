@@ -68,14 +68,14 @@ export const SessionItem = React.memo(function SessionItem({
     <div
       onClick={() => onSelect(session.id)}
       onContextMenu={(e) => onContextMenu(e, session.id, session.status)}
-      className={`relative overflow-hidden px-2.5 py-2 rounded cursor-pointer btn-transition border ${
+      className={`relative overflow-hidden px-2.5 py-2 rounded cursor-pointer btn-transition border border-l-2 ${
         isSelected
-          ? 'bg-accent-blue/10 border-accent-blue/80'
+          ? 'bg-accent-blue/10 border-accent-blue/80 border-l-accent-blue'
           : isStuck
-            ? 'bg-bg-hover border-orange-500/30 hover:border-orange-500/50'
+            ? 'bg-bg-hover border-orange-500/30 hover:border-orange-500/50 border-l-orange-500/50'
             : needsAttention
-              ? 'bg-bg-hover border-accent-yellow/30 hover:border-accent-yellow/50'
-              : 'bg-bg-hover border-transparent hover:bg-bg-tertiary'
+              ? 'bg-bg-hover border-accent-yellow/30 hover:border-accent-yellow/50 border-l-accent-yellow/50'
+              : 'bg-bg-hover border-transparent border-l-transparent hover:bg-bg-tertiary hover:border-l-accent-blue/30'
       }`}
       style={isSelected ? { boxShadow: 'inset 0 0 0 1px rgba(88, 166, 255, 0.25), 0 4px 12px rgba(0, 0, 0, 0.18)' } : undefined}
     >
