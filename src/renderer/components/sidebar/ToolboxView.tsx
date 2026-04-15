@@ -81,7 +81,6 @@ import ArenaView from './ArenaView'
 import VoiceView from './VoiceView'
 import DailyReportView from './DailyReportView'
 import ContextBudgetView from './ContextBudgetView'
-import KnowledgeView from './KnowledgeView'
 
 function FeatureComponent({ featureId }: { featureId: string }) {
   switch (featureId) {
