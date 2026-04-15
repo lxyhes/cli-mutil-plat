@@ -335,7 +335,7 @@ const SessionToolbar: React.FC<SessionToolbarProps> = ({ sessionId, onSkillClick
     <div className="px-4 pt-1.5 pb-0 flex items-center gap-1.5 bg-bg-primary">
 
       {/* ---- 会话模式 + 模型信息 ---- */}
-      <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-md text-xs bg-bg-secondary border border-border text-text-muted select-none">
+      <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-md text-xs bg-bg-secondary border border-border text-text-muted select-none shadow-sm hover:shadow-md transition-all duration-300">
         <span className={`inline-block w-1.5 h-1.5 rounded-full ${isSupervisor ? 'bg-accent-green' : 'bg-accent-blue'}`} />
         {isSupervisor ? (
           <Users size={11} className="text-accent-green flex-shrink-0" />

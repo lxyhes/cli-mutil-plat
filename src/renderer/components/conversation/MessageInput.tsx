@@ -1119,7 +1119,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
       )}
 
       <div className={`flex flex-col p-2 bg-bg-input border rounded-xl transition-colors shadow-sm
-        ${dragOver ? 'border-accent-blue' : 'border-border'} focus-within:border-accent-blue/50`}>
+        ${dragOver ? 'border-accent-blue' : 'border-border'} focus-within:border-accent-blue/50 md:p-3`}>
 
         {/* 附件区域：图片预览 + 文件引用卡片（有附件时显示） */}
         {hasAttachments && (
@@ -1215,7 +1215,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
               disabled={isDisabled}
               title={`搜索并引用其他会话内容 (${toPlatformShortcutLabel('Ctrl+Shift+F')})`}
               className="p-1.5 rounded-lg text-text-muted hover:text-accent-blue hover:bg-accent-blue/10
-                disabled:opacity-30 disabled:cursor-not-allowed transition-colors flex-shrink-0"
+                disabled:opacity-30 disabled:cursor-not-allowed transition-all flex-shrink-0 hover:scale-105"
             >
               <MessagesSquare size={14} />
             </button>
@@ -1235,7 +1235,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
               px-2 py-1.5 resize-none overflow-y-auto leading-5 min-h-[2rem]
               focus:outline-none focus-visible:outline-none
               disabled:opacity-50 disabled:cursor-not-allowed
-              placeholder:text-text-muted"
+              placeholder:text-text-muted transition-all duration-200"
           />
 
           {/* ★ 语音输入按钮 */}
@@ -1244,7 +1244,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
             onClick={toggleVoiceInput}
             disabled={isDisabled}
             title={isRecording ? '点击停止语音输入' : '点击开始语音输入'}
-            className={`p-1.5 rounded-lg transition-all flex-shrink-0 relative
+            className={`p-1.5 rounded-lg transition-all flex-shrink-0 relative hover:scale-105
               ${isRecording
                 ? 'bg-accent-red/20 text-accent-red animate-pulse hover:bg-accent-red/30'
                 : 'text-text-muted hover:text-accent-blue hover:bg-accent-blue/10'
@@ -1262,9 +1262,9 @@ const MessageInput: React.FC<MessageInputProps> = ({
             onClick={handleSend}
             disabled={isDisabled || (!text.trim() && !hasAttachments)}
             className="px-3 py-1.5 bg-accent-blue text-white text-xs font-medium
-              rounded-lg hover:bg-accent-blue/80
+              rounded-lg hover:bg-accent-blue/80 hover:scale-105 active:scale-95
               disabled:opacity-30 disabled:cursor-not-allowed
-              transition-colors whitespace-nowrap flex-shrink-0"
+              transition-all duration-200 whitespace-nowrap flex-shrink-0"
           >
             {sending ? <span className="inline-block w-3 h-3 border-2 border-white/40 border-t-white rounded-full animate-spin" /> : '发送'}
           </button>

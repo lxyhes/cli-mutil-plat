@@ -273,11 +273,11 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({ message, isStreaming }) =
         }}
       >
         <div
-          className={`max-w-[80%] rounded-lg px-3 py-2 text-sm relative ${
-            isUser
-              ? 'bg-accent-blue/15 border-l-2 border-accent-blue/50 text-text-primary'
-              : 'bg-bg-secondary text-text-primary'
-          }`}
+          className={`max-w-[80%] rounded-lg px-3 py-2 text-sm relative 
+            ${isUser
+              ? 'bg-accent-blue/15 border-l-2 border-accent-blue/50 text-text-primary shadow-sm hover:shadow-md'
+              : 'bg-bg-secondary text-text-primary shadow-sm hover:shadow-md'
+            } transition-all duration-300 ease-in-out animate-fade-in hover:translate-y-[-2px] hover:scale-[1.01]`}
         >
           {/* AI 消息左侧竖线标识 */}
           {!isUser && <div className="absolute left-0 top-2 bottom-2 w-0.5 rounded-full bg-accent-purple/30" />}

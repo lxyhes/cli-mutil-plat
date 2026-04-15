@@ -402,7 +402,7 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
         {/* 消息列表 */}
         <div
           ref={scrollRef}
-          className="flex-1 overflow-y-auto px-4 py-3"
+          className="flex-1 overflow-y-auto px-4 py-3 smooth-scroll scroll-optimized md:px-6 md:py-4"
           onContextMenu={(e) => {
             e.preventDefault()
             setCtxMenu({ visible: true, x: e.clientX, y: e.clientY })
@@ -413,9 +413,9 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
             <button
               onClick={() => setKnowledgePanelOpen(true)}
               title="打开项目知识库"
-              className="absolute top-3 right-4 z-10 flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-bg-secondary/90 border border-border text-xs text-text-secondary hover:text-accent-purple hover:border-accent-purple/40 transition-all backdrop-blur-sm shadow-sm"
+              className="absolute top-3 right-4 z-10 flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-bg-secondary/90 border border-border text-xs text-text-secondary hover:text-accent-purple hover:border-accent-purple/40 transition-all backdrop-blur-sm shadow-sm hover:shadow-md hover:scale-105 active:scale-95 hover:bg-bg-secondary"
             >
-              <BookMarked className="w-3.5 h-3.5" />
+              <BookMarked className="w-3.5 h-3.5 transition-all duration-300 hover:rotate-12" />
               <span>知识库</span>
             </button>
           )}
@@ -521,8 +521,8 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
 
         {/* 流式响应指示器 - 带实时计时器 + 渐变扫光动画 */}
         {isStreaming && (
-          <div className="flex justify-start mb-3">
-            <div className="bg-bg-secondary rounded-lg px-3 py-2 text-sm text-text-muted flex items-center gap-2 relative overflow-hidden">
+          <div className="flex justify-start mb-3 animate-fade-in">
+            <div className="bg-bg-secondary rounded-lg px-3 py-2 text-sm text-text-muted flex items-center gap-2 relative overflow-hidden shadow-sm hover:shadow-md transition-all duration-300">
               <div className="absolute inset-0 bg-gradient-to-r from-transparent via-accent-blue/5 to-transparent animate-pulse" />
               <span className="inline-block w-3 h-3 border border-text-muted/50 border-t-accent-blue rounded-full animate-spin flex-shrink-0" />
               <span>AI 正在思考...</span>
@@ -533,7 +533,7 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
               )}
             </div>
             {!!liveProgressText && (
-              <div className="mt-1 ml-5 text-[11px] text-text-muted/80 max-w-[80%] truncate" title={liveProgressText}>
+              <div className="mt-1 ml-5 text-[11px] text-text-muted/80 max-w-[80%] truncate animate-fade-in" title={liveProgressText}>
                 {liveProgressText}
               </div>
             )}
@@ -542,20 +542,20 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
 
         {/* 权限请求确认栏 */}
         {pendingPermission && (
-          <div className="flex justify-center my-3">
-            <div className="bg-accent-yellow/10 border border-accent-yellow/30 rounded-lg px-4 py-3 flex items-center gap-3">
+          <div className="flex justify-center my-3 animate-fade-in">
+            <div className="bg-accent-yellow/10 border border-accent-yellow/30 rounded-lg px-4 py-3 flex items-center gap-3 shadow-sm hover:shadow-md transition-all duration-300">
               <span className="text-sm text-text-primary">
                 {lastActivity?.detail || '需要确认'}
               </span>
               <button
                 onClick={() => respondPermission(true)}
-                className="px-3 py-1 bg-accent-green text-white text-xs rounded hover:bg-accent-green/80 transition-colors"
+                className="px-3 py-1 bg-accent-green text-white text-xs rounded hover:bg-accent-green/80 transition-all hover:scale-105 active:scale-95"
               >
                 允许
               </button>
               <button
                 onClick={() => respondPermission(false)}
-                className="px-3 py-1 bg-accent-red text-white text-xs rounded hover:bg-accent-red/80 transition-colors"
+                className="px-3 py-1 bg-accent-red text-white text-xs rounded hover:bg-accent-red/80 transition-all hover:scale-105 active:scale-95"
               >
                 拒绝
               </button>
@@ -693,7 +693,7 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
 
       {/* 已结束会话：恢复继续按钮 */}
       {isSessionEnded && (
-        <div className="px-4 py-3 bg-bg-secondary border-t border-border flex items-center justify-center gap-3">
+        <div className="px-4 py-3 bg-bg-secondary border-t border-border flex items-center justify-center gap-3 animate-fade-in">
           <span className="text-xs text-text-muted">
             会话已{status === 'error' ? '出错' : '结束'}
           </span>
@@ -707,7 +707,7 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
                 setResuming(false)
               }
             }}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-medium bg-accent-blue/20 text-accent-blue hover:bg-accent-blue/30 btn-transition disabled:opacity-50"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-medium bg-accent-blue/20 text-accent-blue hover:bg-accent-blue/30 hover:scale-105 active:scale-95 transition-all duration-200 disabled:opacity-50"
           >
             <RotateCcw className={`w-3.5 h-3.5 ${resuming ? 'animate-spin' : ''}`} />
             {resuming ? '恢复中...' : '恢复会话继续对话'}
