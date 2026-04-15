@@ -431,4 +431,86 @@ export class PlannerService extends EventEmitter {
       this.checkTaskCompletion(step.planTaskId)
     }
   }
+
+  // ── ★ 链条打通: Planner → Task (看板) ──────────────────
+
+  private taskCoordinator: any = null  // TaskSessionCoordinator 引用
+
+  /**
+   * 设置 TaskSessionCoordinator 引用
+   */
+  setTaskCoordinator(taskCoordinator: any): void {
+    this.taskCoordinator = taskCoordinator
+    console.log('[PlannerService] TaskSessionCoordinator 已连接')
+  }
+
+  /**
+   * 将规划任务同步到看板
+   * 创建对应的看板任务卡片
+   * 
+   * @param planId 规划ID
+   * @param sessionId 关联的会话ID
+   * @returns 创建的看板任务列表
+   */
+  async syncPlanToKanban(planId: string, sessionId: string): Promise<any[]> {
+    if (!this.taskCoordinator) {
+      throw new Error('TaskSessionCoordinator 未配置,无法同步到看板')
+    }
+
+    // 获取规划的所有任务
+    const planTasks = this.db.getPlanTasks(planId)
+    if (!planTasks || planTasks.length === 0) {
+      throw new Error('规划中没有任务可同步')
+    }
+
+    console.log(`[PlannerService] 同步规划 ${planId} 到看板,共 ${planTasks.length} 个任务`)
+
+    const createdKanbanTasks: any[] = []
+
+    for (const planTask of planTasks) {
+      try {
+        // 创建看板任务
+        const kanbanTask = this.taskCoordinator.createTask({
+          id: `kanban-from-plan-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+          title: planTask.title,
+          description: planTask.description,
+          status: planTask.status === 'completed' ? 'done' : 
+                  planTask.status === 'skipped' ? 'done' : 'todo',
+          priority: planTask.priority === 'critical' ? 'high' : planTask.priority,
+          tags: ['from-planner', `plan:${planId}`],
+          sessionId,
+          metadata: {
+            source: 'planner',
+            planId,
+            planTaskId: planTask.id,
+            dependencies: planTask.dependencies || []
+          }
+        })
+
+        if (kanbanTask) {
+          createdKanbanTasks.push(kanbanTask)
+          
+          // 更新规划任务的关联ID
+          this.db.updateTask(planTask.id, {
+            kanbanTaskId: kanbanTask.id
+          })
+        }
+      } catch (err) {
+        console.warn(`[PlannerService] 同步任务 ${planTask.title} 失败:`, err)
+        // 不阻断整个同步流程
+      }
+    }
+
+    console.log(`[PlannerService] 成功同步 ${createdKanbanTasks.length}/${planTasks.length} 个任务到看板`)
+
+    // 触发事件
+    this.emit('plan-synced-to-kanban', { planId, taskCount: createdKanbanTasks.length })
+    sendToRenderer(IPC.PLAN_STATUS, { 
+      type: 'plan-synced-to-kanban', 
+      planId, 
+      taskCount: createdKanbanTasks.length 
+    })
+
+    return createdKanbanTasks
+  }
 }

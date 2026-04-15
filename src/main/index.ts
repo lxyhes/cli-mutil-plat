@@ -975,6 +975,18 @@ app.whenReady().then(() => {
     console.log('[Main] GoalService → PlannerService 已连接')
   }
 
+  // ★ 链条打通: 连接 PlannerService → TaskSessionCoordinator
+  if (plannerService && taskCoordinator) {
+    plannerService.setTaskCoordinator(taskCoordinator)
+    console.log('[Main] PlannerService → TaskSessionCoordinator 已连接')
+  }
+
+  // ★ 链条打通: 连接 TaskSessionCoordinator → EvaluationService
+  if (taskCoordinator && evaluationService) {
+    taskCoordinator.setEvaluationService(evaluationService)
+    console.log('[Main] TaskSessionCoordinator → EvaluationService 已连接')
+  }
+
   // Prompt Optimizer 提示词优化服务
   if (database) {
     promptOptimizerService = new PromptOptimizerService(database, database.getPromptOptimizerRepository(), sessionManagerV2 ?? undefined)

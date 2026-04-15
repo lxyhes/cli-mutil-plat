@@ -26,10 +26,19 @@ const ACTIVITY_TO_TASK: Partial<Record<ActivityEventType, TaskStatus>> = {
 export class TaskSessionCoordinator extends EventEmitter {
   private database: DatabaseManager
   private debounceTimers = new Map<string, NodeJS.Timeout>()
+  private evaluationService: any = null  // ★ EvaluationService 引用
 
   constructor(database: DatabaseManager) {
     super()
     this.database = database
+  }
+
+  /**
+   * ★ 设置 EvaluationService 引用
+   */
+  setEvaluationService(evaluationService: any): void {
+    this.evaluationService = evaluationService
+    console.log('[TaskSessionCoordinator] EvaluationService 已连接')
   }
 
   /**
@@ -114,8 +123,45 @@ export class TaskSessionCoordinator extends EventEmitter {
 
       this.database.updateTask(taskId, { status: targetStatus })
       this.emit('task-updated', taskId, { status: targetStatus })
+
+      // ★ 新增: 任务完成时自动触发评估
+      if (targetStatus === 'done' && this.evaluationService) {
+        this.autoEvaluateTask(taskId, task)
+      }
     } catch (err) {
       console.error('[TaskSessionCoordinator] Failed to update task:', err)
+    }
+  }
+
+  /**
+   * ★ 自动评估已完成的任务
+   */
+  private async autoEvaluateTask(taskId: string, task: any): Promise<void> {
+    try {
+      // 检查是否有关联的会话
+      const sessionId = task.sessionId
+      if (!sessionId) {
+        console.log(`[TaskSessionCoordinator] 任务 ${taskId} 无关联会话,跳过评估`)
+        return
+      }
+
+      // 使用默认评估模板(如果配置了)
+      const templates = this.database.listEvaluationTemplates()
+      if (templates.length === 0) {
+        console.log(`[TaskSessionCoordinator] 无评估模板,跳过评估`)
+        return
+      }
+
+      // 使用第一个模板进行评估
+      const defaultTemplate = templates[0]
+      console.log(`[TaskSessionCoordinator] 自动评估任务 ${taskId},使用模板 ${defaultTemplate.name}`)
+
+      await this.evaluationService.evaluate(sessionId, defaultTemplate.id, 'scheduled')
+
+      this.emit('task-auto-evaluated', taskId)
+    } catch (err) {
+      console.warn(`[TaskSessionCoordinator] 自动评估任务 ${taskId} 失败:`, err)
+      // 不阻断任务完成流程
     }
   }
 
@@ -140,5 +186,54 @@ export class TaskSessionCoordinator extends EventEmitter {
       clearTimeout(timer)
     }
     this.debounceTimers.clear()
+  }
+
+  // ── ★ 链条打通: 创建看板任务 ────────────────────────────
+
+  /**
+   * 创建看板任务
+   * 供 PlannerService 调用以同步规划任务到看板
+   * 
+   * @param taskData 任务数据
+   * @returns 创建的看板任务
+   */
+  createTask(taskData: {
+    id: string
+    title: string
+    description?: string
+    status?: string
+    priority?: string
+    tags?: string[]
+    sessionId?: string
+    metadata?: Record<string, any>
+  }): any {
+    try {
+      const task = this.database.createTask({
+        id: taskData.id,
+        title: taskData.title,
+        description: taskData.description,
+        status: taskData.status || 'todo',
+        priority: taskData.priority || 'medium',
+        tags: taskData.tags || [],
+      })
+
+      if (task && taskData.sessionId) {
+        // 关联会话
+        this.database.updateTask(taskData.id, {
+          sessionId: taskData.sessionId,
+          metadata: taskData.metadata || {}
+        } as any)
+      }
+
+      // 触发事件
+      if (task) {
+        this.emit('task-created', task)
+      }
+
+      return task
+    } catch (err) {
+      console.error('[TaskSessionCoordinator] Failed to create task:', err)
+      throw err
+    }
   }
 }
