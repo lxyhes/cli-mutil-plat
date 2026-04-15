@@ -332,7 +332,7 @@ function createWindow(): void {
 /**
  * 初始化所有核心管理器
  */
-function initializeManagers(): void {
+async function initializeManagers(): Promise<void> {
   // 1. 数据库（最先初始化，其他模块可能依赖）
   const dbPath = join(app.getPath('userData'), 'claudeops.db')
   database = new DatabaseManager(dbPath)
@@ -871,7 +871,7 @@ if (isDevelopment) {
   app.name = 'SpectrAI'
 }
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
   // ★ 生产模式设置 Content-Security-Policy（开发模式不设置，Vite HMR 需要 unsafe-eval 会触发警告）
   if (!isDevelopment) {
     session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
@@ -898,7 +898,7 @@ app.whenReady().then(() => {
   }
 
   // 初始化管理器
-  initializeManagers()
+  await initializeManagers()
 
   // ★ API Key 加密迁移：将旧版 userData 路径派生密钥加密的数据迁移到固定密钥
   // 必须在 initializeManagers() 之后（database 已就绪）、用户操作之前执行
