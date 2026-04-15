@@ -60,19 +60,19 @@ export default function AppLayout() {
 
   return (
     <div className="flex flex-col h-screen bg-bg-primary">
-      <TitleBar />
+      <TitleBar className="title-bar-compact" />
       <div className="flex-1 overflow-hidden flex">
-        <ActivityBar onOpenSettings={() => setShowSettings(true)} />
+        <ActivityBar onOpenSettings={() => setShowSettings(true)} className="activity-bar-collapsed-768" />
 
         <div className="flex-1 overflow-hidden relative">
             <Allotment>
               {!sidebarCollapsed && (
-                <Allotment.Pane preferredSize={280} minSize={200} maxSize={400}>
+                <Allotment.Pane preferredSize={280} minSize={200} maxSize={400} className="sidebar-collapsed-1200">
                   <Sidebar />
                 </Allotment.Pane>
               )}
 
-              <Allotment.Pane>
+              <Allotment.Pane className="main-panel-1200 main-panel-768 main-panel-480">
                 <div className="relative h-full">
                   <MainPanel />
 
@@ -103,7 +103,7 @@ export default function AppLayout() {
               </Allotment.Pane>
 
               {!detailPanelCollapsed && (
-                <Allotment.Pane preferredSize={300} minSize={200} maxSize={500}>
+                <Allotment.Pane preferredSize={300} minSize={200} maxSize={500} className="detail-panel-1200">
                   <DetailPanel />
                 </Allotment.Pane>
               )}
@@ -111,7 +111,7 @@ export default function AppLayout() {
           </div>
       </div>
 
-      <StatusBar />
+      <StatusBar className="status-bar-compact" />
       {showSearchPanel && <SearchPanel />}
       {showHistoryPanel && <HistoryPanel />}
       {showLogViewer && <LogViewer />}
