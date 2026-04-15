@@ -11,7 +11,7 @@
  */
 
 import { useState, useEffect } from 'react'
-import { Bot, FolderTree, GitBranch, BarChart2, Settings, Activity, PieChart, Plug, Zap, Users, Wrench, Brain, BookOpen, Flame, History, DollarSign, ShieldCheck, Swords, Video, Trophy, Gauge, Calendar, Mic } from 'lucide-react'
+import { Bot, FolderTree, GitBranch, BarChart2, Settings, Activity, PieChart, Users, Wrench } from 'lucide-react'
 import type { PanelId, PanelSide } from '../../stores/uiStore'
 import { useUIStore } from '../../stores/uiStore'
 
@@ -21,34 +21,19 @@ const PANEL_DEFS: {
   icon: React.ElementType
   label: string
   disabled?: boolean
+  category?: 'core' | 'toolbox' | 'auxiliary'
 }[] = [
   // === 核心功能（左侧区域）===
-  { id: 'sessions',  icon: Bot,        label: '会话' },
-  { id: 'explorer',  icon: FolderTree, label: '文件' },
-  { id: 'git',       icon: GitBranch,  label: 'Git' },
-  { id: 'team' as PanelId,    icon: Users, label: '团队' },
-  { id: 'dashboard', icon: BarChart2,  label: '看板' },
+  { id: 'sessions',  icon: Bot,        label: '会话', category: 'core' },
+  { id: 'explorer',  icon: FolderTree, label: '文件', category: 'core' },
+  { id: 'git',       icon: GitBranch,  label: 'Git', category: 'core' },
+  { id: 'team' as PanelId,    icon: Users, label: '团队', category: 'core' },
+  { id: 'dashboard', icon: BarChart2,  label: '看板', category: 'core' },
   // === 工具箱整合区 ===
-  { id: 'toolbox' as PanelId, icon: Wrench, label: '工具箱' },
+  { id: 'toolbox' as PanelId, icon: Wrench, label: '工具箱', category: 'toolbox' },
   // === 辅助功能（右侧区域）===
-  { id: 'stats',     icon: PieChart,   label: '统计' },
-  { id: 'timeline',  icon: Activity,   label: '时间线' },
-  // === 专业工具（默认折叠到工具箱）===
-  { id: 'mcp' as PanelId,    icon: Plug,  label: 'MCP' },
-  { id: 'skills' as PanelId, icon: Zap,   label: '技能' },
-  { id: 'context' as PanelId, icon: Brain, label: '记忆' },
-  { id: 'memory' as PanelId,  icon: BookOpen, label: '知识' },
-  { id: 'arena' as PanelId,     icon: Trophy, label: '竞技' },
-  { id: 'voice' as PanelId, icon: Mic, label: '语音' },
-  // === 高级功能（默认隐藏）===
-  { id: 'trending' as PanelId, icon: Flame, label: '热门' },
-  { id: 'checkpoint' as PanelId, icon: History, label: '回溯' },
-  { id: 'cost' as PanelId,      icon: DollarSign, label: '成本' },
-  { id: 'review' as PanelId,    icon: ShieldCheck, label: '审查' },
-  { id: 'battle' as PanelId,    icon: Swords, label: '对决' },
-  { id: 'replay' as PanelId,    icon: Video, label: '录像' },
-  { id: 'context-budget' as PanelId, icon: Gauge, label: '预算' },
-  { id: 'daily-report' as PanelId, icon: Calendar, label: '日报' },
+  { id: 'stats',     icon: PieChart,   label: '统计', category: 'auxiliary' },
+  { id: 'timeline',  icon: Activity,   label: '时间线', category: 'auxiliary' },
 ]
 
 // ─────────────────────────────────────────────────────────────────────────────

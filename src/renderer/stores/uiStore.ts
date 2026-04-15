@@ -9,7 +9,7 @@ import type { ViewMode, LayoutMode, PaneContent } from '../../shared/types'
 import { THEMES, THEME_IDS, DEFAULT_THEME_ID } from '../../shared/constants'
 
 /** 统一面板 ID（左侧边栏和右侧面板均使用此类型） */
-export type PanelId = 'sessions' | 'explorer' | 'git' | 'dashboard' | 'team' | 'timeline' | 'stats' | 'mcp' | 'skills' | 'toolbox' | 'trending' | 'context' | 'memory' | 'checkpoint' | 'cost' | 'knowledge' | 'review' | 'battle' | 'replay' | 'arena' | 'context-budget' | 'daily-report' | 'voice'
+export type PanelId = 'sessions' | 'explorer' | 'git' | 'dashboard' | 'team' | 'timeline' | 'stats' | 'toolbox'
 
 /** 面板所在侧 */
 export type PanelSide = 'left' | 'right'
@@ -19,7 +19,7 @@ export type ActivityType = PanelId
 export type RightPanelView = PanelId
 
 /** 所有面板 ID（用于校验） */
-const ALL_PANEL_IDS: PanelId[] = ['sessions', 'explorer', 'git', 'dashboard', 'team', 'timeline', 'stats', 'mcp', 'skills', 'toolbox', 'trending', 'context', 'memory', 'checkpoint', 'cost', 'knowledge', 'review', 'battle', 'replay', 'arena', 'context-budget', 'daily-report', 'voice']
+const ALL_PANEL_IDS: PanelId[] = ['sessions', 'explorer', 'git', 'dashboard', 'team', 'timeline', 'stats', 'toolbox']
 
 /** 默认面板分配（left = 左侧边栏，right = 右侧面板） */
 const DEFAULT_PANEL_SIDES: Record<PanelId, PanelSide> = {
@@ -33,22 +33,6 @@ const DEFAULT_PANEL_SIDES: Record<PanelId, PanelSide> = {
   // === 辅助功能（右侧面板）===
   stats:     'right',
   timeline:  'right',
-  // === 专业工具（整合到工具箱）===
-  mcp:       'right',
-  skills:    'right',
-  trending:  'right',
-  context:   'right',
-  memory:    'right',
-  checkpoint: 'right',
-  cost:      'right',
-  knowledge: 'right',
-  review:    'right',
-  battle:    'right',
-  replay:    'right',
-  arena:     'right',
-  'context-budget': 'right',
-  'daily-report': 'right',
-  'voice': 'right',
 }
 
 /** 从 localStorage 读取面板分配 */
