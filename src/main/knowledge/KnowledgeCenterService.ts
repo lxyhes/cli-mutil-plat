@@ -52,12 +52,13 @@ export class KnowledgeCenterService {
    * 初始化服务
    */
   async initialize(
-    db: Database.Database,
+    dbManager: any,
     projectKnowledgeService: ProjectKnowledgeService,
     crossSessionMemoryService: CrossSessionMemoryService,
     workingContextService: WorkingContextService
   ): Promise<void> {
-    this.db = db
+    // 从DatabaseManager获取实际的数据库连接
+    this.db = (dbManager as any).db as Database.Database
     this.projectKnowledgeService = projectKnowledgeService
     this.crossSessionMemoryService = crossSessionMemoryService
     this.workingContextService = workingContextService

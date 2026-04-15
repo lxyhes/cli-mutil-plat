@@ -490,9 +490,12 @@ export class PlannerService extends EventEmitter {
         if (kanbanTask) {
           createdKanbanTasks.push(kanbanTask)
           
-          // 更新规划任务的关联ID
+          // 记录看板任务ID到metadata中
           this.db.updateTask(planTask.id, {
-            kanbanTaskId: kanbanTask.id
+            metadata: {
+              ...(planTask.metadata || {}),
+              kanbanTaskId: kanbanTask.id
+            }
           })
         }
       } catch (err) {

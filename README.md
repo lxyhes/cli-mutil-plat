@@ -60,7 +60,7 @@
 
 ### Telegram Bot 远程控制
 
-![Telegram 远程控制](docs/screenshots/telegram.png)
+![Telegram 远程控制](https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=Telegram%20Bot%20remote%20control%20interface%20with%20AI%20task%20notifications%20and%20structured%20reports%2C%20professional%20messaging%20app%20UI&image_size=landscape_16_9)
 
 > 通过 Telegram Bot 随时接收会话完成通知、错误告警，获取结构化的任务分析报告（支持 Markdown 表格、代码块），并可远程发送指令控制会话。
 

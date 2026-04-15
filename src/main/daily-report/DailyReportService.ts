@@ -133,26 +133,15 @@ export class DailyReportService {
       let filesChanged = 0
       if (this.fileChangeTracker) {
         try {
-          const allChanges = this.fileChangeTracker.getAllChanges()
-          // 筛选当天的改动
-          const todayPrefix = targetDate
-          filesChanged = allChanges.filter(c => c.timestamp && c.timestamp.startsWith(todayPrefix)).length
-          // 如果时间戳筛选不出结果，使用总数（FileChangeTracker 可能不记录精确时间）
-          if (filesChanged === 0 && allChanges.length > 0) {
-            filesChanged = allChanges.length
-          }
-        } catch {
           // 回退：从 conversation_messages 统计 tool_use 类型的文件操作
-          try {
-            const fileOps = db.prepare(`
-              SELECT COUNT(DISTINCT json_extract(content, '$.file')) as file_count
-              FROM conversation_messages
-              WHERE date(timestamp) = ? AND role = 'assistant'
-            `).get(targetDate) as any
-            filesChanged = fileOps?.file_count || 0
-          } catch {
-            filesChanged = 0
-          }
+          const fileOps = db.prepare(`
+            SELECT COUNT(DISTINCT json_extract(content, '$.file')) as file_count
+            FROM conversation_messages
+            WHERE date(timestamp) = ? AND role = 'assistant'
+          `).get(targetDate) as any
+          filesChanged = fileOps?.file_count || 0
+        } catch {
+          filesChanged = 0
         }
       }
 

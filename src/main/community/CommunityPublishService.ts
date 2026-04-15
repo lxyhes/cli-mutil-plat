@@ -388,6 +388,16 @@ export class CommunityPublishService extends EventEmitter {
       isInstalled: true,
       isEnabled: true,
       author: pkg.author.name,
+      description: skillData.description || '',
+      type: skillData.type || 'general',
+      name: skillData.name || '',
+      compatibleProviders: skillData.compatibleProviders || [],
+      category: skillData.category || 'general',
+      content: skillData.content || '',
+      tags: skillData.tags || [],
+      version: skillData.version || '1.0.0',
+      dependencies: skillData.dependencies || [],
+      config: skillData.config || {},
     }
 
     if (existing) {
@@ -408,6 +418,16 @@ export class CommunityPublishService extends EventEmitter {
       this.db.createMcp({
         ...mcpData,
         id: newId,
+        description: mcpData.description || '',
+        source: mcpData.source || 'community',
+        name: mcpData.name || '',
+        compatibleProviders: mcpData.compatibleProviders || [],
+        category: mcpData.category || 'general',
+        config: mcpData.config || {},
+        enabled: mcpData.enabled ?? true,
+        host: mcpData.host || '',
+        port: mcpData.port || 8080,
+        protocol: mcpData.protocol || 'http',
       })
 
       sendToRenderer(IPC.COMMUNITY_PUBLISH_STATUS, { type: 'imported', targetType: 'mcp', targetId: newId })
@@ -424,7 +444,6 @@ export class CommunityPublishService extends EventEmitter {
       this.db.createWorkflow({
         ...wfData,
         id: newId,
-        isTemplate: true,
       })
 
       sendToRenderer(IPC.COMMUNITY_PUBLISH_STATUS, { type: 'imported', targetType: 'workflow', targetId: newId })

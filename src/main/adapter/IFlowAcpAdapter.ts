@@ -887,8 +887,8 @@ export class IFlowAcpAdapter extends BaseProviderAdapter {
   /**
    * 从帮助信息中解析模型列表
    */
-  private parseModelsFromHelp(helpText: string): Array<{ id: string; name: string; description?: string }> {
-    const models: Array<{ id: string; name: string; description?: string }> = []
+  private async parseModelsFromHelp(helpText: string): Promise<Array<{ id: string; name: string; description: string }>> {
+    const models: Array<{ id: string; name: string; description: string }> = []
     
     // 尝试匹配模型相关的帮助信息
     // 例如：--model <model>  Specify model to use (default: claude-sonnet-4-20250514)
@@ -911,7 +911,7 @@ export class IFlowAcpAdapter extends BaseProviderAdapter {
     ]
     
     // 合并去重
-    const modelMap = new Map<string, typeof commonModels[0]>()
+    const modelMap = new Map<string, typeof commonModels[0]> ()
     models.forEach(m => modelMap.set(m.id, m))
     commonModels.forEach(m => {
       if (!modelMap.has(m.id)) {

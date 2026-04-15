@@ -180,7 +180,7 @@ export class DriftGuardService extends EventEmitter {
       state.consecutiveDrifts++
 
       // ★ 新增: 检测到漂移时回退目标进度
-      if (this.goalService && result.severity !== 'none') {
+      if (this.goalService) {
         try {
           this.goalService.regressProgressFromDrift(
             state.goalId,

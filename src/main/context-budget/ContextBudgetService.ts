@@ -293,6 +293,7 @@ export class ContextBudgetService {
 
       // 3. 创建新会话
       const newSessionId = this.sessionManagerV2.createSession({
+        id: `migrated-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
         name: `${session.name || 'Session'} (续接)`,
         workingDirectory: session.workingDirectory || process.cwd(),
         providerId: session.provider?.id,

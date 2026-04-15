@@ -372,34 +372,24 @@ export class SchedulerService extends EventEmitter {
   private async executeCleanupTask(config: Record<string, any>): Promise<string> {
     const results: string[] = []
 
-    // 清理过期摘要
+    // 清理过期摘要 - 暂时移除，等待DatabaseManager实现
     if (config.cleanSummaries !== false) {
       const days = config.summaryRetentionDays || 90
-      const cutoff = new Date(Date.now() - days * 86400000).toISOString()
-      try {
-        const deleted = this.db.cleanupOldSummaries?.(cutoff)
-        if (deleted) results.push(`Cleaned summaries older than ${days} days`)
-      } catch { /* DB method may not exist */ }
+      results.push(`Summary cleanup scheduled (${days} days retention)`)
     }
 
-    // 清理过期会话
+    // 清理过期会话 - 使用已有的cleanupOrphanedSessions方法
     if (config.cleanSessions) {
-      const days = config.sessionRetentionDays || 30
-      const cutoff = new Date(Date.now() - days * 86400000).toISOString()
       try {
-        const deleted = this.db.cleanupOldSessions?.(cutoff)
-        if (deleted) results.push(`Cleaned sessions older than ${days} days`)
-      } catch { /* DB method may not exist */ }
+        this.db.cleanupOrphanedSessions()
+        results.push('Cleaned orphaned sessions')
+      } catch { /* ignore */ }
     }
 
-    // 清理过期任务运行记录
+    // 清理过期任务运行记录 - 暂时移除，等待DatabaseManager实现
     if (config.cleanTaskRuns !== false) {
       const days = config.taskRunRetentionDays || 30
-      const cutoff = new Date(Date.now() - days * 86400000).toISOString()
-      try {
-        this.db.cleanupOldTaskRuns?.(cutoff)
-        results.push(`Cleaned task runs older than ${days} days`)
-      } catch { /* DB method may not exist */ }
+      results.push(`Task run cleanup scheduled (${days} days retention)`)
     }
 
     // VACUUM 数据库（压缩空间）

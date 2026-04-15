@@ -1026,7 +1026,7 @@ app.whenReady().then(async () => {
   // ★ 知识中心服务（三合一：项目知识库 + 跨会话记忆 + 工作记忆）
   knowledgeCenterService = new KnowledgeCenterService()
   await knowledgeCenterService.initialize(
-    database.db,
+    database,
     projectKnowledgeService,
     crossSessionMemoryService,
     workingContextService

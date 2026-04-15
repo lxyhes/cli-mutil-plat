@@ -572,4 +572,16 @@ export class ProjectKnowledgeService {
 
     return { success: true, count }
   }
+
+  /** 获取项目的所有知识条目（用于同步到知识中心） */
+  async getAll(projectPath: string): Promise<any[]> {
+    try {
+      const rows = this.rawDb.prepare(
+        'SELECT * FROM project_knowledge WHERE project_path = ? ORDER BY priority DESC, updated_at DESC'
+      ).all(projectPath) as any[]
+      return rows.map(r => this.mapRow(r))
+    } catch {
+      return []
+    }
+  }
 }
