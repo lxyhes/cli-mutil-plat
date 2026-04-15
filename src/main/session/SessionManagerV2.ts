@@ -496,7 +496,7 @@ export class SessionManagerV2 extends EventEmitter implements MemoryManagedCompo
       initialPrompt: config.initialPrompt,
       initialPromptVisibility: config.initialPromptVisibility,
       autoAccept: config.autoAccept ?? false,
-      systemPrompt: (() => {
+      systemPrompt: (async () => {
         // ★ Codex / Gemini 的 supervisor prompt 已通过 AGENTS.md / GEMINI.md 文件注入完整版本，
         //   不要再通过 systemPrompt/baseInstructions 重复注入，否则指令过载导致模型跳过中间文本输出。
         const useFileBasedSupervisor = resolvedProvider.adapterType === 'codex-appserver'
@@ -508,7 +508,7 @@ export class SessionManagerV2 extends EventEmitter implements MemoryManagedCompo
         // ★ 获取项目知识（自动注入标记的知识条目）
         // 优先使用 KnowledgeCenterService（统一注入），回退到 projectKnowledgeService
         let projectKnowledgePrompt = ''
-        
+
         if (this.knowledgeCenterService && config.workingDirectory) {
           // 使用统一知识中心注入
           try {
@@ -526,7 +526,7 @@ export class SessionManagerV2 extends EventEmitter implements MemoryManagedCompo
             // 回退到旧方法
           }
         }
-        
+
         // 回退:如果统一注入失败或未配置,使用旧的项目知识服务
         if (!projectKnowledgePrompt && this.projectKnowledgeService && config.workingDirectory) {
           try {
