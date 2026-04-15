@@ -1066,7 +1066,7 @@
   /* 可访问性颜色 */
   .accessible-text {
     color: var(--color-text-primary);
-    contrast-ratio: 4.5:1;
+    /* contrast-ratio 不是有效的 CSS 属性，移除或修改 */
   }
 
   /* 可点击区域扩大 */
