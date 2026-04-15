@@ -14,10 +14,11 @@
  */
 
 import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react'
-import { Zap, Plug, Cpu, Users } from 'lucide-react'
+import { Zap, Plug, Cpu, Users, Sparkles, FileText, Mic, ShieldCheck, Gauge, BookMarked } from 'lucide-react'
 import { useSessionStore } from '../../stores/sessionStore'
 import { useSkillStore } from '../../stores/skillStore'
 import { useMcpStore } from '../../stores/mcpStore'
+import { useUIStore } from '../../stores/uiStore'
 
 // ---- 类型 ----
 
@@ -250,6 +251,69 @@ const SessionToolbar: React.FC<SessionToolbarProps> = ({ sessionId, onSkillClick
       return next
     })
   }, [])
+
+  // 工具箱功能状态
+  const [toolboxPopoverOpen, setToolboxPopoverOpen] = useState(false)
+  const toolboxBtnRef = useRef<HTMLButtonElement>(null)
+  const toolboxPopoverRef = useRef<HTMLDivElement>(null)
+  const setToolboxFeature = useUIStore(s => s.setToolboxFeature)
+  const setActivePanelLeft = useUIStore(s => s.setActivePanelLeft)
+
+  // 工具箱功能列表
+  const toolboxFeatures = useMemo(() => [
+    {
+      id: 'prompt-optimizer',
+      name: '提示词优化',
+      description: 'AI 驱动的提示词工程',
+      icon: Sparkles,
+      color: 'text-accent-yellow'
+    },
+    {
+      id: 'summary',
+      name: '会话摘要',
+      description: '自动生成会话总结',
+      icon: FileText,
+      color: 'text-accent-green'
+    },
+    {
+      id: 'voice',
+      name: '语音交互',
+      description: '语音输入与 TTS 播报',
+      icon: Mic,
+      color: 'text-accent-green'
+    },
+    {
+      id: 'review',
+      name: '代码审查',
+      description: 'AI 自动代码审查',
+      icon: ShieldCheck,
+      color: 'text-accent-green'
+    },
+    {
+      id: 'context-budget',
+      name: '上下文预算',
+      description: '管理和优化上下文用量',
+      icon: Gauge,
+      color: 'text-accent-yellow'
+    },
+    {
+      id: 'knowledge',
+      name: '知识中心',
+      description: '知识库+记忆+工作上下文',
+      icon: BookMarked,
+      color: 'text-accent-purple'
+    }
+  ], [])
+
+  // 工具箱 Popover 关闭逻辑
+  usePopoverClose(toolboxPopoverOpen, setToolboxPopoverOpen, toolboxBtnRef, toolboxPopoverRef)
+
+  // 处理工具箱功能点击
+  const handleToolboxFeatureClick = useCallback((featureId: string) => {
+    setToolboxPopoverOpen(false)
+    setToolboxFeature(featureId)
+    setActivePanelLeft('toolbox')
+  }, [setToolboxFeature, setActivePanelLeft])
 
   // ---- Popover 关闭逻辑 ----
   usePopoverClose(skillPopoverOpen, setSkillPopoverOpen, skillBtnRef, skillPopoverRef)
@@ -498,6 +562,62 @@ const SessionToolbar: React.FC<SessionToolbarProps> = ({ sessionId, onSkillClick
           )}
         </div>
       )}
+
+      {/* ---- 工具箱功能按钮 ---- */}
+      <div className="relative flex-shrink-0">
+        <button
+          ref={toolboxBtnRef}
+          onClick={() => setToolboxPopoverOpen(o => !o)}
+          className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs
+            bg-bg-secondary border text-text-muted
+            hover:text-text-secondary hover:bg-bg-hover
+            transition-colors cursor-pointer select-none
+            ${toolboxPopoverOpen ? 'border-accent-blue/40 text-text-secondary' : 'border-border'}`}
+        >
+          <Zap size={12} />
+          <span>工具箱</span>
+        </button>
+
+        {/* 工具箱功能 Popover */}
+        {toolboxPopoverOpen && (
+          <div
+            ref={toolboxPopoverRef}
+            className="absolute bottom-full left-0 mb-1.5
+              w-80 bg-bg-secondary border border-border rounded-lg shadow-lg
+              py-1.5 z-50"
+          >
+            <div className="px-3 pb-1.5 text-[11px] text-text-muted font-medium uppercase tracking-wide border-b border-border mb-1">
+              工具箱功能
+            </div>
+            <div className="max-h-60 overflow-y-auto" style={{ scrollbarWidth: 'thin' }}>
+              {toolboxFeatures.map((feature, idx) => {
+                const Icon = feature.icon
+                return (
+                  <button
+                    key={`toolbox-${idx}-${feature.id}`}
+                    onClick={() => handleToolboxFeatureClick(feature.id)}
+                    className="w-full px-3 py-1.5 flex items-center gap-2 text-left
+                      hover:bg-bg-hover transition-colors"
+                  >
+                    <Icon className={`w-4 h-4 ${feature.color} flex-shrink-0`} />
+                    <div className="flex-1 min-w-0">
+                      <div className="text-xs text-text-secondary font-medium">
+                        {feature.name}
+                      </div>
+                      <div className="text-[11px] text-text-muted leading-snug">
+                        {feature.description}
+                      </div>
+                    </div>
+                  </button>
+                )
+              })}
+            </div>
+            <div className="px-3 pt-1.5 mt-0.5 border-t border-border">
+              <p className="text-[10px] text-text-muted">更多功能在工具箱面板中</p>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   )
 }
