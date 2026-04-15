@@ -203,6 +203,21 @@ export const useGoalStore = create<GoalState>((set, get) => ({
     }
   },
 
+  // ★ 新增: 从目标生成规划
+  generatePlan: async (goalId: string, sessionId: string) => {
+    try {
+      const result = await (window as any).spectrAI.goal.generatePlan(goalId, sessionId)
+      if (result?.success && result.plan) {
+        console.log('[GoalStore] Plan generated successfully:', result.plan.id)
+        return result.plan
+      }
+      return null
+    } catch (err) {
+      console.error('[GoalStore] generatePlan error:', err)
+      throw err
+    }
+  },
+
   initListeners: () => {
     _statusCleanup?.()
 

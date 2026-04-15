@@ -11,11 +11,22 @@ import { IPC } from '../../shared/constants'
 import type { EvaluationTemplate, EvaluationRun, EvaluationResult } from '../storage/repositories/EvaluationRepository'
 
 export class EvaluationService extends EventEmitter {
+  private goalService: any = null  // ★ GoalService 引用,用于评估完成后更新目标进度
+
   constructor(
     private db: DatabaseManager,
     private sessionManagerV2: SessionManagerV2,
   ) {
     super()
+  }
+
+  /**
+   * ★ 设置 GoalService 引用
+   * 用于 Evaluation → Goal 链条打通
+   */
+  setGoalService(goalService: any): void {
+    this.goalService = goalService
+    console.log('[EvaluationService] GoalService 已连接')
   }
 
   // ── 模板 CRUD ─────────────────────────────────────────────
@@ -117,6 +128,34 @@ export class EvaluationService extends EventEmitter {
         status: 'completed',
         completedAt: new Date(),
       })
+
+      // ★ 新增: 计算平均分数并更新关联目标进度
+      if (this.goalService && scores.length > 0) {
+        try {
+          // 计算加权平均分
+          const totalWeight = template.criteria.reduce((sum, c) => sum + (c.weight || 1), 0)
+          const weightedScore = scores.reduce((sum, s, i) => {
+            const criterion = template.criteria[i]
+            const weight = criterion?.weight || 1
+            const normalizedScore = (s.score / (criterion?.max_score || 100)) * 100
+            return sum + (normalizedScore * weight)
+          }, 0)
+          const averageScore = totalWeight > 0 ? Math.round(weightedScore / totalWeight) : 0
+
+          // 尝试查找与 session 关联的目标
+          const goalId = this.findGoalBySessionId(sessionId)
+          if (goalId) {
+            this.goalService.updateProgressFromEvaluation(
+              goalId,
+              averageScore,
+              `评估: ${template.name}`
+            )
+          }
+        } catch (err) {
+          console.warn('[EvaluationService] 更新目标进度失败:', err)
+          // 不阻断评估流程
+        }
+      }
 
       this.broadcastStatus({ type: 'run-completed', runId, templateId, sessionId })
       return { runId }
@@ -296,5 +335,24 @@ ${conversationText.slice(0, 30000)}
 
   private broadcastStatus(status: any): void {
     sendToRenderer(IPC.EVAL_RUN_STATUS, status)
+  }
+
+  // ── ★ 链条打通辅助方法 ────────────────────────────────────
+
+  /**
+   * 查找与 session 关联的目标
+   * 通过查询 goal_sessions 表找到关联的 goal_id
+   */
+  private findGoalBySessionId(sessionId: string): string | null {
+    try {
+      const result = (this.db as any).getGoalSessions?.(sessionId)
+      if (result && result.length > 0) {
+        // 返回第一个关联的目标ID
+        return result[0].goal_id || result[0].goalId
+      }
+      return null
+    } catch {
+      return null
+    }
   }
 }

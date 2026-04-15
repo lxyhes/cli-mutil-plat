@@ -64,6 +64,7 @@ export default function GoalSettings() {
     fetchActivities,
     fetchSessions,
     fetchStats,
+    generatePlan,  // ★ 新增
     initListeners,
     cleanup,
   } = useGoalStore()
@@ -71,6 +72,7 @@ export default function GoalSettings() {
   const [activeTab, setActiveTab] = useState<'list' | 'detail' | 'create'>('list')
   const [filterStatus, setFilterStatus] = useState<string | undefined>(undefined)
   const [showCreateForm, setShowCreateForm] = useState(false)
+  const [generatingPlan, setGeneratingPlan] = useState(false)  // ★ 新增: 生成规划loading状态
 
   // Create form state
   const [newTitle, setNewTitle] = useState('')
@@ -509,6 +511,36 @@ export default function GoalSettings() {
                     </div>
                   </div>
                   <div className="flex gap-1">
+                    {/* ★ 新增: 生成规划按钮 */}
+                    {activeGoal.status === 'active' && (
+                      <button
+                        onClick={async (e) => {
+                          e.stopPropagation()
+                          if (generatingPlan) return
+                          try {
+                            setGeneratingPlan(true)
+                            const sessionId = 'plan-session'
+                            const plan = await generatePlan(activeGoal.id, sessionId)
+                            if (plan) {
+                              alert(`✅ 规划已生成!\n\n规划ID: ${plan.id}\n你可以在规划面板中查看和执行此规划。`)
+                            }
+                          } catch (err: any) {
+                            alert(`❌ 生成规划失败: ${err.message}`)
+                          } finally {
+                            setGeneratingPlan(false)
+                          }
+                        }}
+                        disabled={generatingPlan}
+                        className="p-1.5 text-text-muted hover:text-accent-purple rounded btn-transition disabled:opacity-50"
+                        title="从目标自动生成规划"
+                      >
+                        {generatingPlan ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <Target className="w-4 h-4" />
+                        )}
+                      </button>
+                    )}
                     <button
                       onClick={(e) => { e.stopPropagation(); handleOpenEdit(activeGoal) }}
                       className="p-1.5 text-text-muted hover:text-text-primary rounded btn-transition"

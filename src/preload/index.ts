@@ -818,6 +818,7 @@ if (!ctxBr) {
       ipcRenderer.invoke(IPC.GOAL_LINK_SESSION, goalId, sessionId, isPrimary),
     getSessions: (goalId: string) => ipcRenderer.invoke(IPC.GOAL_GET_SESSIONS, goalId),
     getStats: () => ipcRenderer.invoke(IPC.GOAL_GET_STATS),
+    generatePlan: (goalId: string, sessionId: string) => ipcRenderer.invoke(IPC.GOAL_GENERATE_PLAN, goalId, sessionId),  // ★ 新增
     onStatus: (callback: (status: any) => void) => {
       const handler = (_e: any, status: any) => callback(status)
       ipcRenderer.on(IPC.GOAL_STATUS, handler)

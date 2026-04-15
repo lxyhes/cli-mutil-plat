@@ -159,4 +159,18 @@ export function registerGoalHandlers(deps: IpcDependencies): void {
       return createErrorResponse(err, { operation: 'goal.get-stats' })
     }
   })
+
+  // ★ 新增: GENERATE_PLAN 从目标生成规划
+  ipcMain.handle(IPC.GOAL_GENERATE_PLAN, async (_event, goalId: string, sessionId: string) => {
+    try {
+      if (!goalService) {
+        return createErrorResponse(new Error('GoalService not initialized'), { operation: 'goal.generate-plan' })
+      }
+      const plan = await goalService.generatePlanFromGoal(goalId, sessionId)
+      if (!plan) return createErrorResponse(new Error('Failed to generate plan'), { operation: 'goal.generate-plan' })
+      return createSuccessResponse({ plan })
+    } catch (err) {
+      return createErrorResponse(err, { operation: 'goal.generate-plan' })
+    }
+  })
 }

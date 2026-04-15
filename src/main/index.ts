@@ -65,6 +65,7 @@ import { CheckpointService } from './checkpoint/CheckpointService'
 import { CostService } from './cost/CostService'
 import { ProjectKnowledgeService } from './knowledge/ProjectKnowledgeService'
 import { KnowledgeCenterService } from './knowledge/KnowledgeCenterService'
+import { PlannerService } from './planner/PlannerService'
 import { ReferenceProjectService } from './reference/ReferenceProjectService'
 import { CodeReviewService } from './review/CodeReviewService'
 import { SessionReplayService } from './replay/SessionReplayService'
@@ -181,6 +182,7 @@ let evaluationService: EvaluationService | null = null
 let workflowService: WorkflowService | null = null
 let summaryService: SummaryService | null = null
 let goalService: GoalService | null = null
+let plannerService: PlannerService | null = null  // ★ 新增: PlannerService
 let promptOptimizerService: PromptOptimizerService | null = null
 // ★ 新增 7 个差异化功能服务
 let workingContextService: WorkingContextService | null = null
@@ -954,6 +956,25 @@ app.whenReady().then(() => {
     goalService = new GoalService(database)
   }
 
+  // ★ 链条打通: 连接 EvaluationService → GoalService
+  if (evaluationService && goalService) {
+    evaluationService.setGoalService(goalService)
+    console.log('[Main] EvaluationService → GoalService 已连接')
+  }
+
+  // ★ 规划引擎服务
+  if (database && sessionManagerV2) {
+    plannerService = new PlannerService(database, sessionManagerV2)
+    plannerService.start()
+    console.log('[Main] PlannerService 已初始化')
+  }
+
+  // ★ 链条打通: 连接 GoalService → PlannerService
+  if (goalService && plannerService) {
+    goalService.setPlannerService(plannerService)
+    console.log('[Main] GoalService → PlannerService 已连接')
+  }
+
   // Prompt Optimizer 提示词优化服务
   if (database) {
     promptOptimizerService = new PromptOptimizerService(database, database.getPromptOptimizerRepository(), sessionManagerV2 ?? undefined)
@@ -1154,6 +1175,7 @@ app.whenReady().then(() => {
     workflowService,
     summaryService,
     goalService,
+    plannerService,  // ★ 新增: 注册 plannerService 到 IPC
     promptOptimizerService,
     workingContextService,
     driftGuardService,

@@ -179,6 +179,20 @@ export class DriftGuardService extends EventEmitter {
     if (result.severity !== 'none') {
       state.consecutiveDrifts++
 
+      // ★ 新增: 检测到漂移时回退目标进度
+      if (this.goalService && result.severity !== 'none') {
+        try {
+          this.goalService.regressProgressFromDrift(
+            state.goalId,
+            result.severity,
+            result.description
+          )
+        } catch (err) {
+          console.warn('[DriftGuard] 回退目标进度失败:', err)
+          // 不阻断漂移检测流程
+        }
+      }
+
       // 通知用户
       if (this.config.autoNotify) {
         this.notifyDrift(result)

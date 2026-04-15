@@ -333,6 +333,7 @@ export const IPC = {
   GOAL_GET_SESSIONS:    'goal:get-sessions',
   GOAL_GET_STATS:       'goal:get-stats',
   GOAL_STATUS:          'goal:status',
+  GOAL_GENERATE_PLAN:   'goal:generate-plan',  // ★ 新增: 从目标生成规划
 
   // Prompt 优化器（基础 + 高级）
   PROMPT_TEMPLATE_CREATE:    'prompt-template:create',
