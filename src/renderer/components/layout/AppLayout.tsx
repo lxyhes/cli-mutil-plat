@@ -6,7 +6,7 @@
 import { useState, useEffect } from 'react'
 import { Allotment } from 'allotment'
 import 'allotment/dist/style.css'
-import { ChevronLeft, ChevronRight } from 'lucide-react'
+import { ChevronLeft, ChevronRight, BookOpen } from 'lucide-react'
 import Sidebar from './Sidebar'
 import MainPanel from './MainPanel'
 import DetailPanel from './DetailPanel'
@@ -20,6 +20,7 @@ import { useUIStore } from '../../stores/uiStore'
 import ActivityBar from './ActivityBar'
 import TitleBar from './TitleBar'
 import UnifiedSettingsModal from '../settings/UnifiedSettingsModal'
+import { QuickStartGuide } from '../onboarding'
 
 export default function AppLayout() {
   const sidebarCollapsed = useUIStore((s) => s.sidebarCollapsed)
@@ -32,6 +33,7 @@ export default function AppLayout() {
 
   const [showSettings, setShowSettings] = useState(false)
   const [settingsInitialTab, setSettingsInitialTab] = useState<string | undefined>()
+  const [showQuickStart, setShowQuickStart] = useState(false)
 
   // 工具箱功能 Tab → 路由到工具箱面板
   const TOOLBOX_FEATURES = new Set([
@@ -62,7 +64,7 @@ export default function AppLayout() {
     <div className="flex flex-col h-screen bg-bg-primary">
       <TitleBar className="title-bar-compact" />
       <div className="flex-1 overflow-hidden flex">
-        <ActivityBar onOpenSettings={() => setShowSettings(true)} className="activity-bar-collapsed-768" />
+        <ActivityBar onOpenSettings={() => setShowSettings(true)} onOpenQuickStart={() => setShowQuickStart(true)} className="activity-bar-collapsed-768" />
 
         <div className="flex-1 overflow-hidden relative">
             <Allotment>
