@@ -33,6 +33,8 @@ import { checkProviderAvailability } from '../agent/providerAvailability'
 import type { IpcDependencies } from './index'
 import { sendToRenderer, aiRenamingLocks, performAiRename } from './shared'
 import { createErrorResponse, createSuccessResponse, ErrorCode, SpectrAIError } from '../../shared/errors'
+// ★ 输入验证中间件
+import { withValidation } from '../utils/inputValidation'
 
 const RESUME_PROMPT_TOKEN_BUDGET = 7000
 const RESUME_SUMMARY_TOKEN_BUDGET = 2400
