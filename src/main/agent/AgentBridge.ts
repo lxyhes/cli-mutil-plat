@@ -13,6 +13,11 @@ export class AgentBridge extends EventEmitter {
   private connections: Map<string, WebSocket> = new Map() // sessionId → ws
   private port: number = 0
   private teamBridgeHandler?: (request: BridgeRequest) => Promise<{ result?: any; error?: string }>
+  
+  // ★ 心跳检测配置
+  private heartbeatInterval: NodeJS.Timeout | null = null
+  private readonly HEARTBEAT_INTERVAL_MS = 30000 // 30 秒
+  private readonly HEARTBEAT_TIMEOUT_MS = 10000 // 10 秒超时
 
   /**
    * 启动 WebSocket 服务
@@ -98,11 +103,20 @@ export class AgentBridge extends EventEmitter {
       ws.on('error', (err) => {
         console.error('[AgentBridge] WebSocket error:', err)
       })
+      
+      // ★ 初始化心跳标记
+      ;(ws as any).isAlive = true
+      ws.on('pong', () => {
+        ;(ws as any).isAlive = true
+      })
     })
 
     this.wss.on('error', (err) => {
       console.error(`[AgentBridge] Server error on port ${port}:`, err)
     })
+
+    // ★ 启动心跳检测定时器
+    this.startHeartbeat()
 
     console.log(`[AgentBridge] WebSocket server started on 127.0.0.1:${port}`)
   }
@@ -117,6 +131,41 @@ export class AgentBridge extends EventEmitter {
   }
 
   /**
+   * ★ 启动心跳检测
+   */
+  private startHeartbeat(): void {
+    if (this.heartbeatInterval) {
+      clearInterval(this.heartbeatInterval)
+    }
+
+    this.heartbeatInterval = setInterval(() => {
+      if (!this.wss) return
+
+      this.wss.clients.forEach((ws: WebSocket) => {
+        // 如果客户端上次没有响应 ping，则断开连接
+        if ((ws as any).isAlive === false) {
+          console.warn('[AgentBridge] Client failed heartbeat, terminating connection')
+          return ws.terminate()
+        }
+
+        // 标记为未响应，发送 ping
+        ;(ws as any).isAlive = false
+        ws.ping()
+      })
+    }, this.HEARTBEAT_INTERVAL_MS)
+  }
+
+  /**
+   * ★ 停止心跳检测
+   */
+  private stopHeartbeat(): void {
+    if (this.heartbeatInterval) {
+      clearInterval(this.heartbeatInterval)
+      this.heartbeatInterval = null
+    }
+  }
+
+  /**
    * 获取当前端口
    */
   getPort(): number {
@@ -127,6 +176,9 @@ export class AgentBridge extends EventEmitter {
    * 关闭服务
    */
   close(): void {
+    // ★ 停止心跳检测
+    this.stopHeartbeat()
+    
     if (this.wss) {
       // 关闭所有连接
       for (const ws of this.connections.values()) {

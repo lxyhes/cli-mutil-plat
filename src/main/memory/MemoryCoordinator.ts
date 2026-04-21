@@ -119,23 +119,88 @@ export class MemoryCoordinator extends EventEmitter {
     const heapUsedMB = stats.heapUsed / 1024 / 1024
     const rssMB = stats.rss / 1024 / 1024
 
-    // 检查阈值
+    // ★ 检查阈值并发送告警
     if (rssMB >= this.thresholds.maximum) {
-      console.error(`[MemoryCoordinator] CRITICAL: Memory usage ${rssMB.toFixed(2)} MB exceeds maximum ${this.thresholds.maximum} MB`)
+      const errorMsg = `[MemoryCoordinator] 🚨 CRITICAL: Memory usage ${rssMB.toFixed(2)} MB exceeds maximum ${this.thresholds.maximum} MB`
+      console.error(errorMsg)
       this.emit('memory:critical', stats)
+      
+      // ★ 通知渲染进程（如果可能）
+      this.notifyRenderer('critical', {
+        message: `内存使用过高 (${rssMB.toFixed(0)} MB)，建议保存工作后重启应用`,
+        rssMB,
+        thresholdMB: this.thresholds.maximum,
+        recommendation: 'save_and_restart'
+      })
+      
       this.forceCleanup()
     } else if (rssMB >= this.thresholds.critical) {
-      console.warn(`[MemoryCoordinator] WARNING: Memory usage ${rssMB.toFixed(2)} MB exceeds critical threshold ${this.thresholds.critical} MB`)
+      const warnMsg = `[MemoryCoordinator] ⚠️ WARNING: Memory usage ${rssMB.toFixed(2)} MB exceeds critical threshold ${this.thresholds.critical} MB`
+      console.warn(warnMsg)
       this.emit('memory:high', stats)
+      
+      // ★ 通知渲染进程
+      this.notifyRenderer('warning', {
+        message: `内存使用较高 (${rssMB.toFixed(0)} MB)，正在自动清理...`,
+        rssMB,
+        thresholdMB: this.thresholds.critical,
+        recommendation: 'auto_cleanup'
+      })
+      
       this.triggerCleanup('aggressive')
     } else if (rssMB >= this.thresholds.warning) {
-      console.log(`[MemoryCoordinator] INFO: Memory usage ${rssMB.toFixed(2)} MB exceeds warning threshold ${this.thresholds.warning} MB`)
+      const infoMsg = `[MemoryCoordinator] ℹ️ INFO: Memory usage ${rssMB.toFixed(2)} MB exceeds warning threshold ${this.thresholds.warning} MB`
+      console.log(infoMsg)
       this.emit('memory:warning', stats)
+      
+      // ★ 通知渲染进程（仅开发环境）
+      if (process.env.NODE_ENV === 'development') {
+        this.notifyRenderer('info', {
+          message: `内存使用略高 (${rssMB.toFixed(0)} MB)`,
+          rssMB,
+          thresholdMB: this.thresholds.warning,
+          recommendation: 'monitor'
+        })
+      }
+      
       this.triggerCleanup('normal')
     }
 
     // 定期发送内存统计
     this.emit('memory:stats', stats)
+  }
+
+  /**
+   * ★ 通知渲染进程内存状态
+   */
+  private notifyRenderer(
+    level: 'info' | 'warning' | 'critical',
+    data: {
+      message: string
+      rssMB: number
+      thresholdMB: number
+      recommendation: string
+    }
+  ): void {
+    try {
+      // 动态导入 electron，避免循环依赖
+      const { BrowserWindow } = require('electron')
+      const windows = BrowserWindow.getAllWindows()
+      
+      if (windows.length > 0) {
+        const mainWindow = windows[0]
+        if (!mainWindow.isDestroyed()) {
+          mainWindow.webContents.send('memory:alert', {
+            level,
+            ...data,
+            timestamp: new Date().toISOString()
+          })
+        }
+      }
+    } catch (error) {
+      // 忽略错误（可能在初始化阶段）
+      console.debug('[MemoryCoordinator] Failed to notify renderer:', error)
+    }
   }
 
   /**

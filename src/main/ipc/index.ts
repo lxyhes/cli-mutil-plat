@@ -18,6 +18,8 @@ import type { SessionManagerV2 } from '../session/SessionManagerV2'
 import type { UpdateManager } from '../update/UpdateManager'
 // ★ 公共工具从 shared.ts 导出，避免 handler → index → handler 循环依赖
 export { sendToRenderer, aiRenamingLocks, performAiRename } from './shared'
+// ★ IPC 错误处理中间件
+export { wrapIpcHandler, formatUserFriendlyError, registerWrappedHandlers } from './errorMiddleware'
 
 /**
  * Manager 依赖注入接口

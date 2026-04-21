@@ -11,6 +11,7 @@ import { EventEmitter } from 'events'
 import path from 'path'
 import { v4 as uuidv4 } from 'uuid'
 import { teamLog } from './debug'
+import { cleanupTeamResources } from '../utils/eventEmitterCleanup'
 import type {
   CreateTeamRequest,
   TeamInstance,
@@ -1178,21 +1179,10 @@ TeamBridge WebSocket 端口：${bridgePort}
    * 清理团队资源
    */
   cleanupTeam(teamId: string): void {
-    // 停止健康检查
-    const healthChecker = this.healthCheckers.get(teamId)
-    if (healthChecker) {
-      healthChecker.stopMonitoring(teamId)
-      this.healthCheckers.delete(teamId)
-    }
-
-    // 关闭 Bridge
-    const bridge = this.bridges.get(teamId)
-    if (bridge) {
-      bridge.stop()
-      this.bridges.delete(teamId)
-    }
-
-    // 终止所有成员会话
+    // ★ 使用统一的清理工具（防止内存泄漏）
+    cleanupTeamResources(this, teamId)
+    
+    // 原有的清理逻辑保留作为备份
     const team = this.activeTeams.get(teamId)
     if (!team) return
 

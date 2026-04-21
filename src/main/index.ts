@@ -250,6 +250,30 @@ function createWindow(): void {
 
   mainWindow = new BrowserWindow(windowOptions)
 
+  // ★ 添加 CSP 安全策略（生产环境）
+  if (!isDevelopment) {
+    mainWindow.webContents.session.webRequest.onHeadersReceived((details, callback) => {
+      callback({
+        responseHeaders: {
+          ...details.responseHeaders,
+          'Content-Security-Policy': [
+            "default-src 'self'; " +
+            "script-src 'self' 'unsafe-inline' 'unsafe-eval'; " +
+            "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; " +
+            "font-src 'self' https://fonts.gstatic.com; " +
+            "img-src 'self' data: https: blob:; " +
+            "connect-src 'self' ws: wss: https: http://localhost:*; " +
+            "media-src 'self' blob:; " +
+            "frame-src 'none'; " +
+            "object-src 'none'; " +
+            "base-uri 'self'; " +
+            "form-action 'self';"
+          ]
+        }
+      })
+    })
+  }
+
   const ensureStartupVisible = (): void => {
     if (!mainWindow || mainWindow.isDestroyed() || startupShown) return
     startupShown = true
@@ -336,6 +360,18 @@ async function initializeManagers(): Promise<void> {
   // 1. 数据库（最先初始化，其他模块可能依赖）
   const dbPath = join(app.getPath('userData'), 'claudeops.db')
   database = new DatabaseManager(dbPath)
+
+  // 1.2 ★ 执行数据库版本迁移（确保 schema 是最新的）
+  try {
+    const { runDatabaseMigrations } = await import('./migration')
+    const migrationResult = await runDatabaseMigrations(database)
+    if (migrationResult.migrated) {
+      console.log(`[Migration] Applied ${migrationResult.appliedMigrations.length} migration(s):`, migrationResult.appliedMigrations)
+    }
+  } catch (error) {
+    console.error('[Migration] Failed to run database migrations:', error)
+    // 不抛出错误，允许应用继续启动（使用现有 schema）
+  }
 
   // 1.5 清理上次残留的孤儿会话（running/starting→interrupted，idle/waiting_input→completed）
   database.cleanupOrphanedSessions()
