@@ -11,7 +11,7 @@
  */
 
 import { useState, useEffect } from 'react'
-import { Bot, FolderTree, GitBranch, BarChart2, Settings, Activity, PieChart, Users, Wrench } from 'lucide-react'
+import { Bot, FolderTree, GitBranch, BarChart2, Settings, Activity, PieChart, Users, Wrench, BookOpen } from 'lucide-react'
 import type { PanelId, PanelSide } from '../../stores/uiStore'
 import { useUIStore } from '../../stores/uiStore'
 
@@ -73,9 +73,10 @@ function DropZone({ side, draggingId, dropZone, panelSides, onDragOver, onDragLe
 
 interface ActivityBarProps {
   onOpenSettings: () => void
+  onOpenQuickStart: () => void
 }
 
-export default function ActivityBar({ onOpenSettings }: ActivityBarProps) {
+export default function ActivityBar({ onOpenSettings, onOpenQuickStart }: ActivityBarProps) {
   const panelSides          = useUIStore(s => s.panelSides)
   const activePanelLeft     = useUIStore(s => s.activePanelLeft)
   const activePanelRight    = useUIStore(s => s.activePanelRight)

@@ -129,6 +129,12 @@ export default function AppLayout() {
           }}
         />
       )}
+
+      {showQuickStart && (
+        <QuickStartGuide
+          onClose={() => setShowQuickStart(false)}
+        />
+      )}
     </div>
   )
 }

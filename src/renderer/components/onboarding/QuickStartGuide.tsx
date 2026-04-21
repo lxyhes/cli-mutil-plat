@@ -68,7 +68,7 @@ const QuickStartGuide: React.FC<{
       image: 'https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=team%20collaboration%20interface%20with%20chat%20and%20tasks&image_size=landscape_16_9',
       tips: [
         '创建团队会话',
-        共享任务和进度',
+        '共享任务和进度',
         '实时协作编辑'
       ]
     },
