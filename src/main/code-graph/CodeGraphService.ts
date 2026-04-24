@@ -45,6 +45,39 @@ export interface BlastRadiusResult {
   affectedFiles: BlastRadiusFile[]
 }
 
+export interface CodeGraphSymbol {
+  filePath: string
+  name: string
+  kind: 'function' | 'class' | 'interface' | 'type' | 'enum' | 'const' | 'let' | 'var' | 'default' | 'unknown'
+  exported: boolean
+  line: number
+}
+
+export interface SymbolBlastRadiusItem {
+  filePath: string
+  symbolName: string
+  kind: CodeGraphSymbol['kind']
+  distance: number
+  relation: 'root' | 'dependent'
+  rootSymbol?: string
+  viaFile?: string
+  viaSymbol?: string
+}
+
+export interface SymbolBlastRadiusResult {
+  projectPath: string
+  rootFile: string
+  rootSymbols: CodeGraphSymbol[]
+  affectedSymbols: SymbolBlastRadiusItem[]
+}
+
+interface ImportBinding {
+  importedPath: string
+  importedSymbol: string
+  localName: string
+  importKind: CodeGraphImport['importKind']
+}
+
 const SOURCE_EXTENSIONS = new Set(['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs', '.mts', '.cts'])
 const IGNORE_DIRS = new Set([
   '.git',
@@ -360,6 +393,129 @@ export class CodeGraphService {
     }
   }
 
+  getSymbols(projectPath: string, filePath: string): CodeGraphSymbol[] {
+    const root = path.resolve(projectPath)
+    const rel = this.normalizeInputFile(root, filePath)
+    const content = this.readProjectFile(root, rel)
+    if (!content) return []
+    return this.extractSymbols(content, rel)
+  }
+
+  getSymbolBlastRadius(projectPath: string, filePath: string, changedSymbols?: string[], depth = 2): SymbolBlastRadiusResult {
+    const root = path.resolve(projectPath)
+    const rootFile = this.normalizeInputFile(root, filePath)
+    const maxDepth = Math.max(1, Math.min(5, Math.floor(depth || 2)))
+    const rootContent = this.readProjectFile(root, rootFile)
+    const rootSymbols = rootContent ? this.extractSymbols(rootContent, rootFile) : []
+    const exportedRootSymbols = rootSymbols.filter(symbol => symbol.exported)
+    const requested = new Set((changedSymbols || []).map(symbol => symbol.trim()).filter(Boolean))
+    const selectedRootSymbols = requested.size > 0
+      ? Array.from(requested).map(symbolName => (
+        exportedRootSymbols.find(symbol => symbol.name === symbolName) || {
+          filePath: rootFile,
+          name: symbolName,
+          kind: 'unknown' as const,
+          exported: true,
+          line: 0,
+        }
+      ))
+      : (exportedRootSymbols.length > 0 ? exportedRootSymbols : rootSymbols)
+
+    const reverse = this.getReverseImportMap(root)
+    const result = new Map<string, SymbolBlastRadiusItem>()
+    const queue: Array<{ filePath: string; symbols: Set<string>; distance: number; rootSymbolMap: Map<string, string> }> = []
+    const visited = new Set<string>()
+    const rootSymbolMap = new Map<string, string>()
+
+    for (const symbol of selectedRootSymbols) {
+      rootSymbolMap.set(symbol.name, symbol.name)
+      result.set(this.symbolKey(rootFile, symbol.name), {
+        filePath: rootFile,
+        symbolName: symbol.name,
+        kind: symbol.kind,
+        distance: 0,
+        relation: 'root',
+        rootSymbol: symbol.name,
+      })
+    }
+
+    queue.push({
+      filePath: rootFile,
+      symbols: new Set(selectedRootSymbols.map(symbol => symbol.name)),
+      distance: 0,
+      rootSymbolMap,
+    })
+
+    while (queue.length > 0) {
+      const current = queue.shift()!
+      if (current.distance >= maxDepth || current.symbols.size === 0) continue
+
+      for (const dependentFile of reverse.get(current.filePath) || []) {
+        const dependentContent = this.readProjectFile(root, dependentFile)
+        if (!dependentContent) continue
+
+        const bindings = this.extractImportBindings(dependentContent)
+          .filter(binding => {
+            const resolved = this.resolveImport(root, path.resolve(root, dependentFile), binding.importedPath)
+            return resolved === current.filePath
+          })
+          .filter(binding => binding.importedSymbol === '*' || current.symbols.has(binding.importedSymbol))
+
+        if (bindings.length === 0) continue
+
+        const localNames = bindings.map(binding => binding.localName).filter(name => name && name !== '*')
+        const wildcard = bindings.some(binding => binding.importedSymbol === '*' || binding.localName === '*')
+        const dependentSymbols = this.extractSymbols(dependentContent, dependentFile).filter(symbol => symbol.exported)
+        const affected = dependentSymbols.filter(symbol =>
+          wildcard || localNames.some(localName => this.symbolReferencesName(dependentContent, symbol, localName))
+        )
+
+        if (affected.length === 0) continue
+
+        const nextSymbols = new Set<string>()
+        const nextRootMap = new Map<string, string>()
+        const distance = current.distance + 1
+        for (const symbol of affected) {
+          const matchedBinding = wildcard ? bindings[0] : bindings.find(binding =>
+            this.symbolReferencesName(dependentContent, symbol, binding.localName)
+          ) || bindings[0]
+          const viaSymbol = matchedBinding.importedSymbol === '*' ? Array.from(current.symbols)[0] : matchedBinding.importedSymbol
+          const rootSymbol = current.rootSymbolMap.get(viaSymbol) || Array.from(current.rootSymbolMap.values())[0] || viaSymbol
+          const key = this.symbolKey(dependentFile, symbol.name)
+          if (!result.has(key)) {
+            result.set(key, {
+              filePath: dependentFile,
+              symbolName: symbol.name,
+              kind: symbol.kind,
+              distance,
+              relation: 'dependent',
+              rootSymbol,
+              viaFile: current.filePath,
+              viaSymbol,
+            })
+          }
+          nextSymbols.add(symbol.name)
+          nextRootMap.set(symbol.name, rootSymbol)
+        }
+
+        const visitKey = `${dependentFile}\0${Array.from(nextSymbols).sort().join(',')}\0${distance}`
+        if (!visited.has(visitKey)) {
+          visited.add(visitKey)
+          queue.push({ filePath: dependentFile, symbols: nextSymbols, distance, rootSymbolMap: nextRootMap })
+        }
+      }
+    }
+
+    return {
+      projectPath: root,
+      rootFile,
+      rootSymbols: selectedRootSymbols,
+      affectedSymbols: Array.from(result.values()).sort((a, b) =>
+        a.distance - b.distance || a.filePath.localeCompare(b.filePath) || a.symbolName.localeCompare(b.symbolName)
+      ),
+    }
+  }
+
   private ensureTables(): void {
     this.rawDb.exec(`
       CREATE TABLE IF NOT EXISTS code_graph_files (
@@ -425,6 +581,193 @@ export class CodeGraphService {
       }
     }
     return edges
+  }
+
+  private extractSymbols(content: string, filePath: string): CodeGraphSymbol[] {
+    const symbols = new Map<string, CodeGraphSymbol>()
+    const lines = content.split(/\r?\n/)
+    const add = (name: string, kind: CodeGraphSymbol['kind'], exported: boolean, index: number) => {
+      if (!name) return
+      const key = `${name}\0${exported ? 'exported' : 'local'}`
+      if (!symbols.has(key)) {
+        symbols.set(key, { filePath, name, kind, exported, line: index + 1 })
+      }
+    }
+
+    lines.forEach((line, index) => {
+      const trimmed = line.trim()
+      if (!trimmed || trimmed.startsWith('//') || trimmed.startsWith('import ')) return
+
+      let match = trimmed.match(/^export\s+default\s+(?:async\s+)?function(?:\s+([A-Za-z_$][\w$]*))?/)
+      if (match) {
+        add('default', 'default', true, index)
+        if (match[1]) add(match[1], 'function', true, index)
+        return
+      }
+
+      match = trimmed.match(/^export\s+default\s+class(?:\s+([A-Za-z_$][\w$]*))?/)
+      if (match) {
+        add('default', 'default', true, index)
+        if (match[1]) add(match[1], 'class', true, index)
+        return
+      }
+
+      match = trimmed.match(/^export\s+(?:async\s+)?function\s+([A-Za-z_$][\w$]*)/)
+      if (match) return add(match[1], 'function', true, index)
+      match = trimmed.match(/^export\s+class\s+([A-Za-z_$][\w$]*)/)
+      if (match) return add(match[1], 'class', true, index)
+      match = trimmed.match(/^export\s+interface\s+([A-Za-z_$][\w$]*)/)
+      if (match) return add(match[1], 'interface', true, index)
+      match = trimmed.match(/^export\s+type\s+([A-Za-z_$][\w$]*)/)
+      if (match) return add(match[1], 'type', true, index)
+      match = trimmed.match(/^export\s+enum\s+([A-Za-z_$][\w$]*)/)
+      if (match) return add(match[1], 'enum', true, index)
+      match = trimmed.match(/^export\s+(const|let|var)\s+([A-Za-z_$][\w$]*)/)
+      if (match) return add(match[2], match[1] as CodeGraphSymbol['kind'], true, index)
+
+      match = trimmed.match(/^export\s*\{([^}]+)\}/)
+      if (match) {
+        for (const part of match[1].split(',')) {
+          const name = part.trim().split(/\s+as\s+/i).pop()?.trim()
+          if (name) add(name, 'unknown', true, index)
+        }
+        return
+      }
+
+      match = trimmed.match(/^(?:async\s+)?function\s+([A-Za-z_$][\w$]*)/)
+      if (match) return add(match[1], 'function', false, index)
+      match = trimmed.match(/^class\s+([A-Za-z_$][\w$]*)/)
+      if (match) return add(match[1], 'class', false, index)
+      match = trimmed.match(/^interface\s+([A-Za-z_$][\w$]*)/)
+      if (match) return add(match[1], 'interface', false, index)
+      match = trimmed.match(/^type\s+([A-Za-z_$][\w$]*)/)
+      if (match) return add(match[1], 'type', false, index)
+      match = trimmed.match(/^enum\s+([A-Za-z_$][\w$]*)/)
+      if (match) return add(match[1], 'enum', false, index)
+      match = trimmed.match(/^(const|let|var)\s+([A-Za-z_$][\w$]*)/)
+      if (match) return add(match[2], match[1] as CodeGraphSymbol['kind'], false, index)
+    })
+
+    return Array.from(symbols.values()).sort((a, b) => a.line - b.line || a.name.localeCompare(b.name))
+  }
+
+  private extractImportBindings(content: string): ImportBinding[] {
+    const bindings: ImportBinding[] = []
+    const addNamedImports = (importedPath: string, namedBlock: string) => {
+      for (const rawPart of namedBlock.split(',')) {
+        const part = rawPart.trim()
+        if (!part) continue
+        const pieces = part.split(/\s+as\s+/i).map(item => item.trim()).filter(Boolean)
+        bindings.push({
+          importedPath,
+          importedSymbol: pieces[0],
+          localName: pieces[1] || pieces[0],
+          importKind: 'static',
+        })
+      }
+    }
+
+    let match: RegExpExecArray | null
+    const importRegex = /\bimport\s+(?:type\s+)?([^'"]+?)\s+from\s+['"]([^'"]+)['"]/g
+    while ((match = importRegex.exec(content)) !== null) {
+      const clause = match[1].trim()
+      const importedPath = match[2]
+      const named = clause.match(/\{([^}]+)\}/)
+      if (named) addNamedImports(importedPath, named[1])
+
+      const namespace = clause.match(/\*\s+as\s+([A-Za-z_$][\w$]*)/)
+      if (namespace) {
+        bindings.push({ importedPath, importedSymbol: '*', localName: namespace[1], importKind: 'static' })
+      }
+
+      const defaultPart = clause.replace(/\{[^}]*\}/g, '').replace(/\*\s+as\s+[A-Za-z_$][\w$]*/g, '').split(',')[0]?.trim()
+      if (defaultPart && /^[A-Za-z_$][\w$]*$/.test(defaultPart)) {
+        bindings.push({ importedPath, importedSymbol: 'default', localName: defaultPart, importKind: 'static' })
+      }
+    }
+
+    const sideEffectRegex = /\bimport\s+['"]([^'"]+)['"]/g
+    while ((match = sideEffectRegex.exec(content)) !== null) {
+      bindings.push({ importedPath: match[1], importedSymbol: '*', localName: '*', importKind: 'static' })
+    }
+
+    const requireObjectRegex = /\b(?:const|let|var)\s+\{([^}]+)\}\s*=\s*require\s*\(\s*['"]([^'"]+)['"]\s*\)/g
+    while ((match = requireObjectRegex.exec(content)) !== null) {
+      addNamedImports(match[2], match[1])
+    }
+
+    const requireDefaultRegex = /\b(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*require\s*\(\s*['"]([^'"]+)['"]\s*\)/g
+    while ((match = requireDefaultRegex.exec(content)) !== null) {
+      bindings.push({ importedPath: match[2], importedSymbol: '*', localName: match[1], importKind: 'require' })
+    }
+
+    return bindings
+  }
+
+  private getReverseImportMap(root: string): Map<string, Set<string>> {
+    const allEdges = this.usingSqlite
+      ? this.rawDb.prepare(`
+        SELECT file_path, resolved_file_path
+        FROM code_graph_imports
+        WHERE project_path = ? AND resolved_file_path IS NOT NULL
+      `).all(root) as Array<{ file_path: string; resolved_file_path: string }>
+      : this.memoryImports
+        .filter(edge => edge.projectPath === root && edge.resolvedFilePath)
+        .map(edge => ({ file_path: edge.filePath, resolved_file_path: edge.resolvedFilePath! }))
+
+    const reverse = new Map<string, Set<string>>()
+    for (const edge of allEdges) {
+      if (!reverse.has(edge.resolved_file_path)) reverse.set(edge.resolved_file_path, new Set())
+      reverse.get(edge.resolved_file_path)!.add(edge.file_path)
+    }
+    return reverse
+  }
+
+  private readProjectFile(root: string, filePath: string): string | null {
+    const abs = path.resolve(root, filePath)
+    if (!this.isPathInside(root, abs) || !this.isSourceFile(abs) || !fs.existsSync(abs) || !fs.statSync(abs).isFile()) {
+      return null
+    }
+    return fs.readFileSync(abs, 'utf8')
+  }
+
+  private symbolReferencesName(content: string, symbol: CodeGraphSymbol, name: string): boolean {
+    const block = this.getSymbolBlock(content, symbol)
+    return new RegExp(`\\b${this.escapeRegExp(name)}\\b`).test(block)
+  }
+
+  private getSymbolBlock(content: string, symbol: CodeGraphSymbol): string {
+    const lines = content.split(/\r?\n/)
+    const startIndex = Math.max(0, symbol.line - 1)
+    const collected: string[] = []
+    let balance = 0
+    let startedBlock = false
+
+    for (let index = startIndex; index < lines.length; index++) {
+      const line = lines[index]
+      collected.push(line)
+      for (const char of line) {
+        if (char === '{') {
+          balance++
+          startedBlock = true
+        } else if (char === '}') {
+          balance--
+        }
+      }
+      if (!startedBlock && /[;,]\s*$/.test(line)) break
+      if (startedBlock && balance <= 0) break
+      if (index > startIndex && !startedBlock) break
+    }
+
+    return collected.join('\n')
+  }
+
+  private symbolKey(filePath: string, symbolName: string): string {
+    return `${filePath}\0${symbolName}`
+  }
+
+  private escapeRegExp(value: string): string {
+    return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
   }
 
   private resolveImport(root: string, importerAbsPath: string, importedPath: string): string | null {

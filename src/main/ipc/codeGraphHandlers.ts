@@ -46,4 +46,20 @@ export function registerCodeGraphHandlers(codeGraphService: CodeGraphService): v
       return createErrorResponse(err, { operation: 'code-graph.get-blast-radius', projectPath, filePath })
     }
   })
+
+  ipcMain.handle(IPC.CODE_GRAPH_GET_SYMBOLS, async (_event, projectPath: string, filePath: string) => {
+    try {
+      return createSuccessResponse(codeGraphService.getSymbols(projectPath, filePath))
+    } catch (err) {
+      return createErrorResponse(err, { operation: 'code-graph.get-symbols', projectPath, filePath })
+    }
+  })
+
+  ipcMain.handle(IPC.CODE_GRAPH_GET_SYMBOL_BLAST_RADIUS, async (_event, projectPath: string, filePath: string, changedSymbols?: string[], depth?: number) => {
+    try {
+      return createSuccessResponse(codeGraphService.getSymbolBlastRadius(projectPath, filePath, changedSymbols, depth))
+    } catch (err) {
+      return createErrorResponse(err, { operation: 'code-graph.get-symbol-blast-radius', projectPath, filePath })
+    }
+  })
 }

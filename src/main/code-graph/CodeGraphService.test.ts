@@ -64,4 +64,65 @@ describe('CodeGraphService', () => {
     service.removeFile(projectDir, 'src/feature.ts')
     expect(service.getDependents(projectDir, 'src/util.ts')).toHaveLength(0)
   })
+
+  it('computes symbol-level blast radius through named imports', () => {
+    const projectDir = path.join(tempDir, 'project')
+    fs.mkdirSync(path.join(projectDir, 'src'), { recursive: true })
+    fs.writeFileSync(path.join(projectDir, 'src', 'util.ts'), [
+      'export const value = 1',
+      'export const untouched = 2',
+      '',
+    ].join('\n'))
+    fs.writeFileSync(path.join(projectDir, 'src', 'feature.ts'), [
+      "import { value, untouched } from './util'",
+      'export const feature = value + 1',
+      'export const stable = untouched + 1',
+      '',
+    ].join('\n'))
+    fs.writeFileSync(path.join(projectDir, 'src', 'app.ts'), [
+      "import { feature, stable } from './feature'",
+      'export const app = feature + 1',
+      'export const appStable = stable + 1',
+      '',
+    ].join('\n'))
+
+    service.indexProject(projectDir)
+
+    expect(service.getSymbols(projectDir, 'src/util.ts').filter(symbol => symbol.exported).map(symbol => symbol.name)).toEqual([
+      'value',
+      'untouched',
+    ])
+
+    const radius = service.getSymbolBlastRadius(projectDir, 'src/util.ts', ['value'], 2)
+    expect(radius.affectedSymbols).toEqual([
+      {
+        filePath: 'src/util.ts',
+        symbolName: 'value',
+        kind: 'const',
+        distance: 0,
+        relation: 'root',
+        rootSymbol: 'value',
+      },
+      {
+        filePath: 'src/feature.ts',
+        symbolName: 'feature',
+        kind: 'const',
+        distance: 1,
+        relation: 'dependent',
+        rootSymbol: 'value',
+        viaFile: 'src/util.ts',
+        viaSymbol: 'value',
+      },
+      {
+        filePath: 'src/app.ts',
+        symbolName: 'app',
+        kind: 'const',
+        distance: 2,
+        relation: 'dependent',
+        rootSymbol: 'value',
+        viaFile: 'src/feature.ts',
+        viaSymbol: 'feature',
+      },
+    ])
+  })
 })

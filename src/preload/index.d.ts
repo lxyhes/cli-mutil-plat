@@ -428,6 +428,8 @@ export interface SpectrAIAPI {
     getDependencies: (projectPath: string, filePath: string) => Promise<any>
     getDependents: (projectPath: string, filePath: string) => Promise<any>
     getBlastRadius: (projectPath: string, filePath: string, depth?: number) => Promise<any>
+    getSymbols: (projectPath: string, filePath: string) => Promise<any>
+    getSymbolBlastRadius: (projectPath: string, filePath: string, changedSymbols?: string[], depth?: number) => Promise<any>
   }
 
   // OpenAI Compatible Provider

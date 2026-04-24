@@ -960,6 +960,10 @@ if (!ctxBr) {
       ipcRenderer.invoke(IPC.CODE_GRAPH_GET_DEPENDENTS, projectPath, filePath),
     getBlastRadius: (projectPath: string, filePath: string, depth?: number) =>
       ipcRenderer.invoke(IPC.CODE_GRAPH_GET_BLAST_RADIUS, projectPath, filePath, depth),
+    getSymbols: (projectPath: string, filePath: string) =>
+      ipcRenderer.invoke(IPC.CODE_GRAPH_GET_SYMBOLS, projectPath, filePath),
+    getSymbolBlastRadius: (projectPath: string, filePath: string, changedSymbols?: string[], depth?: number) =>
+      ipcRenderer.invoke(IPC.CODE_GRAPH_GET_SYMBOL_BLAST_RADIUS, projectPath, filePath, changedSymbols, depth),
   },
 
   // ==================== OpenAI Compatible API ====================
