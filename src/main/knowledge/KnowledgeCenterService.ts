@@ -295,10 +295,16 @@ export class KnowledgeCenterService {
     }
 
     const whereClause = whereConditions.join(' AND ')
+    const sortColumns: Record<string, string> = {
+      createdAt: 'k.created_at',
+      updatedAt: 'k.updated_at',
+      useCount: 'k.use_count',
+      relevance: 'k.updated_at',
+    }
     const sortColumn = query.sortBy === 'priority'
-      ? `CASE priority WHEN 'high' THEN 3 WHEN 'medium' THEN 2 ELSE 1 END`
-      : `k.${query.sortBy || 'updated_at'}`
-    const sortOrder = query.sortOrder?.toUpperCase() || 'DESC'
+      ? `CASE k.priority WHEN 'high' THEN 3 WHEN 'medium' THEN 2 ELSE 1 END`
+      : sortColumns[query.sortBy || 'updatedAt']
+    const sortOrder = query.sortOrder?.toUpperCase() === 'ASC' ? 'ASC' : 'DESC'
 
     // 查询数据
     const dataStmt = this.db.prepare(`
@@ -316,7 +322,7 @@ export class KnowledgeCenterService {
     `)
 
     const rows = dataStmt.all(...params, pageSize, offset) as any[]
-    const countResult = countStmt.get(...params.slice(0, -2)) as { total: number }
+    const countResult = countStmt.get(...params) as { total: number }
 
     const entries: UnifiedKnowledgeEntry[] = rows.map(row => this.rowToEntry(row))
     const total = countResult?.total || 0

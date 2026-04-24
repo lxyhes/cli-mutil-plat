@@ -237,6 +237,19 @@ export class CodexAppServerAdapter extends BaseProviderAdapter {
   /** 每次 turn 开始时记录时间，心跳用于计算等待时长 */
   private turnStartTimes: Map<string, number> = new Map()
 
+  private async resolveSystemPrompt(
+    systemPrompt: AdapterSessionConfig['systemPrompt'] | Promise<AdapterSessionConfig['systemPrompt']>
+  ): Promise<string | undefined> {
+    const resolved = await Promise.resolve(systemPrompt)
+    if (!resolved) return undefined
+    if (typeof resolved === 'string') return resolved
+    if (typeof resolved === 'object' && typeof resolved.append === 'string') {
+      return resolved.append
+    }
+    console.warn('[CodexAdapter] Ignoring non-string systemPrompt for baseInstructions')
+    return undefined
+  }
+
   async startSession(sessionId: string, config: AdapterSessionConfig): Promise<void> {
     const startTime = Date.now()
     // 启动 codex app-server 进程
@@ -423,12 +436,13 @@ export class CodexAppServerAdapter extends BaseProviderAdapter {
       // 创建 Thread
       // 注意：model 由 adapterConfig.model 传入（来自 provider.defaultModel 或用户配置）
       // Codex CLI 支持的模型：codex-mini-latest, o4-mini 等；不传则由 codex 使用其默认模型
+      const baseInstructions = await this.resolveSystemPrompt(config.systemPrompt as any)
       console.log(`[CodexAdapter] Sending thread/start for ${sessionId} (+${Date.now() - startTime}ms)`)
       const threadResult = await this.rpc(sessionId, 'thread/start', {
         ...(config.model ? { model: config.model } : {}),
         cwd: config.workingDirectory,
         // Supervisor 模式下注入系统指令（来自 SessionManagerV2.getSupervisorPrompt）
-        ...(config.systemPrompt ? { baseInstructions: config.systemPrompt } : {}),
+        ...(baseInstructions ? { baseInstructions } : {}),
         // 有效值：'untrusted' | 'on-failure' | 'on-request' | 'never'
         // autoAccept=true  → 'never'：Codex 直接执行所有操作，完全不发 requestApproval 事件
         //   ⚠️ 注意：'on-failure' 文档说失败时才问，但实测仍会发 requestApproval，
