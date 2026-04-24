@@ -423,11 +423,12 @@ export class CommunityPublishService extends EventEmitter {
         name: mcpData.name || '',
         compatibleProviders: mcpData.compatibleProviders || [],
         category: mcpData.category || 'general',
-        config: mcpData.config || {},
-        enabled: mcpData.enabled ?? true,
-        host: mcpData.host || '',
-        port: mcpData.port || 8080,
-        protocol: mcpData.protocol || 'http',
+        userConfig: mcpData.config || {},
+        isGlobalEnabled: mcpData.enabled ?? true,
+        isInstalled: mcpData.isInstalled ?? false,
+        transport: mcpData.transport || 'stdio',
+        fallbackMode: mcpData.fallbackMode || 'disabled',
+        installMethod: mcpData.installMethod || 'manual',
       })
 
       sendToRenderer(IPC.COMMUNITY_PUBLISH_STATUS, { type: 'imported', targetType: 'mcp', targetId: newId })
@@ -444,6 +445,10 @@ export class CommunityPublishService extends EventEmitter {
       this.db.createWorkflow({
         ...wfData,
         id: newId,
+        name: wfData.name || 'Imported Workflow',
+        status: wfData.status || 'draft',
+        steps: wfData.steps || [],
+        variables: wfData.variables || {},
       })
 
       sendToRenderer(IPC.COMMUNITY_PUBLISH_STATUS, { type: 'imported', targetType: 'workflow', targetId: newId })

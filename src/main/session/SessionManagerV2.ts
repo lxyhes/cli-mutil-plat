@@ -554,7 +554,7 @@ export class SessionManagerV2 extends EventEmitter implements MemoryManagedCompo
         }
         console.log(`[SessionManagerV2] no systemPromptAppend, base=${base ? 'supervisor' : 'undefined'}`)
         return base
-      })(),
+      })() as any,
       mcpConfigPath: config.mcpConfigPath,
       envOverrides: { ...resolvedProvider.envOverrides, ...config.env },
       // ★ 从 Provider 配置传入 Provider 级参数（nodeVersion / model / providerArgs / executablePath / gitBashPath）

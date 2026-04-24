@@ -22,6 +22,7 @@
     "src/shared/**/*"
   ],
   "exclude": [
-    "src/**/*.test.ts"
+    "src/**/*.test.ts",
+    "src/main/utils/ServiceContainer.usage.ts"
   ]
 }

@@ -16,6 +16,36 @@ import type { TaskSessionCoordinator } from '../task/TaskSessionCoordinator'
 import type { AgentManagerV2 } from '../agent/AgentManagerV2'
 import type { SessionManagerV2 } from '../session/SessionManagerV2'
 import type { UpdateManager } from '../update/UpdateManager'
+import type { MemoryCoordinator } from '../memory/MemoryCoordinator'
+import type { TeamManager } from '../team/TeamManager'
+import type { TelegramBotService } from '../telegram/TelegramBotService'
+import type { FeishuService } from '../feishu/FeishuService'
+import type { SchedulerService } from '../scheduler/SchedulerService'
+import type { EvaluationService } from '../evaluation/EvaluationService'
+import type { PlannerService } from '../planner/PlannerService'
+import type { WorkflowService } from '../workflow/WorkflowService'
+import type { SummaryService } from '../summary/SummaryService'
+import type { GoalService } from '../goal/GoalService'
+import type { PromptOptimizerService } from '../prompt-optimizer/PromptOptimizerService'
+import type { WorkingContextService } from '../working-context/WorkingContextService'
+import type { DriftGuardService } from '../drift-guard/DriftGuardService'
+import type { CrossSessionMemoryService } from '../cross-session-memory/CrossSessionMemoryService'
+import type { SessionTemplateService } from '../session-template/SessionTemplateService'
+import type { CodeContextInjectionService } from '../code-context/CodeContextInjectionService'
+import type { AdapterRegistry } from '../adapter/AdapterRegistry'
+import type { CheckpointService } from '../checkpoint/CheckpointService'
+import type { CostService } from '../cost/CostService'
+import type { ProjectKnowledgeService } from '../knowledge/ProjectKnowledgeService'
+import type { ReferenceProjectService } from '../reference/ReferenceProjectService'
+import type { CodeReviewService } from '../review/CodeReviewService'
+import type { SessionReplayService } from '../replay/SessionReplayService'
+import type { ContextBudgetService } from '../context-budget/ContextBudgetService'
+import type { BattleService } from '../battle/BattleService'
+import type { DailyReportService } from '../daily-report/DailyReportService'
+import type { SkillArenaService } from '../arena/SkillArenaService'
+import type { VoiceService } from '../voice/VoiceService'
+import type { CommunityPublishService } from '../community/CommunityPublishService'
+import type { KnowledgeCenterService } from '../knowledge/KnowledgeCenterService'
 // ★ 公共工具从 shared.ts 导出，避免 handler → index → handler 循环依赖
 export { sendToRenderer, aiRenamingLocks, performAiRename } from './shared'
 // ★ IPC 错误处理中间件
@@ -41,37 +71,36 @@ export interface IpcDependencies {
   agentBridgePort?: number
   taskCoordinator?: TaskSessionCoordinator
   updateManager?: UpdateManager
-  memoryCoordinator?: any  // MemoryCoordinator（可选）
-  teamManager?: any  // TeamManager（可选）
-  telegramBotService?: any  // TelegramBotService（可选）
-  feishuService?: any  // FeishuService（可选）
-  schedulerService?: any  // SchedulerService（可选）
-  evaluationService?: any  // EvaluationService（可选）
-  plannerService?: any  // PlannerService（可选）
-  workflowService?: any  // WorkflowService（可选）
-  summaryService?: any  // SummaryService（可选）
-  goalService?: any  // GoalService（可选）
-  promptOptimizerService?: any  // PromptOptimizerService（可选）
-  workingContextService?: any  // WorkingContextService（可选）
-  driftGuardService?: any  // DriftGuardService（可选）
-  crossSessionMemoryService?: any  // CrossSessionMemoryService（可选）
-  sessionTemplateService?: any  // SessionTemplateService（可选）
-  codeContextInjectionService?: any  // CodeContextInjectionService（可选）
-  adapterRegistry?: any  // AdapterRegistry（可选）
-  // ★ 新增 10 大功能服务
-  checkpointService?: any       // CheckpointService（可选）
-  costService?: any             // CostService（可选）
-  projectKnowledgeService?: any // ProjectKnowledgeService（可选）
-  referenceProjectService?: any // ReferenceProjectService（可选）
-  codeReviewService?: any       // CodeReviewService（可选）
-  sessionReplayService?: any    // SessionReplayService（可选）
-  contextBudgetService?: any    // ContextBudgetService（可选）
-  battleService?: any           // BattleService（可选）
-  dailyReportService?: any      // DailyReportService（可选）
-  skillArenaService?: any       // SkillArenaService（可选）
-  voiceService?: any            // VoiceService（可选）
-  communityPublishService?: any // CommunityPublishService（可选）
-  knowledgeCenterService?: any  // KnowledgeCenterService（可选）
+  memoryCoordinator?: MemoryCoordinator
+  teamManager?: TeamManager
+  telegramBotService?: TelegramBotService
+  feishuService?: FeishuService
+  schedulerService?: SchedulerService
+  evaluationService?: EvaluationService
+  plannerService?: PlannerService
+  workflowService?: WorkflowService
+  summaryService?: SummaryService
+  goalService?: GoalService
+  promptOptimizerService?: PromptOptimizerService
+  workingContextService?: WorkingContextService
+  driftGuardService?: DriftGuardService
+  crossSessionMemoryService?: CrossSessionMemoryService
+  sessionTemplateService?: SessionTemplateService
+  codeContextInjectionService?: CodeContextInjectionService
+  adapterRegistry?: AdapterRegistry
+  checkpointService?: CheckpointService
+  costService?: CostService
+  projectKnowledgeService?: ProjectKnowledgeService
+  referenceProjectService?: ReferenceProjectService
+  codeReviewService?: CodeReviewService
+  sessionReplayService?: SessionReplayService
+  contextBudgetService?: ContextBudgetService
+  battleService?: BattleService
+  dailyReportService?: DailyReportService
+  skillArenaService?: SkillArenaService
+  voiceService?: VoiceService
+  communityPublishService?: CommunityPublishService
+  knowledgeCenterService?: KnowledgeCenterService
 }
 
 // 各子模块 handler 注册函数

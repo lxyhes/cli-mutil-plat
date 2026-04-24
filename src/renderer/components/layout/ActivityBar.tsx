@@ -74,9 +74,10 @@ function DropZone({ side, draggingId, dropZone, panelSides, onDragOver, onDragLe
 interface ActivityBarProps {
   onOpenSettings: () => void
   onOpenQuickStart: () => void
+  className?: string
 }
 
-export default function ActivityBar({ onOpenSettings, onOpenQuickStart }: ActivityBarProps) {
+export default function ActivityBar({ onOpenSettings, onOpenQuickStart, className = '' }: ActivityBarProps) {
   const panelSides          = useUIStore(s => s.panelSides)
   const activePanelLeft     = useUIStore(s => s.activePanelLeft)
   const activePanelRight    = useUIStore(s => s.activePanelRight)
@@ -173,7 +174,7 @@ export default function ActivityBar({ onOpenSettings, onOpenQuickStart }: Activi
   }
 
   return (
-    <div className="flex flex-col items-center w-11 shrink-0 h-full bg-bg-secondary border-r border-border py-2 z-10">
+    <div className={`flex flex-col items-center w-11 shrink-0 h-full bg-bg-secondary border-r border-border py-2 z-10 ${className}`}>
 
       {/* 上半区：控制左侧边栏 */}
       <DropZone

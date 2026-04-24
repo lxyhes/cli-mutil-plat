@@ -85,6 +85,19 @@ export function registerPlannerHandlers(deps: IpcDependencies): void {
     }
   })
 
+  // SYNC TO KANBAN 将规划任务同步到看板
+  ipcMain.handle(IPC.PLAN_SYNC_TO_KANBAN, async (_event, planId: string, sessionId: string) => {
+    try {
+      if (!plannerService) {
+        return createErrorResponse(new Error('PlannerService not initialized'), { operation: 'planner.sync-to-kanban' })
+      }
+      const tasks = await plannerService.syncPlanToKanban(planId, sessionId)
+      return createSuccessResponse({ planId, tasks, taskCount: tasks.length })
+    } catch (err) {
+      return createErrorResponse(err, { operation: 'planner.sync-to-kanban', planId })
+    }
+  })
+
   // GET 任务列表
   ipcMain.handle('plan:get-tasks', async (_event, planId: string) => {
     return database.getPlanTasks(planId)

@@ -13,10 +13,14 @@ const isMac =
   typeof navigator !== 'undefined' &&
   (/Mac/i.test(navigator.platform) || /Mac/i.test(navigator.userAgent))
 
-export default function TitleBar() {
+interface TitleBarProps {
+  className?: string
+}
+
+export default function TitleBar({ className = '' }: TitleBarProps) {
   return (
     <div
-      className="flex items-center h-9 bg-bg-secondary border-b border-border flex-shrink-0 select-none"
+      className={`flex items-center h-9 bg-bg-secondary border-b border-border flex-shrink-0 select-none ${className}`}
       style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}
     >
       {/* macOS：左侧预留 Traffic Light 空间（close/minimize/fullscreen，约 72px） */}

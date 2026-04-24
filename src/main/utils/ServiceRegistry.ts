@@ -5,7 +5,7 @@
  * @author weibin
  */
 
-import { registerService } from './ServiceContainer'
+import { registerService, getService } from './ServiceContainer'
 import type { DatabaseManager } from '../storage/Database'
 import type { SessionManagerV2 } from '../session/SessionManagerV2'
 import type { AgentManagerV2 } from '../agent/AgentManagerV2'
@@ -137,7 +137,7 @@ export function registerCoreServices(): void {
       const { GitWorktreeService } = await import('../git/GitWorktreeService')
       
       const database = await getService<DatabaseManager>('database')
-      const teamRepo = new TeamRepository(database)
+      const teamRepo = new TeamRepository(database.getDb(), database.isUsingSqlite())
       const agentManagerV2 = await getService<AgentManagerV2>('agentManagerV2')
       const sessionManagerV2 = await getService<SessionManagerV2>('sessionManagerV2')
       const gitService = new GitWorktreeService()

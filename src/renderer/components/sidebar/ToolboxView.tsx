@@ -14,6 +14,7 @@ import {
   Mic, Calendar, Gauge,
 } from 'lucide-react'
 import { useUIStore } from '../../stores/uiStore'
+import type { ToolboxFeatureId } from '../../stores/uiStore'
 import { useMcpStore } from '../../stores/mcpStore'
 import { useSkillStore } from '../../stores/skillStore'
 import { usePromptOptimizerStore } from '../../stores/promptOptimizerStore'
@@ -21,7 +22,7 @@ import type { LucideIcon } from 'lucide-react'
 
 // ── 功能模块定义 ──
 interface FeatureDef {
-  id: string
+  id: ToolboxFeatureId
   label: string
   description: string
   icon: LucideIcon
@@ -82,7 +83,7 @@ import VoiceView from './VoiceView'
 import DailyReportView from './DailyReportView'
 import ContextBudgetView from './ContextBudgetView'
 
-function FeatureComponent({ featureId }: { featureId: string }) {
+function FeatureComponent({ featureId }: { featureId: ToolboxFeatureId }) {
   switch (featureId) {
     case 'mcp':              return <McpManager />
     case 'skills':           return <SkillManager />
@@ -123,7 +124,7 @@ function useFeatureBadges(): Record<string, string | number | null> {
 }
 
 // ── 首页网格 ──
-function FeatureGrid({ onOpen }: { onOpen: (id: string) => void }) {
+function FeatureGrid({ onOpen }: { onOpen: (id: ToolboxFeatureId) => void }) {
   const badges = useFeatureBadges()
 
   // 确保数据已加载
@@ -175,7 +176,7 @@ function FeatureGrid({ onOpen }: { onOpen: (id: string) => void }) {
 }
 
 // ── 功能详情视图 ──
-function FeatureDetail({ featureId, onBack }: { featureId: string; onBack: () => void }) {
+function FeatureDetail({ featureId, onBack }: { featureId: ToolboxFeatureId; onBack: () => void }) {
   const feature = FEATURES.find(f => f.id === featureId)
   const Icon = feature?.icon ?? Wrench
 
@@ -208,27 +209,12 @@ function FeatureDetail({ featureId, onBack }: { featureId: string; onBack: () =>
 export default function ToolboxView() {
   const toolboxFeature = useUIStore(s => s.toolboxFeature)
   const setToolboxFeature = useUIStore(s => s.setToolboxFeature)
-  const activePanelLeft = useUIStore(s => s.activePanelLeft)
-  const [localFeature, setLocalFeature] = useState<string | null>(null)
-
-  // 当从 ActivityBar 点击 mcp/skills/trending 时，自动跳转到对应功能
-  useEffect(() => {
-    if (activePanelLeft === 'mcp') {
-      setLocalFeature('mcp')
-      setToolboxFeature(null)
-    } else if (activePanelLeft === 'skills') {
-      setLocalFeature('skills')
-      setToolboxFeature(null)
-    } else if (activePanelLeft === 'trending') {
-      setLocalFeature('trending')
-      setToolboxFeature(null)
-    }
-  }, [activePanelLeft])
+  const [localFeature, setLocalFeature] = useState<ToolboxFeatureId | null>(null)
 
   // toolboxFeature（深层链接）优先于本地状态
   const currentFeature = toolboxFeature ?? localFeature
 
-  const handleOpen = (id: string) => {
+  const handleOpen = (id: ToolboxFeatureId) => {
     setLocalFeature(id)
     setToolboxFeature(null)
   }

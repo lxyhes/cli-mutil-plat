@@ -21,6 +21,7 @@ import ActivityBar from './ActivityBar'
 import TitleBar from './TitleBar'
 import UnifiedSettingsModal from '../settings/UnifiedSettingsModal'
 import { QuickStartGuide } from '../onboarding'
+import type { ToolboxFeatureId } from '../../stores/uiStore'
 
 export default function AppLayout() {
   const sidebarCollapsed = useUIStore((s) => s.sidebarCollapsed)
@@ -36,7 +37,7 @@ export default function AppLayout() {
   const [showQuickStart, setShowQuickStart] = useState(false)
 
   // 工具箱功能 Tab → 路由到工具箱面板
-  const TOOLBOX_FEATURES = new Set([
+  const TOOLBOX_FEATURES = new Set<ToolboxFeatureId>([
     'mcp', 'skills', 'trending', 'workspace', 'scheduler', 'summary',
     'planner', 'workflow', 'evaluation', 'goal', 'prompt-optimizer',
   ])
@@ -44,11 +45,11 @@ export default function AppLayout() {
   useEffect(() => {
     const handler = (e: Event) => {
       const tab = (e as CustomEvent<string>).detail
-      if (TOOLBOX_FEATURES.has(tab)) {
+      if (TOOLBOX_FEATURES.has(tab as ToolboxFeatureId)) {
         // 功能类 Tab → 打开工具箱面板并定位到对应功能
         const store = useUIStore.getState()
         store.setActivePanelLeft('toolbox')
-        store.setToolboxFeature(tab)
+        store.setToolboxFeature(tab as ToolboxFeatureId)
         if (store.sidebarCollapsed) store.toggleSidebar()
       } else {
         // 设置类 Tab → 打开设置弹窗

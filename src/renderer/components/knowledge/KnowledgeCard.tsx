@@ -180,7 +180,7 @@ export default function KnowledgeCard({
 
         <div className="flex items-center gap-1 shrink-0">
           {/* 自动注入标记 */}
-          {entry.autoInject && <Zap className="w-3 h-3 text-accent-blue" title="自动注入" />}
+          {entry.autoInject && <Zap className="w-3 h-3 text-accent-blue" aria-label="自动注入" />}
 
           {/* 来源图标 */}
           <SourceIcon source={entry.source} />

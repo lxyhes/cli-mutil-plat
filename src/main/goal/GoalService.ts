@@ -211,28 +211,30 @@ export class GoalService extends EventEmitter {
     console.log(`[GoalService] 从目标生成规划: ${goal.title}`)
 
     // 调用 PlannerService 创建规划
-    const plan = await this.plannerService.createPlan({
+    const result = await this.plannerService.createPlan({
       sessionId,
       goal: goalDescription,
-      status: 'idle'
     })
 
-    if (!plan) {
+    if (!result?.planSession) {
       throw new Error('创建规划失败')
     }
+
+    const planId = result.planSession.id
 
     // 将规划与目标关联(通过活动记录)
     this.addActivity({
       goalId,
       type: 'note',
-      content: JSON.stringify({ planId: plan.id, type: 'plan-generated' }),
+      content: JSON.stringify({ planId, type: 'plan-generated' }),
       progressAfter: goal.progress
     })
 
     // 触发事件
-    this.emit('plan-generated', { goalId, planId: plan.id })
+    this.emit('plan-generated', { goalId, planId })
+    sendToRenderer(IPC.GOAL_STATUS, { type: 'plan-generated', goalId, planId })
 
-    return plan
+    return result
   }
 
   /**

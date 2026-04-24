@@ -69,6 +69,7 @@ interface GoalState {
   linkSession: (goalId: string, sessionId: string, isPrimary?: boolean) => Promise<any>
   fetchSessions: (goalId: string) => Promise<void>
   fetchStats: () => Promise<void>
+  generatePlan: (goalId: string, sessionId: string) => Promise<any>
   initListeners: () => void
   cleanup: () => void
 }

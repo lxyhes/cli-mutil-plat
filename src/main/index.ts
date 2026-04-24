@@ -191,20 +191,20 @@ let crossSessionMemoryService: CrossSessionMemoryService | null = null
 let sessionTemplateService: SessionTemplateService | null = null
 let codeContextInjectionService: CodeContextInjectionService | null = null
 // ★ 新增 10 大功能服务
-let gitWorktreeServiceRef: any = null
-let checkpointService: any = null
-let costService: any = null
-let projectKnowledgeService: any = null
-let knowledgeCenterService: any = null
-let referenceProjectService: any = null
-let codeReviewService: any = null
-let sessionReplayService: any = null
-let contextBudgetService: any = null
-let battleService: any = null
-let dailyReportService: any = null
-let skillArenaService: any = null
-let voiceService: any = null
-let communityPublishService: any = null
+let gitWorktreeServiceRef: GitWorktreeService | undefined = undefined
+let checkpointService: CheckpointService | undefined = undefined
+let costService: CostService | undefined = undefined
+let projectKnowledgeService: ProjectKnowledgeService | undefined = undefined
+let knowledgeCenterService: KnowledgeCenterService | undefined = undefined
+let referenceProjectService: ReferenceProjectService | undefined = undefined
+let codeReviewService: CodeReviewService | undefined = undefined
+let sessionReplayService: SessionReplayService | undefined = undefined
+let contextBudgetService: ContextBudgetService | undefined = undefined
+let battleService: BattleService | undefined = undefined
+let dailyReportService: DailyReportService | undefined = undefined
+let skillArenaService: SkillArenaService | undefined = undefined
+let voiceService: VoiceService | undefined = undefined
+let communityPublishService: CommunityPublishService | undefined = undefined
 
 /**
  * 创建主窗口
@@ -1216,22 +1216,21 @@ app.whenReady().then(async () => {
     updateManager,
     memoryCoordinator,
     teamManager,
-    telegramBotService,
-    feishuService,
-    schedulerService,
-    evaluationService,
-    workflowService,
-    summaryService,
-    goalService,
-    plannerService,  // ★ 新增: 注册 plannerService 到 IPC
-    promptOptimizerService,
-    workingContextService,
-    driftGuardService,
-    crossSessionMemoryService,
-    sessionTemplateService,
-    codeContextInjectionService,
+    telegramBotService: telegramBotService ?? undefined,
+    feishuService: feishuService ?? undefined,
+    schedulerService: schedulerService ?? undefined,
+    evaluationService: evaluationService ?? undefined,
+    workflowService: workflowService ?? undefined,
+    summaryService: summaryService ?? undefined,
+    goalService: goalService ?? undefined,
+    plannerService: plannerService ?? undefined,
+    promptOptimizerService: promptOptimizerService ?? undefined,
+    workingContextService: workingContextService ?? undefined,
+    driftGuardService: driftGuardService ?? undefined,
+    crossSessionMemoryService: crossSessionMemoryService ?? undefined,
+    sessionTemplateService: sessionTemplateService ?? undefined,
+    codeContextInjectionService: codeContextInjectionService ?? undefined,
     adapterRegistry,
-    // ★ 新增 10 大功能服务
     checkpointService,
     costService,
     projectKnowledgeService,
@@ -1283,7 +1282,7 @@ app.whenReady().then(async () => {
       if (!workingDir) return
       const sessionName = session.name || sessionId.slice(0, 8)
       // 异步触发自动快照（不阻塞事件流）
-      checkpointService.autoCreate(sessionId, sessionName, workingDir, 'AI 回合完成', 'auto-turn-complete').catch(() => {})
+      checkpointService!.autoCreate(sessionId, sessionName, workingDir, 'AI 回合完成', 'auto-turn-complete').catch(() => {})
     })
     console.log('[Main] CheckpointService connected to SessionManagerV2 event stream')
   }
@@ -1299,7 +1298,7 @@ app.whenReady().then(async () => {
         const providerId = session?.config?.providerId || session?.provider?.id || ''
         // 只在有实际 token 变化时记录（跳过初始化时 total=0 的情况）
         if (usage.inputTokens > 0 || usage.outputTokens > 0) {
-          costService.saveUsageDetail(sessionId, providerId, usage.inputTokens, usage.outputTokens)
+          costService!.saveUsageDetail(sessionId, providerId, usage.inputTokens, usage.outputTokens)
         }
       } catch (_err) { /* ignore */ }
     })
@@ -1313,12 +1312,12 @@ app.whenReady().then(async () => {
       inputTokens: number; outputTokens: number; total: number; startedAt: string
     }) => {
       if (usage.inputTokens > 0 || usage.outputTokens > 0) {
-        contextBudgetService.onUsageUpdate(sessionId, usage.inputTokens, usage.outputTokens)
+        contextBudgetService!.onUsageUpdate(sessionId, usage.inputTokens, usage.outputTokens)
       }
     })
     sessionManagerV2.on('status-change', (sessionId: string, status: string) => {
       if (status === 'completed' || status === 'error' || status === 'stopped') {
-        contextBudgetService.onSessionEnd(sessionId)
+        contextBudgetService!.onSessionEnd(sessionId)
       }
     })
     console.log('[Main] ContextBudgetService connected to SessionManagerV2 event stream')
@@ -1326,37 +1325,38 @@ app.whenReady().then(async () => {
 
   // ★ 连接 SessionReplayService → SessionManagerV2 事件流
   if (sessionReplayService && sessionManagerV2) {
+    const replayService = sessionReplayService
     // activity 事件 → 录制 tool_use / permission / status_change 等
     sessionManagerV2.on('activity', (sessionId: string, activity: any) => {
-      if (!sessionReplayService.isRecording(sessionId)) return
+      if (!replayService.isRecording(sessionId)) return
       const eventType = mapActivityToReplayEvent(activity)
       if (eventType) {
-        sessionReplayService.appendEvent(sessionId, { type: eventType, data: activity })
+        replayService.appendEvent(sessionId, { type: eventType as any, data: activity })
       }
     })
     // conversation-message → 录制 message 事件
     sessionManagerV2.on('conversation-message', (sessionId: string, msg: any) => {
-      if (!sessionReplayService.isRecording(sessionId)) return
-      sessionReplayService.appendEvent(sessionId, { type: 'message', data: msg })
+      if (!replayService.isRecording(sessionId)) return
+      replayService.appendEvent(sessionId, { type: 'message' as any, data: msg })
     })
     // usage-update → 录制 usage 事件
     sessionManagerV2.on('usage-update', (sessionId: string, usage: any) => {
-      if (!sessionReplayService.isRecording(sessionId)) return
-      sessionReplayService.appendEvent(sessionId, { type: 'usage', data: usage })
+      if (!replayService.isRecording(sessionId)) return
+      replayService.appendEvent(sessionId, { type: 'usage' as any, data: usage })
     })
     // status-change → 自动开始/停止录制
     sessionManagerV2.on('status-change', (sessionId: string, status: string) => {
-      const settings = sessionReplayService.getSettings()
+      const settings = replayService.getSettings()
       if (settings.autoRecordEnabled) {
         if (status === 'running') {
           const session = sessionManagerV2.getSession(sessionId)
           const name = session?.name || session?.config?.name || sessionId.slice(0, 8)
-          if (!sessionReplayService.isRecording(sessionId)) {
-            sessionReplayService.startRecording(sessionId, name)
+          if (!replayService.isRecording(sessionId)) {
+            replayService.startRecording(sessionId, name)
           }
         } else if (status === 'completed' || status === 'error' || status === 'stopped') {
-          if (sessionReplayService.isRecording(sessionId)) {
-            sessionReplayService.stopRecording(sessionId)
+          if (replayService.isRecording(sessionId)) {
+            replayService.stopRecording(sessionId)
           }
           // ★ 会话完成时自动触发代码审查（尊重 autoReviewEnabled 开关）
           if (codeReviewService) {
@@ -1375,8 +1375,8 @@ app.whenReady().then(async () => {
         }
       }
       // 始终录制 status_change 事件
-      if (sessionReplayService.isRecording(sessionId)) {
-        sessionReplayService.appendEvent(sessionId, { type: 'status_change', data: { status } })
+      if (replayService.isRecording(sessionId)) {
+        replayService.appendEvent(sessionId, { type: 'status_change' as any, data: { status } })
       }
     })
     console.log('[Main] SessionReplayService connected to SessionManagerV2 event stream')
@@ -1404,6 +1404,7 @@ app.whenReady().then(async () => {
 
   // ★ 每日日报自动生成（每天 22:00 检查并生成）
   if (dailyReportService) {
+    const reportService = dailyReportService
     let lastReportDate = ''
     const checkAndGenerateReport = () => {
       const now = new Date()
@@ -1415,7 +1416,7 @@ app.whenReady().then(async () => {
       if (currentHour === 22 && currentMinute < 10 && today !== lastReportDate) {
         lastReportDate = today
         console.log('[Main] Auto-generating daily report for', today)
-        dailyReportService.generate(today).then((result: { success: boolean; error?: string }) => {
+        reportService.generate(today).then((result: { success: boolean; error?: string }) => {
           if (result.success) {
             console.log('[Main] Daily report generated successfully')
           } else {

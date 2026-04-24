@@ -11,6 +11,30 @@ import { THEMES, THEME_IDS, DEFAULT_THEME_ID } from '../../shared/constants'
 /** 统一面板 ID（左侧边栏和右侧面板均使用此类型） */
 export type PanelId = 'sessions' | 'explorer' | 'git' | 'dashboard' | 'team' | 'timeline' | 'stats' | 'toolbox'
 
+/** 工具箱内的二级功能 ID */
+export type ToolboxFeatureId =
+  | 'mcp'
+  | 'skills'
+  | 'trending'
+  | 'workspace'
+  | 'scheduler'
+  | 'summary'
+  | 'planner'
+  | 'workflow'
+  | 'evaluation'
+  | 'goal'
+  | 'prompt-optimizer'
+  | 'knowledge'
+  | 'checkpoint'
+  | 'cost'
+  | 'context-budget'
+  | 'review'
+  | 'battle'
+  | 'arena'
+  | 'replay'
+  | 'daily-report'
+  | 'voice'
+
 /** 面板所在侧 */
 export type PanelSide = 'left' | 'right'
 
@@ -157,7 +181,7 @@ interface UIState {
   /** 当前右侧面板激活的面板 */
   activePanelRight: PanelId
   /** 工具箱当前钻入的功能模块（null = 显示首页网格） */
-  toolboxFeature: string | null
+  toolboxFeature: ToolboxFeatureId | null
 
   /** 中间区域布局模式 */
   layoutMode: LayoutMode
@@ -191,7 +215,7 @@ interface UIState {
   /** 激活右侧面板某面板 */
   setActivePanelRight: (panelId: PanelId) => void
   /** 设置工具箱当前功能模块 */
-  setToolboxFeature: (feature: string | null) => void
+  setToolboxFeature: (feature: ToolboxFeatureId | null) => void
   /** 切换中间区域布局模式 */
   setLayoutMode: (mode: LayoutMode) => void
   /** 设置窗格内容 */
@@ -357,7 +381,7 @@ export const useUIStore = create<UIState>((set) => ({
     set({ activePanelRight: panelId })
   },
 
-  setToolboxFeature: (feature: string | null) => {
+  setToolboxFeature: (feature: ToolboxFeatureId | null) => {
     set({ toolboxFeature: feature })
   },
 

@@ -16,7 +16,7 @@ import {
 } from 'lucide-react'
 import { useKnowledgeCenterStore } from '../../stores/knowledgeCenterStore'
 import { useSessionStore } from '../../stores/sessionStore'
-import type { UnifiedKnowledgeType, UnifiedKnowledgeEntry } from '../../../shared/knowledgeCenterTypes'
+import type { UnifiedKnowledgeType, UnifiedKnowledgeEntry, UnifiedKnowledgeCategory } from '../../../shared/knowledgeCenterTypes'
 import KnowledgeCard, { CategoryBadge, TypeIcon } from '../knowledge/KnowledgeCard'
 import EntryForm from '../knowledge/EntryForm'
 import WorkingMemoryPanel from '../knowledge/WorkingMemoryPanel'
@@ -44,6 +44,15 @@ const TABS: { id: UnifiedKnowledgeType; label: string; icon: React.ComponentType
     description: '当前项目的临时工作上下文',
     color: 'text-accent-green'
   }
+]
+
+const PROJECT_CATEGORY_FILTERS: UnifiedKnowledgeCategory[] = [
+  'architecture',
+  'tech-stack',
+  'convention',
+  'api',
+  'decision',
+  'custom',
 ]
 
 export default function KnowledgeView() {
@@ -475,7 +484,7 @@ export default function KnowledgeView() {
             >
               全部
             </button>
-            {['architecture', 'tech-stack', 'convention', 'api', 'decision', 'custom'].map(cat => (
+            {PROJECT_CATEGORY_FILTERS.map(cat => (
               <button
                 key={cat}
                 onClick={() => store.setFilterCategory(filterCategory === cat ? null : cat)}
@@ -538,7 +547,6 @@ export default function KnowledgeView() {
               <p className="text-[10px]">
                 {currentTab === 'project-knowledge' && '点击 ✨ 从项目文件提取 · 🔮 从会话对话提取'}
                 {currentTab === 'cross-session-memory' && '会话结束后自动生成摘要'}
-                {currentTab === 'working-memory' && '工作过程中自动记录关键信息'}
               </p>
             </div>
           ) : (

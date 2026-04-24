@@ -290,6 +290,7 @@ export const IPC = {
   PLAN_UPDATE:        'plan:update',
   PLAN_DELETE:        'plan:delete',
   PLAN_START:         'plan:start',
+  PLAN_SYNC_TO_KANBAN:'plan:sync-to-kanban',
   PLAN_STEP_EXECUTE:  'plan:step-execute',
   PLAN_GET_STEPS:     'plan:get-steps',
   PLAN_STEP_UPDATE:   'plan:step-update',

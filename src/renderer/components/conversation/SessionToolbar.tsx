@@ -19,6 +19,7 @@ import { useSessionStore } from '../../stores/sessionStore'
 import { useSkillStore } from '../../stores/skillStore'
 import { useMcpStore } from '../../stores/mcpStore'
 import { useUIStore } from '../../stores/uiStore'
+import type { ToolboxFeatureId } from '../../stores/uiStore'
 
 // ---- 类型 ----
 
@@ -260,7 +261,13 @@ const SessionToolbar: React.FC<SessionToolbarProps> = ({ sessionId, onSkillClick
   const setActivePanelLeft = useUIStore(s => s.setActivePanelLeft)
 
   // 工具箱功能列表
-  const toolboxFeatures = useMemo(() => [
+  const toolboxFeatures = useMemo<Array<{
+    id: ToolboxFeatureId
+    name: string
+    description: string
+    icon: React.ElementType
+    color: string
+  }>>(() => [
     {
       id: 'prompt-optimizer',
       name: '提示词优化',
@@ -309,7 +316,7 @@ const SessionToolbar: React.FC<SessionToolbarProps> = ({ sessionId, onSkillClick
   usePopoverClose(toolboxPopoverOpen, setToolboxPopoverOpen, toolboxBtnRef, toolboxPopoverRef)
 
   // 处理工具箱功能点击
-  const handleToolboxFeatureClick = useCallback((featureId: string) => {
+  const handleToolboxFeatureClick = useCallback((featureId: ToolboxFeatureId) => {
     setToolboxPopoverOpen(false)
     setToolboxFeature(featureId)
     setActivePanelLeft('toolbox')

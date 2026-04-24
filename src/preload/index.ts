@@ -751,6 +751,7 @@ if (!ctxBr) {
     update: (planId: string, updates: any) => ipcRenderer.invoke(IPC.PLAN_UPDATE, planId, updates),
     delete: (planId: string) => ipcRenderer.invoke(IPC.PLAN_DELETE, planId),
     start: (planId: string, sessionId: string) => ipcRenderer.invoke(IPC.PLAN_START, planId, sessionId),
+    syncToKanban: (planId: string, sessionId: string) => ipcRenderer.invoke(IPC.PLAN_SYNC_TO_KANBAN, planId, sessionId),
     getTasks: (planId: string) => ipcRenderer.invoke('plan:get-tasks', planId),
     getSteps: (taskId: string) => ipcRenderer.invoke(IPC.PLAN_GET_STEPS, taskId),
     executeStep: (stepId: string, sessionId: string, providerId?: string) =>

@@ -25,7 +25,11 @@ function formatTokens(n: number): string {
   return String(n)
 }
 
-export default function StatusBar() {
+interface StatusBarProps {
+  className?: string
+}
+
+export default function StatusBar({ className = '' }: StatusBarProps) {
   const { viewMode, setViewMode } = useUIStore()
   const { sessions } = useSessionStore()
   const [elapsed, setElapsed] = useState(0)
@@ -66,7 +70,7 @@ export default function StatusBar() {
   }
 
   return (
-    <div className="h-8 bg-bg-secondary border-t border-border flex items-center justify-between px-4 text-xs text-text-secondary">
+    <div className={`h-8 bg-bg-secondary border-t border-border flex items-center justify-between px-4 text-xs text-text-secondary ${className}`}>
       {/* 左侧：活跃会话数 */}
       <div className="flex items-center gap-4">
         <div className="flex items-center gap-2">

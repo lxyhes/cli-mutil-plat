@@ -213,8 +213,8 @@ export class PlannerService extends EventEmitter {
   private normalizePriority(p: string): 'low' | 'medium' | 'high' | 'critical' {
     const pLower = String(p || '').toLowerCase()
     if (pLower === 'low') return 'low'
-    if (pLower === 'high' || pLower === 'critical') return 'high'
     if (pLower === 'critical') return 'critical'
+    if (pLower === 'high') return 'high'
     return 'medium'
   }
 
@@ -365,7 +365,7 @@ export class PlannerService extends EventEmitter {
       const task = this.db.getPlanTask(taskId)
       if (task && task.status !== 'completed' && task.status !== 'skipped') {
         const hasFailed = steps.some(s => s.status === 'failed')
-        this.db.updateTask(taskId, {
+        this.db.updatePlanTask(taskId, {
           status: hasFailed ? 'pending' : 'completed',
           completedAt: hasFailed ? undefined : new Date(),
         })
@@ -402,7 +402,7 @@ export class PlannerService extends EventEmitter {
     const task = this.db.getPlanTask(taskId)
     if (!task) return
 
-    this.db.updateTask(taskId, { status: 'skipped', completedAt: new Date() })
+    this.db.updatePlanTask(taskId, { status: 'skipped', completedAt: new Date() })
     this.emit('task-skipped', { taskId })
     sendToRenderer(IPC.PLAN_STATUS, { type: 'task-skipped', taskId })
 
@@ -491,12 +491,13 @@ export class PlannerService extends EventEmitter {
           createdKanbanTasks.push(kanbanTask)
           
           // 记录看板任务ID到metadata中
-          this.db.updateTask(planTask.id, {
+          const existingMetadata = (planTask as any).metadata || {}
+          this.db.updatePlanTask(planTask.id, {
             metadata: {
-              ...(planTask.metadata || {}),
+              ...existingMetadata,
               kanbanTaskId: kanbanTask.id
             }
-          })
+          } as any)
         }
       } catch (err) {
         console.warn(`[PlannerService] 同步任务 ${planTask.title} 失败:`, err)

@@ -57,6 +57,7 @@ interface PlannerState {
   updatePlan: (planId: string, updates: { goal?: string; status?: string }) => Promise<any>
   deletePlan: (planId: string) => Promise<any>
   startPlan: (planId: string, sessionId: string) => Promise<any>
+  syncToKanban: (planId: string, sessionId: string) => Promise<any>
   fetchTasks: (planId: string) => Promise<void>
   fetchSteps: (taskId: string) => Promise<void>
   executeStep: (stepId: string, sessionId: string, providerId?: string) => Promise<any>
@@ -139,6 +140,19 @@ export const usePlannerStore = create<PlannerState>((set, get) => ({
   startPlan: async (planId, sessionId) => {
     try {
       const result = await (window as any).spectrAI.planner.start(planId, sessionId)
+      if (result.success) {
+        await get().fetchPlans()
+        await get().fetchTasks(planId)
+      }
+      return result
+    } catch (err: any) {
+      return { success: false, error: { message: err.message } }
+    }
+  },
+
+  syncToKanban: async (planId, sessionId) => {
+    try {
+      const result = await (window as any).spectrAI.planner.syncToKanban(planId, sessionId)
       if (result.success) {
         await get().fetchPlans()
         await get().fetchTasks(planId)
@@ -238,7 +252,7 @@ export const usePlannerStore = create<PlannerState>((set, get) => ({
 
         if (type === 'plan-created' || type === 'plan-updated' || type === 'plan-deleted') {
           get().fetchPlans()
-        } else if (type === 'plan-started' || type === 'plan-completed') {
+        } else if (type === 'plan-started' || type === 'plan-completed' || type === 'plan-synced-to-kanban') {
           get().fetchPlans()
           if (planId) get().fetchTasks(planId)
         } else if (type === 'task-completed' || type === 'task-skipped') {

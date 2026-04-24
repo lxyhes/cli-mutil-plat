@@ -10,6 +10,7 @@ import type {
   UnifiedKnowledgeResult,
   CreateUnifiedKnowledgeParams,
   UpdateUnifiedKnowledgeParams,
+  UnifiedKnowledgeCategory,
   UnifiedKnowledgeExport,
   KnowledgeUsageStats
 } from '../../shared/knowledgeCenterTypes'
@@ -48,7 +49,7 @@ interface KnowledgeCenterState {
 
   // ===== 搜索与过滤 =====
   searchQuery: string
-  filterCategory: string | null
+  filterCategory: UnifiedKnowledgeCategory | null
   filterPriority: string | null
 
   // ===== 统计 =====
@@ -94,7 +95,7 @@ interface KnowledgeCenterActions {
 
   // ===== 搜索与过滤 =====
   setSearchQuery: (query: string) => void
-  setFilterCategory: (category: string | null) => void
+  setFilterCategory: (category: UnifiedKnowledgeCategory | null) => void
   setFilterPriority: (priority: string | null) => void
 
   // ===== 工具 =====

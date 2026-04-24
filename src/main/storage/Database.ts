@@ -50,6 +50,46 @@ export class DatabaseManager implements MemoryManagedComponent {
   private lockManager!: LockManager
   private lastCleanupTime?: Date
 
+  // ==================== Schema 修复辅助方法 ====================
+
+  /**
+   * 确保表存在，如果不存在则创建
+   */
+  private ensureTable(tableName: string, createSql: string): void {
+    if (!this.db) return
+    const exists = this.db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name=?").get(tableName)
+    if (!exists) {
+      console.log(`[Database] Creating missing table: ${tableName}`)
+      this.db.exec(createSql)
+    }
+  }
+
+  /**
+   * 确保列存在，如果不存在则添加
+   */
+  private ensureColumn(tableName: string, columnName: string, columnDef: string): void {
+    if (!this.db) return
+    const cols = this.db.prepare(`PRAGMA table_info(${tableName})`).all().map((r: any) => r.name)
+    if (!cols.includes(columnName)) {
+      console.log(`[Database] Adding column ${columnName} to ${tableName}`)
+      this.db.exec(`ALTER TABLE ${tableName} ADD COLUMN ${columnName} ${columnDef}`)
+    }
+  }
+
+  /**
+   * 批量确保列存在
+   */
+  private ensureColumns(tableName: string, columns: Record<string, string>): void {
+    if (!this.db) return
+    const cols = this.db.prepare(`PRAGMA table_info(${tableName})`).all().map((r: any) => r.name)
+    for (const [name, def] of Object.entries(columns)) {
+      if (!cols.includes(name)) {
+        console.log(`[Database] Adding column ${name} to ${tableName}`)
+        this.db.exec(`ALTER TABLE ${tableName} ADD COLUMN ${name} ${def}`)
+      }
+    }
+  }
+
   // 所有 repository 实例
   private taskRepo!: TaskRepository
   private sessionRepo!: SessionRepository
@@ -270,207 +310,161 @@ export class DatabaseManager implements MemoryManagedComponent {
 
   /**
    * 确保 Agent Teams 表存在（紧急修复）
+   * 使用辅助方法简化重复逻辑
    */
   private ensureTeamsTablesExist(): void {
     if (!this.db) return
-    
+
     try {
-      const tables = this.db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name LIKE 'team_%'").all()
-      const existingTables = tables.map((t: any) => t.name)
-      
-      if (!existingTables.includes('team_instances')) {
-        console.log('[Database] Creating missing team_instances table...')
-        this.db.exec(`
-          CREATE TABLE IF NOT EXISTS team_instances (
-            id TEXT PRIMARY KEY,
-            name TEXT NOT NULL,
-            template_id TEXT,
-            status TEXT NOT NULL DEFAULT 'pending',
-            work_dir TEXT NOT NULL,
-            session_id TEXT NOT NULL,
-            objective TEXT,
-            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-            started_at DATETIME,
-            completed_at DATETIME,
-            parent_team_id TEXT,
-            worktree_isolation INTEGER NOT NULL DEFAULT 0
-          )
-        `)
-      } else {
-        // 修复已存在但缺少列的表
-        const cols = this.db.prepare('PRAGMA table_info(team_instances)').all().map((r: any) => r.name)
-        console.log('[Database] team_instances columns before fix:', cols)
-        if (!cols.includes('work_dir')) {
-          console.log('[Database] Adding work_dir column...')
-          this.db.exec('ALTER TABLE team_instances ADD COLUMN work_dir TEXT')
+      // team_instances
+      this.ensureTable('team_instances', `
+        CREATE TABLE IF NOT EXISTS team_instances (
+          id TEXT PRIMARY KEY,
+          name TEXT NOT NULL,
+          template_id TEXT,
+          status TEXT NOT NULL DEFAULT 'pending',
+          work_dir TEXT NOT NULL,
+          session_id TEXT NOT NULL,
+          objective TEXT,
+          created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          started_at DATETIME,
+          completed_at DATETIME,
+          parent_team_id TEXT,
+          worktree_isolation INTEGER NOT NULL DEFAULT 0
+        )
+      `)
+      this.ensureColumns('team_instances', {
+        work_dir: 'TEXT',
+        session_id: 'TEXT',
+        status: "TEXT NOT NULL DEFAULT 'pending'",
+        template_id: 'TEXT',
+        created_at: 'DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP',
+        started_at: 'DATETIME',
+        completed_at: 'DATETIME',
+        objective: 'TEXT',
+        parent_team_id: 'TEXT',
+        worktree_isolation: 'INTEGER NOT NULL DEFAULT 0',
+      })
+
+      // team_members
+      this.ensureTable('team_members', `
+        CREATE TABLE IF NOT EXISTS team_members (
+          id TEXT PRIMARY KEY,
+          instance_id TEXT NOT NULL,
+          role_id TEXT NOT NULL,
+          role_name TEXT NOT NULL,
+          role_identifier TEXT NOT NULL,
+          role_icon TEXT,
+          role_color TEXT,
+          session_id TEXT NOT NULL,
+          status TEXT NOT NULL DEFAULT 'idle',
+          provider_id TEXT NOT NULL,
+          current_task_id TEXT,
+          work_dir TEXT,
+          worktree_path TEXT,
+          worktree_branch TEXT,
+          worktree_source_repo TEXT,
+          worktree_base_commit TEXT,
+          worktree_base_branch TEXT,
+          joined_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          last_active_at DATETIME,
+          FOREIGN KEY (instance_id) REFERENCES team_instances(id) ON DELETE CASCADE
+        )
+      `)
+      this.db.exec('CREATE INDEX IF NOT EXISTS idx_team_members_instance ON team_members(instance_id)')
+      this.ensureColumns('team_members', {
+        role_id: 'TEXT',
+        role_name: "TEXT DEFAULT ''",
+        role_identifier: "TEXT DEFAULT ''",
+        role_icon: 'TEXT',
+        role_color: 'TEXT',
+        session_id: 'TEXT',
+        status: "TEXT NOT NULL DEFAULT 'idle'",
+        provider_id: "TEXT DEFAULT ''",
+        current_task_id: 'TEXT',
+        work_dir: 'TEXT',
+        worktree_path: 'TEXT',
+        worktree_branch: 'TEXT',
+        worktree_source_repo: 'TEXT',
+        worktree_base_commit: 'TEXT',
+        worktree_base_branch: 'TEXT',
+        joined_at: 'DATETIME',
+        last_active_at: 'DATETIME',
+      })
+
+      // team_tasks
+      this.ensureTable('team_tasks', `
+        CREATE TABLE IF NOT EXISTS team_tasks (
+          id TEXT PRIMARY KEY,
+          instance_id TEXT NOT NULL,
+          title TEXT NOT NULL,
+          description TEXT,
+          status TEXT NOT NULL DEFAULT 'pending',
+          assigned_to TEXT,
+          claimed_by TEXT,
+          claimed_at DATETIME,
+          priority TEXT NOT NULL DEFAULT 'medium',
+          dependencies TEXT,
+          result TEXT,
+          created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          completed_at DATETIME,
+          FOREIGN KEY (instance_id) REFERENCES team_instances(id) ON DELETE CASCADE
+        )
+      `)
+      this.db.exec('CREATE INDEX IF NOT EXISTS idx_team_tasks_instance_status ON team_tasks(instance_id, status)')
+      this.ensureColumns('team_tasks', {
+        claimed_by: 'TEXT',
+        claimed_at: 'DATETIME',
+        priority: "TEXT NOT NULL DEFAULT 'medium'",
+        dependencies: 'TEXT',
+        result: 'TEXT',
+        completed_at: 'DATETIME',
+      })
+
+      // team_messages
+      this.ensureTable('team_messages', `
+        CREATE TABLE IF NOT EXISTS team_messages (
+          id TEXT PRIMARY KEY,
+          instance_id TEXT NOT NULL,
+          from_member_id TEXT NOT NULL,
+          to_member_id TEXT,
+          type TEXT NOT NULL DEFAULT 'role_message',
+          content TEXT NOT NULL,
+          timestamp DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          FOREIGN KEY (instance_id) REFERENCES team_instances(id) ON DELETE CASCADE
+        )
+      `)
+      this.db.exec('CREATE INDEX IF NOT EXISTS idx_team_messages_instance_timestamp ON team_messages(instance_id, timestamp DESC)')
+      this.ensureColumns('team_messages', {
+        timestamp: 'DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP',
+        from_member_id: 'TEXT',
+        to_member_id: 'TEXT',
+        type: "TEXT NOT NULL DEFAULT 'role_message'",
+      })
+
+      // 兼容旧 schema: from_role/to_role/message_type → from_member_id/to_member_id/type
+      const msgCols = this.db.prepare('PRAGMA table_info(team_messages)').all().map((r: any) => r.name)
+      if (msgCols.includes('from_role') || msgCols.includes('to_role') || msgCols.includes('message_type')) {
+        const setClauses: string[] = []
+        if (msgCols.includes('from_role')) setClauses.push('from_member_id = COALESCE(from_member_id, from_role)')
+        if (msgCols.includes('to_role')) setClauses.push('to_member_id = COALESCE(to_member_id, to_role)')
+        if (msgCols.includes('message_type')) setClauses.push("type = COALESCE(type, message_type, 'role_message')")
+        if (setClauses.length > 0) {
+          this.db.exec(`UPDATE team_messages SET ${setClauses.join(', ')}`)
         }
-        if (!cols.includes('session_id')) {
-          console.log('[Database] Adding session_id column...')
-          this.db.exec('ALTER TABLE team_instances ADD COLUMN session_id TEXT')
-        }
-        if (!cols.includes('status')) {
-          console.log('[Database] Adding status column...')
-          this.db.exec("ALTER TABLE team_instances ADD COLUMN status TEXT NOT NULL DEFAULT 'pending'")
-        }
-        if (!cols.includes('template_id')) {
-          console.log('[Database] Adding template_id column...')
-          this.db.exec('ALTER TABLE team_instances ADD COLUMN template_id TEXT')
-        }
-        if (!cols.includes('created_at')) {
-          console.log('[Database] Adding created_at column...')
-          this.db.exec('ALTER TABLE team_instances ADD COLUMN created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP')
-        }
-        if (!cols.includes('started_at')) {
-          console.log('[Database] Adding started_at column...')
-          this.db.exec('ALTER TABLE team_instances ADD COLUMN started_at DATETIME')
-        }
-        if (!cols.includes('completed_at')) {
-          console.log('[Database] Adding completed_at column...')
-          this.db.exec('ALTER TABLE team_instances ADD COLUMN completed_at DATETIME')
-        }
-        if (!cols.includes('objective')) {
-          console.log('[Database] Adding objective column...')
-          this.db.exec('ALTER TABLE team_instances ADD COLUMN objective TEXT')
-        }
-        if (!cols.includes('parent_team_id')) {
-          console.log('[Database] Adding parent_team_id column...')
-          this.db.exec('ALTER TABLE team_instances ADD COLUMN parent_team_id TEXT')
-        }
-        if (!cols.includes('worktree_isolation')) {
-          console.log('[Database] Adding worktree_isolation column...')
-          this.db.exec('ALTER TABLE team_instances ADD COLUMN worktree_isolation INTEGER NOT NULL DEFAULT 0')
-        }
-        const colsAfter = this.db.prepare('PRAGMA table_info(team_instances)').all().map((r: any) => r.name)
-        console.log('[Database] team_instances columns after fix:', colsAfter)
       }
 
-      if (!existingTables.includes('team_members')) {
-        console.log('[Database] Creating missing team_members table...')
-        this.db.exec(`
-          CREATE TABLE IF NOT EXISTS team_members (
-            id TEXT PRIMARY KEY,
-            instance_id TEXT NOT NULL,
-            role_id TEXT NOT NULL,
-            role_name TEXT NOT NULL,
-            role_identifier TEXT NOT NULL,
-            role_icon TEXT,
-            role_color TEXT,
-            session_id TEXT NOT NULL,
-            status TEXT NOT NULL DEFAULT 'idle',
-            provider_id TEXT NOT NULL,
-            current_task_id TEXT,
-            work_dir TEXT,
-            worktree_path TEXT,
-            worktree_branch TEXT,
-            worktree_source_repo TEXT,
-            worktree_base_commit TEXT,
-            worktree_base_branch TEXT,
-            joined_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-            last_active_at DATETIME,
-            FOREIGN KEY (instance_id) REFERENCES team_instances(id) ON DELETE CASCADE
-          )
-        `)
-        this.db.exec('CREATE INDEX IF NOT EXISTS idx_team_members_instance ON team_members(instance_id)')
-      } else {
-        const cols = this.db.prepare('PRAGMA table_info(team_members)').all().map((r: any) => r.name)
-        if (!cols.includes('role_id')) this.db.exec('ALTER TABLE team_members ADD COLUMN role_id TEXT')
-        if (!cols.includes('role_name')) this.db.exec("ALTER TABLE team_members ADD COLUMN role_name TEXT DEFAULT ''")
-        if (!cols.includes('role_identifier')) this.db.exec("ALTER TABLE team_members ADD COLUMN role_identifier TEXT DEFAULT ''")
-        if (!cols.includes('role_icon')) this.db.exec('ALTER TABLE team_members ADD COLUMN role_icon TEXT')
-        if (!cols.includes('role_color')) this.db.exec('ALTER TABLE team_members ADD COLUMN role_color TEXT')
-        if (!cols.includes('session_id')) this.db.exec('ALTER TABLE team_members ADD COLUMN session_id TEXT')
-        if (!cols.includes('status')) this.db.exec("ALTER TABLE team_members ADD COLUMN status TEXT NOT NULL DEFAULT 'idle'")
-        if (!cols.includes('provider_id')) this.db.exec("ALTER TABLE team_members ADD COLUMN provider_id TEXT DEFAULT ''")
-        if (!cols.includes('current_task_id')) this.db.exec('ALTER TABLE team_members ADD COLUMN current_task_id TEXT')
-        if (!cols.includes('work_dir')) this.db.exec('ALTER TABLE team_members ADD COLUMN work_dir TEXT')
-        if (!cols.includes('worktree_path')) this.db.exec('ALTER TABLE team_members ADD COLUMN worktree_path TEXT')
-        if (!cols.includes('worktree_branch')) this.db.exec('ALTER TABLE team_members ADD COLUMN worktree_branch TEXT')
-        if (!cols.includes('worktree_source_repo')) this.db.exec('ALTER TABLE team_members ADD COLUMN worktree_source_repo TEXT')
-        if (!cols.includes('worktree_base_commit')) this.db.exec('ALTER TABLE team_members ADD COLUMN worktree_base_commit TEXT')
-        if (!cols.includes('worktree_base_branch')) this.db.exec('ALTER TABLE team_members ADD COLUMN worktree_base_branch TEXT')
-        if (!cols.includes('joined_at')) this.db.exec('ALTER TABLE team_members ADD COLUMN joined_at DATETIME')
-        if (!cols.includes('last_active_at')) this.db.exec('ALTER TABLE team_members ADD COLUMN last_active_at DATETIME')
-      }
+      // team_templates
+      this.ensureTable('team_templates', `
+        CREATE TABLE IF NOT EXISTS team_templates (
+          id TEXT PRIMARY KEY,
+          name TEXT NOT NULL,
+          description TEXT,
+          roles TEXT NOT NULL,
+          created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+        )
+      `)
 
-      if (!existingTables.includes('team_tasks')) {
-        console.log('[Database] Creating missing team_tasks table...')
-        this.db.exec(`
-          CREATE TABLE IF NOT EXISTS team_tasks (
-            id TEXT PRIMARY KEY,
-            instance_id TEXT NOT NULL,
-            title TEXT NOT NULL,
-            description TEXT,
-            status TEXT NOT NULL DEFAULT 'pending',
-            assigned_to TEXT,
-            claimed_by TEXT,
-            claimed_at DATETIME,
-            priority TEXT NOT NULL DEFAULT 'medium',
-            dependencies TEXT,
-            result TEXT,
-            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-            completed_at DATETIME,
-            FOREIGN KEY (instance_id) REFERENCES team_instances(id) ON DELETE CASCADE
-          )
-        `)
-        this.db.exec('CREATE INDEX IF NOT EXISTS idx_team_tasks_instance_status ON team_tasks(instance_id, status)')
-      } else {
-        const cols = this.db.prepare('PRAGMA table_info(team_tasks)').all().map((r: any) => r.name)
-        if (!cols.includes('claimed_by')) this.db.exec('ALTER TABLE team_tasks ADD COLUMN claimed_by TEXT')
-        if (!cols.includes('claimed_at')) this.db.exec('ALTER TABLE team_tasks ADD COLUMN claimed_at DATETIME')
-        if (!cols.includes('priority')) this.db.exec('ALTER TABLE team_tasks ADD COLUMN priority TEXT NOT NULL DEFAULT \'medium\'')
-        if (!cols.includes('dependencies')) this.db.exec('ALTER TABLE team_tasks ADD COLUMN dependencies TEXT')
-        if (!cols.includes('result')) this.db.exec('ALTER TABLE team_tasks ADD COLUMN result TEXT')
-        if (!cols.includes('completed_at')) this.db.exec('ALTER TABLE team_tasks ADD COLUMN completed_at DATETIME')
-      }
-
-      if (!existingTables.includes('team_messages')) {
-        console.log('[Database] Creating missing team_messages table...')
-        this.db.exec(`
-          CREATE TABLE IF NOT EXISTS team_messages (
-            id TEXT PRIMARY KEY,
-            instance_id TEXT NOT NULL,
-            from_member_id TEXT NOT NULL,
-            to_member_id TEXT,
-            type TEXT NOT NULL DEFAULT 'role_message',
-            content TEXT NOT NULL,
-            timestamp DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (instance_id) REFERENCES team_instances(id) ON DELETE CASCADE
-          )
-        `)
-        this.db.exec('CREATE INDEX IF NOT EXISTS idx_team_messages_instance_timestamp ON team_messages(instance_id, timestamp DESC)')
-      } else {
-        const cols = this.db.prepare('PRAGMA table_info(team_messages)').all().map((r: any) => r.name)
-        if (!cols.includes('timestamp')) this.db.exec('ALTER TABLE team_messages ADD COLUMN timestamp DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP')
-        if (!cols.includes('from_member_id')) this.db.exec('ALTER TABLE team_messages ADD COLUMN from_member_id TEXT')
-        if (!cols.includes('to_member_id')) this.db.exec('ALTER TABLE team_messages ADD COLUMN to_member_id TEXT')
-        if (!cols.includes('type')) this.db.exec('ALTER TABLE team_messages ADD COLUMN type TEXT NOT NULL DEFAULT \'role_message\'')
-
-        // 兼容旧 schema: from_role/to_role/message_type → from_member_id/to_member_id/type
-        // 先检查旧列是否存在，避免 "no such column" 错误
-        if (cols.includes('from_role') || cols.includes('to_role') || cols.includes('message_type')) {
-          const setClauses: string[] = []
-          if (cols.includes('from_role')) setClauses.push('from_member_id = COALESCE(from_member_id, from_role)')
-          if (cols.includes('to_role')) setClauses.push('to_member_id = COALESCE(to_member_id, to_role)')
-          if (cols.includes('message_type')) setClauses.push("type = COALESCE(type, message_type, 'role_message')")
-          if (setClauses.length > 0) {
-            this.db.exec(`UPDATE team_messages SET ${setClauses.join(', ')}`)
-          }
-        }
-      }
-      
-      if (!existingTables.includes('team_templates')) {
-        console.log('[Database] Creating missing team_templates table...')
-        this.db.exec(`
-          CREATE TABLE IF NOT EXISTS team_templates (
-            id TEXT PRIMARY KEY,
-            name TEXT NOT NULL,
-            description TEXT,
-            roles TEXT NOT NULL,
-            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
-          )
-        `)
-      }
-      
       // 更新 schema_version 到 31（如果低于 31）
       const row = this.db.prepare('SELECT MAX(version) AS max_ver FROM schema_version').get() as any
       const currentVersion = row?.max_ver ?? 0

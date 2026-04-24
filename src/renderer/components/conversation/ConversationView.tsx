@@ -515,7 +515,11 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
             } else {
               elements.push(<MessageBubble key={group.message.id} message={group.message} isStreaming={isStreaming} />)
             }
-            return <React.Fragment key={group.type === 'message' ? group.message.id : `tg-${group.messages?.[0]?.id || idx}`}>{elements}</React.Fragment>
+            const fragmentKey =
+              group.type === 'message' || group.type === 'file_change'
+                ? group.message.id
+                : `tg-${group.messages[0]?.id || idx}`
+            return <React.Fragment key={fragmentKey}>{elements}</React.Fragment>
           })
         )}
 

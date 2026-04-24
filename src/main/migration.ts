@@ -214,7 +214,7 @@ const MIGRATIONS: DatabaseMigration[] = [
     description: '添加团队功能相关表（teams, team_members, team_tasks, team_messages）',
     up: async (db: DatabaseManager) => {
       try {
-        db.getDatabase().exec(`
+        db.getDb().exec(`
           CREATE TABLE IF NOT EXISTS teams (
             id TEXT PRIMARY KEY,
             session_id TEXT NOT NULL,
@@ -280,7 +280,7 @@ const MIGRATIONS: DatabaseMigration[] = [
     },
     down: async (db: DatabaseManager) => {
       try {
-        db.getDatabase().exec(`
+        db.getDb().exec(`
           DROP TABLE IF EXISTS team_messages;
           DROP TABLE IF EXISTS team_tasks;
           DROP TABLE IF EXISTS team_members;
@@ -298,7 +298,7 @@ const MIGRATIONS: DatabaseMigration[] = [
     description: '添加工作上下文和待办事项表',
     up: async (db: DatabaseManager) => {
       try {
-        db.getDatabase().exec(`
+        db.getDb().exec(`
           CREATE TABLE IF NOT EXISTS working_context_todos (
             id TEXT PRIMARY KEY,
             session_id TEXT NOT NULL,
@@ -316,7 +316,7 @@ const MIGRATIONS: DatabaseMigration[] = [
     },
     down: async (db: DatabaseManager) => {
       try {
-        db.getDatabase().exec('DROP TABLE IF EXISTS working_context_todos;')
+        db.getDb().exec('DROP TABLE IF EXISTS working_context_todos;')
         logger.info('[Migration v3 downgrade] 工作上下文表已删除')
       } catch (error) {
         logger.error('[Migration v3 downgrade] 删除工作上下文表失败:', error)
@@ -338,7 +338,7 @@ const MIGRATIONS: DatabaseMigration[] = [
  */
 function getCurrentVersion(db: DatabaseManager): number {
   try {
-    const result = db.getDatabase().prepare(
+    const result = db.getDb().prepare(
       "SELECT value FROM app_settings WHERE key = 'db_migration_version'"
     ).get() as { value: string } | undefined
     
@@ -355,14 +355,14 @@ function getCurrentVersion(db: DatabaseManager): number {
 function setCurrentVersion(db: DatabaseManager, version: number): void {
   try {
     // 确保 app_settings 表存在
-    db.getDatabase().exec(`
+    db.getDb().exec(`
       CREATE TABLE IF NOT EXISTS app_settings (
         key TEXT PRIMARY KEY,
         value TEXT NOT NULL
       );
     `)
     
-    db.getDatabase().prepare(
+    db.getDb().prepare(
       "INSERT OR REPLACE INTO app_settings (key, value) VALUES ('db_migration_version', ?)"
     ).run(version.toString())
   } catch (error) {
@@ -376,7 +376,7 @@ function setCurrentVersion(db: DatabaseManager, version: number): void {
  */
 function recordMigration(db: DatabaseManager, migration: DatabaseMigration, executionTime: number): void {
   try {
-    db.getDatabase().exec(`
+    db.getDb().exec(`
       CREATE TABLE IF NOT EXISTS migration_history (
         version INTEGER PRIMARY KEY,
         description TEXT NOT NULL,
@@ -385,7 +385,7 @@ function recordMigration(db: DatabaseManager, migration: DatabaseMigration, exec
       );
     `)
     
-    db.getDatabase().prepare(
+    db.getDb().prepare(
       `INSERT OR REPLACE INTO migration_history (version, description, applied_at, execution_time_ms)
        VALUES (?, ?, ?, ?)`
     ).run(

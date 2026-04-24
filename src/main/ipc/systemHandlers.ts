@@ -115,7 +115,7 @@ export function registerSystemHandlers(deps: IpcDependencies): void {
         })
       }
 
-      await memoryCoordinator.forceCleanup(mode)
+      await memoryCoordinator.cleanup()
 
       return createSuccessResponse({
         message: `内存清理完成 (${mode} 模式)`

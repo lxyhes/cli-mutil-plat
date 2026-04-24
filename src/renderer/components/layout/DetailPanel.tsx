@@ -13,10 +13,7 @@ import { SessionsContent } from './Sidebar'
 import DashboardSidebarView from '../sidebar/DashboardSidebarView'
 import ComingSoonView from '../sidebar/ComingSoonView'
 import ToolboxView from '../sidebar/ToolboxView'
-import KnowledgeView from '../sidebar/KnowledgeView'
 import GitPanel from '../panels/GitPanel'
-import DailyReportView from '../sidebar/DailyReportView'
-import VoiceView from '../sidebar/VoiceView'
 
 
 export default function DetailPanel() {
@@ -32,14 +29,7 @@ export default function DetailPanel() {
       case 'dashboard': return <DashboardSidebarView />
       case 'explorer':  return <ComingSoonView icon={FolderTree} label="文件资源管理器" />
       case 'git':       return <GitPanel />
-      case 'mcp':       return <ToolboxView />
-      case 'skills':    return <ToolboxView />
       case 'toolbox':   return <ToolboxView />
-      case 'context':   return <KnowledgeView />
-      case 'memory':    return <KnowledgeView />
-      case 'knowledge': return <KnowledgeView />
-      case 'daily-report': return <DailyReportView />
-      case 'voice': return <VoiceView />
       default:          return <TimelinePanel />
     }
   }

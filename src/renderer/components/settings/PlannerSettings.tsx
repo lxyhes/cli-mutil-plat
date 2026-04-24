@@ -55,6 +55,7 @@ export default function PlannerSettings() {
     createPlan,
     deletePlan,
     startPlan,
+    syncToKanban,
     updatePlan,
     executeStep,
     skipTask,
@@ -69,6 +70,7 @@ export default function PlannerSettings() {
   // Create form state
   const [newGoal, setNewGoal] = useState('')
   const [saving, setSaving] = useState(false)
+  const [syncingKanban, setSyncingKanban] = useState(false)
   const [expandedTask, setExpandedTask] = useState<string | null>(null)
 
   useEffect(() => {
@@ -111,6 +113,22 @@ export default function PlannerSettings() {
 
   const handleStartPlan = async (planId: string) => {
     await startPlan(planId, 'planner-' + planId)
+  }
+
+  const handleSyncToKanban = async (planId: string) => {
+    if (syncingKanban) return
+    setSyncingKanban(true)
+    try {
+      const result = await syncToKanban(planId, activePlan?.sessionId || `planner-${planId}`)
+      if (!result.success) {
+        const message = result.error?.userMessage || result.error?.message || result.error || '同步失败'
+        alert(`同步到看板失败：${message}`)
+      } else {
+        alert(`已同步 ${result.data?.taskCount ?? result.taskCount ?? 0} 个任务到看板`)
+      }
+    } finally {
+      setSyncingKanban(false)
+    }
   }
 
   const toggleExpandTask = async (taskId: string) => {
@@ -342,15 +360,25 @@ export default function PlannerSettings() {
                 <span className="text-xs text-text-muted">{activeTasks.length} 个任务</span>
               </div>
             </div>
-            {activePlan.status === 'pending' && (
+            <div className="flex items-center gap-2">
               <button
-                onClick={() => handleStartPlan(activePlan.id)}
-                className="px-3 py-1.5 bg-accent-green text-white rounded-lg text-xs font-medium hover:bg-accent-green/80 btn-transition flex items-center gap-1.5"
+                onClick={() => handleSyncToKanban(activePlan.id)}
+                disabled={syncingKanban || activeTasks.length === 0}
+                className="px-3 py-1.5 bg-accent-blue text-white rounded-lg text-xs font-medium hover:bg-accent-blue/80 btn-transition flex items-center gap-1.5 disabled:opacity-50"
               >
-                <Play className="w-3.5 h-3.5" />
-                开始执行
+                {syncingKanban ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Zap className="w-3.5 h-3.5" />}
+                同步到看板
               </button>
-            )}
+              {activePlan.status === 'pending' && (
+                <button
+                  onClick={() => handleStartPlan(activePlan.id)}
+                  className="px-3 py-1.5 bg-accent-green text-white rounded-lg text-xs font-medium hover:bg-accent-green/80 btn-transition flex items-center gap-1.5"
+                >
+                  <Play className="w-3.5 h-3.5" />
+                  开始执行
+                </button>
+              )}
+            </div>
           </div>
         </div>
       )}
