@@ -472,6 +472,15 @@ const SessionToolbar: React.FC<SessionToolbarProps> = ({ sessionId, onSkillClick
                   </button>
                 )
               })}
+              <button
+                onClick={() => handleModelSwitch('gpt-5.4', 'low')}
+                className="w-full px-2 py-1.5 flex items-center gap-2 text-left text-xs text-text-secondary hover:bg-bg-hover transition-colors"
+              >
+                <span className="w-3.5 flex justify-center text-accent-blue">
+                  {currentModel === 'gpt-5.4' && currentReasoningEffort === 'low' && <Check size={12} />}
+                </span>
+                <span className="flex-1 truncate">{'\u901f\u5ea6'}</span>
+              </button>
             </div>
           </div>
         )}
