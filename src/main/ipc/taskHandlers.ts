@@ -27,6 +27,8 @@ export function registerTaskHandlers(deps: IpcDependencies): void {
         priority: task.priority || 'medium',
         tags: task.tags || [],
         parentTaskId: task.parentTaskId,
+        sessionId: task.sessionId,
+        metadata: task.metadata,
         worktreeEnabled: task.worktreeEnabled || false,
         gitRepoPath: task.gitRepoPath,
         gitBranch: task.gitBranch,
@@ -132,7 +134,11 @@ export function registerTaskHandlers(deps: IpcDependencies): void {
 
   ipcMain.handle(IPC.TASK_UPDATE, async (_event, taskId: string, updates: any) => {
     try {
+      const previousTask = database.getTask(taskId)
       database.updateTask(taskId, updates)
+      if (taskCoordinator && updates?.status) {
+        taskCoordinator.onTaskUpdated(taskId, { status: updates.status }, previousTask)
+      }
       return createSuccessResponse({ success: true })
     } catch (error: any) {
       return createErrorResponse(error, { operation: 'task.update', taskId })

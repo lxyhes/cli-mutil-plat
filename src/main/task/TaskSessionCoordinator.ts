@@ -26,6 +26,7 @@ const ACTIVITY_TO_TASK: Partial<Record<ActivityEventType, TaskStatus>> = {
 export class TaskSessionCoordinator extends EventEmitter {
   private database: DatabaseManager
   private debounceTimers = new Map<string, NodeJS.Timeout>()
+  private autoEvaluationTasks = new Set<string>()
   private evaluationService: any = null  // ★ EvaluationService 引用
 
   constructor(database: DatabaseManager) {
@@ -78,6 +79,17 @@ export class TaskSessionCoordinator extends EventEmitter {
     }
   }
 
+  onTaskUpdated(taskId: string, updates: { status?: TaskStatus }, previousTask?: any): void {
+    this.emit('task-updated', taskId, updates)
+    if (updates.status !== 'done') return
+    if (previousTask?.status === 'done') return
+
+    const task = this.database.getTask(taskId) || previousTask
+    if (task && this.evaluationService) {
+      void this.autoEvaluateTask(taskId, task)
+    }
+  }
+
   /**
    * 会话完成/终止时的多会话边界处理
    */
@@ -126,7 +138,7 @@ export class TaskSessionCoordinator extends EventEmitter {
 
       // ★ 新增: 任务完成时自动触发评估
       if (targetStatus === 'done' && this.evaluationService) {
-        this.autoEvaluateTask(taskId, task)
+        void this.autoEvaluateTask(taskId, task)
       }
     } catch (err) {
       console.error('[TaskSessionCoordinator] Failed to update task:', err)
@@ -138,10 +150,14 @@ export class TaskSessionCoordinator extends EventEmitter {
    */
   private async autoEvaluateTask(taskId: string, task: any): Promise<void> {
     try {
+      if (this.autoEvaluationTasks.has(taskId)) return
+      this.autoEvaluationTasks.add(taskId)
+
       // 检查是否有关联的会话
-      const sessionId = task.sessionId
+      const sessionId = task.sessionId || this.getSessionIdForTask(taskId)
       if (!sessionId) {
         console.log(`[TaskSessionCoordinator] 任务 ${taskId} 无关联会话,跳过评估`)
+        this.autoEvaluationTasks.delete(taskId)
         return
       }
 
@@ -149,6 +165,7 @@ export class TaskSessionCoordinator extends EventEmitter {
       const templates = this.database.listEvaluationTemplates()
       if (templates.length === 0) {
         console.log(`[TaskSessionCoordinator] 无评估模板,跳过评估`)
+        this.autoEvaluationTasks.delete(taskId)
         return
       }
 
@@ -158,8 +175,9 @@ export class TaskSessionCoordinator extends EventEmitter {
 
       await this.evaluationService.evaluate(sessionId, defaultTemplate.id, 'scheduled')
 
-      this.emit('task-auto-evaluated', taskId)
+      this.emit('task-auto-evaluated', taskId, { sessionId, templateId: defaultTemplate.id })
     } catch (err) {
+      this.autoEvaluationTasks.delete(taskId)
       console.warn(`[TaskSessionCoordinator] 自动评估任务 ${taskId} 失败:`, err)
       // 不阻断任务完成流程
     }
@@ -178,6 +196,16 @@ export class TaskSessionCoordinator extends EventEmitter {
     }
   }
 
+  private getSessionIdForTask(taskId: string): string | undefined {
+    try {
+      const allSessions = this.database.getAllSessions()
+      const session = allSessions.find(s => s.taskId === taskId)
+      return session?.id
+    } catch {
+      return undefined
+    }
+  }
+
   /**
    * 清理所有防抖定时器
    */
@@ -186,6 +214,7 @@ export class TaskSessionCoordinator extends EventEmitter {
       clearTimeout(timer)
     }
     this.debounceTimers.clear()
+    this.autoEvaluationTasks.clear()
   }
 
   // ── ★ 链条打通: 创建看板任务 ────────────────────────────
@@ -215,6 +244,8 @@ export class TaskSessionCoordinator extends EventEmitter {
         status: taskData.status || 'todo',
         priority: taskData.priority || 'medium',
         tags: taskData.tags || [],
+        sessionId: taskData.sessionId,
+        metadata: taskData.metadata || {},
       })
 
       if (task && taskData.sessionId) {

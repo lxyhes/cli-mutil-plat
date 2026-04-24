@@ -245,7 +245,7 @@ export class GoalService extends EventEmitter {
    * @param evaluationScore 评估分数 (0-100)
    * @param evaluationSummary 评估摘要
    */
-  updateProgressFromEvaluation(goalId: string, evaluationScore: number, evaluationSummary?: string): void {
+  updateProgressFromEvaluation(goalId: string, evaluationScore: number, evaluationSummary?: string, sessionId?: string): void {
     const goal = this.db.getGoal(goalId)
     if (!goal) {
       throw new Error(`目标 ${goalId} 不存在`)
@@ -265,7 +265,8 @@ export class GoalService extends EventEmitter {
       type: 'review',
       content: `评估得分: ${evaluationScore}/100${evaluationSummary ? `\n${evaluationSummary}` : ''}`,
       progressBefore: currentProgress,
-      progressAfter: clampedProgress
+      progressAfter: clampedProgress,
+      sessionId,
     })
 
     // 如果进度达到100%,自动标记为已达成
@@ -275,7 +276,13 @@ export class GoalService extends EventEmitter {
 
     console.log(`[GoalService] 目标进度更新: ${goal.title} ${currentProgress}% → ${clampedProgress}% (评估: ${evaluationScore})`)
 
-    this.emit('evaluation-updated', { goalId, score: evaluationScore, newProgress: clampedProgress })
+    const updatedGoal = this.db.getGoal(goalId)
+    this.emit('evaluation-updated', { goalId, score: evaluationScore, newProgress: clampedProgress, goal: updatedGoal })
+    sendToRenderer(IPC.GOAL_STATUS, {
+      type: clampedProgress >= 100 ? 'goal-achieved' : 'goal-updated',
+      goal: updatedGoal,
+    })
+    sendToRenderer(IPC.GOAL_STATUS, { type: 'evaluation-updated', goalId, score: evaluationScore, newProgress: clampedProgress })
   }
 
   /**

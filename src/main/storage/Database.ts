@@ -180,6 +180,8 @@ export class DatabaseManager implements MemoryManagedComponent {
         priority TEXT NOT NULL DEFAULT 'medium',
         tags TEXT,
         parent_task_id TEXT,
+        session_id TEXT,
+        metadata TEXT,
         created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
         updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
         completed_at DATETIME
@@ -303,6 +305,10 @@ export class DatabaseManager implements MemoryManagedComponent {
    */
   private migrateSchema(): void {
     runMigrations(this.db, MIGRATIONS)
+    this.ensureColumns('tasks', {
+      session_id: 'TEXT',
+      metadata: 'TEXT',
+    })
     
     // ★ 紧急修复：如果 team_instances 表不存在，手动创建（v31 迁移可能失败）
     this.ensureTeamsTablesExist()

@@ -19,6 +19,8 @@ export class TaskRepository {
       priority: task.priority || 'medium',
       tags: task.tags || [],
       parentTaskId: task.parentTaskId,
+      sessionId: task.sessionId,
+      metadata: task.metadata,
       worktreeEnabled: task.worktreeEnabled || false,
       gitRepoPath: task.gitRepoPath,
       gitBranch: task.gitBranch,
@@ -31,13 +33,15 @@ export class TaskRepository {
 
     if (this.usingSqlite) {
       this.db.prepare(`
-        INSERT INTO tasks (id, title, description, status, priority, tags, parent_task_id, worktree_enabled, git_repo_path, git_branch, worktree_path, workspace_id, worktree_paths)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO tasks (id, title, description, status, priority, tags, parent_task_id, session_id, metadata, worktree_enabled, git_repo_path, git_branch, worktree_path, workspace_id, worktree_paths)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).run(
         fullTask.id, fullTask.title, fullTask.description,
         fullTask.status, fullTask.priority,
         fullTask.tags ? JSON.stringify(fullTask.tags) : null,
         fullTask.parentTaskId || null,
+        fullTask.sessionId || null,
+        fullTask.metadata ? JSON.stringify(fullTask.metadata) : null,
         fullTask.worktreeEnabled ? 1 : 0,
         fullTask.gitRepoPath || null,
         fullTask.gitBranch || null,
@@ -82,6 +86,8 @@ export class TaskRepository {
       }
       if (updates.priority !== undefined) { fields.push('priority = ?'); values.push(updates.priority) }
       if (updates.tags !== undefined) { fields.push('tags = ?'); values.push(JSON.stringify(updates.tags)) }
+      if (updates.sessionId !== undefined) { fields.push('session_id = ?'); values.push(updates.sessionId || null) }
+      if (updates.metadata !== undefined) { fields.push('metadata = ?'); values.push(updates.metadata ? JSON.stringify(updates.metadata) : null) }
       if (updates.worktreeEnabled !== undefined) { fields.push('worktree_enabled = ?'); values.push(updates.worktreeEnabled ? 1 : 0) }
       if (updates.gitRepoPath !== undefined) { fields.push('git_repo_path = ?'); values.push(updates.gitRepoPath || null) }
       if (updates.gitBranch !== undefined) { fields.push('git_branch = ?'); values.push(updates.gitBranch || null) }
@@ -117,6 +123,8 @@ export class TaskRepository {
       priority: row.priority,
       tags: row.tags ? JSON.parse(row.tags) : [],
       parentTaskId: row.parent_task_id,
+      sessionId: row.session_id || undefined,
+      metadata: row.metadata ? JSON.parse(row.metadata) : undefined,
       worktreeEnabled: row.worktree_enabled === 1,
       gitRepoPath: row.git_repo_path || undefined,
       gitBranch: row.git_branch || undefined,

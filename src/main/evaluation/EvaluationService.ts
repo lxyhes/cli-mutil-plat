@@ -137,7 +137,7 @@ export class EvaluationService extends EventEmitter {
           const weightedScore = scores.reduce((sum, s, i) => {
             const criterion = template.criteria[i]
             const weight = criterion?.weight || 1
-            const normalizedScore = (s.score / (criterion?.max_score || 100)) * 100
+            const normalizedScore = this.normalizeScore(s.score, criterion?.max_score)
             return sum + (normalizedScore * weight)
           }, 0)
           const averageScore = totalWeight > 0 ? Math.round(weightedScore / totalWeight) : 0
@@ -148,7 +148,8 @@ export class EvaluationService extends EventEmitter {
             this.goalService.updateProgressFromEvaluation(
               goalId,
               averageScore,
-              `评估: ${template.name}`
+              `评估: ${template.name}`,
+              sessionId
             )
           }
         } catch (err) {
@@ -337,6 +338,12 @@ ${conversationText.slice(0, 30000)}
     sendToRenderer(IPC.EVAL_RUN_STATUS, status)
   }
 
+  private normalizeScore(score: number, maxScore = 100): number {
+    const numericScore = Number(score) || 0
+    if (numericScore <= 1) return Math.round(Math.max(0, Math.min(1, numericScore)) * 100)
+    return Math.round((Math.max(0, Math.min(maxScore, numericScore)) / maxScore) * 100)
+  }
+
   // ── ★ 链条打通辅助方法 ────────────────────────────────────
 
   /**
@@ -345,7 +352,7 @@ ${conversationText.slice(0, 30000)}
    */
   private findGoalBySessionId(sessionId: string): string | null {
     try {
-      const result = (this.db as any).getGoalSessions?.(sessionId)
+      const result = (this.db as any).getGoalsBySession?.(sessionId)
       if (result && result.length > 0) {
         // 返回第一个关联的目标ID
         return result[0].goal_id || result[0].goalId

@@ -246,6 +246,10 @@ export const useGoalStore = create<GoalState>((set, get) => ({
         const { goalId: aGoalId } = activity
         if (aGoalId) get().fetchActivities(aGoalId)
         get().fetchGoals()
+        get().fetchStats()
+      } else if (type === 'evaluation-updated') {
+        get().fetchGoals()
+        get().fetchStats()
       }
     })
   },

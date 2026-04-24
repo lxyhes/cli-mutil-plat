@@ -50,6 +50,8 @@ export interface Task {
   createdAt?: Date
   updatedAt?: Date
   completedAt?: Date
+  sessionId?: string
+  metadata?: Record<string, any>
   /** Git Worktree 隔离 */
   worktreeEnabled?: boolean
   gitRepoPath?: string
