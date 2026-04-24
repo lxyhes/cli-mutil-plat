@@ -20,7 +20,7 @@ import type {
 import { BUILTIN_CLAUDE_PROVIDER, BUILTIN_PROVIDERS } from '../../shared/types'
 import { extractImageTags } from '../../shared/utils/messageContent'
 import type { AdapterRegistry } from '../adapter/AdapterRegistry'
-import type { ProviderEvent, AdapterSessionConfig } from '../adapter/types'
+import type { ProviderEvent, AdapterSessionConfig, ReasoningEffort } from '../adapter/types'
 import { mapToolToActivityType, extractToolDetail } from '../adapter/toolMapping'
 import { SkillEngine } from '../skill/SkillEngine'
 import type { LockManager } from '../concurrency/LockManager'
@@ -983,11 +983,12 @@ export class SessionManagerV2 extends EventEmitter implements MemoryManagedCompo
    * 设置会话的模型覆盖（/model 命令）
    * 仅记录到 config.modelOverride，需重启/恢复会话后生效
    */
-  async setModelOverride(sessionId: string, model: string): Promise<{
+  async setModelOverride(sessionId: string, model: string, options?: { reasoningEffort?: ReasoningEffort }): Promise<{
     model: string
     effectiveNow: boolean
     requiresRestart: boolean
     providerSessionId?: string
+    reasoningEffort?: ReasoningEffort
   } | null> {
     const session = this.sessions.get(sessionId)
     if (!session) return null
@@ -995,25 +996,27 @@ export class SessionManagerV2 extends EventEmitter implements MemoryManagedCompo
 
     const adapter = this.adapterRegistry.get(session.provider.id)
     if (adapter?.switchModel && adapter.hasSession(sessionId)) {
-      const result = await adapter.switchModel(sessionId, model)
+      const result = await adapter.switchModel(sessionId, model, options)
       if (result.providerSessionId) {
         session.claudeSessionId = result.providerSessionId
         this.emit('claude-session-id', sessionId, result.providerSessionId)
       }
-      this.emit('session-init-data', sessionId, { model: result.model })
+      this.emit('session-init-data', sessionId, { model: result.model, reasoningEffort: result.reasoningEffort })
       return {
         model: result.model,
         effectiveNow: result.effectiveNow,
         requiresRestart: !result.effectiveNow,
         providerSessionId: result.providerSessionId,
+        reasoningEffort: result.reasoningEffort,
       }
     }
 
-    this.emit('session-init-data', sessionId, { model })
+    this.emit('session-init-data', sessionId, { model, reasoningEffort: options?.reasoningEffort })
     return {
       model,
       effectiveNow: false,
       requiresRestart: !['terminated', 'completed', 'error'].includes(session.status),
+      reasoningEffort: options?.reasoningEffort,
     }
   }
 

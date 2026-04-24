@@ -63,7 +63,7 @@ export interface SpectrAIAPI {
     rename: (sessionId: string, newName: string) => Promise<any>
     aiRename: (sessionId: string) => Promise<any>
     delete: (sessionId: string) => Promise<any>
-    setModel: (sessionId: string, modelId: string) => Promise<any>
+    setModel: (sessionId: string, modelId: string, options?: { reasoningEffort?: string }) => Promise<any>
     getStats: (sessionId: string) => Promise<{
       tokenCount: number
       duration: number

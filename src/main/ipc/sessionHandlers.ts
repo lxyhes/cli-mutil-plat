@@ -31,6 +31,7 @@ import {
 } from '../agent/supervisorPrompt'
 import { checkProviderAvailability } from '../agent/providerAvailability'
 import type { IpcDependencies } from './index'
+import type { ReasoningEffort } from '../adapter/types'
 import { sendToRenderer, aiRenamingLocks, performAiRename } from './shared'
 import { createErrorResponse, createSuccessResponse, ErrorCode, SpectrAIError } from '../../shared/errors'
 // 鈽?杈撳叆楠岃瘉涓棿浠?
@@ -944,7 +945,7 @@ export function registerSessionHandlers(deps: IpcDependencies): void {
 
   // ==================== Session 妯″瀷鍒囨崲 ====================
 
-  ipcMain.handle(IPC.SESSION_SET_MODEL, async (_event, sessionId: string, modelId: string) => {
+  ipcMain.handle(IPC.SESSION_SET_MODEL, async (_event, sessionId: string, modelId: string, options?: { reasoningEffort?: string }) => {
     try {
       const smV2 = deps.sessionManagerV2
       if (!smV2) {
@@ -963,6 +964,15 @@ export function registerSessionHandlers(deps: IpcDependencies): void {
           userMessage: '妯″瀷 ID 涓嶈兘涓虹┖'
         })
       }
+      const reasoningEffort = options?.reasoningEffort
+      const allowedEfforts = new Set(['low', 'medium', 'high', 'xhigh'])
+      if (reasoningEffort && !allowedEfforts.has(reasoningEffort)) {
+        throw new SpectrAIError({
+          code: ErrorCode.INVALID_INPUT,
+          message: `Invalid reasoning effort: ${reasoningEffort}`,
+          userMessage: '无效的推理模式'
+        })
+      }
 
       const session = smV2.getSession(sessionId)
       if (!session) {
@@ -973,7 +983,9 @@ export function registerSessionHandlers(deps: IpcDependencies): void {
         })
       }
 
-      const updated = await smV2.setModelOverride(sessionId, trimmed)
+      const updated = await smV2.setModelOverride(sessionId, trimmed, {
+        reasoningEffort: reasoningEffort as ReasoningEffort | undefined
+      })
       if (!updated) {
         throw new SpectrAIError({
           code: ErrorCode.INTERNAL,
@@ -988,8 +1000,9 @@ export function registerSessionHandlers(deps: IpcDependencies): void {
         effectiveNow: updated.effectiveNow,
         requiresRestart: updated.requiresRestart,
         providerSessionId: updated.providerSessionId,
+        reasoningEffort: updated.reasoningEffort,
         message: updated.effectiveNow
-          ? '模型已切换，后续消息将使用新模型'
+          ? '模型/模式已切换，后续消息将使用新设置'
           : '模型偏好已保存，请重启会话使新模型生效'
       })
     } catch (error: any) {

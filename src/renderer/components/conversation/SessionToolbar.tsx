@@ -14,7 +14,7 @@
  */
 
 import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react'
-import { Zap, Plug, Cpu, Users, Sparkles, FileText, Mic, ShieldCheck, Gauge, BookMarked } from 'lucide-react'
+import { Zap, Plug, Cpu, Users, Sparkles, FileText, Mic, ShieldCheck, Gauge, BookMarked, Brain, ChevronDown, Check } from 'lucide-react'
 import { useSessionStore } from '../../stores/sessionStore'
 import { useSkillStore } from '../../stores/skillStore'
 import { useMcpStore } from '../../stores/mcpStore'
@@ -87,11 +87,34 @@ const SOURCE_DOT: Record<SkillItem['source'], string> = {
 }
 
 const SOURCE_LABEL: Record<SkillItem['source'], string> = {
-  custom:  '自定义',
-  builtin: '内置',
-  native:  '原生',
+  custom:  'Custom',
+  builtin: 'Built-in',
+  native:  'Native',
 }
 
+type ReasoningEffort = 'low' | 'medium' | 'high' | 'xhigh'
+
+const CODEX_MODEL_FALLBACKS = [
+  { id: 'gpt-5.5', name: 'GPT-5.5' },
+  { id: 'gpt-5.4', name: 'GPT-5.4' },
+  { id: 'gpt-5.3-codex', name: 'GPT-5.3 Codex' },
+  { id: 'codex-mini-latest', name: 'Codex Mini' },
+]
+
+const REASONING_OPTIONS: Array<{ id: string; label: string; model?: string; effort: ReasoningEffort }> = [
+  { id: 'smart', label: '\u667a\u80fd', model: 'gpt-5.5', effort: 'high' },
+  { id: 'low', label: '\u4f4e', effort: 'low' },
+  { id: 'medium', label: '\u4e2d', effort: 'medium' },
+  { id: 'high', label: '\u9ad8', effort: 'high' },
+  { id: 'xhigh', label: '\u8d85\u9ad8', effort: 'xhigh' },
+]
+
+const REASONING_LABEL: Record<string, string> = {
+  low: '\u4f4e',
+  medium: '\u4e2d',
+  high: '\u9ad8',
+  xhigh: '\u8d85\u9ad8',
+}
 // ---- 主组件 ----
 
 const SessionToolbar: React.FC<SessionToolbarProps> = ({ sessionId, onSkillClick, onSkillExecute }) => {
@@ -105,6 +128,10 @@ const SessionToolbar: React.FC<SessionToolbarProps> = ({ sessionId, onSkillClick
   const skillFilterRef = useRef<HTMLInputElement>(null)
   const mcpBtnRef = useRef<HTMLButtonElement>(null)
   const mcpPopoverRef = useRef<HTMLDivElement>(null)
+  const [modelPopoverOpen, setModelPopoverOpen] = useState(false)
+  const [modelSwitching, setModelSwitching] = useState(false)
+  const modelBtnRef = useRef<HTMLButtonElement>(null)
+  const modelPopoverRef = useRef<HTMLDivElement>(null)
 
   // ---- 数据来源 ----
   const initData = useSessionStore(s => s.sessionInitData[sessionId])
@@ -118,6 +145,8 @@ const SessionToolbar: React.FC<SessionToolbarProps> = ({ sessionId, onSkillClick
   )
   // 当前使用的模型
   const currentModel = initData?.model || ''
+  const currentReasoningEffort = initData?.reasoningEffort || ''
+  const availableModels = (initData?.availableModels?.length ? initData.availableModels : CODEX_MODEL_FALLBACKS)
   const allSkills = useSkillStore(s => s.skills)
   const fetchSkills = useSkillStore(s => s.fetchAll)
   const allMcpServers = useMcpStore(s => s.servers)
@@ -314,6 +343,7 @@ const SessionToolbar: React.FC<SessionToolbarProps> = ({ sessionId, onSkillClick
 
   // 工具箱 Popover 关闭逻辑
   usePopoverClose(toolboxPopoverOpen, setToolboxPopoverOpen, toolboxBtnRef, toolboxPopoverRef)
+  usePopoverClose(modelPopoverOpen, setModelPopoverOpen, modelBtnRef, modelPopoverRef)
 
   // 处理工具箱功能点击
   const handleToolboxFeatureClick = useCallback((featureId: ToolboxFeatureId) => {
@@ -321,6 +351,32 @@ const SessionToolbar: React.FC<SessionToolbarProps> = ({ sessionId, onSkillClick
     setToolboxFeature(featureId)
     setActivePanelLeft('toolbox')
   }, [setToolboxFeature, setActivePanelLeft])
+
+
+  const modelOptions = useMemo(() => {
+    const seen = new Set<string>()
+    return availableModels.filter(model => {
+      if (!model?.id || seen.has(model.id)) return false
+      seen.add(model.id)
+      return true
+    })
+  }, [availableModels])
+
+  const handleModelSwitch = useCallback(async (model: string, reasoningEffort?: ReasoningEffort) => {
+    if (!model || modelSwitching) return
+    setModelSwitching(true)
+    try {
+      const result = await window.spectrAI.session.setModel(sessionId, model, { reasoningEffort })
+      if (!result?.success) {
+        console.error('[SessionToolbar] Failed to switch model:', result?.error || result)
+      }
+    } catch (error) {
+      console.error('[SessionToolbar] Failed to switch model:', error)
+    } finally {
+      setModelSwitching(false)
+      setModelPopoverOpen(false)
+    }
+  }, [sessionId, modelSwitching])
 
   // ---- Popover 关闭逻辑 ----
   usePopoverClose(skillPopoverOpen, setSkillPopoverOpen, skillBtnRef, skillPopoverRef)
@@ -352,16 +408,74 @@ const SessionToolbar: React.FC<SessionToolbarProps> = ({ sessionId, onSkillClick
         <span className="text-text-secondary font-medium">
           {isSupervisor ? 'Supervisor' : '普通会话'}
         </span>
-        {currentModel && (
-          <>
-            <span className="text-text-muted/40">·</span>
-            <span className="text-text-muted truncate max-w-[180px]" title={currentModel}>
-              {currentModel}
-            </span>
-          </>
-        )}
       </div>
 
+      {/* ---- Model / reasoning selector ---- */}
+      <div className="relative flex-shrink-0">
+        <button
+          ref={modelBtnRef}
+          onClick={() => setModelPopoverOpen(o => !o)}
+          disabled={modelSwitching}
+          className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs
+            bg-bg-secondary border text-text-muted
+            hover:text-text-secondary hover:bg-bg-hover
+            transition-colors cursor-pointer select-none disabled:opacity-60 disabled:cursor-wait
+            ${modelPopoverOpen ? 'border-accent-blue/40 text-text-secondary' : 'border-border'}`}
+          title={`${currentModel || 'Model'}${currentReasoningEffort ? ` / ${REASONING_LABEL[currentReasoningEffort] || currentReasoningEffort}` : ''}`}
+        >
+          <Brain size={12} />
+          <span className="max-w-[120px] truncate">{currentModel || '\u6a21\u578b'}</span>
+          {currentReasoningEffort && (
+            <span className="text-[10px] text-text-muted/80">
+              {REASONING_LABEL[currentReasoningEffort] || currentReasoningEffort}
+            </span>
+          )}
+          <ChevronDown size={11} />
+        </button>
+
+        {modelPopoverOpen && (
+          <div
+            ref={modelPopoverRef}
+            className="absolute bottom-full left-0 mb-1.5 w-44 bg-bg-secondary border border-border rounded-lg shadow-lg py-1.5 z-50"
+          >
+            <div className="px-2 pb-1 border-b border-border/70">
+              {REASONING_OPTIONS.map(option => {
+                const targetModel = option.model || currentModel || 'gpt-5.5'
+                const active = currentReasoningEffort === option.effort && (!option.model || currentModel === option.model)
+                return (
+                  <button
+                    key={option.id}
+                    onClick={() => handleModelSwitch(targetModel, option.effort)}
+                    className="w-full px-2 py-1.5 flex items-center gap-2 rounded-md text-left text-xs text-text-secondary hover:bg-bg-hover transition-colors"
+                  >
+                    <span className="w-3.5 flex justify-center text-accent-blue">
+                      {active && <Check size={12} />}
+                    </span>
+                    <span className="flex-1 truncate">{option.label}</span>
+                  </button>
+                )
+              })}
+            </div>
+            <div className="pt-1">
+              {modelOptions.map(model => {
+                const active = currentModel === model.id
+                return (
+                  <button
+                    key={model.id}
+                    onClick={() => handleModelSwitch(model.id, currentReasoningEffort as ReasoningEffort | undefined)}
+                    className="w-full px-2 py-1.5 flex items-center gap-2 text-left text-xs text-text-secondary hover:bg-bg-hover transition-colors"
+                  >
+                    <span className="w-3.5 flex justify-center text-accent-blue">
+                      {active && <Check size={12} />}
+                    </span>
+                    <span className="flex-1 truncate">{model.name || model.id}</span>
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        )}
+      </div>
       {/* ---- Skill 按钮 ---- */}
       {skillList.length > 0 && (
         <div className="relative flex-shrink-0">

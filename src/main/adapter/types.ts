@@ -7,6 +7,8 @@
 import { EventEmitter } from 'events'
 import type { SessionStatus, ActivityEventType, ConversationMessage } from '../../shared/types'
 
+export type ReasoningEffort = 'low' | 'medium' | 'high' | 'xhigh'
+
 // ---- 统一事件类型 ----
 
 export type ProviderEventType =
@@ -188,10 +190,11 @@ export abstract class BaseProviderAdapter extends EventEmitter {
    */
   abstract getProviderSessionId(sessionId: string): string | undefined
 
-  switchModel?(sessionId: string, model: string): Promise<{
+  switchModel?(sessionId: string, model: string, options?: { reasoningEffort?: ReasoningEffort }): Promise<{
     model: string
     providerSessionId?: string
     effectiveNow: boolean
+    reasoningEffort?: ReasoningEffort
   }>
 
   /**

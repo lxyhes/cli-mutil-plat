@@ -19,6 +19,7 @@ import {
   type AdapterSessionConfig,
   type AdapterSession,
   type ProviderEvent,
+  type ReasoningEffort,
 } from './types'
 import { extractToolDetail } from './toolMapping'
 import { prependNodeVersionToEnvPath } from '../node/NodeVersionResolver'
@@ -209,6 +210,7 @@ interface CodexSession {
   config: AdapterSessionConfig
   threadId?: string
   model?: string
+  reasoningEffort?: ReasoningEffort
   baseInstructions?: string
   requestId: number
   pendingRequests: Map<number, { resolve: (v: any) => void; reject: (e: any) => void }>
@@ -265,6 +267,31 @@ export class CodexAppServerAdapter extends BaseProviderAdapter {
       return CODEX_MODEL_FALLBACKS
     }
     return [{ id: currentModel, name: currentModel }, ...CODEX_MODEL_FALLBACKS]
+  }
+
+  private normalizeReasoningEffort(value: unknown): ReasoningEffort | undefined {
+    return value === 'low' || value === 'medium' || value === 'high' || value === 'xhigh'
+      ? value
+      : undefined
+  }
+
+  private updateCodexHomeReasoningEffort(codexHome: string | undefined, effort: ReasoningEffort): void {
+    if (!codexHome) return
+
+    try {
+      fs.mkdirSync(codexHome, { recursive: true })
+      const configPath = path.join(codexHome, 'config.toml')
+      const existing = fs.existsSync(configPath) ? fs.readFileSync(configPath, 'utf8') : ''
+      const line = `model_reasoning_effort = "${effort}"`
+      const next = /^model_reasoning_effort\s*=.*$/m.test(existing)
+        ? existing.replace(/^model_reasoning_effort\s*=.*$/m, line)
+        : existing.trim()
+          ? `${line}\n${existing}`
+          : `${line}\n`
+      fs.writeFileSync(configPath, next, 'utf8')
+    } catch (error) {
+      console.warn(`[CodexAdapter] Failed to update CODEX_HOME reasoning effort (${codexHome}):`, error)
+    }
   }
 
   async startSession(sessionId: string, config: AdapterSessionConfig): Promise<void> {
@@ -484,9 +511,11 @@ export class CodexAppServerAdapter extends BaseProviderAdapter {
       }
       session.threadId = threadId
       session.model = (threadResult as any)?.model || config.model
+      session.reasoningEffort = this.normalizeReasoningEffort((threadResult as any)?.reasoningEffort)
       this.emit('provider-session-id', sessionId, threadId)
       this.emit('session-init-data', sessionId, {
         model: session.model || '',
+        reasoningEffort: session.reasoningEffort || '',
         tools: [],
         skills: [],
         mcpServers: [],
@@ -640,7 +669,11 @@ export class CodexAppServerAdapter extends BaseProviderAdapter {
     await this.startSession(sessionId, config)
   }
 
-  async switchModel(sessionId: string, model: string): Promise<{ model: string; providerSessionId?: string; effectiveNow: boolean }> {
+  async switchModel(
+    sessionId: string,
+    model: string,
+    options?: { reasoningEffort?: ReasoningEffort }
+  ): Promise<{ model: string; providerSessionId?: string; effectiveNow: boolean; reasoningEffort?: ReasoningEffort }> {
     const session = this.sessions.get(sessionId)
     if (!session) throw new Error(`Session ${sessionId} not found`)
     if (session.adapter.status === 'running') {
@@ -649,8 +682,12 @@ export class CodexAppServerAdapter extends BaseProviderAdapter {
 
     const baseInstructions = session.baseInstructions ?? await this.resolveSystemPrompt(session.config.systemPrompt as any)
     session.baseInstructions = baseInstructions
+    const requestedEffort = this.normalizeReasoningEffort(options?.reasoningEffort)
+    if (requestedEffort) {
+      this.updateCodexHomeReasoningEffort(session.config.envOverrides?.CODEX_HOME, requestedEffort)
+    }
 
-    console.log(`[CodexAdapter] Switching model for ${sessionId}: ${session.model || '(default)'} -> ${model}`)
+    console.log(`[CodexAdapter] Switching model for ${sessionId}: ${session.model || '(default)'} -> ${model}, effort=${requestedEffort || '(keep)'}`)
     const threadResult = await this.rpc(sessionId, 'thread/start', {
       model,
       cwd: session.config.workingDirectory,
@@ -667,6 +704,7 @@ export class CodexAppServerAdapter extends BaseProviderAdapter {
     session.threadId = threadId
     const effectiveModel = String((threadResult as any)?.model || model)
     session.model = effectiveModel
+    session.reasoningEffort = this.normalizeReasoningEffort((threadResult as any)?.reasoningEffort) || requestedEffort || session.reasoningEffort
     session.adapter.status = 'waiting_input'
     session.agentMessageBuffer = ''
     session.activeToolUseIds.clear()
@@ -675,6 +713,7 @@ export class CodexAppServerAdapter extends BaseProviderAdapter {
     this.emit('provider-session-id', sessionId, threadId)
     this.emit('session-init-data', sessionId, {
       model: session.model,
+      reasoningEffort: session.reasoningEffort || '',
       availableModels: this.buildAvailableModels(session.model),
     })
     this.emit('status-change', sessionId, 'waiting_input')
@@ -683,13 +722,13 @@ export class CodexAppServerAdapter extends BaseProviderAdapter {
       id: uuidv4(),
       sessionId,
       role: 'system' as const,
-      content: `模型已切换为 ${effectiveModel}，后续消息将使用新模型。`,
+      content: `模型已切换为 ${effectiveModel}${session.reasoningEffort ? `（${session.reasoningEffort}）` : ''}，后续消息将使用新设置。`,
       timestamp: new Date().toISOString(),
     }
     session.adapter.messages.push(msg)
     this.emit('conversation-message', sessionId, msg)
 
-    return { model: effectiveModel, providerSessionId: threadId, effectiveNow: true }
+    return { model: effectiveModel, providerSessionId: threadId, effectiveNow: true, reasoningEffort: session.reasoningEffort }
   }
 
   getConversation(sessionId: string): ConversationMessage[] {

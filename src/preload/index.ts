@@ -120,8 +120,8 @@ if (!ctxBr) {
     delete: (sessionId: string) =>
       ipcRenderer.invoke(IPC.SESSION_DELETE, sessionId),
 
-    setModel: (sessionId: string, modelId: string) =>
-      ipcRenderer.invoke(IPC.SESSION_SET_MODEL, sessionId, modelId),
+    setModel: (sessionId: string, modelId: string, options?: { reasoningEffort?: string }) =>
+      ipcRenderer.invoke(IPC.SESSION_SET_MODEL, sessionId, modelId, options),
 
     // 事件监听（主进程 → 渲染进程）
     onOutput: (callback: (sessionId: string, data: any) => void) => {
