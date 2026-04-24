@@ -135,6 +135,7 @@ const SessionToolbar: React.FC<SessionToolbarProps> = ({ sessionId, onSkillClick
 
   // ---- 数据来源 ----
   const initData = useSessionStore(s => s.sessionInitData[sessionId])
+  const setSessionInitData = useSessionStore(s => s.setSessionInitData)
   // 当前会话的 Provider（用于过滤 compatibleProviders）
   const providerId = useSessionStore(s =>
     s.sessions.find(sess => sess.id === sessionId)?.providerId
@@ -369,6 +370,13 @@ const SessionToolbar: React.FC<SessionToolbarProps> = ({ sessionId, onSkillClick
       const result = await window.spectrAI.session.setModel(sessionId, model, { reasoningEffort })
       if (!result?.success) {
         console.error('[SessionToolbar] Failed to switch model:', result?.error || result)
+      } else {
+        const payload = result.data || result
+        setSessionInitData(sessionId, {
+          model: payload.model || model,
+          reasoningEffort: payload.reasoningEffort ?? reasoningEffort ?? currentReasoningEffort,
+          availableModels: payload.availableModels,
+        })
       }
     } catch (error) {
       console.error('[SessionToolbar] Failed to switch model:', error)
@@ -376,7 +384,7 @@ const SessionToolbar: React.FC<SessionToolbarProps> = ({ sessionId, onSkillClick
       setModelSwitching(false)
       setModelPopoverOpen(false)
     }
-  }, [sessionId, modelSwitching])
+  }, [sessionId, modelSwitching, setSessionInitData, currentReasoningEffort])
 
   // ---- Popover 关闭逻辑 ----
   usePopoverClose(skillPopoverOpen, setSkillPopoverOpen, skillBtnRef, skillPopoverRef)
@@ -446,12 +454,15 @@ const SessionToolbar: React.FC<SessionToolbarProps> = ({ sessionId, onSkillClick
                   <button
                     key={option.id}
                     onClick={() => handleModelSwitch(targetModel, option.effort)}
-                    className="w-full px-2 py-1.5 flex items-center gap-2 rounded-md text-left text-xs text-text-secondary hover:bg-bg-hover transition-colors"
+                    className={`w-full px-2 py-1.5 flex items-center gap-2 rounded-md text-left text-xs transition-colors
+                      ${active
+                        ? 'bg-accent-blue/12 text-accent-blue border border-accent-blue/25'
+                        : 'text-text-secondary border border-transparent hover:bg-bg-hover'}`}
                   >
-                    <span className="w-3.5 flex justify-center text-accent-blue">
+                    <span className="w-3.5 flex justify-center">
                       {active && <Check size={12} />}
                     </span>
-                    <span className="flex-1 truncate">{option.label}</span>
+                    <span className={`flex-1 truncate ${active ? 'font-medium' : ''}`}>{option.label}</span>
                   </button>
                 )
               })}
@@ -463,24 +474,35 @@ const SessionToolbar: React.FC<SessionToolbarProps> = ({ sessionId, onSkillClick
                   <button
                     key={model.id}
                     onClick={() => handleModelSwitch(model.id, currentReasoningEffort as ReasoningEffort | undefined)}
-                    className="w-full px-2 py-1.5 flex items-center gap-2 text-left text-xs text-text-secondary hover:bg-bg-hover transition-colors"
+                    className={`w-full px-2 py-1.5 flex items-center gap-2 text-left text-xs transition-colors
+                      ${active
+                        ? 'bg-accent-blue/12 text-accent-blue border border-accent-blue/25'
+                        : 'text-text-secondary border border-transparent hover:bg-bg-hover'}`}
                   >
-                    <span className="w-3.5 flex justify-center text-accent-blue">
+                    <span className="w-3.5 flex justify-center">
                       {active && <Check size={12} />}
                     </span>
-                    <span className="flex-1 truncate">{model.name || model.id}</span>
+                    <span className={`flex-1 truncate ${active ? 'font-medium' : ''}`}>{model.name || model.id}</span>
                   </button>
                 )
               })}
+              {(() => {
+                const active = currentModel === 'gpt-5.4' && currentReasoningEffort === 'low'
+                return (
               <button
                 onClick={() => handleModelSwitch('gpt-5.4', 'low')}
-                className="w-full px-2 py-1.5 flex items-center gap-2 text-left text-xs text-text-secondary hover:bg-bg-hover transition-colors"
+                className={`w-full px-2 py-1.5 flex items-center gap-2 text-left text-xs transition-colors
+                  ${active
+                    ? 'bg-accent-blue/12 text-accent-blue border border-accent-blue/25'
+                    : 'text-text-secondary border border-transparent hover:bg-bg-hover'}`}
               >
-                <span className="w-3.5 flex justify-center text-accent-blue">
-                  {currentModel === 'gpt-5.4' && currentReasoningEffort === 'low' && <Check size={12} />}
+                <span className="w-3.5 flex justify-center">
+                  {active && <Check size={12} />}
                 </span>
-                <span className="flex-1 truncate">{'\u901f\u5ea6'}</span>
+                <span className={`flex-1 truncate ${active ? 'font-medium' : ''}`}>{'\u901f\u5ea6'}</span>
               </button>
+                )
+              })()}
             </div>
           </div>
         )}
