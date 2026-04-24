@@ -1,7 +1,7 @@
-/**
- * Session IPC 处理器 - Session 生命周期及对话管理
- * ★ 架构说明：仅支持 SDK V2（SessionManagerV2 + Adapter 层）
- *   V1 PTY 路径（SessionManager + node-pty）已弃用
+﻿/**
+ * Session IPC 澶勭悊鍣?- Session 鐢熷懡鍛ㄦ湡鍙婂璇濈鐞?
+ * 鈽?鏋舵瀯璇存槑锛氫粎鏀寔 SDK V2锛圫essionManagerV2 + Adapter 灞傦級
+ *   V1 PTY 璺緞锛圫essionManager + node-pty锛夊凡寮冪敤
  */
 import { ipcMain, BrowserWindow } from 'electron'
 import { IPC } from '../../shared/constants'
@@ -33,7 +33,7 @@ import { checkProviderAvailability } from '../agent/providerAvailability'
 import type { IpcDependencies } from './index'
 import { sendToRenderer, aiRenamingLocks, performAiRename } from './shared'
 import { createErrorResponse, createSuccessResponse, ErrorCode, SpectrAIError } from '../../shared/errors'
-// ★ 输入验证中间件
+// 鈽?杈撳叆楠岃瘉涓棿浠?
 import { withValidation } from '../utils/inputValidation'
 
 const RESUME_PROMPT_TOKEN_BUDGET = 7000
@@ -336,7 +336,7 @@ function buildResumeBootstrapPrompt(summaries: any[], messages: any[]): string |
   return prompt
 }
 
-// 防止前端连点"创建"造成重复会话（同参数请求共享同一 Promise）
+// 闃叉鍓嶇杩炵偣"鍒涘缓"閫犳垚閲嶅浼氳瘽锛堝悓鍙傛暟璇锋眰鍏变韩鍚屼竴 Promise锛?
 const createSessionInFlight = new Map<string, Promise<any>>()
 
 function buildCreateSessionDedupeKey(config: SessionConfig): string {
@@ -356,7 +356,7 @@ export function registerSessionHandlers(deps: IpcDependencies): void {
     agentBridgePort,
   } = deps
 
-  // ==================== Dialog 相关 ====================
+  // ==================== Dialog 鐩稿叧 ====================
 
   ipcMain.handle('dialog:select-directory', async () => {
     const focusedWin = BrowserWindow.getFocusedWindow()
@@ -365,7 +365,7 @@ export function registerSessionHandlers(deps: IpcDependencies): void {
     const { dialog } = require('electron')
     const result = await dialog.showOpenDialog(focusedWin, {
       properties: ['openDirectory'],
-      title: '选择工作目录'
+      title: '閫夋嫨宸ヤ綔鐩綍'
     })
 
     return result.canceled ? null : result.filePaths[0]
@@ -382,7 +382,7 @@ export function registerSessionHandlers(deps: IpcDependencies): void {
       title: '选择 Claude Code CLI 可执行文件',
       filters: isWindows
         ? [
-            { name: 'JavaScript 文件', extensions: ['js'] },
+            { name: 'JavaScript 鏂囦欢', extensions: ['js'] },
             { name: '所有文件', extensions: ['*'] },
           ]
         : [{ name: '所有文件', extensions: ['*'] }],
@@ -391,7 +391,7 @@ export function registerSessionHandlers(deps: IpcDependencies): void {
     return result.canceled ? null : result.filePaths[0]
   })
 
-  // ==================== Session 相关 ====================
+  // ==================== Session 鐩稿叧 ====================
 
   ipcMain.handle(IPC.SESSION_CREATE, async (_event, config: SessionConfig) => {
     const dedupeKey = buildCreateSessionDedupeKey(config)
@@ -405,11 +405,11 @@ export function registerSessionHandlers(deps: IpcDependencies): void {
         throw new SpectrAIError({
           code: ErrorCode.INTERNAL,
           message: 'SDK V2 SessionManager not initialized',
-          userMessage: 'SDK V2 SessionManager 未初始化'
+          userMessage: 'SDK V2 SessionManager 鏈垵濮嬪寲'
         })
       }
 
-      // 检查并发限制
+      // 妫€鏌ュ苟鍙戦檺鍒?
       const resourceCheck = concurrencyGuard.checkResources()
       if (!resourceCheck.canCreate) {
         throw new SpectrAIError({
@@ -420,20 +420,20 @@ export function registerSessionHandlers(deps: IpcDependencies): void {
         })
       }
 
-      // 查询 Provider（数据库中可能存在无效 provider，需验证 adapterType）
+      // 鏌ヨ Provider锛堟暟鎹簱涓彲鑳藉瓨鍦ㄦ棤鏁?provider锛岄渶楠岃瘉 adapterType锛?
       const providerId = config.providerId || 'claude-code'
       let provider: AIProvider | undefined = database.getProvider(providerId)
       if (!provider || !provider.adapterType) {
         provider = BUILTIN_CLAUDE_PROVIDER
       }
 
-      // ★ 注入引导提示（按 provider 分派）
+      // 鈽?娉ㄥ叆寮曞鎻愮ず锛堟寜 provider 鍒嗘淳锛?
       if (config.supervisorMode) {
         config.enableAgent = true
         const allProviders = database.getAllProviders()
         const availability = await checkProviderAvailability(allProviders)
         const providerNames = availability.map(a =>
-          a.available ? `${a.name}(${a.id})` : `${a.name}(${a.id}) [未安装]`
+          a.available ? `${a.name}(${a.id})` : `${a.name}(${a.id}) [鏈畨瑁匽`
         )
         if (providerId === 'claude-code') {
           injectSupervisorPrompt(config.workingDirectory, providerNames)
@@ -442,7 +442,7 @@ export function registerSessionHandlers(deps: IpcDependencies): void {
         } else if (providerId === 'gemini-cli') {
           injectSupervisorPromptToGeminiMd(config.workingDirectory, providerNames)
         } else {
-          // fallback（iflow / opencode 等）：通过 initialPrompt 前缀注入
+          // fallback锛坕flow / opencode 绛夛級锛氶€氳繃 initialPrompt 鍓嶇紑娉ㄥ叆
           const supervisorContent = buildSupervisorPrompt(providerNames)
           config.initialPrompt = config.initialPrompt
             ? `${supervisorContent}\n\n---\n\n${config.initialPrompt}`
@@ -452,14 +452,14 @@ export function registerSessionHandlers(deps: IpcDependencies): void {
         injectAwarenessPrompt(config.workingDirectory)
       }
 
-      // ★ 若选择了工作区，注入多仓库上下文（让 AI 知道所有仓库路径）
-      // 注意：此处为普通 session，worktree 未预建，使用专用的 session 文案（非 task 文案）
+      // 鈽?鑻ラ€夋嫨浜嗗伐浣滃尯锛屾敞鍏ュ浠撳簱涓婁笅鏂囷紙璁?AI 鐭ラ亾鎵€鏈変粨搴撹矾寰勶級
+      // 娉ㄦ剰锛氭澶勪负鏅€?session锛寃orktree 鏈寤猴紝浣跨敤涓撶敤鐨?session 鏂囨锛堥潪 task 鏂囨锛?
       let workspaceRepos: Array<{ name: string; repoPath: string; isPrimary: boolean }> = []
       if (config.workspaceId) {
         try {
           const workspace = database.getWorkspace(config.workspaceId)
           if (workspace) {
-            // 如果没有手动指定 workingDirectory，使用主仓库路径
+            // 濡傛灉娌℃湁鎵嬪姩鎸囧畾 workingDirectory锛屼娇鐢ㄤ富浠撳簱璺緞
             const primaryRepo = workspace.repos.find((r: any) => r.isPrimary) ?? workspace.repos[0]
             if (primaryRepo && !config.workingDirectory) {
               config.workingDirectory = primaryRepo.repoPath
@@ -469,7 +469,7 @@ export function registerSessionHandlers(deps: IpcDependencies): void {
               repoPath: r.repoPath,
               isPrimary: r.isPrimary,
             }))
-            // ★ 收集非主仓库路径，传递给 SDK additionalDirectories，让 AI 可访问工作区内所有目录
+            // 鈽?鏀堕泦闈炰富浠撳簱璺緞锛屼紶閫掔粰 SDK additionalDirectories锛岃 AI 鍙闂伐浣滃尯鍐呮墍鏈夌洰褰?
             const additionalDirs = workspaceRepos
               .filter(r => !r.isPrimary && r.repoPath !== config.workingDirectory)
               .map(r => r.repoPath)
@@ -477,15 +477,15 @@ export function registerSessionHandlers(deps: IpcDependencies): void {
               config.additionalDirectories = additionalDirs
               console.log(`[IPC] Workspace additionalDirectories: ${additionalDirs.join(', ')}`)
             }
-            // ★ 注入工作区多仓库上下文（按 provider 分派）
-            // 各 provider 有自己的规则文件发现机制：
-            //   claude-code  → .claude/rules/ 文件（启动时自动加载）+ systemPromptAppend（双重保险）
-            //   codex        → AGENTS.md（Codex 自动发现，WORKSPACE 管理块）
-            //   gemini-cli   → GEMINI.md（Gemini CLI 自动加载，WORKSPACE 管理块）
-            //   其他          → systemPromptAppend / initialPrompt 前缀
+            // 鈽?娉ㄥ叆宸ヤ綔鍖哄浠撳簱涓婁笅鏂囷紙鎸?provider 鍒嗘淳锛?
+            // 鍚?provider 鏈夎嚜宸辩殑瑙勫垯鏂囦欢鍙戠幇鏈哄埗锛?
+            //   claude-code  鈫?.claude/rules/ 鏂囦欢锛堝惎鍔ㄦ椂鑷姩鍔犺浇锛? systemPromptAppend锛堝弻閲嶄繚闄╋級
+            //   codex        鈫?AGENTS.md锛圕odex 鑷姩鍙戠幇锛學ORKSPACE 绠＄悊鍧楋級
+            //   gemini-cli   鈫?GEMINI.md锛圙emini CLI 鑷姩鍔犺浇锛學ORKSPACE 绠＄悊鍧楋級
+            //   鍏朵粬          鈫?systemPromptAppend / initialPrompt 鍓嶇紑
             if (providerId === 'claude-code') {
               injectWorkspaceSessionSection(config.workingDirectory, workspaceRepos)
-              // 双重保险：通过 systemPromptAppend 注入
+              // 鍙岄噸淇濋櫓锛氶€氳繃 systemPromptAppend 娉ㄥ叆
               const wsSection = buildWorkspaceSessionSection(workspaceRepos)
               if (wsSection) {
                 config.systemPromptAppend = config.systemPromptAppend
@@ -497,8 +497,8 @@ export function registerSessionHandlers(deps: IpcDependencies): void {
             } else if (providerId === 'gemini-cli') {
               injectWorkspaceSessionSectionToGeminiMd(config.workingDirectory, workspaceRepos)
             } else {
-              // fallback（iflow / opencode 等）：通过 initialPrompt 前缀注入
-              // OpenCode 无 systemPrompt 支持，initialPrompt 是唯一可靠通道
+              // fallback锛坕flow / opencode 绛夛級锛氶€氳繃 initialPrompt 鍓嶇紑娉ㄥ叆
+              // OpenCode 鏃?systemPrompt 鏀寔锛宨nitialPrompt 鏄敮涓€鍙潬閫氶亾
               const wsSection = buildWorkspaceSessionSection(workspaceRepos)
               if (wsSection) {
                 config.initialPrompt = config.initialPrompt
@@ -512,31 +512,31 @@ export function registerSessionHandlers(deps: IpcDependencies): void {
         }
       }
 
-      // ★ autoWorktree 开启时：向 AI 注入 worktree 使用规则
-      // 工作区会话：对工作区内每个仓库都注入规则（而非仅主仓库）
-      // 各 provider 有自己的规则文件发现机制，写文件比发消息更干净：
-      //   claude-code  → .claude/rules/spectrai-worktree.md（启动时自动加载）
-      //              + systemPrompt.append（双重保险，确保 SDK 模式下规则生效）
-      //   codex        → AGENTS.md（Codex 自动发现，社区标准）
-      //   gemini-cli   → GEMINI.md（Gemini CLI 自动加载）
-      //   其他未知      → fallback：作为 initialPrompt 前缀发送
+      // 鈽?autoWorktree 寮€鍚椂锛氬悜 AI 娉ㄥ叆 worktree 浣跨敤瑙勫垯
+      // 宸ヤ綔鍖轰細璇濓細瀵瑰伐浣滃尯鍐呮瘡涓粨搴撻兘娉ㄥ叆瑙勫垯锛堣€岄潪浠呬富浠撳簱锛?
+      // 鍚?provider 鏈夎嚜宸辩殑瑙勫垯鏂囦欢鍙戠幇鏈哄埗锛屽啓鏂囦欢姣斿彂娑堟伅鏇村共鍑€锛?
+      //   claude-code  鈫?.claude/rules/spectrai-worktree.md锛堝惎鍔ㄦ椂鑷姩鍔犺浇锛?
+      //              + systemPrompt.append锛堝弻閲嶄繚闄╋紝纭繚 SDK 妯″紡涓嬭鍒欑敓鏁堬級
+      //   codex        鈫?AGENTS.md锛圕odex 鑷姩鍙戠幇锛岀ぞ鍖烘爣鍑嗭級
+      //   gemini-cli   鈫?GEMINI.md锛圙emini CLI 鑷姩鍔犺浇锛?
+      //   鍏朵粬鏈煡      鈫?fallback锛氫綔涓?initialPrompt 鍓嶇紑鍙戦€?
       const settings = database.getAppSettings()
       console.log(`[IPC] autoWorktree=${settings.autoWorktree}, providerId=${providerId}, workDir=${config.workingDirectory}`)
       if (settings.autoWorktree) {
         if (providerId === 'claude-code') {
-          // 主仓库注入（会话工作目录）
+          // 涓讳粨搴撴敞鍏ワ紙浼氳瘽宸ヤ綔鐩綍锛?
           injectWorktreeRule(config.workingDirectory)
-          // 工作区内其他仓库也注入 worktree 规则，让 AI 对每个仓库都有隔离意识
+          // 宸ヤ綔鍖哄唴鍏朵粬浠撳簱涔熸敞鍏?worktree 瑙勫垯锛岃 AI 瀵规瘡涓粨搴撻兘鏈夐殧绂绘剰璇?
           for (const repo of workspaceRepos) {
             if (!repo.isPrimary) {
               try {
                 injectWorktreeRule(repo.repoPath)
-              } catch (_) { /* 非 git 仓库则忽略 */ }
+              } catch (_) { /* 闈?git 浠撳簱鍒欏拷鐣?*/ }
             }
           }
-          // ★ 双重保险：同时通过 systemPromptAppend 注入规则
-          // 原因：Claude Code SDK 在某些情况下可能不会重新加载 .claude/rules/ 文件，
-          // 但 systemPromptAppend 通过 SessionManagerV2 直接注入 SDK systemPrompt，100% 生效
+          // 鈽?鍙岄噸淇濋櫓锛氬悓鏃堕€氳繃 systemPromptAppend 娉ㄥ叆瑙勫垯
+          // 鍘熷洜锛欳laude Code SDK 鍦ㄦ煇浜涙儏鍐典笅鍙兘涓嶄細閲嶆柊鍔犺浇 .claude/rules/ 鏂囦欢锛?
+          // 浣?systemPromptAppend 閫氳繃 SessionManagerV2 鐩存帴娉ㄥ叆 SDK systemPrompt锛?00% 鐢熸晥
           const worktreeRule = buildWorktreePrompt(detectBaseBranch(config.workingDirectory))
           config.systemPromptAppend = config.systemPromptAppend
             ? config.systemPromptAppend + '\n\n' + worktreeRule
@@ -554,23 +554,23 @@ export function registerSessionHandlers(deps: IpcDependencies): void {
         }
       }
 
-      // ★ 注入文件操作规则（让 AI 使用 SpectrAI MCP 工具修改文件，以便追踪 diff）
-      // 各 provider 有自己的规则文件发现机制：
-      //   claude-code  → .claude/rules/spectrai-fileops.md + systemPromptAppend（双重保险）
-      //   codex        → AGENTS.md 的 FILEOPS 管理块
-      //   gemini-cli   → GEMINI.md 的 FILEOPS 管理块
-      //   其他          → initialPrompt 前缀
+      // 鈽?娉ㄥ叆鏂囦欢鎿嶄綔瑙勫垯锛堣 AI 浣跨敤 SpectrAI MCP 宸ュ叿淇敼鏂囦欢锛屼互渚胯拷韪?diff锛?
+      // 鍚?provider 鏈夎嚜宸辩殑瑙勫垯鏂囦欢鍙戠幇鏈哄埗锛?
+      //   claude-code  鈫?.claude/rules/spectrai-fileops.md + systemPromptAppend锛堝弻閲嶄繚闄╋級
+      //   codex        鈫?AGENTS.md 鐨?FILEOPS 绠＄悊鍧?
+      //   gemini-cli   鈫?GEMINI.md 鐨?FILEOPS 绠＄悊鍧?
+      //   鍏朵粬          鈫?initialPrompt 鍓嶇紑
       if (config.workingDirectory) {
         try {
           if (providerId === 'claude-code') {
-            // Claude Code 会自动读取 .claude/rules/ 目录，无需追加到 systemPromptAppend（会导致对话历史中出现重复）
+            // Claude Code 浼氳嚜鍔ㄨ鍙?.claude/rules/ 鐩綍锛屾棤闇€杩藉姞鍒?systemPromptAppend锛堜細瀵艰嚧瀵硅瘽鍘嗗彶涓嚭鐜伴噸澶嶏級
             injectFileOpsRule(config.workingDirectory)
           } else if (providerId === 'codex') {
             injectFileOpsRuleToAgentsMd(config.workingDirectory)
           } else if (providerId === 'gemini-cli') {
             injectFileOpsRuleToGeminiMd(config.workingDirectory)
           } else {
-            // fallback: 作为 initialPrompt 前缀注入
+            // fallback: 浣滀负 initialPrompt 鍓嶇紑娉ㄥ叆
             const fileOpsRule = buildFileOpsPrompt()
             config.initialPrompt = config.initialPrompt
               ? `${fileOpsRule}\n\n---\n\n${config.initialPrompt}`
@@ -582,19 +582,19 @@ export function registerSessionHandlers(deps: IpcDependencies): void {
         }
       }
 
-      // ★ MCP 注入策略（支持 claude-code / iflow / codex）：
-      //   - 用户配置的 MCP：所有会话均注入，无论是否开启 Supervisor 模式
-      //   - spectrai-agent 系统 MCP：仅 enableAgent（Supervisor）模式下注入，用于跨会话编排
-      //   bridgePort = 0 时 generate* 内部自动跳过 spectrai-agent 段，其余逻辑不变
+      // 鈽?MCP 娉ㄥ叆绛栫暐锛堟敮鎸?claude-code / iflow / codex锛夛細
+      //   - 鐢ㄦ埛閰嶇疆鐨?MCP锛氭墍鏈変細璇濆潎娉ㄥ叆锛屾棤璁烘槸鍚﹀紑鍚?Supervisor 妯″紡
+      //   - spectrai-agent 绯荤粺 MCP锛氫粎 enableAgent锛圫upervisor锛夋ā寮忎笅娉ㄥ叆锛岀敤浜庤法浼氳瘽缂栨帓
+      //   bridgePort = 0 鏃?generate* 鍐呴儴鑷姩璺宠繃 spectrai-agent 娈碉紝鍏朵綑閫昏緫涓嶅彉
       {
         const sessionMcpBridgePort = (agentBridgePort && config.enableAgent) ? agentBridgePort : 0
         const mcpSessionId = config.id || `session-${Date.now()}`
-        // 确定 MCP 工具分级模式：
-        // - supervisor: Supervisor 主会话，拥有完整 Agent 调度 + Leader 团队工具
-        // - awareness: 普通会话（非 Supervisor），仅跨会话感知 + worktree + 文件操作
+        // 纭畾 MCP 宸ュ叿鍒嗙骇妯″紡锛?
+        // - supervisor: Supervisor 涓讳細璇濓紝鎷ユ湁瀹屾暣 Agent 璋冨害 + Leader 鍥㈤槦宸ュ叿
+        // - awareness: 鏅€氫細璇濓紙闈?Supervisor锛夛紝浠呰法浼氳瘽鎰熺煡 + worktree + 鏂囦欢鎿嶄綔
         const mcpSessionMode = config.supervisorMode ? 'supervisor' : 'awareness'
         if (providerId === 'claude-code' || providerId === 'iflow') {
-          // Claude Code / iFlow：通过 JSON 文件注入 MCP（--mcp-config / ACP loadMcpServersForAcp）
+          // Claude Code / iFlow锛氶€氳繃 JSON 鏂囦欢娉ㄥ叆 MCP锛?-mcp-config / ACP loadMcpServersForAcp锛?
           const userMcps = database.getEnabledMcpsForProvider(providerId)
           if (userMcps.length > 0 || sessionMcpBridgePort > 0) {
             config.mcpConfigPath = MCPConfigGenerator.generate(
@@ -602,7 +602,7 @@ export function registerSessionHandlers(deps: IpcDependencies): void {
             )
           }
         } else if (providerId === 'codex') {
-          // Codex：通过 CODEX_HOME 环境变量重定向配置目录，实现按会话 MCP 隔离
+          // Codex锛氶€氳繃 CODEX_HOME 鐜鍙橀噺閲嶅畾鍚戦厤缃洰褰曪紝瀹炵幇鎸変細璇?MCP 闅旂
           const userMcps = database.getEnabledMcpsForProvider(providerId)
           if (userMcps.length > 0 || sessionMcpBridgePort > 0) {
             const codexHomeDir = MCPConfigGenerator.generateForCodex(
@@ -616,13 +616,13 @@ export function registerSessionHandlers(deps: IpcDependencies): void {
       config.providerId = provider.id
       config.adapterType = provider.adapterType
 
-      // ★ iFlow 预热模式：提前完成握手，后续发消息无需等待 60 秒初始化
+      // 鈽?iFlow 棰勭儹妯″紡锛氭彁鍓嶅畬鎴愭彙鎵嬶紝鍚庣画鍙戞秷鎭棤闇€绛夊緟 60 绉掑垵濮嬪寲
       if (config.prewarm && provider.id === 'iflow') {
         console.log(`[IPC] SESSION_CREATE: using prewarm mode for iFlow`)
         const prewarmResult = await smV2.prewarmSession(config, provider)
         concurrencyGuard.registerSession()
         database.recordDirectoryUsage(config.workingDirectory)
-        // 等待预热完成（prewarmSession 内部已完成握手，返回时已是 waiting_input）
+        // 绛夊緟棰勭儹瀹屾垚锛坧rewarmSession 鍐呴儴宸插畬鎴愭彙鎵嬶紝杩斿洖鏃跺凡鏄?waiting_input锛?
         return createSuccessResponse({
           sessionId: prewarmResult.sessionId,
           iflowSessionId: prewarmResult.iflowSessionId,
@@ -632,14 +632,14 @@ export function registerSessionHandlers(deps: IpcDependencies): void {
         })
       }
 
-      // ★ 创建 SDK V2 会话
-      // 数据库记录由 systemHandlers.ts 中的 session_start 事件统一写入，此处不重复写（避免 UNIQUE constraint 冲突）
+      // 鈽?鍒涘缓 SDK V2 浼氳瘽
+      // 鏁版嵁搴撹褰曠敱 systemHandlers.ts 涓殑 session_start 浜嬩欢缁熶竴鍐欏叆锛屾澶勪笉閲嶅鍐欙紙閬垮厤 UNIQUE constraint 鍐茬獊锛?
       const sessionId = smV2.createSession(config, provider)
       concurrencyGuard.registerSession()
       database.recordDirectoryUsage(config.workingDirectory)
 
-      // 等待会话脱离 starting（可交互/失败）再返回，减少"创建成功但仍假性处理中"的体验问题
-      // ★ iFlow session/new 需初始化 MCP servers，实测需 ~60s，超时需覆盖
+      // 绛夊緟浼氳瘽鑴辩 starting锛堝彲浜や簰/澶辫触锛夊啀杩斿洖锛屽噺灏?鍒涘缓鎴愬姛浣嗕粛鍋囨€у鐞嗕腑"鐨勪綋楠岄棶棰?
+      // 鈽?iFlow session/new 闇€鍒濆鍖?MCP servers锛屽疄娴嬮渶 ~60s锛岃秴鏃堕渶瑕嗙洊
       const readyTimeoutMs = provider.id === 'codex' ? 12000 : provider.id === 'iflow' ? 90000 : 6000
       const readyInfo = await smV2.waitForSessionReady(sessionId, readyTimeoutMs)
 
@@ -649,7 +649,7 @@ export function registerSessionHandlers(deps: IpcDependencies): void {
           sessionId,
           ready: true,
           status: readyInfo.status,
-          error: readyInfo.error || '会话启动失败',
+          error: readyInfo.error || '浼氳瘽鍚姩澶辫触',
         }
       }
 
@@ -671,7 +671,7 @@ export function registerSessionHandlers(deps: IpcDependencies): void {
     }
   })
 
-  // ★ iFlow 预热：提前完成握手，发送消息时无需等待 60 秒初始化
+  // 鈽?iFlow 棰勭儹锛氭彁鍓嶅畬鎴愭彙鎵嬶紝鍙戦€佹秷鎭椂鏃犻渶绛夊緟 60 绉掑垵濮嬪寲
   ipcMain.handle(IPC.SESSION_PREWARM, async (_event, config: SessionConfig) => {
     try {
       const smV2 = deps.sessionManagerV2
@@ -679,7 +679,7 @@ export function registerSessionHandlers(deps: IpcDependencies): void {
         throw new SpectrAIError({
           code: ErrorCode.INTERNAL,
           message: 'SDK V2 SessionManager not initialized',
-          userMessage: 'SDK V2 SessionManager 未初始化'
+          userMessage: 'SDK V2 SessionManager 鏈垵濮嬪寲'
         })
       }
 
@@ -711,7 +711,7 @@ export function registerSessionHandlers(deps: IpcDependencies): void {
         throw new SpectrAIError({
           code: ErrorCode.INTERNAL,
           message: 'SDK V2 SessionManager not initialized',
-          userMessage: 'SDK V2 SessionManager 未初始化'
+          userMessage: 'SDK V2 SessionManager 鏈垵濮嬪寲'
         })
       }
       if (smV2.getSession(sessionId)) {
@@ -729,14 +729,14 @@ export function registerSessionHandlers(deps: IpcDependencies): void {
   ipcMain.handle(IPC.SESSION_DELETE, async (_event, sessionId: string) => {
     try {
       const smV2 = deps.sessionManagerV2
-      // 若会话仍在运行，先终止
+      // 鑻ヤ細璇濅粛鍦ㄨ繍琛岋紝鍏堢粓姝?
       if (smV2?.getSession(sessionId)) {
         await smV2.terminateSession(sessionId)
         concurrencyGuard.unregisterSession()
       }
       database.deleteSession(sessionId)
-      // 从内存 Map 中移除，防止 SESSION_GET_ALL 返回已删除的"幽灵会话"
-      // 导致 fetchSessions() 合并后已删会话重新出现在前端列表
+      // 浠庡唴瀛?Map 涓Щ闄わ紝闃叉 SESSION_GET_ALL 杩斿洖宸插垹闄ょ殑"骞界伒浼氳瘽"
+      // 瀵艰嚧 fetchSessions() 鍚堝苟鍚庡凡鍒犱細璇濋噸鏂板嚭鐜板湪鍓嶇鍒楄〃
       smV2?.removeSession(sessionId)
       return createSuccessResponse({ success: true })
     } catch (error: any) {
@@ -752,7 +752,7 @@ export function registerSessionHandlers(deps: IpcDependencies): void {
         throw new SpectrAIError({
           code: ErrorCode.INTERNAL,
           message: 'SDK V2 SessionManager not initialized',
-          userMessage: 'SDK V2 SessionManager 未初始化'
+          userMessage: 'SDK V2 SessionManager 鏈垵濮嬪寲'
         })
       }
       await smV2.sendMessage(sessionId, input)
@@ -769,7 +769,7 @@ export function registerSessionHandlers(deps: IpcDependencies): void {
         throw new SpectrAIError({
           code: ErrorCode.INTERNAL,
           message: 'SDK V2 SessionManager not initialized',
-          userMessage: 'SDK V2 SessionManager 未初始化'
+          userMessage: 'SDK V2 SessionManager 鏈垵濮嬪寲'
         })
       }
       await smV2.sendConfirmation(sessionId, confirmed)
@@ -785,12 +785,12 @@ export function registerSessionHandlers(deps: IpcDependencies): void {
   })
 
   ipcMain.handle(IPC.SESSION_GET_OUTPUT, async (_event, _sessionId: string) => {
-    // V1 PTY 输出缓冲区已移除，V2 通过 conversation-message 事件推流，此 IPC 不再使用
+    // V1 PTY 杈撳嚭缂撳啿鍖哄凡绉婚櫎锛孷2 閫氳繃 conversation-message 浜嬩欢鎺ㄦ祦锛屾 IPC 涓嶅啀浣跨敤
     return []
   })
 
   ipcMain.handle(IPC.SESSION_RESIZE, async (_event, _sessionId: string, _cols: number, _rows: number) => {
-    // V2 Adapter 层不需要手动 resize
+    // V2 Adapter 灞備笉闇€瑕佹墜鍔?resize
     return createSuccessResponse({ success: true })
   })
 
@@ -837,7 +837,7 @@ export function registerSessionHandlers(deps: IpcDependencies): void {
     }
   })
 
-  // ==================== Session 历史查询 ====================
+  // ==================== Session 鍘嗗彶鏌ヨ ====================
 
   ipcMain.handle(IPC.SESSION_GET_HISTORY, async () => {
     try {
@@ -869,7 +869,7 @@ export function registerSessionHandlers(deps: IpcDependencies): void {
     }
   })
 
-  // ==================== Session 日志 ====================
+  // ==================== Session 鏃ュ織 ====================
 
   ipcMain.handle(IPC.SESSION_GET_LOGS, async (_event, sessionId: string) => {
     try {
@@ -880,7 +880,7 @@ export function registerSessionHandlers(deps: IpcDependencies): void {
     }
   })
 
-  // ==================== Session 重命名 ====================
+  // ==================== Session 閲嶅懡鍚?====================
 
   ipcMain.handle(IPC.SESSION_RENAME, async (_event, sessionId: string, newName: string) => {
     try {
@@ -889,7 +889,7 @@ export function registerSessionHandlers(deps: IpcDependencies): void {
         throw new SpectrAIError({
           code: ErrorCode.INVALID_INPUT,
           message: 'Session name cannot be empty',
-          userMessage: '名称不能为空'
+          userMessage: '鍚嶇О涓嶈兘涓虹┖'
         })
       }
 
@@ -909,7 +909,7 @@ export function registerSessionHandlers(deps: IpcDependencies): void {
     }
   })
 
-  // ==================== Session AI 重命名 ====================
+  // ==================== Session AI 閲嶅懡鍚?====================
 
   ipcMain.handle(IPC.SESSION_AI_RENAME, async (_event, sessionId: string) => {
     if (aiRenamingLocks.has(sessionId)) {
@@ -942,7 +942,7 @@ export function registerSessionHandlers(deps: IpcDependencies): void {
     }
   })
 
-  // ==================== Session 模型切换 ====================
+  // ==================== Session 妯″瀷鍒囨崲 ====================
 
   ipcMain.handle(IPC.SESSION_SET_MODEL, async (_event, sessionId: string, modelId: string) => {
     try {
@@ -951,7 +951,7 @@ export function registerSessionHandlers(deps: IpcDependencies): void {
         throw new SpectrAIError({
           code: ErrorCode.INTERNAL,
           message: 'SDK V2 SessionManager not initialized',
-          userMessage: 'SDK V2 SessionManager 未初始化'
+          userMessage: 'SDK V2 SessionManager 鏈垵濮嬪寲'
         })
       }
 
@@ -960,7 +960,7 @@ export function registerSessionHandlers(deps: IpcDependencies): void {
         throw new SpectrAIError({
           code: ErrorCode.INVALID_INPUT,
           message: 'Model ID cannot be empty',
-          userMessage: '模型 ID 不能为空'
+          userMessage: '妯″瀷 ID 涓嶈兘涓虹┖'
         })
       }
 
@@ -973,20 +973,24 @@ export function registerSessionHandlers(deps: IpcDependencies): void {
         })
       }
 
-      const updated = smV2.setModelOverride(sessionId, trimmed)
+      const updated = await smV2.setModelOverride(sessionId, trimmed)
       if (!updated) {
         throw new SpectrAIError({
           code: ErrorCode.INTERNAL,
           message: 'Failed to set model override',
-          userMessage: '设置模型覆盖失败'
+          userMessage: '璁剧疆妯″瀷瑕嗙洊澶辫触'
         })
       }
 
-      console.log(`[IPC] SESSION_SET_MODEL: ${sessionId} → ${trimmed}`)
+      console.log(`[IPC] SESSION_SET_MODEL: ${sessionId} -> ${updated.model}, effectiveNow=${updated.effectiveNow}`)
       return createSuccessResponse({
-        model: trimmed,
-        requiresRestart: !['terminated', 'completed', 'error'].includes(session.status),
-        message: '模型偏好已保存，请重启会话使新模型生效'
+        model: updated.model,
+        effectiveNow: updated.effectiveNow,
+        requiresRestart: updated.requiresRestart,
+        providerSessionId: updated.providerSessionId,
+        message: updated.effectiveNow
+          ? '模型已切换，后续消息将使用新模型'
+          : '模型偏好已保存，请重启会话使新模型生效'
       })
     } catch (error: any) {
       console.error('[IPC] SESSION_SET_MODEL error:', error)
@@ -994,7 +998,7 @@ export function registerSessionHandlers(deps: IpcDependencies): void {
     }
   })
 
-  // ==================== Session 恢复 ====================
+  // ==================== Session 鎭㈠ ====================
 
   ipcMain.handle(IPC.SESSION_RESUME, async (_event, oldSessionId: string) => {
     try {
@@ -1003,7 +1007,7 @@ export function registerSessionHandlers(deps: IpcDependencies): void {
         throw new SpectrAIError({
           code: ErrorCode.INTERNAL,
           message: 'SDK V2 SessionManager not initialized',
-          userMessage: 'SDK V2 SessionManager 未初始化'
+          userMessage: 'SDK V2 SessionManager 鏈垵濮嬪寲'
         })
       }
 
@@ -1013,7 +1017,7 @@ export function registerSessionHandlers(deps: IpcDependencies): void {
         throw new SpectrAIError({
           code: ErrorCode.SESSION_NOT_FOUND,
           message: 'Original session not found',
-          userMessage: '找不到原会话记录'
+          userMessage: '鎵句笉鍒板師浼氳瘽璁板綍'
         })
       }
 
@@ -1050,7 +1054,7 @@ export function registerSessionHandlers(deps: IpcDependencies): void {
         };
         delete (resumeConfig as any).claudeArgs;
 
-        // Resume A：用户 MCP 始终注入；spectrai-agent 仅 enableAgent 时注入
+        // Resume A锛氱敤鎴?MCP 濮嬬粓娉ㄥ叆锛泂pectrai-agent 浠?enableAgent 鏃舵敞鍏?
         {
           const resumeMcpBridgePort = (agentBridgePort && resumeConfig.enableAgent) ? agentBridgePort : 0
           const resumeMcpMode = resumeConfig.supervisorMode ? 'supervisor' : 'awareness'
@@ -1072,13 +1076,13 @@ export function registerSessionHandlers(deps: IpcDependencies): void {
           }
         }
 
-        // ★ Resume A：重新注入 awareness/supervisor 提示 + worktree 规则
-        // 会话结束时规则文件已被清理，resume 创建新会话时必须重新写入
+        // 鈽?Resume A锛氶噸鏂版敞鍏?awareness/supervisor 鎻愮ず + worktree 瑙勫垯
+        // 浼氳瘽缁撴潫鏃惰鍒欐枃浠跺凡琚竻鐞嗭紝resume 鍒涘缓鏂颁細璇濇椂蹇呴』閲嶆柊鍐欏叆
         if (resumeConfig.supervisorMode) {
           const allProviders = database.getAllProviders()
           const availability = await checkProviderAvailability(allProviders)
           const providerNames = availability.map((a: any) =>
-            a.available ? `${a.name}(${a.id})` : `${a.name}(${a.id}) [未安装]`
+            a.available ? `${a.name}(${a.id})` : `${a.name}(${a.id}) [鏈畨瑁匽`
           )
           if (providerId === 'claude-code') {
             injectSupervisorPrompt(resumeConfig.workingDirectory, providerNames)
@@ -1099,7 +1103,7 @@ export function registerSessionHandlers(deps: IpcDependencies): void {
           const resumeSettings = database.getAppSettings()
           if (resumeSettings.autoWorktree) {
             injectWorktreeRule(resumeConfig.workingDirectory)
-            // ★ 双重保险：通过 systemPromptAppend 注入规则
+            // 鈽?鍙岄噸淇濋櫓锛氶€氳繃 systemPromptAppend 娉ㄥ叆瑙勫垯
             const worktreeRule = buildWorktreePrompt(detectBaseBranch(resumeConfig.workingDirectory))
             resumeConfig.systemPromptAppend = resumeConfig.systemPromptAppend
               ? resumeConfig.systemPromptAppend + '\n\n' + worktreeRule
@@ -1125,7 +1129,7 @@ export function registerSessionHandlers(deps: IpcDependencies): void {
           }
         }
 
-        // ★ 注入文件操作规则（resume 时也需要重新注入）
+        // 鈽?娉ㄥ叆鏂囦欢鎿嶄綔瑙勫垯锛坮esume 鏃朵篃闇€瑕侀噸鏂版敞鍏ワ級
         if (resumeConfig.workingDirectory) {
           try {
             if (providerId === 'claude-code') {
@@ -1229,9 +1233,9 @@ export function registerSessionHandlers(deps: IpcDependencies): void {
         initialPromptVisibility: resumeInitialPrompt ? 'hidden' : undefined,
       }
 
-      // ★ 重新生成 MCP 配置文件（旧文件在上次关闭时已被 cleanupAll 删除）
-      // Resume B：重新生成 MCP 配置（旧文件在上次关闭时已被 cleanupAll 删除）
-      // 用户 MCP 始终注入；spectrai-agent 仅 enableAgent（Supervisor）模式时注入
+      // 鈽?閲嶆柊鐢熸垚 MCP 閰嶇疆鏂囦欢锛堟棫鏂囦欢鍦ㄤ笂娆″叧闂椂宸茶 cleanupAll 鍒犻櫎锛?
+      // Resume B锛氶噸鏂扮敓鎴?MCP 閰嶇疆锛堟棫鏂囦欢鍦ㄤ笂娆″叧闂椂宸茶 cleanupAll 鍒犻櫎锛?
+      // 鐢ㄦ埛 MCP 濮嬬粓娉ㄥ叆锛泂pectrai-agent 浠?enableAgent锛圫upervisor锛夋ā寮忔椂娉ㄥ叆
       {
         const resumeMcpBridgePort = (agentBridgePort && resumeConfig.enableAgent) ? agentBridgePort : 0
         const resumeMcpMode = resumeConfig.supervisorMode ? 'supervisor' : 'awareness'
@@ -1253,13 +1257,13 @@ export function registerSessionHandlers(deps: IpcDependencies): void {
         }
       }
 
-      // ★ Resume B：重新注入 awareness/supervisor 提示 + worktree 规则
-      // 会话结束时规则文件已被清理，resume 重启会话时必须重新写入
+      // 鈽?Resume B锛氶噸鏂版敞鍏?awareness/supervisor 鎻愮ず + worktree 瑙勫垯
+      // 浼氳瘽缁撴潫鏃惰鍒欐枃浠跺凡琚竻鐞嗭紝resume 閲嶅惎浼氳瘽鏃跺繀椤婚噸鏂板啓鍏?
       if (resumeConfig.supervisorMode) {
         const allProviders = database.getAllProviders()
         const availability = await checkProviderAvailability(allProviders)
         const providerNames = availability.map((a: any) =>
-          a.available ? `${a.name}(${a.id})` : `${a.name}(${a.id}) [未安装]`
+          a.available ? `${a.name}(${a.id})` : `${a.name}(${a.id}) [鏈畨瑁匽`
         )
         if (providerId === 'claude-code') {
           injectSupervisorPrompt(resumeConfig.workingDirectory, providerNames)
@@ -1280,7 +1284,7 @@ export function registerSessionHandlers(deps: IpcDependencies): void {
         const resumeSettings = database.getAppSettings()
         if (resumeSettings.autoWorktree) {
           injectWorktreeRule(resumeConfig.workingDirectory)
-          // ★ 双重保险：通过 systemPromptAppend 注入规则
+          // 鈽?鍙岄噸淇濋櫓锛氶€氳繃 systemPromptAppend 娉ㄥ叆瑙勫垯
           const worktreeRule = buildWorktreePrompt(detectBaseBranch(resumeConfig.workingDirectory))
           resumeConfig.systemPromptAppend = resumeConfig.systemPromptAppend
             ? resumeConfig.systemPromptAppend + '\n\n' + worktreeRule
@@ -1298,7 +1302,7 @@ export function registerSessionHandlers(deps: IpcDependencies): void {
         }
       }
 
-      // ★ 注入文件操作规则（resume 时也需要重新注入）
+      // 鈽?娉ㄥ叆鏂囦欢鎿嶄綔瑙勫垯锛坮esume 鏃朵篃闇€瑕侀噸鏂版敞鍏ワ級
       if (resumeConfig.workingDirectory) {
         try {
           if (providerId === 'claude-code') {
@@ -1352,7 +1356,7 @@ export function registerSessionHandlers(deps: IpcDependencies): void {
     }
   })
 
-  // ==================== SDK V2: 对话 API ====================
+  // ==================== SDK V2: 瀵硅瘽 API ====================
 
   ipcMain.handle(IPC.SESSION_SEND_MESSAGE, async (_event, sessionId: string, message: string) => {
     try {
@@ -1361,7 +1365,7 @@ export function registerSessionHandlers(deps: IpcDependencies): void {
         throw new SpectrAIError({
           code: ErrorCode.INTERNAL,
           message: 'SDK V2 SessionManager not initialized',
-          userMessage: 'SDK V2 SessionManager 未初始化'
+          userMessage: 'SDK V2 SessionManager 鏈垵濮嬪寲'
         })
       }
       const dispatch = await smV2.sendMessage(sessionId, message)
@@ -1379,7 +1383,7 @@ export function registerSessionHandlers(deps: IpcDependencies): void {
         throw new SpectrAIError({
           code: ErrorCode.INTERNAL,
           message: 'SDK V2 SessionManager not initialized',
-          userMessage: 'SDK V2 SessionManager 未初始化'
+          userMessage: 'SDK V2 SessionManager 鏈垵濮嬪寲'
         })
       }
       await smV2.abortSession(sessionId)
@@ -1411,7 +1415,7 @@ export function registerSessionHandlers(deps: IpcDependencies): void {
         throw new SpectrAIError({
           code: ErrorCode.INTERNAL,
           message: 'SDK V2 SessionManager not initialized',
-          userMessage: 'SDK V2 SessionManager 未初始化'
+          userMessage: 'SDK V2 SessionManager 鏈垵濮嬪寲'
         })
       }
       await smV2.sendConfirmation(sessionId, accept)
@@ -1427,14 +1431,14 @@ export function registerSessionHandlers(deps: IpcDependencies): void {
     }
   })
 
-  // SDK V2: AskUserQuestion 答案响应
+  // SDK V2: AskUserQuestion 绛旀鍝嶅簲
   ipcMain.handle(IPC.SESSION_ANSWER_QUESTION, async (_event, sessionId: string, answers: Record<string, string>) => {
     try {
       const smV2 = deps.sessionManagerV2
       if (!smV2) throw new SpectrAIError({
           code: ErrorCode.INTERNAL,
           message: 'SDK V2 SessionManager not initialized',
-          userMessage: 'SDK V2 SessionManager 未初始化'
+          userMessage: 'SDK V2 SessionManager 鏈垵濮嬪寲'
         })
       await smV2.sendQuestionAnswer(sessionId, answers)
       return createSuccessResponse({ success: true })
@@ -1444,14 +1448,14 @@ export function registerSessionHandlers(deps: IpcDependencies): void {
     }
   })
 
-  // SDK V2: ExitPlanMode 审批响应
+  // SDK V2: ExitPlanMode 瀹℃壒鍝嶅簲
   ipcMain.handle(IPC.SESSION_APPROVE_PLAN, async (_event, sessionId: string, approved: boolean) => {
     try {
       const smV2 = deps.sessionManagerV2
       if (!smV2) throw new SpectrAIError({
           code: ErrorCode.INTERNAL,
           message: 'SDK V2 SessionManager not initialized',
-          userMessage: 'SDK V2 SessionManager 未初始化'
+          userMessage: 'SDK V2 SessionManager 鏈垵濮嬪寲'
         })
       await smV2.sendPlanApproval(sessionId, approved)
       return createSuccessResponse({ success: true })
@@ -1461,14 +1465,14 @@ export function registerSessionHandlers(deps: IpcDependencies): void {
     }
   })
 
-  // SDK V2: 获取排队中的消息列表
+  // SDK V2: 鑾峰彇鎺掗槦涓殑娑堟伅鍒楄〃
   ipcMain.handle(IPC.SESSION_GET_QUEUE, async (_event, sessionId: string) => {
     try {
       const smV2 = deps.sessionManagerV2
       if (!smV2) throw new SpectrAIError({
           code: ErrorCode.INTERNAL,
           message: 'SDK V2 SessionManager not initialized',
-          userMessage: 'SDK V2 SessionManager 未初始化'
+          userMessage: 'SDK V2 SessionManager 鏈垵濮嬪寲'
         })
       const messages = smV2.getScheduledMessages(sessionId)
       return createSuccessResponse({ messages })
@@ -1478,14 +1482,14 @@ export function registerSessionHandlers(deps: IpcDependencies): void {
     }
   })
 
-  // SDK V2: 清空排队中的消息（用户主动取消）
+  // SDK V2: 娓呯┖鎺掗槦涓殑娑堟伅锛堢敤鎴蜂富鍔ㄥ彇娑堬級
   ipcMain.handle(IPC.SESSION_CLEAR_QUEUE, async (_event, sessionId: string) => {
     try {
       const smV2 = deps.sessionManagerV2
       if (!smV2) throw new SpectrAIError({
           code: ErrorCode.INTERNAL,
           message: 'SDK V2 SessionManager not initialized',
-          userMessage: 'SDK V2 SessionManager 未初始化'
+          userMessage: 'SDK V2 SessionManager 鏈垵濮嬪寲'
         })
       const cleared = smV2.clearScheduledMessages(sessionId)
       return createSuccessResponse({ cleared })

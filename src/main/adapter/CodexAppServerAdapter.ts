@@ -1,8 +1,8 @@
-/**
+﻿/**
  * Codex CLI App Server Adapter
  *
- * 通过 JSON-RPC over stdio 协议与 Codex CLI 的 app-server 模式交互。
- * 协议流程: initialize → initialized → thread/start → turn/start → events → turn/end
+ * 閫氳繃 JSON-RPC over stdio 鍗忚涓?Codex CLI 鐨?app-server 妯″紡浜や簰銆?
+ * 鍗忚娴佺▼: initialize 鈫?initialized 鈫?thread/start 鈫?turn/start 鈫?events 鈫?turn/end
  *
  * @author weibin
  */
@@ -51,7 +51,7 @@ function scanCodexBinaryInBinDir(binDir: string): string | null {
     }
   }
 
-  // fallback: 在 bin 目录内递归搜索 codex/codex.exe
+  // fallback: 鍦?bin 鐩綍鍐呴€掑綊鎼滅储 codex/codex.exe
   const queue = [binDir]
   while (queue.length > 0) {
     const current = queue.shift()!
@@ -76,8 +76,8 @@ function scanCodexBinaryInBinDir(binDir: string): string | null {
 }
 
 /**
- * 在 Cursor/Trae 扩展目录中搜索 codex 可执行文件。
- * 找不到时回退到配置 command（支持 PATH 解析）。
+ * 鍦?Cursor/Trae 鎵╁睍鐩綍涓悳绱?codex 鍙墽琛屾枃浠躲€?
+ * 鎵句笉鍒版椂鍥為€€鍒伴厤缃?command锛堟敮鎸?PATH 瑙ｆ瀽锛夈€?
  */
 function findCodexExecutable(configCommand?: string): string {
   if (configCommand && path.isAbsolute(configCommand) && isExecutable(configCommand)) {
@@ -108,28 +108,28 @@ function findCodexExecutable(configCommand?: string): string {
     }
   }
 
-  // Windows 下 npm 全局安装的 codex 是 .cmd 包装器，不在 Cursor/Trae 扩展目录中
-  // 需要额外搜索 npm 全局 bin 目录（%APPDATA%\npm）
+  // Windows 涓?npm 鍏ㄥ眬瀹夎鐨?codex 鏄?.cmd 鍖呰鍣紝涓嶅湪 Cursor/Trae 鎵╁睍鐩綍涓?
+  // 闇€瑕侀澶栨悳绱?npm 鍏ㄥ眬 bin 鐩綍锛?APPDATA%\npm锛?
   if (process.platform === 'win32') {
     const npmGlobalDirs: string[] = [
       path.join(home, 'AppData', 'Roaming', 'npm'),
     ]
 
-    // nvm4w 设置的 NVM_SYMLINK 环境变量指向当前激活的 Node.js 目录
-    // 该目录同时也是 npm 全局 bin 目录（npm prefix -g 返回此路径）
+    // nvm4w 璁剧疆鐨?NVM_SYMLINK 鐜鍙橀噺鎸囧悜褰撳墠婵€娲荤殑 Node.js 鐩綍
+    // 璇ョ洰褰曞悓鏃朵篃鏄?npm 鍏ㄥ眬 bin 鐩綍锛坣pm prefix -g 杩斿洖姝よ矾寰勶級
     const nvmSymlink = process.env.NVM_SYMLINK
     if (nvmSymlink && !npmGlobalDirs.includes(nvmSymlink)) {
       npmGlobalDirs.push(nvmSymlink)
     }
 
-    // 也尝试通过 NPM_PREFIX 环境变量（用户自定义场景）
+    // 涔熷皾璇曢€氳繃 NPM_PREFIX 鐜鍙橀噺锛堢敤鎴疯嚜瀹氫箟鍦烘櫙锛?
     const npmPrefixEnv = process.env.NPM_PREFIX
     if (npmPrefixEnv && !npmGlobalDirs.includes(npmPrefixEnv)) {
       npmGlobalDirs.push(npmPrefixEnv)
     }
 
-    // 动态执行 npm prefix -g 获取真实的全局安装路径
-    // 适用于 nvm / volta / fnm 等 Node 版本管理工具
+    // 鍔ㄦ€佹墽琛?npm prefix -g 鑾峰彇鐪熷疄鐨勫叏灞€瀹夎璺緞
+    // 閫傜敤浜?nvm / volta / fnm 绛?Node 鐗堟湰绠＄悊宸ュ叿
     try {
       const { execFileSync } = require('child_process') as typeof import('child_process')
       const result = execFileSync('npm', ['prefix', '-g'], {
@@ -141,7 +141,7 @@ function findCodexExecutable(configCommand?: string): string {
         npmGlobalDirs.push(result)
       }
     } catch {
-      // npm 不在 PATH 或执行失败，跳过动态查找
+      // npm 涓嶅湪 PATH 鎴栨墽琛屽け璐ワ紝璺宠繃鍔ㄦ€佹煡鎵?
     }
 
     for (const dir of npmGlobalDirs) {
@@ -152,8 +152,8 @@ function findCodexExecutable(configCommand?: string): string {
     }
   }
 
-  // 最终回退：使用 where(Windows) / which(Unix) 获取系统 PATH 中的实际路径
-  // 解决 codex 安装在非标准目录（如 .covs/node/...）但已加入 PATH 的场景
+  // 鏈€缁堝洖閫€锛氫娇鐢?where(Windows) / which(Unix) 鑾峰彇绯荤粺 PATH 涓殑瀹為檯璺緞
+  // 瑙ｅ喅 codex 瀹夎鍦ㄩ潪鏍囧噯鐩綍锛堝 .covs/node/...锛変絾宸插姞鍏?PATH 鐨勫満鏅?
   try {
     const checker = process.platform === 'win32' ? 'where' : 'which'
     const resolved = execFileSync(checker, [fallback], {
@@ -161,14 +161,14 @@ function findCodexExecutable(configCommand?: string): string {
       timeout: 5000,
       windowsHide: true,
     }).trim()
-    // where 可能返回多行（多个匹配路径），如：
+    // where 鍙兘杩斿洖澶氳锛堝涓尮閰嶈矾寰勶級锛屽锛?
     //   C:\Users\xxx\.covs\node\node-v24.12.0-win-x64\codex.cmd
     //   C:\Users\xxx\.covs\node\node-v24.12.0-win-x64\codex
-    // 无扩展名的文件（npm shim 脚本）无法被 spawn 直接执行（ENOENT），
-    // 必须优先选择 .cmd/.exe 后缀的路径
+    // 鏃犳墿灞曞悕鐨勬枃浠讹紙npm shim 鑴氭湰锛夋棤娉曡 spawn 鐩存帴鎵ц锛圗NOENT锛夛紝
+    // 蹇呴』浼樺厛閫夋嫨 .cmd/.exe 鍚庣紑鐨勮矾寰?
     const lines = resolved.split(/\r?\n/).map(l => l.trim()).filter(Boolean)
     if (process.platform === 'win32') {
-      // 优先选 .cmd → .exe → 其他
+      // 浼樺厛閫?.cmd 鈫?.exe 鈫?鍏朵粬
       const cmdLine = lines.find(l => /\.cmd$/i.test(l))
       const exeLine = lines.find(l => /\.exe$/i.test(l))
       const preferred = cmdLine || exeLine || lines[0]
@@ -182,7 +182,7 @@ function findCodexExecutable(configCommand?: string): string {
       }
     }
   } catch {
-    // where/which 未找到，使用原始 fallback
+    // where/which 鏈壘鍒帮紝浣跨敤鍘熷 fallback
   }
 
   return fallback
@@ -206,35 +206,45 @@ interface CodexSession {
   adapter: AdapterSession
   process: ChildProcess
   readline: ReadlineInterface
+  config: AdapterSessionConfig
   threadId?: string
+  model?: string
+  baseInstructions?: string
   requestId: number
   pendingRequests: Map<number, { resolve: (v: any) => void; reject: (e: any) => void }>
   autoAccept: boolean
-  /** 已发出 tool_use 消息的工具 ID 集合，用于 created/completed 去重 */
+  /** 宸插彂鍑?tool_use 娑堟伅鐨勫伐鍏?ID 闆嗗悎锛岀敤浜?created/completed 鍘婚噸 */
   activeToolUseIds: Set<string>
-  /** 待处理的 commandExecution 审批 itemId（非 autoAccept 模式下用于 sendConfirmation） */
+  /** 寰呭鐞嗙殑 commandExecution 瀹℃壒 itemId锛堥潪 autoAccept 妯″紡涓嬬敤浜?sendConfirmation锛?*/
   pendingApprovalItemId?: string
-  /** 最近一次收到 app-server 任意 JSON 事件/响应的时间 */
+  /** 鏈€杩戜竴娆℃敹鍒?app-server 浠绘剰 JSON 浜嬩欢/鍝嶅簲鐨勬椂闂?*/
   lastServerEventAt: number
-  /** 当前 turn 已推送过的心跳提示次数（用于限频） */
+  /** 褰撳墠 turn 宸叉帹閫佽繃鐨勫績璺虫彁绀烘鏁帮紙鐢ㄤ簬闄愰锛?*/
   turnHeartbeatHints: number
   /**
-   * agentMessage delta 文本缓存。
-   * Codex extended reasoning 模式下，item/completed 的 item.text 可能为空，
-   * 真正的文本全在前面的 item/agentMessage/delta 事件里。
-   * 用此字段在主进程侧积累，item/completed 时作为兜底内容。
+   * agentMessage delta 鏂囨湰缂撳瓨銆?
+   * Codex extended reasoning 妯″紡涓嬶紝item/completed 鐨?item.text 鍙兘涓虹┖锛?
+   * 鐪熸鐨勬枃鏈叏鍦ㄥ墠闈㈢殑 item/agentMessage/delta 浜嬩欢閲屻€?
+   * 鐢ㄦ瀛楁鍦ㄤ富杩涚▼渚хН绱紝item/completed 鏃朵綔涓哄厹搴曞唴瀹广€?
    */
   agentMessageBuffer: string
 }
+
+const CODEX_MODEL_FALLBACKS = [
+  { id: 'gpt-5.5', name: 'GPT-5.5' },
+  { id: 'gpt-5.4', name: 'GPT-5.4' },
+  { id: 'gpt-5.3-codex', name: 'GPT-5.3 Codex' },
+  { id: 'codex-mini-latest', name: 'Codex Mini Latest' },
+]
 
 export class CodexAppServerAdapter extends BaseProviderAdapter {
   readonly providerId = 'codex'
   readonly displayName = 'Codex CLI'
 
   private sessions: Map<string, CodexSession> = new Map()
-  /** 心跳定时器：长时间无响应时向对话推静默提示 */
+  /** 蹇冭烦瀹氭椂鍣細闀挎椂闂存棤鍝嶅簲鏃跺悜瀵硅瘽鎺ㄩ潤榛樻彁绀?*/
   private heartbeatTimers: Map<string, ReturnType<typeof setInterval>> = new Map()
-  /** 每次 turn 开始时记录时间，心跳用于计算等待时长 */
+  /** 姣忔 turn 寮€濮嬫椂璁板綍鏃堕棿锛屽績璺崇敤浜庤绠楃瓑寰呮椂闀?*/
   private turnStartTimes: Map<string, number> = new Map()
 
   private async resolveSystemPrompt(
@@ -250,19 +260,26 @@ export class CodexAppServerAdapter extends BaseProviderAdapter {
     return undefined
   }
 
+  private buildAvailableModels(currentModel?: string): Array<{ id: string; name: string }> {
+    if (!currentModel || CODEX_MODEL_FALLBACKS.some(model => model.id === currentModel)) {
+      return CODEX_MODEL_FALLBACKS
+    }
+    return [{ id: currentModel, name: currentModel }, ...CODEX_MODEL_FALLBACKS]
+  }
+
   async startSession(sessionId: string, config: AdapterSessionConfig): Promise<void> {
     const startTime = Date.now()
-    // 启动 codex app-server 进程
-    // Windows 下 codex 通常捆绑在 Cursor/Trae 扩展目录中，不在全局 PATH 里
-    // 使用 findCodexExecutable() 搜索绝对路径；
-    // 若找到的是 .cmd 包装器（npm 全局安装场景），需要 shell:true 才能正常执行
+    // 鍚姩 codex app-server 杩涚▼
+    // Windows 涓?codex 閫氬父鎹嗙粦鍦?Cursor/Trae 鎵╁睍鐩綍涓紝涓嶅湪鍏ㄥ眬 PATH 閲?
+    // 浣跨敤 findCodexExecutable() 鎼滅储缁濆璺緞锛?
+    // 鑻ユ壘鍒扮殑鏄?.cmd 鍖呰鍣紙npm 鍏ㄥ眬瀹夎鍦烘櫙锛夛紝闇€瑕?shell:true 鎵嶈兘姝ｅ父鎵ц
     const codexCommand = findCodexExecutable(config.command)
     const env = prependNodeVersionToEnvPath(
       { ...process.env, ...config.envOverrides },
       config.nodeVersion
     )
-    // Windows 下非 .exe 文件（.cmd 包装器、无扩展名的 npm shim 脚本等）
-    // 必须通过 shell 执行，否则 Node.js spawn 会报 ENOENT
+    // Windows 涓嬮潪 .exe 鏂囦欢锛?cmd 鍖呰鍣ㄣ€佹棤鎵╁睍鍚嶇殑 npm shim 鑴氭湰绛夛級
+    // 蹇呴』閫氳繃 shell 鎵ц锛屽惁鍒?Node.js spawn 浼氭姤 ENOENT
     const useShell = process.platform === 'win32' && !codexCommand.endsWith('.exe')
 
     console.log(`[CodexAdapter] Starting session ${sessionId}:`)
@@ -273,12 +290,12 @@ export class CodexAppServerAdapter extends BaseProviderAdapter {
     console.log(`[CodexAdapter]   CODEX_HOME: ${env.CODEX_HOME || '(not set)'}`)
     console.log(`[CodexAdapter]   configCommand: ${config.command || '(not set)'}`)
 
-    // ── 前置检测：codex 命令是否真实存在 ──
-    // findCodexExecutable 在搜索所有已知路径后找不到时会 fallback 到裸命令名（如 "codex"），
-    // 此时 spawn 会报 ENOENT，后续 rpc 写 stdin 又会报 EPIPE，日志难以排查。
-    // 提前检测并给出清晰的安装指引，避免级联错误。
+    // 鈹€鈹€ 鍓嶇疆妫€娴嬶細codex 鍛戒护鏄惁鐪熷疄瀛樺湪 鈹€鈹€
+    // findCodexExecutable 鍦ㄦ悳绱㈡墍鏈夊凡鐭ヨ矾寰勫悗鎵句笉鍒版椂浼?fallback 鍒拌８鍛戒护鍚嶏紙濡?"codex"锛夛紝
+    // 姝ゆ椂 spawn 浼氭姤 ENOENT锛屽悗缁?rpc 鍐?stdin 鍙堜細鎶?EPIPE锛屾棩蹇楅毦浠ユ帓鏌ャ€?
+    // 鎻愬墠妫€娴嬪苟缁欏嚭娓呮櫚鐨勫畨瑁呮寚寮曪紝閬垮厤绾ц仈閿欒銆?
     if (!path.isAbsolute(codexCommand)) {
-      // 非绝对路径 → findCodexExecutable 没有找到本地二进制，需要验证 PATH 中是否存在
+      // 闈炵粷瀵硅矾寰?鈫?findCodexExecutable 娌℃湁鎵惧埌鏈湴浜岃繘鍒讹紝闇€瑕侀獙璇?PATH 涓槸鍚﹀瓨鍦?
       const checker = process.platform === 'win32' ? 'where' : 'which'
       let foundInPath = false
       try {
@@ -289,14 +306,14 @@ export class CodexAppServerAdapter extends BaseProviderAdapter {
       }
       if (!foundInPath) {
         const installHint = process.platform === 'win32'
-          ? '请通过以下方式之一安装 Codex CLI:\n' +
+          ? '璇烽€氳繃浠ヤ笅鏂瑰紡涔嬩竴瀹夎 Codex CLI:\n' +
             '  1. npm install -g @openai/codex\n' +
-            '  2. 安装 Cursor 或 Trae 编辑器（内置 Codex）\n' +
-            '  3. 在 Provider 管理中将 command 配置为 codex 可执行文件的绝对路径'
-          : '请通过以下方式之一安装 Codex CLI:\n' +
+            '  2. 瀹夎 Cursor 鎴?Trae 缂栬緫鍣紙鍐呯疆 Codex锛塡n' +
+            '  3. 鍦?Provider 绠＄悊涓皢 command 閰嶇疆涓?codex 鍙墽琛屾枃浠剁殑缁濆璺緞'
+          : '璇烽€氳繃浠ヤ笅鏂瑰紡涔嬩竴瀹夎 Codex CLI:\n' +
             '  1. npm install -g @openai/codex\n' +
-            '  2. 在 Provider 管理中将 command 配置为 codex 可执行文件的绝对路径'
-        const errMessage = `Codex CLI 未安装或不在 PATH 中（查找命令: ${codexCommand}）。\n${installHint}`
+            '  2. 鍦?Provider 绠＄悊涓皢 command 閰嶇疆涓?codex 鍙墽琛屾枃浠剁殑缁濆璺緞'
+        const errMessage = `Codex CLI 鏈畨瑁呮垨涓嶅湪 PATH 涓紙鏌ユ壘鍛戒护: ${codexCommand}锛夈€俓n${installHint}`
         console.error(`[CodexAdapter] ${errMessage}`)
         this.emitEvent(sessionId, {
           type: 'error',
@@ -307,7 +324,7 @@ export class CodexAppServerAdapter extends BaseProviderAdapter {
         throw new Error(errMessage)
       }
     } else if (!isExecutable(codexCommand)) {
-      // 绝对路径但文件不存在或不可执行
+      // 缁濆璺緞浣嗘枃浠朵笉瀛樺湪鎴栦笉鍙墽琛?
       const errMessage = `Codex CLI 路径无效: ${codexCommand}\n该文件不存在或无执行权限。请在 Provider 管理中检查 command 配置。`
       console.error(`[CodexAdapter] ${errMessage}`)
       this.emitEvent(sessionId, {
@@ -339,6 +356,7 @@ export class CodexAppServerAdapter extends BaseProviderAdapter {
       },
       process: proc,
       readline: rl,
+      config,
       requestId: 0,
       pendingRequests: new Map(),
       autoAccept: config.autoAccept ?? false,
@@ -350,30 +368,30 @@ export class CodexAppServerAdapter extends BaseProviderAdapter {
 
     this.sessions.set(sessionId, session)
 
-    // 监听 NDJSON 行
+    // 鐩戝惉 NDJSON 琛?
     rl.on('line', (line) => {
       this.handleLine(sessionId, line)
     })
 
-    // 消费 stderr（防止管道缓冲区阻塞；将关键错误信息推送到对话视图方便排查）
+    // 娑堣垂 stderr锛堥槻姝㈢閬撶紦鍐插尯闃诲锛涘皢鍏抽敭閿欒淇℃伅鎺ㄩ€佸埌瀵硅瘽瑙嗗浘鏂逛究鎺掓煡锛?
     let stderrBuffer = ''
     proc.stderr?.on('data', (data) => {
       const text: string = data.toString()
       if (!text.trim()) return
       console.debug(`[CodexAdapter] stderr for ${sessionId}: ${text.slice(0, 300)}`)
       stderrBuffer += text
-      // 超过 2KB 截断，只保留最新内容
+      // 瓒呰繃 2KB 鎴柇锛屽彧淇濈暀鏈€鏂板唴瀹?
       if (stderrBuffer.length > 2048) stderrBuffer = stderrBuffer.slice(-2048)
     })
 
-    // 进程退出时，若异常退出（code !== 0），将错误信息推送到对话视图
-    // 有 stderr 内容则展示，否则给出通用提示，确保用户不会看到空白
+    // 杩涚▼閫€鍑烘椂锛岃嫢寮傚父閫€鍑猴紙code !== 0锛夛紝灏嗛敊璇俊鎭帹閫佸埌瀵硅瘽瑙嗗浘
+    // 鏈?stderr 鍐呭鍒欏睍绀猴紝鍚﹀垯缁欏嚭閫氱敤鎻愮ず锛岀‘淇濈敤鎴蜂笉浼氱湅鍒扮┖鐧?
     proc.once('exit', (code) => {
       if (code !== 0) {
         const errSnippet = stderrBuffer.trim().slice(0, 800)
         const content = errSnippet
-          ? `⚠️ Codex 异常退出 (exit ${code}):\n${errSnippet}`
-          : `⚠️ Codex 异常退出 (exit ${code})，无详细错误信息。\n请检查 Codex CLI 是否正确安装，或尝试重新发送消息。`
+          ? `鈿狅笍 Codex 寮傚父閫€鍑?(exit ${code}):\n${errSnippet}`
+          : `Codex 异常退出 (exit ${code})，没有详细错误信息。\n请检查 Codex CLI 是否正确安装，或尝试重新发送消息。`
         const errMsg = {
           id: uuidv4(),
           sessionId,
@@ -386,7 +404,7 @@ export class CodexAppServerAdapter extends BaseProviderAdapter {
       }
     })
 
-    // 进程退出
+    // 杩涚▼閫€鍑?
     proc.on('exit', (code) => {
       this.stopHeartbeat(sessionId)
       session.adapter.status = 'completed'
@@ -423,50 +441,60 @@ export class CodexAppServerAdapter extends BaseProviderAdapter {
       })
     })
 
-    // JSON-RPC 初始化握手
+    // JSON-RPC 鍒濆鍖栨彙鎵?
     try {
       console.log(`[CodexAdapter] Sending initialize for ${sessionId} (+${Date.now() - startTime}ms)`)
       const initResult = await this.rpc(sessionId, 'initialize', {
         clientInfo: { name: 'spectrai', version: '2.0.0' },
       })
       console.log(`[CodexAdapter] initialize OK for ${sessionId} (+${Date.now() - startTime}ms):`, JSON.stringify(initResult).slice(0, 300))
-      // ⚠️ 注意：Codex v0.98+ 不支持 initialized 通知（会导致 serde untagged enum 错误）
-      // 因此这里不发送 initialized 通知
+      // 鈿狅笍 娉ㄦ剰锛欳odex v0.98+ 涓嶆敮鎸?initialized 閫氱煡锛堜細瀵艰嚧 serde untagged enum 閿欒锛?
+      // 鍥犳杩欓噷涓嶅彂閫?initialized 閫氱煡
 
-      // 创建 Thread
-      // 注意：model 由 adapterConfig.model 传入（来自 provider.defaultModel 或用户配置）
-      // Codex CLI 支持的模型：codex-mini-latest, o4-mini 等；不传则由 codex 使用其默认模型
+      // 鍒涘缓 Thread
+      // 娉ㄦ剰锛歮odel 鐢?adapterConfig.model 浼犲叆锛堟潵鑷?provider.defaultModel 鎴栫敤鎴烽厤缃級
+      // Codex CLI 鏀寔鐨勬ā鍨嬶細codex-mini-latest, o4-mini 绛夛紱涓嶄紶鍒欑敱 codex 浣跨敤鍏堕粯璁ゆā鍨?
       const baseInstructions = await this.resolveSystemPrompt(config.systemPrompt as any)
+      session.baseInstructions = baseInstructions
       console.log(`[CodexAdapter] Sending thread/start for ${sessionId} (+${Date.now() - startTime}ms)`)
       const threadResult = await this.rpc(sessionId, 'thread/start', {
         ...(config.model ? { model: config.model } : {}),
         cwd: config.workingDirectory,
-        // Supervisor 模式下注入系统指令（来自 SessionManagerV2.getSupervisorPrompt）
+        // Supervisor 妯″紡涓嬫敞鍏ョ郴缁熸寚浠わ紙鏉ヨ嚜 SessionManagerV2.getSupervisorPrompt锛?
         ...(baseInstructions ? { baseInstructions } : {}),
-        // 有效值：'untrusted' | 'on-failure' | 'on-request' | 'never'
-        // autoAccept=true  → 'never'：Codex 直接执行所有操作，完全不发 requestApproval 事件
-        //   ⚠️ 注意：'on-failure' 文档说失败时才问，但实测仍会发 requestApproval，
-        //            且 approval/respond RPC 在部分版本中不存在，会导致 turn 永久阻塞。
-        //            改用 'never' 彻底避免审批请求。
-        // autoAccept=false → 'on-request'：每次写文件/执行命令前发 requestApproval，前端弹窗确认
+        // 鏈夋晥鍊硷細'untrusted' | 'on-failure' | 'on-request' | 'never'
+        // autoAccept=true  鈫?'never'锛欳odex 鐩存帴鎵ц鎵€鏈夋搷浣滐紝瀹屽叏涓嶅彂 requestApproval 浜嬩欢
+        //   鈿狅笍 娉ㄦ剰锛?on-failure' 鏂囨。璇村け璐ユ椂鎵嶉棶锛屼絾瀹炴祴浠嶄細鍙?requestApproval锛?
+        //            涓?approval/respond RPC 鍦ㄩ儴鍒嗙増鏈腑涓嶅瓨鍦紝浼氬鑷?turn 姘镐箙闃诲銆?
+        //            鏀圭敤 'never' 褰诲簳閬垮厤瀹℃壒璇锋眰銆?
+        // autoAccept=false 鈫?'on-request'锛氭瘡娆″啓鏂囦欢/鎵ц鍛戒护鍓嶅彂 requestApproval锛屽墠绔脊绐楃‘璁?
         approvalPolicy: config.autoAccept ? 'never' : 'on-request',
-        // ⚠️ 沙箱策略：必须显式传入，否则 Codex 默认用 read-only 沙箱，
-        // 导致 git pull/fetch、npm install 等网络命令及写操作全部被拦截。
-        // 字段名是 sandbox（非 sandboxPolicy），值为字符串枚举：
-        //   'workspace-write'   — 可读写工作目录，无网络（默认）
-        //   'danger-full-access' — 完全放开（文件系统 + 网络），适合本地开发工具
+        // 鈿狅笍 娌欑绛栫暐锛氬繀椤绘樉寮忎紶鍏ワ紝鍚﹀垯 Codex 榛樿鐢?read-only 娌欑锛?
+        // 瀵艰嚧 git pull/fetch銆乶pm install 绛夌綉缁滃懡浠ゅ強鍐欐搷浣滃叏閮ㄨ鎷︽埅銆?
+        // 瀛楁鍚嶆槸 sandbox锛堥潪 sandboxPolicy锛夛紝鍊间负瀛楃涓叉灇涓撅細
+        //   'workspace-write'   鈥?鍙鍐欏伐浣滅洰褰曪紝鏃犵綉缁滐紙榛樿锛?
+        //   'danger-full-access' 鈥?瀹屽叏鏀惧紑锛堟枃浠剁郴缁?+ 缃戠粶锛夛紝閫傚悎鏈湴寮€鍙戝伐鍏?
         sandbox: 'danger-full-access',
       })
       console.log(`[CodexAdapter] thread/start OK for ${sessionId} (+${Date.now() - startTime}ms):`, JSON.stringify(threadResult).slice(0, 300))
-      // 兼容不同 app-server 返回结构，确保 threadId 可用后再允许 turn/start
+      // 鍏煎涓嶅悓 app-server 杩斿洖缁撴瀯锛岀‘淇?threadId 鍙敤鍚庡啀鍏佽 turn/start
       const threadId = (threadResult as any)?.thread?.id || (threadResult as any)?.id
       if (!threadId) {
         throw new Error('Codex thread/start did not return thread id')
       }
       session.threadId = threadId
+      session.model = (threadResult as any)?.model || config.model
+      this.emit('provider-session-id', sessionId, threadId)
+      this.emit('session-init-data', sessionId, {
+        model: session.model || '',
+        tools: [],
+        skills: [],
+        mcpServers: [],
+        availableModels: this.buildAvailableModels(session.model),
+      })
       console.log(`[CodexAdapter] Session ${sessionId} ready, threadId=${threadId}, total startup: ${Date.now() - startTime}ms`)
 
-      // 发送首轮消息
+      // 鍙戦€侀杞秷鎭?
       if (config.initialPrompt) {
         console.log(`[CodexAdapter] Sending initial prompt for ${sessionId} (${config.initialPrompt.length} chars)`)
         await this.sendMessage(sessionId, config.initialPrompt)
@@ -479,7 +507,7 @@ export class CodexAppServerAdapter extends BaseProviderAdapter {
       session.adapter.status = 'error'
       this.emit('status-change', sessionId, 'error')
 
-      // EPIPE 通常是 ENOENT 的连锁反应（进程没启动，写 stdin 失败）
+      // EPIPE 閫氬父鏄?ENOENT 鐨勮繛閿佸弽搴旓紙杩涚▼娌″惎鍔紝鍐?stdin 澶辫触锛?
       const isEpipe = err.code === 'EPIPE' || err.message?.includes('EPIPE')
       const text = isEpipe
         ? `Codex 进程未能启动（写入管道失败）。\n请确认 Codex CLI 已正确安装，或在 Provider 管理中配置 command 为绝对路径。`
@@ -501,7 +529,7 @@ export class CodexAppServerAdapter extends BaseProviderAdapter {
       throw new Error(`Session ${sessionId} is not ready: missing threadId`)
     }
 
-    // 记录用户消息
+    // 璁板綍鐢ㄦ埛娑堟伅
     const userMsg: ConversationMessage = {
       id: uuidv4(),
       sessionId,
@@ -517,11 +545,11 @@ export class CodexAppServerAdapter extends BaseProviderAdapter {
     session.lastServerEventAt = Date.now()
     session.turnHeartbeatHints = 0
 
-    // 启动心跳：每 30 秒检查是否仍在等待，若是则推一条静默进度提示
+    // 鍚姩蹇冭烦锛氭瘡 30 绉掓鏌ユ槸鍚︿粛鍦ㄧ瓑寰咃紝鑻ユ槸鍒欐帹涓€鏉￠潤榛樿繘搴︽彁绀?
     this.startHeartbeat(sessionId)
 
-    // 发送 turn
-    // 实际格式：input 数组，type='text'（非 userMessage 字段）
+    // 鍙戦€?turn
+    // 瀹為檯鏍煎紡锛歩nput 鏁扮粍锛宼ype='text'锛堥潪 userMessage 瀛楁锛?
     try {
       console.log(`[CodexAdapter] Sending turn/start for ${sessionId}, threadId=${session.threadId}, msgLen=${message.length}`)
       const turnResult = await this.rpc(sessionId, 'turn/start', {
@@ -529,7 +557,7 @@ export class CodexAppServerAdapter extends BaseProviderAdapter {
         input: [{ type: 'text', text: message }],
       })
       console.log(`[CodexAdapter] turn/start OK for ${sessionId}:`, JSON.stringify(turnResult).slice(0, 200))
-      // turn/start 立即返回 {turn: {status:'inProgress'}}，流式事件异步推送
+      // turn/start 绔嬪嵆杩斿洖 {turn: {status:'inProgress'}}锛屾祦寮忎簨浠跺紓姝ユ帹閫?
     } catch (err: any) {
       this.stopHeartbeat(sessionId)
       console.error(`[CodexAdapter] Turn failed for ${sessionId}:`, err)
@@ -539,7 +567,7 @@ export class CodexAppServerAdapter extends BaseProviderAdapter {
         timestamp: new Date().toISOString(),
         data: { text: err.message },
       })
-      // 失败时必须退出 running，否则前端会永久显示“处理中”
+      // 澶辫触鏃跺繀椤婚€€鍑?running锛屽惁鍒欏墠绔細姘镐箙鏄剧ず鈥滃鐞嗕腑鈥?
       session.adapter.status = 'waiting_input'
       this.emit('status-change', sessionId, 'waiting_input')
     }
@@ -547,7 +575,7 @@ export class CodexAppServerAdapter extends BaseProviderAdapter {
 
   async sendConfirmation(sessionId: string, accept: boolean): Promise<void> {
     const session = this.sessions.get(sessionId)
-    // 取出并清除待处理 itemId（一次性消费）
+    // 鍙栧嚭骞舵竻闄ゅ緟澶勭悊 itemId锛堜竴娆℃€ф秷璐癸級
     const itemId = session?.pendingApprovalItemId
     if (session) delete session.pendingApprovalItemId
 
@@ -565,10 +593,10 @@ export class CodexAppServerAdapter extends BaseProviderAdapter {
     const session = this.sessions.get(sessionId)
     if (!session) return
 
-    // ⚠️ Codex app-server 的 JsonRpcMessage 枚举只有 Request（带 id）和 Response 两种变体，
-    // 不接受不带 id 的 Notification（notify 调用会导致 serde untagged enum 反序列化失败）。
-    // 目前无可用的取消 RPC，只做 UI 状态强制切换，让按钮消失、输入框恢复可用。
-    // Codex 底层会继续跑完当前轮次，turn/completed 事件到达时状态更新是幂等的，不影响正确性。
+    // 鈿狅笍 Codex app-server 鐨?JsonRpcMessage 鏋氫妇鍙湁 Request锛堝甫 id锛夊拰 Response 涓ょ鍙樹綋锛?
+    // 涓嶆帴鍙椾笉甯?id 鐨?Notification锛坣otify 璋冪敤浼氬鑷?serde untagged enum 鍙嶅簭鍒楀寲澶辫触锛夈€?
+    // 鐩墠鏃犲彲鐢ㄧ殑鍙栨秷 RPC锛屽彧鍋?UI 鐘舵€佸己鍒跺垏鎹紝璁╂寜閽秷澶便€佽緭鍏ユ鎭㈠鍙敤銆?
+    // Codex 搴曞眰浼氱户缁窇瀹屽綋鍓嶈疆娆★紝turn/completed 浜嬩欢鍒拌揪鏃剁姸鎬佹洿鏂版槸骞傜瓑鐨勶紝涓嶅奖鍝嶆纭€с€?
     const ts = new Date().toISOString()
     session.adapter.status = 'waiting_input'
     this.emit('status-change', sessionId, 'waiting_input')
@@ -587,13 +615,13 @@ export class CodexAppServerAdapter extends BaseProviderAdapter {
     session.adapter.status = 'completed'
     this.emit('status-change', sessionId, 'completed')
 
-    // 清理 pending requests
+    // 娓呯悊 pending requests
     for (const [, pending] of session.pendingRequests) {
       pending.reject(new Error('Session terminated'))
     }
     session.pendingRequests.clear()
 
-    // 关闭进程
+    // 鍏抽棴杩涚▼
     this.stopHeartbeat(sessionId)
     try {
       session.readline.close()
@@ -608,8 +636,60 @@ export class CodexAppServerAdapter extends BaseProviderAdapter {
     providerSessionId: string,
     config: AdapterSessionConfig
   ): Promise<void> {
-    // Codex 暂不支持会话恢复，创建新会话
+    // Codex 鏆備笉鏀寔浼氳瘽鎭㈠锛屽垱寤烘柊浼氳瘽
     await this.startSession(sessionId, config)
+  }
+
+  async switchModel(sessionId: string, model: string): Promise<{ model: string; providerSessionId?: string; effectiveNow: boolean }> {
+    const session = this.sessions.get(sessionId)
+    if (!session) throw new Error(`Session ${sessionId} not found`)
+    if (session.adapter.status === 'running') {
+      throw new Error('褰撳墠杞浠嶅湪鎵ц锛岃绛夊緟瀹屾垚鍚庡啀鍒囨崲妯″瀷')
+    }
+
+    const baseInstructions = session.baseInstructions ?? await this.resolveSystemPrompt(session.config.systemPrompt as any)
+    session.baseInstructions = baseInstructions
+
+    console.log(`[CodexAdapter] Switching model for ${sessionId}: ${session.model || '(default)'} -> ${model}`)
+    const threadResult = await this.rpc(sessionId, 'thread/start', {
+      model,
+      cwd: session.config.workingDirectory,
+      ...(baseInstructions ? { baseInstructions } : {}),
+      approvalPolicy: session.autoAccept ? 'never' : 'on-request',
+      sandbox: 'danger-full-access',
+    })
+
+    const threadId = (threadResult as any)?.thread?.id || (threadResult as any)?.id
+    if (!threadId) {
+      throw new Error('Codex thread/start did not return thread id')
+    }
+
+    session.threadId = threadId
+    const effectiveModel = String((threadResult as any)?.model || model)
+    session.model = effectiveModel
+    session.adapter.status = 'waiting_input'
+    session.agentMessageBuffer = ''
+    session.activeToolUseIds.clear()
+    this.stopHeartbeat(sessionId)
+
+    this.emit('provider-session-id', sessionId, threadId)
+    this.emit('session-init-data', sessionId, {
+      model: session.model,
+      availableModels: this.buildAvailableModels(session.model),
+    })
+    this.emit('status-change', sessionId, 'waiting_input')
+
+    const msg = {
+      id: uuidv4(),
+      sessionId,
+      role: 'system' as const,
+      content: `模型已切换为 ${effectiveModel}，后续消息将使用新模型。`,
+      timestamp: new Date().toISOString(),
+    }
+    session.adapter.messages.push(msg)
+    this.emit('conversation-message', sessionId, msg)
+
+    return { model: effectiveModel, providerSessionId: threadId, effectiveNow: true }
   }
 
   getConversation(sessionId: string): ConversationMessage[] {
@@ -633,15 +713,15 @@ export class CodexAppServerAdapter extends BaseProviderAdapter {
     this.sessions.clear()
   }
 
-  // ---- 公共去重方法 ----
+  // ---- 鍏叡鍘婚噸鏂规硶 ----
 
   /**
-   * 统一 turn 结束处理（turn/completed、codex/event/task_complete、裸事件 event_msg.task_complete 共用）。
+   * 缁熶竴 turn 缁撴潫澶勭悊锛坱urn/completed銆乧odex/event/task_complete銆佽８浜嬩欢 event_msg.task_complete 鍏辩敤锛夈€?
    *
-   * 职责：flush agentMessageBuffer → 清理 activeToolUseIds → 停止心跳 → 发射 turn_complete → 切换状态
+   * 鑱岃矗锛歠lush agentMessageBuffer 鈫?娓呯悊 activeToolUseIds 鈫?鍋滄蹇冭烦 鈫?鍙戝皠 turn_complete 鈫?鍒囨崲鐘舵€?
    */
   private finalizeTurn(sessionId: string, session: CodexSession, ts: string): void {
-    // 若 buffer 还有未提交的文本，立即作为 assistant 消息提交
+    // 鑻?buffer 杩樻湁鏈彁浜ょ殑鏂囨湰锛岀珛鍗充綔涓?assistant 娑堟伅鎻愪氦
     if (session.agentMessageBuffer) {
       const fallbackMsg = {
         id: uuidv4(),
@@ -668,11 +748,11 @@ export class CodexAppServerAdapter extends BaseProviderAdapter {
   }
 
   /**
-   * 统一审批请求处理（通用 requestApproval、item/commandExecution/requestApproval、
-   * 旧版 approval/request 共用）。
+   * 缁熶竴瀹℃壒璇锋眰澶勭悊锛堥€氱敤 requestApproval銆乮tem/commandExecution/requestApproval銆?
+   * 鏃х増 approval/request 鍏辩敤锛夈€?
    *
-   * autoAccept → RPC 自动批准（失败可忽略）
-   * 非 autoAccept → 存储 itemId 并发射 permission_request 事件等待用户确认
+   * autoAccept 鈫?RPC 鑷姩鎵瑰噯锛堝け璐ュ彲蹇界暐锛?
+   * 闈?autoAccept 鈫?瀛樺偍 itemId 骞跺彂灏?permission_request 浜嬩欢绛夊緟鐢ㄦ埛纭
    */
   private handleApprovalRequest(
     sessionId: string,
@@ -702,15 +782,15 @@ export class CodexAppServerAdapter extends BaseProviderAdapter {
     }
   }
 
-  // ---- 心跳机制 ----
+  // ---- 蹇冭烦鏈哄埗 ----
 
   /**
-   * 启动运行心跳：每 30 秒检查是否仍在等待。
-   * 若 AI 超过 60 秒无任何工具调用或文本输出，推一条静默进度消息，
-   * 让用户知道 AI 还在运行而非卡死。
+   * 鍚姩杩愯蹇冭烦锛氭瘡 30 绉掓鏌ユ槸鍚︿粛鍦ㄧ瓑寰呫€?
+   * 鑻?AI 瓒呰繃 60 绉掓棤浠讳綍宸ュ叿璋冪敤鎴栨枃鏈緭鍑猴紝鎺ㄤ竴鏉￠潤榛樿繘搴︽秷鎭紝
+   * 璁╃敤鎴风煡閬?AI 杩樺湪杩愯鑰岄潪鍗℃銆?
    */
   private startHeartbeat(sessionId: string): void {
-    this.stopHeartbeat(sessionId) // 先清理旧定时器
+    this.stopHeartbeat(sessionId) // 鍏堟竻鐞嗘棫瀹氭椂鍣?
     const startAt = Date.now()
     this.turnStartTimes.set(sessionId, startAt)
 
@@ -725,8 +805,8 @@ export class CodexAppServerAdapter extends BaseProviderAdapter {
       const elapsed = Math.round((now - (this.turnStartTimes.get(sessionId) || now)) / 1000)
       const silentSeconds = Math.round((now - (session.lastServerEventAt || startAt)) / 1000)
 
-      // watchdog: 长时间未收到服务端事件时，自动把状态收敛到 waiting_input，避免 UI 假性卡死
-      // 若有 MCP 工具调用正在进行（activeToolUseIds 非空），缩短超时到 90s 并给出明确提示
+      // watchdog: 闀挎椂闂存湭鏀跺埌鏈嶅姟绔簨浠舵椂锛岃嚜鍔ㄦ妸鐘舵€佹敹鏁涘埌 waiting_input锛岄伩鍏?UI 鍋囨€у崱姝?
+      // 鑻ユ湁 MCP 宸ュ叿璋冪敤姝ｅ湪杩涜锛坅ctiveToolUseIds 闈炵┖锛夛紝缂╃煭瓒呮椂鍒?90s 骞剁粰鍑烘槑纭彁绀?
       const hasPendingTool = session.activeToolUseIds.size > 0
       const watchdogSeconds = hasPendingTool ? 90 : 240
       if (silentSeconds >= watchdogSeconds) {
@@ -735,9 +815,7 @@ export class CodexAppServerAdapter extends BaseProviderAdapter {
         this.emit('status-change', sessionId, 'waiting_input')
         const pendingTools = Array.from(session.activeToolUseIds).join(', ')
         const hint = hasPendingTool
-          ? `MCP/工具调用超过 ${silentSeconds}s 未响应（工具 ID: ${pendingTools || '未知'}）。\n` +
-            `请检查：① MCP 服务是否需要填写数据库连接字符串等配置（MCP 设置页 → ⚙ 按钮）\n` +
-            `② MCP 程序路径是否正确、能否独立运行`
+          ? `MCP/工具调用超过 ${silentSeconds}s 未响应（工具 ID: ${pendingTools || '未知'}）。\n请检查 MCP 服务配置和程序路径是否正确。`
           : `Codex ${silentSeconds}s 无事件响应，当前轮次可能已中断。`
         this.emitEvent(sessionId, {
           type: 'error',
@@ -749,7 +827,7 @@ export class CodexAppServerAdapter extends BaseProviderAdapter {
         return
       }
 
-      // 仅在持续静默 >= 60s 后提示，并限频到约每 60s 一条，减少消息污染
+      // 浠呭湪鎸佺画闈欓粯 >= 60s 鍚庢彁绀猴紝骞堕檺棰戝埌绾︽瘡 60s 涓€鏉★紝鍑忓皯娑堟伅姹℃煋
       if (silentSeconds < 60) return
       session.turnHeartbeatHints += 1
       if (session.turnHeartbeatHints % 2 === 0) return
@@ -762,7 +840,7 @@ export class CodexAppServerAdapter extends BaseProviderAdapter {
         id: uuidv4(),
         sessionId,
         role: 'system' as const,
-        content: `⏳ Codex 仍在处理中... (已等待 ${timeStr}, 静默 ${silentSeconds}s)`,
+        content: `鈴?Codex 浠嶅湪澶勭悊涓?.. (宸茬瓑寰?${timeStr}, 闈欓粯 ${silentSeconds}s)`,
         timestamp: new Date().toISOString(),
       }
       session.adapter.messages.push(heartbeatMsg)
@@ -772,7 +850,7 @@ export class CodexAppServerAdapter extends BaseProviderAdapter {
     this.heartbeatTimers.set(sessionId, timer)
   }
 
-  /** 停止并清理心跳定时器 */
+  /** 鍋滄骞舵竻鐞嗗績璺冲畾鏃跺櫒 */
   private stopHeartbeat(sessionId: string): void {
     const timer = this.heartbeatTimers.get(sessionId)
     if (timer) {
@@ -782,10 +860,10 @@ export class CodexAppServerAdapter extends BaseProviderAdapter {
     this.turnStartTimes.delete(sessionId)
   }
 
-  // ---- JSON-RPC 通信 ----
+  // ---- JSON-RPC 閫氫俊 ----
 
   /**
-   * 发送 JSON-RPC 请求并等待响应
+   * 鍙戦€?JSON-RPC 璇锋眰骞剁瓑寰呭搷搴?
    */
   private rpc(sessionId: string, method: string, params?: Record<string, unknown>): Promise<unknown> {
     const session = this.sessions.get(sessionId)
@@ -810,7 +888,7 @@ export class CodexAppServerAdapter extends BaseProviderAdapter {
         }
       })
 
-      // 超时
+      // 瓒呮椂
       setTimeout(() => {
         if (session.pendingRequests.has(id)) {
           session.pendingRequests.delete(id)
@@ -821,7 +899,7 @@ export class CodexAppServerAdapter extends BaseProviderAdapter {
   }
 
   /**
-   * 发送 JSON-RPC 通知（无 id，不等待响应）
+   * 鍙戦€?JSON-RPC 閫氱煡锛堟棤 id锛屼笉绛夊緟鍝嶅簲锛?
    */
   private notify(sessionId: string, method: string, params?: Record<string, unknown>): void {
     const session = this.sessions.get(sessionId)
@@ -837,7 +915,7 @@ export class CodexAppServerAdapter extends BaseProviderAdapter {
   }
 
   /**
-   * 处理来自 Codex app-server 的 NDJSON 行
+   * 澶勭悊鏉ヨ嚜 Codex app-server 鐨?NDJSON 琛?
    */
   private handleLine(sessionId: string, line: string): void {
     const session = this.sessions.get(sessionId)
@@ -847,15 +925,15 @@ export class CodexAppServerAdapter extends BaseProviderAdapter {
     try {
       data = JSON.parse(line)
     } catch {
-      // 非 JSON 行（进度信息、控制字符等），记录前 120 字符便于排查
+      // 闈?JSON 琛岋紙杩涘害淇℃伅銆佹帶鍒跺瓧绗︾瓑锛夛紝璁板綍鍓?120 瀛楃渚夸簬鎺掓煡
       console.debug(`[CodexAdapter][${sessionId}] skip non-JSON line: ${line.slice(0, 120)}`)
       return
     }
 
-    // 任意有效 JSON 都视为“服务端仍有响应”，用于心跳 watchdog 计算
+    // 浠绘剰鏈夋晥 JSON 閮借涓衡€滄湇鍔＄浠嶆湁鍝嶅簲鈥濓紝鐢ㄤ簬蹇冭烦 watchdog 璁＄畻
     session.lastServerEventAt = Date.now()
 
-    // JSON-RPC 响应（有 id）
+    // JSON-RPC 鍝嶅簲锛堟湁 id锛?
     if (data.id !== undefined && (data.result !== undefined || data.error !== undefined)) {
       const pending = session.pendingRequests.get(data.id)
       if (pending) {
@@ -869,21 +947,21 @@ export class CodexAppServerAdapter extends BaseProviderAdapter {
       return
     }
 
-    // JSON-RPC 通知（无 id）— 事件流
+    // JSON-RPC 閫氱煡锛堟棤 id锛夆€?浜嬩欢娴?
     if (data.method) {
       this.handleNotification(sessionId, data.method, data.params || {})
       return
     }
 
-    // 裸事件（非标准 JSON-RPC，一些 app-server 版本可能使用）
+    // 瑁镐簨浠讹紙闈炴爣鍑?JSON-RPC锛屼竴浜?app-server 鐗堟湰鍙兘浣跨敤锛?
     if (data.type) {
       this.handleCodexItem(sessionId, data)
     }
   }
 
-  // ── Notification Handler Map ──────────────────────────────────
-  // 将 handleNotification 的 switch 分支拆为独立子方法，通过 Record 分派。
-  // key = JSON-RPC method，value = handler(sid, session, ts, params)
+  // 鈹€鈹€ Notification Handler Map 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
+  // 灏?handleNotification 鐨?switch 鍒嗘敮鎷嗕负鐙珛瀛愭柟娉曪紝閫氳繃 Record 鍒嗘淳銆?
+  // key = JSON-RPC method锛寁alue = handler(sid, session, ts, params)
 
   private readonly notificationHandlers: Record<
     string,
@@ -900,7 +978,7 @@ export class CodexAppServerAdapter extends BaseProviderAdapter {
     'item/commandExecution/requestApproval': (sid, s, ts, p) => {
       const command: string = p.command || ''
       this.handleApprovalRequest(sid, s, ts, {
-        itemId: String(p.itemId || ''), prompt: `执行命令需要授权:\n${command.slice(0, 300)}`,
+        itemId: String(p.itemId || ''), prompt: `鎵ц鍛戒护闇€瑕佹巿鏉?\n${command.slice(0, 300)}`,
         toolName: 'commandExecution', toolInput: { command },
       })
     },
@@ -927,7 +1005,7 @@ export class CodexAppServerAdapter extends BaseProviderAdapter {
     },
     'codex/event/task_started': () => {},
     'codex/event/mcp_startup_update': (sid, _s, _ts, p) => {
-      console.log(`[CodexAdapter][${sid}] MCP startup: ${p.server || p.serverId || ''} → ${p.status || ''}`)
+      console.log(`[CodexAdapter][${sid}] MCP startup: ${p.server || p.serverId || ''} 鈫?${p.status || ''}`)
     },
     'codex/event/mcp_startup_complete': (sid, _s, _ts, p) => {
       const ready: string[] = p.ready || []; const failed: string[] = p.failed || []
@@ -947,23 +1025,23 @@ export class CodexAppServerAdapter extends BaseProviderAdapter {
   }
 
   /**
-   * 处理 Codex 事件通知（基于实测 app-server v0.104.0 协议）
+   * 澶勭悊 Codex 浜嬩欢閫氱煡锛堝熀浜庡疄娴?app-server v0.104.0 鍗忚锛?
    *
-   * 事件分两套：item/* 是精简高层事件；codex/event/* 是详细低层事件。
-   * 优先处理 item/* 高层事件；对 codex/event/* 做实时进度兜底。
-   * 分派逻辑通过 notificationHandlers map 实现，各事件处理拆为子方法。
+   * 浜嬩欢鍒嗕袱濂楋細item/* 鏄簿绠€楂樺眰浜嬩欢锛沜odex/event/* 鏄缁嗕綆灞備簨浠躲€?
+   * 浼樺厛澶勭悊 item/* 楂樺眰浜嬩欢锛涘 codex/event/* 鍋氬疄鏃惰繘搴﹀厹搴曘€?
+   * 鍒嗘淳閫昏緫閫氳繃 notificationHandlers map 瀹炵幇锛屽悇浜嬩欢澶勭悊鎷嗕负瀛愭柟娉曘€?
    */
   private handleNotification(sessionId: string, method: string, params: any): void {
     const session = this.sessions.get(sessionId)
     if (!session) return
     const ts = new Date().toISOString()
 
-    // 兼容 Codex 不同版本的审批事件命名（例如 turn/requestApproval）
+    // 鍏煎 Codex 涓嶅悓鐗堟湰鐨勫鎵逛簨浠跺懡鍚嶏紙渚嬪 turn/requestApproval锛?
     if (method.endsWith('/requestApproval') && method !== 'item/commandExecution/requestApproval') {
       const command = String(params.command || params?.input?.command || params?.toolInput?.command || '')
       const approvalItemId = String(params.itemId || params.id || params.approvalId || '')
       this.handleApprovalRequest(sessionId, session, ts, {
-        itemId: approvalItemId, prompt: `执行命令需要授权\n${command.slice(0, 300)}`,
+        itemId: approvalItemId, prompt: `鎵ц鍛戒护闇€瑕佹巿鏉僜n${command.slice(0, 300)}`,
         toolName: 'commandExecution', toolInput: { command },
       })
       return
@@ -972,13 +1050,13 @@ export class CodexAppServerAdapter extends BaseProviderAdapter {
     const handler = this.notificationHandlers[method]
     if (handler) { handler(sessionId, session, ts, params); return }
 
-    // 记录未知事件供调试（过滤噪音）
+    // 璁板綍鏈煡浜嬩欢渚涜皟璇曪紙杩囨护鍣煶锛?
     if (method.startsWith('item/') || method.startsWith('codex/') || method.startsWith('thread/') || method.startsWith('turn/')) {
       console.debug(`[CodexAdapter][${sessionId}] Unhandled notification: ${method}`, JSON.stringify(params).slice(0, 300))
     }
   }
 
-  // ── 子方法：流增量 ─────────────────────────────────────────────
+  // 鈹€鈹€ 瀛愭柟娉曪細娴佸閲?鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
 
   private onAgentMessageDelta(sessionId: string, session: CodexSession, ts: string, params: any): void {
     const text: string = params.delta || ''
@@ -993,7 +1071,7 @@ export class CodexAppServerAdapter extends BaseProviderAdapter {
     this.emitEvent(sessionId, { type: 'thinking', sessionId, timestamp: ts, data: { text } })
   }
 
-  // ── 子方法：item 开始 ──────────────────────────────────────────
+  // 鈹€鈹€ 瀛愭柟娉曪細item 寮€濮?鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
 
   private onItemStarted(sessionId: string, session: CodexSession, ts: string, params: any): void {
     const item = params.item || {}
@@ -1005,7 +1083,7 @@ export class CodexAppServerAdapter extends BaseProviderAdapter {
       session.activeToolUseIds.add(toolUseId)
       const toolMsg = {
         id: uuidv4(), sessionId, role: 'tool_use' as const,
-        content: `执行: ${command.slice(0, 120)}`, timestamp: ts,
+        content: `鎵ц: ${command.slice(0, 120)}`, timestamp: ts,
         toolName: 'shell', toolInput: { command } as Record<string, unknown>, toolUseId,
       }
       session.adapter.messages.push(toolMsg)
@@ -1025,7 +1103,7 @@ export class CodexAppServerAdapter extends BaseProviderAdapter {
     }
   }
 
-  // ── 子方法：item 完成（按 item.type 二次分派）─────────────────
+  // 鈹€鈹€ 瀛愭柟娉曪細item 瀹屾垚锛堟寜 item.type 浜屾鍒嗘淳锛夆攢鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
 
   private onItemCompleted(sessionId: string, session: CodexSession, ts: string, params: any): void {
     const item = params.item || {}
@@ -1034,7 +1112,7 @@ export class CodexAppServerAdapter extends BaseProviderAdapter {
     else if (item.type === 'mcpToolCall') { this.onMcpToolCallCompleted(sessionId, session, ts, item) }
   }
 
-  /** agentMessage 完成 → 固化 AI 回复 */
+  /** agentMessage 瀹屾垚 鈫?鍥哄寲 AI 鍥炲 */
   private onAgentMessageCompleted(sessionId: string, session: CodexSession, ts: string, item: any): void {
     let finalText: string = item.text || ''
     if (!finalText && Array.isArray(item.content)) {
@@ -1053,7 +1131,7 @@ export class CodexAppServerAdapter extends BaseProviderAdapter {
     this.emit('conversation-message', sessionId, assistantMsg)
   }
 
-  /** commandExecution 完成 → Shell 命令结果 */
+  /** commandExecution 瀹屾垚 鈫?Shell 鍛戒护缁撴灉 */
   private onCommandExecutionCompleted(sessionId: string, session: CodexSession, ts: string, item: any): void {
     const toolUseId: string = item.id || uuidv4()
     const alreadyShown = session.activeToolUseIds.has(toolUseId)
@@ -1063,7 +1141,7 @@ export class CodexAppServerAdapter extends BaseProviderAdapter {
       const command: string = String(item.command || 'shell command').slice(0, 160)
       const toolMsg = {
         id: uuidv4(), sessionId, role: 'tool_use' as const,
-        content: `执行: ${command.slice(0, 120)}`, timestamp: ts,
+        content: `鎵ц: ${command.slice(0, 120)}`, timestamp: ts,
         toolName: 'shell', toolInput: { command } as Record<string, unknown>, toolUseId,
       }
       session.adapter.messages.push(toolMsg)
@@ -1084,7 +1162,7 @@ export class CodexAppServerAdapter extends BaseProviderAdapter {
     }
   }
 
-  /** mcpToolCall 完成 → MCP 工具结果 */
+  /** mcpToolCall 瀹屾垚 鈫?MCP 宸ュ叿缁撴灉 */
   private onMcpToolCallCompleted(sessionId: string, session: CodexSession, ts: string, item: any): void {
     const toolUseId: string = item.id || uuidv4()
     const alreadyShown = session.activeToolUseIds.has(toolUseId)
@@ -1124,7 +1202,7 @@ export class CodexAppServerAdapter extends BaseProviderAdapter {
     }
   }
 
-  // ── 子方法：codex/event 错误处理 ──────────────────────────────
+  // 鈹€鈹€ 瀛愭柟娉曪細codex/event 閿欒澶勭悊 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
 
   private onCodexError(sessionId: string, session: CodexSession, ts: string, params: any): void {
     const msg = params.msg || params
@@ -1132,7 +1210,7 @@ export class CodexAppServerAdapter extends BaseProviderAdapter {
     console.error(`[CodexAdapter][${sessionId}] codex/event/error: ${errorMessage.slice(0, 500)}`)
     const errMsg = {
       id: uuidv4(), sessionId, role: 'system' as const,
-      content: `Codex 错误: ${errorMessage.slice(0, 500)}`, timestamp: ts,
+      content: `Codex 閿欒: ${errorMessage.slice(0, 500)}`, timestamp: ts,
     }
     session.adapter.messages.push(errMsg)
     this.emit('conversation-message', sessionId, errMsg)
@@ -1146,7 +1224,7 @@ export class CodexAppServerAdapter extends BaseProviderAdapter {
     if (reconnectMsg.includes('1/')) {
       const errMsg = {
         id: uuidv4(), sessionId, role: 'system' as const,
-        content: `⚠️ ${reconnectMsg}\n${details.slice(0, 300)}`, timestamp: ts,
+        content: `鈿狅笍 ${reconnectMsg}\n${details.slice(0, 300)}`, timestamp: ts,
       }
       session.adapter.messages.push(errMsg)
       this.emit('conversation-message', sessionId, errMsg)
@@ -1154,14 +1232,14 @@ export class CodexAppServerAdapter extends BaseProviderAdapter {
   }
 
   /**
-   * 处理裸事件（非标准 JSON-RPC，data.type 形式）
+   * 澶勭悊瑁镐簨浠讹紙闈炴爣鍑?JSON-RPC锛宒ata.type 褰㈠紡锛?
    *
-   * Trae 扩展内置的 codex（v0.104.x）使用此格式推送事件，每行一个 JSON 对象：
+   * Trae 鎵╁睍鍐呯疆鐨?codex锛坴0.104.x锛変娇鐢ㄦ鏍煎紡鎺ㄩ€佷簨浠讹紝姣忚涓€涓?JSON 瀵硅薄锛?
    *   { type: "event_msg",      payload: { type: "task_started"|"task_complete"|"user_message"|... } }
    *   { type: "response_item",  payload: { type: "message", role: "assistant"|"user"|"developer", content: [...] } }
-   *   { type: "turn_context",   payload: { ... } }  ← 元信息，忽略
+   *   { type: "turn_context",   payload: { ... } }  鈫?鍏冧俊鎭紝蹇界暐
    *
-   * npm 安装的 codex（v0.98+）使用标准 JSON-RPC 通知，由 handleNotification 处理。
+   * npm 瀹夎鐨?codex锛坴0.98+锛変娇鐢ㄦ爣鍑?JSON-RPC 閫氱煡锛岀敱 handleNotification 澶勭悊銆?
    */
   private handleCodexItem(sessionId: string, data: any): void {
     const session = this.sessions.get(sessionId)
@@ -1170,21 +1248,21 @@ export class CodexAppServerAdapter extends BaseProviderAdapter {
 
     const topType: string = data.type || ''
 
-    // ── response_item：包含对话消息（assistant 回复、用户消息等）──────
+    // 鈹€鈹€ response_item锛氬寘鍚璇濇秷鎭紙assistant 鍥炲銆佺敤鎴锋秷鎭瓑锛夆攢鈹€鈹€鈹€鈹€鈹€
     if (topType === 'response_item') {
       const payload = data.payload || {}
-      // 只处理 assistant 角色的消息
+      // 鍙鐞?assistant 瑙掕壊鐨勬秷鎭?
       if (payload.type === 'message' && payload.role === 'assistant') {
-        // content 是数组，每个元素可能是 { type: 'output_text', text: '...' }
+        // content 鏄暟缁勶紝姣忎釜鍏冪礌鍙兘鏄?{ type: 'output_text', text: '...' }
         const content: any[] = Array.isArray(payload.content) ? payload.content : []
         const text = content
           .filter((c: any) => c.type === 'output_text' || c.type === 'text')
           .map((c: any) => c.text || '')
           .join('')
         if (text) {
-          // 同时写入 buffer 供 task_complete 兜底
+          // 鍚屾椂鍐欏叆 buffer 渚?task_complete 鍏滃簳
           session.agentMessageBuffer += text
-          // 实时 delta 推送，让前端逐字显示
+          // 瀹炴椂 delta 鎺ㄩ€侊紝璁╁墠绔€愬瓧鏄剧ず
           this.emitEvent(sessionId, {
             type: 'text_delta',
             sessionId,
@@ -1196,7 +1274,7 @@ export class CodexAppServerAdapter extends BaseProviderAdapter {
       return
     }
 
-    // ── event_msg：task 生命周期事件 ────────────────────────────────
+    // 鈹€鈹€ event_msg锛歵ask 鐢熷懡鍛ㄦ湡浜嬩欢 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
     if (topType === 'event_msg') {
       const payload = data.payload || {}
       const eventType: string = payload.type || ''
@@ -1207,7 +1285,7 @@ export class CodexAppServerAdapter extends BaseProviderAdapter {
       }
 
       if (eventType === 'task_started') {
-        // turn 开始，无需特殊处理
+        // turn 寮€濮嬶紝鏃犻渶鐗规畩澶勭悊
         return
       }
 
@@ -1215,12 +1293,12 @@ export class CodexAppServerAdapter extends BaseProviderAdapter {
       return
     }
 
-    // ── turn_context：元信息，忽略 ──────────────────────────────────
+    // 鈹€鈹€ turn_context锛氬厓淇℃伅锛屽拷鐣?鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
     if (topType === 'turn_context' || topType === 'session_meta') {
       return
     }
 
-    // ── 兜底：尝试作为 JSON-RPC method 处理（旧路径兼容） ──────────
+    // 鈹€鈹€ 鍏滃簳锛氬皾璇曚綔涓?JSON-RPC method 澶勭悊锛堟棫璺緞鍏煎锛?鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
     const method = topType
     const params = data.params || data.data || {}
     this.handleNotification(sessionId, method, params)

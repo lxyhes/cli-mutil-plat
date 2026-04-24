@@ -279,13 +279,19 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
 
   const sendWithSmartScheduling = useCallback(async (text: string) => {
     // ★ 拦截 /model 命令：本地切换模型，不发送给 CLI
-    if (text.startsWith('/model ')) {
+    if (text.trim() === '/model' || text.startsWith('/model ')) {
       const modelId = text.slice(7).trim()
+      if (!modelId) {
+        setQueueHintText('请输入 /model <模型ID>，或从模型菜单中选择一个模型')
+        return
+      }
       if (modelId) {
         try {
           const result = await window.spectrAI.session.setModel(sessionId, modelId)
           if (result?.success) {
-            if (result.requiresRestart) {
+            if (result.effectiveNow) {
+              setQueueHintText(`模型已切换为 ${result.model || modelId}，后续消息将使用新模型`)
+            } else if (result.requiresRestart) {
               setQueueHintText(`模型已切换为 ${modelId}，请重启会话使新模型生效`)
             } else {
               setQueueHintText(`模型已切换为 ${modelId}，下次启动时生效`)

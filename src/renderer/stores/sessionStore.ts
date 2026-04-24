@@ -1018,11 +1018,11 @@ export const useSessionStore = create<SessionState>((set, get) => ({
         ...state.sessionInitData,
         [sessionId]: {
           ...state.sessionInitData[sessionId],
-          model: data.model || '',
-          tools: data.tools || [],
-          skills: data.skills || [],
-          mcpServers: data.mcpServers || [],
-          availableModels: data.availableModels || [],
+          model: data.model ?? state.sessionInitData[sessionId]?.model ?? '',
+          tools: data.tools ?? state.sessionInitData[sessionId]?.tools ?? [],
+          skills: data.skills ?? state.sessionInitData[sessionId]?.skills ?? [],
+          mcpServers: data.mcpServers ?? state.sessionInitData[sessionId]?.mcpServers ?? [],
+          availableModels: data.availableModels ?? state.sessionInitData[sessionId]?.availableModels ?? [],
         }
       }
     }))

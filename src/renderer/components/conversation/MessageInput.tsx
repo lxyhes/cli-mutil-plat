@@ -93,6 +93,12 @@ interface ModelInfo {
 
 /** 按 providerId 的内置模型列表（fallback，当 initData 无 availableModels 时使用） */
 const BUILTIN_MODELS: Record<string, ModelInfo[]> = {
+  'codex': [
+    { id: 'gpt-5.5', name: 'GPT-5.5', description: '当前 Codex 高能力模型' },
+    { id: 'gpt-5.4', name: 'GPT-5.4', description: '通用代码与推理模型' },
+    { id: 'gpt-5.3-codex', name: 'GPT-5.3 Codex', description: 'Codex 代码任务模型' },
+    { id: 'codex-mini-latest', name: 'Codex Mini Latest', description: '轻量快速模型' },
+  ],
   'claude-code': [
     { id: 'claude-sonnet-4-20250514', name: 'Claude Sonnet 4', description: '默认模型，平衡性能与成本' },
     { id: 'claude-opus-4-20250514', name: 'Claude Opus 4', description: '最强模型，适合复杂任务' },

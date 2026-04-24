@@ -983,11 +983,38 @@ export class SessionManagerV2 extends EventEmitter implements MemoryManagedCompo
    * 设置会话的模型覆盖（/model 命令）
    * 仅记录到 config.modelOverride，需重启/恢复会话后生效
    */
-  setModelOverride(sessionId: string, model: string): boolean {
+  async setModelOverride(sessionId: string, model: string): Promise<{
+    model: string
+    effectiveNow: boolean
+    requiresRestart: boolean
+    providerSessionId?: string
+  } | null> {
     const session = this.sessions.get(sessionId)
-    if (!session) return false
+    if (!session) return null
     session.config.modelOverride = model
-    return true
+
+    const adapter = this.adapterRegistry.get(session.provider.id)
+    if (adapter?.switchModel && adapter.hasSession(sessionId)) {
+      const result = await adapter.switchModel(sessionId, model)
+      if (result.providerSessionId) {
+        session.claudeSessionId = result.providerSessionId
+        this.emit('claude-session-id', sessionId, result.providerSessionId)
+      }
+      this.emit('session-init-data', sessionId, { model: result.model })
+      return {
+        model: result.model,
+        effectiveNow: result.effectiveNow,
+        requiresRestart: !result.effectiveNow,
+        providerSessionId: result.providerSessionId,
+      }
+    }
+
+    this.emit('session-init-data', sessionId, { model })
+    return {
+      model,
+      effectiveNow: false,
+      requiresRestart: !['terminated', 'completed', 'error'].includes(session.status),
+    }
   }
 
   /**

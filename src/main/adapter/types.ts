@@ -188,6 +188,12 @@ export abstract class BaseProviderAdapter extends EventEmitter {
    */
   abstract getProviderSessionId(sessionId: string): string | undefined
 
+  switchModel?(sessionId: string, model: string): Promise<{
+    model: string
+    providerSessionId?: string
+    effectiveNow: boolean
+  }>
+
   /**
    * 清理所有资源（应用退出时调用）
    */
