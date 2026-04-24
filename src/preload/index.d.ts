@@ -421,6 +421,15 @@ export interface SpectrAIAPI {
     getModes: () => Promise<any>
   }
 
+  // 代码图谱 / 爆炸半径
+  codeGraph: {
+    indexProject: (projectPath: string) => Promise<any>
+    getStats: (projectPath: string) => Promise<any>
+    getDependencies: (projectPath: string, filePath: string) => Promise<any>
+    getDependents: (projectPath: string, filePath: string) => Promise<any>
+    getBlastRadius: (projectPath: string, filePath: string, depth?: number) => Promise<any>
+  }
+
   // OpenAI Compatible Provider
   openAICompat: {
     test: (config: any) => Promise<any>

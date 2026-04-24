@@ -181,6 +181,10 @@ export class TeamManager extends EventEmitter {
    */
   async createTeam(request: CreateTeamRequest): Promise<TeamInstance> {
     teamLog.debug(`createTeam called: name="${request.name}", templateId="${request.templateId}", workDir="${request.workDir}"`)
+    if (!request.workDir?.trim()) {
+      throw new Error('工作目录不能为空')
+    }
+
     const teamId = uuidv4()
     const sessionId = uuidv4()
 
@@ -488,7 +492,12 @@ TeamBridge WebSocket 端口：${bridgePort}
    * 获取团队实例
    */
   getTeam(teamId: string): TeamInstance | undefined {
-    return this.teamRepo.getTeamInstance(teamId)
+    return this.activeTeams.get(teamId) ?? this.teamRepo.getTeamInstance(teamId)
+  }
+
+  listTeams(status?: TeamInstance['status']): TeamInstance[] {
+    const teams = Array.from(this.activeTeams.values())
+    return status ? teams.filter(team => team.status === status) : teams
   }
 
   /**
@@ -696,7 +705,7 @@ TeamBridge WebSocket 端口：${bridgePort}
    */
   cancelTeam(teamId: string, reason?: string): void {
     const team = this.activeTeams.get(teamId)
-    if (!team) return
+    if (!team) throw new Error('团队不存在')
 
     // 取消所有进行中/待办任务
     const tasks = this.teamRepo.getTeamTasks(teamId)

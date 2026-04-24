@@ -61,6 +61,7 @@ import { DriftGuardService } from './drift-guard/DriftGuardService'
 import { CrossSessionMemoryService } from './cross-session-memory/CrossSessionMemoryService'
 import { SessionTemplateService } from './session-template/SessionTemplateService'
 import { CodeContextInjectionService } from './code-context/CodeContextInjectionService'
+import { CodeGraphService } from './code-graph/CodeGraphService'
 import { CheckpointService } from './checkpoint/CheckpointService'
 import { CostService } from './cost/CostService'
 import { ProjectKnowledgeService } from './knowledge/ProjectKnowledgeService'
@@ -190,6 +191,7 @@ let driftGuardService: DriftGuardService | null = null
 let crossSessionMemoryService: CrossSessionMemoryService | null = null
 let sessionTemplateService: SessionTemplateService | null = null
 let codeContextInjectionService: CodeContextInjectionService | null = null
+let codeGraphService: CodeGraphService | null = null
 // ★ 新增 10 大功能服务
 let gitWorktreeServiceRef: GitWorktreeService | undefined = undefined
 let checkpointService: CheckpointService | undefined = undefined
@@ -1051,6 +1053,9 @@ app.whenReady().then(async () => {
   // ★ 代码上下文注入服务
   codeContextInjectionService = new CodeContextInjectionService()
 
+  // ★ 代码图谱 / 爆炸半径服务
+  codeGraphService = new CodeGraphService(database)
+
   // ★ 新增 10 大功能服务初始化
   checkpointService = new CheckpointService(database, gitWorktreeServiceRef)
   costService = new CostService(database)
@@ -1230,6 +1235,7 @@ app.whenReady().then(async () => {
     crossSessionMemoryService: crossSessionMemoryService ?? undefined,
     sessionTemplateService: sessionTemplateService ?? undefined,
     codeContextInjectionService: codeContextInjectionService ?? undefined,
+    codeGraphService: codeGraphService ?? undefined,
     adapterRegistry,
     checkpointService,
     costService,

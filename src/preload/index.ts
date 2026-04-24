@@ -950,6 +950,18 @@ if (!ctxBr) {
     getModes: () => ipcRenderer.invoke(IPC.CODE_CONTEXT_GET_MODES),
   },
 
+  // ==================== Code Graph API ====================
+  codeGraph: {
+    indexProject: (projectPath: string) => ipcRenderer.invoke(IPC.CODE_GRAPH_INDEX_PROJECT, projectPath),
+    getStats: (projectPath: string) => ipcRenderer.invoke(IPC.CODE_GRAPH_GET_STATS, projectPath),
+    getDependencies: (projectPath: string, filePath: string) =>
+      ipcRenderer.invoke(IPC.CODE_GRAPH_GET_DEPENDENCIES, projectPath, filePath),
+    getDependents: (projectPath: string, filePath: string) =>
+      ipcRenderer.invoke(IPC.CODE_GRAPH_GET_DEPENDENTS, projectPath, filePath),
+    getBlastRadius: (projectPath: string, filePath: string, depth?: number) =>
+      ipcRenderer.invoke(IPC.CODE_GRAPH_GET_BLAST_RADIUS, projectPath, filePath, depth),
+  },
+
   // ==================== OpenAI Compatible API ====================
   openAICompat: {
     test: (config: any) => ipcRenderer.invoke(IPC.OPENAI_COMPAT_TEST, config),

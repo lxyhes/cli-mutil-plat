@@ -408,6 +408,13 @@ export const IPC = {
   CODE_CONTEXT_INJECT:      'code-context:inject',
   CODE_CONTEXT_GET_MODES:   'code-context:get-modes',
 
+  // 代码图谱 / 爆炸半径
+  CODE_GRAPH_INDEX_PROJECT:     'code-graph:index-project',
+  CODE_GRAPH_GET_STATS:         'code-graph:get-stats',
+  CODE_GRAPH_GET_DEPENDENCIES:  'code-graph:get-dependencies',
+  CODE_GRAPH_GET_DEPENDENTS:    'code-graph:get-dependents',
+  CODE_GRAPH_GET_BLAST_RADIUS:  'code-graph:get-blast-radius',
+
   // OpenAI Compatible Provider
   OPENAI_COMPAT_TEST:       'openai-compat:test',
   OPENAI_COMPAT_CREATE:     'openai-compat:create',

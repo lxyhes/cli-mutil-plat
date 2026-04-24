@@ -1,3 +1,11 @@
+## 下一步推进记录（2026-04-24）
+
+- [x] 修复 `npm test` 路径：更新 `TeamManager` 测试 mock 与当前仓储接口，补齐团队创建、查询、取消的行为约束。
+- [x] 新增 Phase 1 代码图谱：TypeScript/JavaScript 文件级依赖索引、依赖查询、反向依赖查询、爆炸半径分析。
+- [x] 接入 Code Graph 主进程服务、IPC、preload API 和类型声明。
+- [x] 新增 `CodeGraphService` 单元测试；`npm run typecheck` 与 `npm test` 均已通过。
+- [ ] 下一步：接入 `FileChangeTracker` 做增量索引，并让 `CodeReviewService` 优先消费爆炸半径结果。
+
 ## 最短路线推进状态（2026-04-24）
 
 ### 1. 工程绿灯

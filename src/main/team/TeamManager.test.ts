@@ -14,10 +14,18 @@ import type { CreateTeamRequest } from '../team/types'
 
 // Mock dependencies
 const mockTeamRepo = {
-  createTeam: vi.fn(),
-  getTeamById: vi.fn(),
+  createTeamInstance: vi.fn(),
+  addTeamMember: vi.fn(),
+  updateMemberStatus: vi.fn(),
+  getTeamInstance: vi.fn(),
+  getTeamTasks: vi.fn(),
+  getTeamMessages: vi.fn(),
+  getTemplate: vi.fn(),
+  getTemplates: vi.fn(),
   updateTeamStatus: vi.fn(),
-  deleteTeam: vi.fn(),
+  updateTaskFull: vi.fn(),
+  updateMemberTask: vi.fn(),
+  deleteTeamInstance: vi.fn(),
 } as unknown as TeamRepository
 
 const mockAgentManager = {
@@ -48,6 +56,13 @@ describe('TeamManager', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    ;(mockTeamRepo.getTeamInstance as any).mockReturnValue(undefined)
+    ;(mockTeamRepo.getTeamTasks as any).mockReturnValue([])
+    ;(mockTeamRepo.getTeamMessages as any).mockReturnValue([])
+    ;(mockTeamRepo.getTemplate as any).mockReturnValue(undefined)
+    ;(mockTeamRepo.getTemplates as any).mockReturnValue([])
+    ;(mockSessionManager.createSession as any).mockImplementation((config: any) => config.id)
+    ;(mockSessionManager.terminateSession as any).mockResolvedValue(undefined)
     teamManager = new TeamManager(
       mockTeamRepo,
       mockAgentManager,
@@ -66,24 +81,13 @@ describe('TeamManager', () => {
         workDir: '/test/path',
       }
 
-      // Mock repository response
-      const mockTeam = {
-        id: 'team-123',
-        sessionId: 'session-456',
-        name: 'Test Team',
-        objective: 'Build a feature',
-        status: 'pending' as const,
-        members: [],
-        createdAt: new Date().toISOString(),
-      }
-      ;(mockTeamRepo.createTeam as any).mockResolvedValue(mockTeam)
-
       const team = await teamManager.createTeam(request)
 
       expect(team).toBeDefined()
       expect(team.name).toBe('Test Team')
-      expect(team.status).toBe('pending')
-      expect(mockTeamRepo.createTeam).toHaveBeenCalled()
+      expect(team.status).toBe('running')
+      expect(mockTeamRepo.createTeamInstance).toHaveBeenCalled()
+      expect(mockTeamRepo.addTeamMember).toHaveBeenCalledTimes(5)
     })
 
     it('应该在缺少工作目录时抛出错误', async () => {
@@ -128,14 +132,13 @@ describe('TeamManager', () => {
 
       expect(mockTeamRepo.updateTeamStatus).toHaveBeenCalledWith(
         teamId,
-        'cancelled',
-        expect.any(String)
+        'cancelled'
       )
       expect((teamManager as any).activeTeams.has(teamId)).toBe(false)
     })
 
     it('应该在团队不存在时抛出错误', async () => {
-      await expect(teamManager.cancelTeam('non-existent', 'reason')).rejects.toThrow('团队不存在')
+      expect(() => teamManager.cancelTeam('non-existent', 'reason')).toThrow('团队不存在')
     })
   })
 
@@ -152,7 +155,7 @@ describe('TeamManager', () => {
 
       await teamManager.pauseTeam(teamId)
 
-      expect(mockTeamRepo.updateTeamStatus).toHaveBeenCalledWith(teamId, 'paused', undefined)
+      expect(mockTeamRepo.updateTeamStatus).toHaveBeenCalledWith(teamId, 'paused')
       expect(mockTeam.status).toBe('paused')
     })
   })
@@ -170,7 +173,7 @@ describe('TeamManager', () => {
 
       await teamManager.resumeTeam(teamId)
 
-      expect(mockTeamRepo.updateTeamStatus).toHaveBeenCalledWith(teamId, 'running', undefined)
+      expect(mockTeamRepo.updateTeamStatus).toHaveBeenCalledWith(teamId, 'running')
       expect(mockTeam.status).toBe('running')
     })
   })
@@ -248,20 +251,9 @@ describe('TeamManager', () => {
         workDir: '/test/path',
       }
 
-      const mockTeam = {
-        id: 'team-123',
-        sessionId: 'session-456',
-        name: 'Test Team',
-        status: 'pending' as const,
-        members: [],
-        createdAt: new Date().toISOString(),
-      }
-      ;(mockTeamRepo.createTeam as any).mockResolvedValue(mockTeam)
-
       await teamManager.createTeam(request)
 
       expect(eventHandler).toHaveBeenCalledWith(expect.objectContaining({
-        id: 'team-123',
         name: 'Test Team',
       }))
     })

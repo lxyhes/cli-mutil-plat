@@ -32,6 +32,7 @@ import type { DriftGuardService } from '../drift-guard/DriftGuardService'
 import type { CrossSessionMemoryService } from '../cross-session-memory/CrossSessionMemoryService'
 import type { SessionTemplateService } from '../session-template/SessionTemplateService'
 import type { CodeContextInjectionService } from '../code-context/CodeContextInjectionService'
+import type { CodeGraphService } from '../code-graph/CodeGraphService'
 import type { AdapterRegistry } from '../adapter/AdapterRegistry'
 import type { CheckpointService } from '../checkpoint/CheckpointService'
 import type { CostService } from '../cost/CostService'
@@ -87,6 +88,7 @@ export interface IpcDependencies {
   crossSessionMemoryService?: CrossSessionMemoryService
   sessionTemplateService?: SessionTemplateService
   codeContextInjectionService?: CodeContextInjectionService
+  codeGraphService?: CodeGraphService
   adapterRegistry?: AdapterRegistry
   checkpointService?: CheckpointService
   costService?: CostService
@@ -132,6 +134,7 @@ import { registerDriftGuardHandlers } from './driftGuardHandlers'
 import { registerCrossMemoryHandlers } from './crossMemoryHandlers'
 import { registerSessionTemplateHandlers } from './sessionTemplateHandlers'
 import { registerCodeContextHandlers } from './codeContextHandlers'
+import { registerCodeGraphHandlers } from './codeGraphHandlers'
 import { registerOpenAICompatHandlers } from './openAICompatHandlers'
 import { registerNewFeatureHandlers, type NewFeatureDeps } from './newFeatureHandlers'
 import { registerKnowledgeCenterHandlers } from './knowledgeCenterHandlers'
@@ -183,6 +186,9 @@ export function registerIpcHandlers(deps: IpcDependencies, fileChangeTracker?: F
   }
   if (deps.codeContextInjectionService) {
     registerCodeContextHandlers(deps.codeContextInjectionService)
+  }
+  if (deps.codeGraphService) {
+    registerCodeGraphHandlers(deps.codeGraphService)
   }
   // ★ OpenAI Compatible Provider 需要 adapterRegistry
   if (deps.adapterRegistry) {
