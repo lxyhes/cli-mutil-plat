@@ -208,9 +208,11 @@ export const useGoalStore = create<GoalState>((set, get) => ({
   generatePlan: async (goalId: string, sessionId: string) => {
     try {
       const result = await (window as any).spectrAI.goal.generatePlan(goalId, sessionId)
-      if (result?.success && result.plan) {
-        console.log('[GoalStore] Plan generated successfully:', result.plan.id)
-        return result.plan
+      const plan = result?.data?.plan ?? result?.plan
+      if (result?.success && plan) {
+        const planId = plan.planSession?.id ?? plan.id
+        console.log('[GoalStore] Plan generated successfully:', planId)
+        return plan
       }
       return null
     } catch (err) {

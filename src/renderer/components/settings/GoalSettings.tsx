@@ -522,7 +522,9 @@ export default function GoalSettings() {
                             const sessionId = 'plan-session'
                             const plan = await generatePlan(activeGoal.id, sessionId)
                             if (plan) {
-                              alert(`✅ 规划已生成!\n\n规划ID: ${plan.id}\n你可以在规划面板中查看和执行此规划。`)
+                              const planId = plan.planSession?.id ?? plan.id
+                              alert(`✅ 规划已生成!\n\n规划ID: ${planId}\n你可以在规划面板中查看和执行此规划。`)
+                              window.dispatchEvent(new CustomEvent('open-settings-tab', { detail: 'planner' }))
                             }
                           } catch (err: any) {
                             alert(`❌ 生成规划失败: ${err.message}`)

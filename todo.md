@@ -1,3 +1,34 @@
+## 最短路线推进状态（2026-04-24）
+
+### 1. 工程绿灯
+
+- [x] 修复 `npm run typecheck` 当前硬错误。
+- [x] 收口 `PanelId` 与工具箱二级功能类型，避免侧边栏/工具箱类型混用。
+- [x] 补齐 `GoalStore.generatePlan` 类型声明。
+- [x] 修复 Knowledge 分类过滤类型。
+- [x] 修复 `ConversationView` 分组 key 的类型窄化问题。
+- [ ] `npm test` 仍受本机 `spawn EPERM` 阻塞，需要处理 Vitest/esbuild 子进程权限。
+
+### 2. 目标 → 规划 → 任务 → 评估闭环
+
+- [x] 修正 Goal 生成 Planner 规划的返回结构与事件通知。
+- [x] 修正 Planner 内部计划任务状态更新，避免误写普通看板任务。
+- [x] 新增 `plan:sync-to-kanban` IPC 与 preload API。
+- [x] Planner Store 支持 `syncToKanban`。
+- [x] Planner UI 增加“同步到看板”入口。
+- [x] 同步看板时通过 `plan-task:<id>` 标签避免重复创建。
+- [ ] 看板任务完成后的自动评估结果，还需要进一步回写 Goal 进度并在 UI 展示。
+
+### 3. 代码图谱 / 爆炸半径
+
+- [x] 补充路线文档：[docs/code-review-graph-roadmap.md](docs/code-review-graph-roadmap.md)
+- [ ] Phase 1：TypeScript/JavaScript 文件级依赖图。
+- [ ] Phase 2：接入 FileChangeTracker 做增量索引。
+- [ ] Phase 3：输出变更文件/符号的爆炸半径。
+- [ ] Phase 4：CodeReviewService 消费爆炸半径结果。
+
+---
+
 基于全面的系统分析，我整理出了功能融合方案。以下是 SpectrAI 系统功能融合的优先级排序和具体方案：
 
 功能融合方案

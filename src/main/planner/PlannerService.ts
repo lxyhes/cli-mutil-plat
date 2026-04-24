@@ -469,6 +469,13 @@ export class PlannerService extends EventEmitter {
 
     for (const planTask of planTasks) {
       try {
+        const linkTag = `plan-task:${planTask.id}`
+        const existing = this.db.getAllTasks().find((task: any) => Array.isArray(task.tags) && task.tags.includes(linkTag))
+        if (existing) {
+          createdKanbanTasks.push(existing)
+          continue
+        }
+
         // 创建看板任务
         const kanbanTask = this.taskCoordinator.createTask({
           id: `kanban-from-plan-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
@@ -477,7 +484,7 @@ export class PlannerService extends EventEmitter {
           status: planTask.status === 'completed' ? 'done' : 
                   planTask.status === 'skipped' ? 'done' : 'todo',
           priority: planTask.priority === 'critical' ? 'high' : planTask.priority,
-          tags: ['from-planner', `plan:${planId}`],
+          tags: ['from-planner', `plan:${planId}`, linkTag],
           sessionId,
           metadata: {
             source: 'planner',
@@ -489,15 +496,6 @@ export class PlannerService extends EventEmitter {
 
         if (kanbanTask) {
           createdKanbanTasks.push(kanbanTask)
-          
-          // 记录看板任务ID到metadata中
-          const existingMetadata = (planTask as any).metadata || {}
-          this.db.updatePlanTask(planTask.id, {
-            metadata: {
-              ...existingMetadata,
-              kanbanTaskId: kanbanTask.id
-            }
-          } as any)
         }
       } catch (err) {
         console.warn(`[PlannerService] 同步任务 ${planTask.title} 失败:`, err)
