@@ -157,6 +157,87 @@ export class CodeGraphService {
     return this.getStats(root)
   }
 
+  indexFile(projectPath: string, filePath: string): CodeGraphFile | null {
+    const root = path.resolve(projectPath)
+    const absFile = path.isAbsolute(filePath) ? path.resolve(filePath) : path.resolve(root, filePath)
+    if (!this.isPathInside(root, absFile) || !this.isSourceFile(absFile)) return null
+
+    if (!fs.existsSync(absFile) || !fs.statSync(absFile).isFile()) {
+      this.removeFile(root, absFile)
+      return null
+    }
+
+    const relFile = this.toProjectRelative(root, absFile)
+    const content = fs.readFileSync(absFile, 'utf8')
+    const now = new Date().toISOString()
+    const file: CodeGraphFile = {
+      projectPath: root,
+      filePath: relFile,
+      language: this.languageFor(absFile),
+      contentHash: this.hash(content),
+      updatedAt: now,
+    }
+
+    if (!this.usingSqlite) {
+      this.memoryFiles.set(this.memoryKey(root, relFile), file)
+      this.memoryImports = this.memoryImports.filter(edge => !(edge.projectPath === root && edge.filePath === relFile))
+      for (const edge of this.extractImports(content)) {
+        this.memoryImports.push({
+          projectPath: root,
+          filePath: relFile,
+          importedPath: edge.importedPath,
+          resolvedFilePath: this.resolveImport(root, absFile, edge.importedPath) || undefined,
+          importKind: edge.importKind,
+        })
+      }
+      return file
+    }
+
+    const upsertFile = this.rawDb.prepare(`
+      INSERT INTO code_graph_files (project_path, file_path, language, content_hash, updated_at)
+      VALUES (?, ?, ?, ?, ?)
+      ON CONFLICT(project_path, file_path)
+      DO UPDATE SET language = excluded.language, content_hash = excluded.content_hash, updated_at = excluded.updated_at
+    `)
+    const deleteImports = this.rawDb.prepare('DELETE FROM code_graph_imports WHERE project_path = ? AND file_path = ?')
+    const insertImport = this.rawDb.prepare(`
+      INSERT INTO code_graph_imports (project_path, file_path, imported_path, resolved_file_path, import_kind)
+      VALUES (?, ?, ?, ?, ?)
+    `)
+
+    const tx = this.rawDb.transaction(() => {
+      upsertFile.run(root, relFile, file.language, file.contentHash, file.updatedAt)
+      deleteImports.run(root, relFile)
+      for (const edge of this.extractImports(content)) {
+        const resolved = this.resolveImport(root, absFile, edge.importedPath)
+        insertImport.run(root, relFile, edge.importedPath, resolved, edge.importKind)
+      }
+    })
+    tx()
+    return file
+  }
+
+  removeFile(projectPath: string, filePath: string): void {
+    const root = path.resolve(projectPath)
+    const absFile = path.isAbsolute(filePath) ? path.resolve(filePath) : path.resolve(root, filePath)
+    if (!this.isPathInside(root, absFile)) return
+    const relFile = this.toProjectRelative(root, absFile)
+
+    if (!this.usingSqlite) {
+      this.memoryFiles.delete(this.memoryKey(root, relFile))
+      this.memoryImports = this.memoryImports.filter(edge =>
+        !(edge.projectPath === root && (edge.filePath === relFile || edge.resolvedFilePath === relFile))
+      )
+      return
+    }
+
+    const tx = this.rawDb.transaction(() => {
+      this.rawDb.prepare('DELETE FROM code_graph_files WHERE project_path = ? AND file_path = ?').run(root, relFile)
+      this.rawDb.prepare('DELETE FROM code_graph_imports WHERE project_path = ? AND (file_path = ? OR resolved_file_path = ?)').run(root, relFile, relFile)
+    })
+    tx()
+  }
+
   getStats(projectPath: string): CodeGraphStats {
     const root = path.resolve(projectPath)
     if (!this.usingSqlite) {
@@ -318,6 +399,15 @@ export class CodeGraphService {
       }
     }
     return files
+  }
+
+  private isSourceFile(filePath: string): boolean {
+    return SOURCE_EXTENSIONS.has(path.extname(filePath))
+  }
+
+  private isPathInside(root: string, filePath: string): boolean {
+    const relative = path.relative(root, filePath)
+    return relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative))
   }
 
   private extractImports(content: string): Array<{ importedPath: string; importKind: CodeGraphImport['importKind'] }> {

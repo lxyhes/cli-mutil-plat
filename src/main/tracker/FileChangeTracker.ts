@@ -12,6 +12,7 @@ import type { TrackedFileChange, FileChangeType } from '../../shared/types'
 import type { LockManager } from '../concurrency/LockManager'
 import { createFileLock } from '../concurrency/LockManager'
 import type { MemoryManagedComponent, ComponentMemoryInfo } from '../memory/MemoryCoordinator'
+import type { CodeGraphService } from '../code-graph/CodeGraphService'
 
 // 排除的目录/文件模式
 const EXCLUDE_PATTERNS = [
@@ -72,6 +73,7 @@ export class FileChangeTracker extends EventEmitter implements MemoryManagedComp
 
   /** LockManager 实例（可选，用于文件操作锁保护） */
   private lockManager: LockManager | null = null
+  private codeGraphService: CodeGraphService | null = null
 
   /** 上次清理时间 */
   private lastCleanupTime?: Date
@@ -80,6 +82,10 @@ export class FileChangeTracker extends EventEmitter implements MemoryManagedComp
     super()
     this.database = database
     this.lockManager = lockManager || null
+  }
+
+  setCodeGraphService(service: CodeGraphService): void {
+    this.codeGraphService = service
   }
 
   // ============================================================
@@ -249,6 +255,7 @@ export class FileChangeTracker extends EventEmitter implements MemoryManagedComp
     const buffer = this.changeBuffers.get(sessionId)!
     for (const change of changes) {
       buffer.set(change.filePath, change)
+      this.updateCodeGraphForChange(sessionId, change.filePath, change.changeType)
     }
 
     // 批量写入 DB
@@ -588,11 +595,37 @@ export class FileChangeTracker extends EventEmitter implements MemoryManagedComp
 
     const change: TrackedFileChange = { filePath, changeType, timestamp, sessionId, concurrent }
     buffer.set(filePath, change)
+    this.updateCodeGraphForChange(sessionId, filePath, changeType)
 
     // ★ 实时通知渲染进程（不等待 session idle 才 flush）
     // 让文件树蓝点在 AI 改动文件时立即出现，而非等待会话结束
     this.emit('files-updated', sessionId, [change])
     return Promise.resolve()
+  }
+
+  private updateCodeGraphForChange(sessionId: string, filePath: string, changeType: FileChangeType): void {
+    if (!this.codeGraphService) return
+    const projectRoot = this.getEffectiveProjectRoot(sessionId)
+    if (!projectRoot) return
+
+    try {
+      if (changeType === 'delete') {
+        this.codeGraphService.removeFile(projectRoot, filePath)
+      } else {
+        this.codeGraphService.indexFile(projectRoot, filePath)
+      }
+    } catch (err) {
+      console.warn(`[FileChangeTracker] code graph update failed for ${filePath}:`, err)
+    }
+  }
+
+  private getEffectiveProjectRoot(sessionId: string): string | null {
+    const workDir = this.sessionDirs.get(sessionId)
+    if (!workDir) return null
+    if (this.isWorktreeSession(workDir)) {
+      return this.sessionMainRepos.get(sessionId) || this.resolveMainRepo(workDir) || workDir
+    }
+    return workDir
   }
 
   /**

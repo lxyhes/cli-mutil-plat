@@ -7,6 +7,7 @@ import { v4 as uuid } from 'uuid'
 import { DatabaseManager } from '../storage/Database'
 import { FileChangeTracker } from '../tracker/FileChangeTracker'
 import type { GitWorktreeService } from '../git/GitWorktreeService'
+import type { CodeGraphService } from '../code-graph/CodeGraphService'
 import { sendToRenderer } from '../ipc/shared'
 import { IPC } from '../../shared/constants'
 import * as fs from 'fs'
@@ -46,6 +47,7 @@ export class CodeReviewService {
   private rawDb: any
   private fileChangeTracker: FileChangeTracker | null
   private gitService: GitWorktreeService | null
+  private codeGraphService: CodeGraphService | null
   /** 是否在 turn_complete 时自动审查 */
   private autoReviewEnabled = false
   /** 节流：记录每个会话最近一次审查时间 */
@@ -55,10 +57,11 @@ export class CodeReviewService {
   /** AI 审查模式：'rule-only' | 'ai-enhanced' */
   private reviewMode: 'rule-only' | 'ai-enhanced' = 'ai-enhanced'
 
-  constructor(db: DatabaseManager, fileChangeTracker?: FileChangeTracker, gitService?: GitWorktreeService) {
+  constructor(db: DatabaseManager, fileChangeTracker?: FileChangeTracker, gitService?: GitWorktreeService, codeGraphService?: CodeGraphService) {
     this.rawDb = (db as any).db || db
     this.fileChangeTracker = fileChangeTracker || null
     this.gitService = gitService || null
+    this.codeGraphService = codeGraphService || null
     this.ensureTable()
     this.loadSettings()
   }
@@ -216,7 +219,10 @@ export class CodeReviewService {
       )
 
       // 获取文件改动列表
-      const changedFiles = this.getChangedFiles(params.sessionId)
+      const baseFiles = params.targetFiles?.length
+        ? params.targetFiles
+        : this.getChangedFiles(params.sessionId, params.repoPath)
+      const changedFiles = this.expandFilesWithBlastRadius(params.repoPath, baseFiles)
       if (changedFiles.length === 0) {
         // 没有改动，直接标记完成
         review.summary = '没有检测到文件改动，无需审查。'
@@ -232,7 +238,9 @@ export class CodeReviewService {
 
       // 标记为运行中
       review.status = 'running'
-      this.rawDb.prepare('UPDATE code_reviews SET status = ? WHERE id = ?').run('running', review.id)
+      review.targetFiles = changedFiles
+      this.rawDb.prepare('UPDATE code_reviews SET status = ?, target_files = ? WHERE id = ?')
+        .run('running', JSON.stringify(review.targetFiles), review.id)
 
       // 异步执行审查（不阻塞 IPC 返回）
       this.executeReview(review, changedFiles).catch(err => {
@@ -251,12 +259,55 @@ export class CodeReviewService {
   }
 
   /** 获取会话改动的文件列表 */
-  private getChangedFiles(sessionId: string): string[] {
+  private getChangedFiles(sessionId: string, repoPath?: string): string[] {
     if (!this.fileChangeTracker) return []
     const changes = this.fileChangeTracker.getSessionChanges(sessionId)
-    return changes.map(c => c.filePath)
+    return this.normalizeReviewFiles(repoPath || '', changes.map(c => c.filePath))
   }
 
+  private normalizeReviewFiles(repoPath: string, files: string[]): string[] {
+    const root = repoPath ? path.resolve(repoPath) : ''
+    const seen = new Set<string>()
+    const result: string[] = []
+    for (const file of files) {
+      if (!file) continue
+      const normalized = root && path.isAbsolute(file)
+        ? path.relative(root, path.resolve(file)).replace(/\\/g, '/')
+        : file.replace(/\\/g, '/')
+      if (!normalized) continue
+      if (root && (normalized.startsWith('..') || path.isAbsolute(normalized))) continue
+      if (!seen.has(normalized)) {
+        seen.add(normalized)
+        result.push(normalized)
+      }
+    }
+    return result
+  }
+
+  private expandFilesWithBlastRadius(repoPath: string, files: string[]): string[] {
+    const normalized = this.normalizeReviewFiles(repoPath, files)
+    if (!this.codeGraphService || normalized.length === 0) return normalized
+
+    try {
+      const stats = this.codeGraphService.getStats(repoPath)
+      if (stats.fileCount === 0) {
+        this.codeGraphService.indexProject(repoPath)
+      }
+
+      const expanded = new Set<string>(normalized)
+      for (const file of normalized) {
+        this.codeGraphService.indexFile(repoPath, file)
+        const radius = this.codeGraphService.getBlastRadius(repoPath, file, 2)
+        for (const affected of radius.affectedFiles) {
+          expanded.add(affected.filePath)
+        }
+      }
+      return Array.from(expanded).sort()
+    } catch (err) {
+      console.warn('[CodeReviewService] blast radius expansion failed, using changed files only:', err)
+      return normalized
+    }
+  }
   /** 执行实际审查（规则审查 + AI 增强） */
   private async executeReview(review: CodeReview, changedFiles: string[]): Promise<void> {
     const comments: Omit<ReviewComment, 'id' | 'createdAt'>[] = []

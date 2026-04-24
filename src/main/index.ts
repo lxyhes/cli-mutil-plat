@@ -1055,6 +1055,7 @@ app.whenReady().then(async () => {
 
   // ★ 代码图谱 / 爆炸半径服务
   codeGraphService = new CodeGraphService(database)
+  fileChangeTracker.setCodeGraphService(codeGraphService)
 
   // ★ 新增 10 大功能服务初始化
   checkpointService = new CheckpointService(database, gitWorktreeServiceRef)
@@ -1086,7 +1087,7 @@ app.whenReady().then(async () => {
   // ★ 注入知识中心服务到 SessionManagerV2，用于新会话统一注入知识
   sessionManagerV2.setKnowledgeCenterService(knowledgeCenterService)
   
-  codeReviewService = new CodeReviewService(database, fileChangeTracker, gitWorktreeServiceRef)
+  codeReviewService = new CodeReviewService(database, fileChangeTracker, gitWorktreeServiceRef, codeGraphService)
   sessionReplayService = new SessionReplayService(database)
   contextBudgetService = new ContextBudgetService(database)
   contextBudgetService.setSessionManager(sessionManagerV2)

@@ -46,4 +46,22 @@ describe('CodeGraphService', () => {
       { filePath: 'src/app.ts', distance: 2, relation: 'dependent' },
     ])
   })
+
+  it('updates a single file incrementally', () => {
+    const projectDir = path.join(tempDir, 'project')
+    fs.mkdirSync(path.join(projectDir, 'src'), { recursive: true })
+    fs.writeFileSync(path.join(projectDir, 'src', 'util.ts'), 'export const value = 1\n')
+    fs.writeFileSync(path.join(projectDir, 'src', 'feature.ts'), "export const feature = 1\n")
+
+    service.indexProject(projectDir)
+    expect(service.getDependencies(projectDir, 'src/feature.ts')).toHaveLength(0)
+
+    fs.writeFileSync(path.join(projectDir, 'src', 'feature.ts'), "import { value } from './util'\nexport const feature = value\n")
+    service.indexFile(projectDir, 'src/feature.ts')
+    expect(service.getDependencies(projectDir, 'src/feature.ts')[0].resolvedFilePath).toBe('src/util.ts')
+
+    fs.rmSync(path.join(projectDir, 'src', 'feature.ts'))
+    service.removeFile(projectDir, 'src/feature.ts')
+    expect(service.getDependents(projectDir, 'src/util.ts')).toHaveLength(0)
+  })
 })
