@@ -35,12 +35,20 @@ export interface CodeReview {
   repoPath: string
   status: 'pending' | 'running' | 'completed' | 'failed'
   targetFiles: string[]   // 空 = 全部改动文件
+  targetFileMeta: ReviewTargetFile[]
   summary: string
   score: number           // 0-100
   totalComments: number
   criticalCount: number
   createdAt: string
   completedAt: string | null
+}
+
+export interface ReviewTargetFile {
+  filePath: string
+  reason: 'changed' | 'dependency' | 'dependent'
+  distance: number
+  rootFile?: string
 }
 
 export class CodeReviewService {
@@ -78,6 +86,7 @@ export class CodeReviewService {
           repo_path TEXT NOT NULL,
           status TEXT NOT NULL DEFAULT 'pending',
           target_files TEXT NOT NULL DEFAULT '[]',
+          target_file_meta TEXT NOT NULL DEFAULT '[]',
           summary TEXT NOT NULL DEFAULT '',
           score INTEGER NOT NULL DEFAULT 0,
           total_comments INTEGER NOT NULL DEFAULT 0,
@@ -86,6 +95,7 @@ export class CodeReviewService {
           completed_at TEXT
         )
       `)
+      this.ensureReviewColumn('target_file_meta', "TEXT NOT NULL DEFAULT '[]'")
       this.rawDb.exec(`
         CREATE TABLE IF NOT EXISTS review_comments (
           id TEXT PRIMARY KEY,
@@ -126,6 +136,17 @@ export class CodeReviewService {
     } catch { /* ignore */ }
   }
 
+  private ensureReviewColumn(name: string, definition: string): void {
+    try {
+      const columns = this.rawDb.prepare('PRAGMA table_info(code_reviews)').all() as Array<{ name: string }>
+      if (!columns.some(column => column.name === name)) {
+        this.rawDb.exec(`ALTER TABLE code_reviews ADD COLUMN ${name} ${definition}`)
+      }
+    } catch (err) {
+      console.warn(`[CodeReviewService] ensure column failed: ${name}`, err)
+    }
+  }
+
   private saveSettings(): void {
     try {
       const value = JSON.stringify({
@@ -159,6 +180,7 @@ export class CodeReviewService {
       repoPath: row.repo_path,
       status: row.status,
       targetFiles: typeof row.target_files === 'string' ? JSON.parse(row.target_files || '[]') : (row.target_files || []),
+      targetFileMeta: typeof row.target_file_meta === 'string' ? JSON.parse(row.target_file_meta || '[]') : (row.target_file_meta || []),
       summary: row.summary,
       score: row.score,
       totalComments: row.total_comments,
@@ -200,6 +222,7 @@ export class CodeReviewService {
       repoPath: params.repoPath,
       status: 'pending',
       targetFiles: params.targetFiles || [],
+      targetFileMeta: [],
       summary: '',
       score: 0,
       totalComments: 0,
@@ -210,11 +233,11 @@ export class CodeReviewService {
 
     try {
       this.rawDb.prepare(`
-        INSERT INTO code_reviews (id, session_id, session_name, reviewer_session_id, repo_path, status, target_files, summary, score, total_comments, critical_count, created_at, completed_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO code_reviews (id, session_id, session_name, reviewer_session_id, repo_path, status, target_files, target_file_meta, summary, score, total_comments, critical_count, created_at, completed_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).run(
         review.id, review.sessionId, review.sessionName, null, review.repoPath, review.status,
-        JSON.stringify(review.targetFiles), review.summary, review.score, review.totalComments,
+        JSON.stringify(review.targetFiles), JSON.stringify(review.targetFileMeta), review.summary, review.score, review.totalComments,
         review.criticalCount, review.createdAt, review.completedAt
       )
 
@@ -222,7 +245,8 @@ export class CodeReviewService {
       const baseFiles = params.targetFiles?.length
         ? params.targetFiles
         : this.getChangedFiles(params.sessionId, params.repoPath)
-      const changedFiles = this.expandFilesWithBlastRadius(params.repoPath, baseFiles)
+      const targetFileMeta = this.expandFilesWithBlastRadius(params.repoPath, baseFiles)
+      const changedFiles = targetFileMeta.map(file => file.filePath)
       if (changedFiles.length === 0) {
         // 没有改动，直接标记完成
         review.summary = '没有检测到文件改动，无需审查。'
@@ -239,8 +263,9 @@ export class CodeReviewService {
       // 标记为运行中
       review.status = 'running'
       review.targetFiles = changedFiles
-      this.rawDb.prepare('UPDATE code_reviews SET status = ?, target_files = ? WHERE id = ?')
-        .run('running', JSON.stringify(review.targetFiles), review.id)
+      review.targetFileMeta = targetFileMeta
+      this.rawDb.prepare('UPDATE code_reviews SET status = ?, target_files = ?, target_file_meta = ? WHERE id = ?')
+        .run('running', JSON.stringify(review.targetFiles), JSON.stringify(review.targetFileMeta), review.id)
 
       // 异步执行审查（不阻塞 IPC 返回）
       this.executeReview(review, changedFiles).catch(err => {
@@ -284,9 +309,10 @@ export class CodeReviewService {
     return result
   }
 
-  private expandFilesWithBlastRadius(repoPath: string, files: string[]): string[] {
+  private expandFilesWithBlastRadius(repoPath: string, files: string[]): ReviewTargetFile[] {
     const normalized = this.normalizeReviewFiles(repoPath, files)
-    if (!this.codeGraphService || normalized.length === 0) return normalized
+    const changedMeta = normalized.map(filePath => ({ filePath, reason: 'changed' as const, distance: 0 }))
+    if (!this.codeGraphService || normalized.length === 0) return changedMeta
 
     try {
       const stats = this.codeGraphService.getStats(repoPath)
@@ -294,18 +320,30 @@ export class CodeReviewService {
         this.codeGraphService.indexProject(repoPath)
       }
 
-      const expanded = new Set<string>(normalized)
+      const expanded = new Map<string, ReviewTargetFile>()
+      for (const filePath of normalized) {
+        expanded.set(filePath, { filePath, reason: 'changed', distance: 0 })
+      }
       for (const file of normalized) {
         this.codeGraphService.indexFile(repoPath, file)
         const radius = this.codeGraphService.getBlastRadius(repoPath, file, 2)
         for (const affected of radius.affectedFiles) {
-          expanded.add(affected.filePath)
+          const meta: ReviewTargetFile = {
+            filePath: affected.filePath,
+            reason: affected.relation === 'root' ? 'changed' : affected.relation,
+            distance: affected.distance,
+            rootFile: affected.relation === 'root' ? undefined : file,
+          }
+          const existing = expanded.get(meta.filePath)
+          if (!existing || meta.distance < existing.distance || existing.reason !== 'changed') {
+            expanded.set(meta.filePath, existing?.reason === 'changed' ? existing : meta)
+          }
         }
       }
-      return Array.from(expanded).sort()
+      return Array.from(expanded.values()).sort((a, b) => a.distance - b.distance || a.filePath.localeCompare(b.filePath))
     } catch (err) {
       console.warn('[CodeReviewService] blast radius expansion failed, using changed files only:', err)
-      return normalized
+      return changedMeta
     }
   }
   /** 执行实际审查（规则审查 + AI 增强） */
@@ -818,7 +856,7 @@ ${codeBlock}`
     }
 
     // 检查是否有文件改动
-    const changedFiles = this.getChangedFiles(sessionId)
+    const changedFiles = this.getChangedFiles(sessionId, repoPath)
     if (changedFiles.length === 0) {
       return { triggered: false, reason: '无文件改动' }
     }

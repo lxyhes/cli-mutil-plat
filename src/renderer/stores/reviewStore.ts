@@ -13,6 +13,12 @@ export interface CodeReview {
   id: string; sessionId: string; sessionName: string; repoPath: string
   status: string; targetFiles: string[]; summary: string; score: number
   totalComments: number; criticalCount: number; createdAt: string; completedAt: string | null
+  targetFileMeta?: Array<{
+    filePath: string
+    reason: 'changed' | 'dependency' | 'dependent'
+    distance: number
+    rootFile?: string
+  }>
 }
 
 interface ReviewSettings {

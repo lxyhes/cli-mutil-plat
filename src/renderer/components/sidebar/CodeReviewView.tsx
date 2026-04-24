@@ -33,6 +33,44 @@ function ScoreBadge({ score }: { score: number }) {
   )
 }
 
+const TARGET_REASON_CONFIG: Record<string, { label: string; className: string }> = {
+  changed: { label: '\u76f4\u63a5\u6539\u52a8', className: 'bg-accent-blue/10 text-accent-blue' },
+  dependent: { label: '\u53d7\u5f71\u54cd', className: 'bg-accent-yellow/10 text-accent-yellow' },
+  dependency: { label: '\u4f9d\u8d56\u9879', className: 'bg-accent-purple/10 text-accent-purple' },
+}
+
+function ReviewTargetFiles({ review }: { review: CodeReview }) {
+  const files = review.targetFileMeta?.length
+    ? review.targetFileMeta
+    : (review.targetFiles || []).map(filePath => ({ filePath, reason: 'changed' as const, distance: 0 }))
+
+  if (!files.length) return null
+
+  return (
+    <div className="rounded border border-border bg-bg-tertiary/30 p-2">
+      <div className="flex items-center justify-between mb-1.5">
+        <div className="flex items-center gap-1.5 text-[10px] font-medium text-text-secondary">
+          <Code2 className="w-3 h-3 text-accent-blue" />
+          {'\u5ba1\u67e5\u8303\u56f4'}
+        </div>
+        <span className="text-[9px] text-text-muted">{files.length}</span>
+      </div>
+      <div className="space-y-1 max-h-28 overflow-y-auto" style={{ scrollbarWidth: 'thin' }}>
+        {files.map((file, idx) => {
+          const cfg = TARGET_REASON_CONFIG[file.reason] || TARGET_REASON_CONFIG.changed
+          return (
+            <div key={`${file.filePath}-${idx}`} className="flex items-center gap-1.5 min-w-0 text-[10px]">
+              <span className={`px-1 py-0.5 rounded shrink-0 ${cfg.className}`}>{cfg.label}</span>
+              <span className="font-mono text-text-secondary truncate flex-1" title={file.filePath}>{file.filePath}</span>
+              {file.distance > 0 && <span className="text-text-muted shrink-0">D{file.distance}</span>}
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
 function CommentCard({ comment, onResolve, onApplyFix }: {
   comment: ReviewComment
   onResolve: () => void
@@ -236,6 +274,8 @@ export default function CodeReviewView() {
                     {review.summary && (
                       <div className="text-xs text-text-secondary bg-bg-tertiary/50 rounded p-2 leading-relaxed">{review.summary}</div>
                     )}
+
+                    <ReviewTargetFiles review={review} />
 
                     {/* Severity Filter */}
                     <div className="flex gap-1">
