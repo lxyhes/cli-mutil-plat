@@ -8,8 +8,32 @@ import { parseDbTimestamp } from '../types'
 export class SessionRepository {
   private memSessions: Map<string, Session> = new Map()
   private memEvents: any[] = []
+  private schemaChecked = false
 
   constructor(private db: any, private usingSqlite: boolean) {}
+
+  private ensureSchema(): void {
+    if (!this.usingSqlite || !this.db || this.schemaChecked) return
+    this.schemaChecked = true
+
+    try {
+      const cols = (this.db.prepare("PRAGMA table_info('sessions')").all() as any[]).map((r: any) => r.name)
+      const addColumn = (name: string, definition: string) => {
+        if (!cols.includes(name)) {
+          this.db.exec(`ALTER TABLE sessions ADD COLUMN ${name} ${definition}`)
+          cols.push(name)
+        }
+      }
+
+      addColumn('claude_session_id', 'TEXT')
+      addColumn('provider_id', 'TEXT')
+      addColumn('name_locked', 'INTEGER NOT NULL DEFAULT 0')
+      addColumn('is_pinned', 'INTEGER NOT NULL DEFAULT 0')
+      this.db.exec('CREATE INDEX IF NOT EXISTS idx_sessions_pinned_started ON sessions(is_pinned DESC, started_at DESC)')
+    } catch (err) {
+      console.warn('[SessionRepository] Failed to ensure sessions schema:', err)
+    }
+  }
 
   createSession(session: Partial<Session> & { id: string; name: string; workingDirectory: string; config: any }): Session {
     const fullSession: Session = {
@@ -27,6 +51,7 @@ export class SessionRepository {
     }
 
     if (this.usingSqlite) {
+      this.ensureSchema()
       this.db.prepare(`
         INSERT INTO sessions (id, task_id, name, name_locked, working_directory, status, estimated_tokens, config, provider_id, is_pinned)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -47,6 +72,7 @@ export class SessionRepository {
 
   updateSession(id: string, updates: Partial<Session> & { claudeSessionId?: string }): void {
     if (this.usingSqlite) {
+      this.ensureSchema()
       const fields: string[] = []
       const values: any[] = []
 
@@ -108,6 +134,7 @@ export class SessionRepository {
     const nextPinned = !existing.isPinned
 
     if (this.usingSqlite) {
+      this.ensureSchema()
       this.db.prepare('UPDATE sessions SET is_pinned = ? WHERE id = ?').run(nextPinned ? 1 : 0, id)
     }
 
@@ -124,6 +151,7 @@ export class SessionRepository {
   getSession(id: string): Session | undefined {
     if (this.usingSqlite) {
       try {
+        this.ensureSchema()
         const row = this.db.prepare('SELECT * FROM sessions WHERE id = ?').get(id) as any
         return row ? this.mapSession(row) : undefined
       } catch (_err) {
@@ -139,6 +167,7 @@ export class SessionRepository {
   isSessionNameLocked(sessionId: string): boolean {
     if (this.usingSqlite) {
       try {
+        this.ensureSchema()
         const row = this.db.prepare(
           'SELECT name_locked FROM sessions WHERE id = ?'
         ).get(sessionId) as any
@@ -155,6 +184,7 @@ export class SessionRepository {
   getAllSessions(): Session[] {
     if (this.usingSqlite) {
       try {
+        this.ensureSchema()
         const rows = this.db.prepare(
           'SELECT * FROM sessions ORDER BY is_pinned DESC, started_at DESC'
         ).all() as any[]

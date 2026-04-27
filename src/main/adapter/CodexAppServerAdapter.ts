@@ -214,6 +214,7 @@ interface CodexSession {
   baseInstructions?: string
   requestId: number
   pendingRequests: Map<number, { resolve: (v: any) => void; reject: (e: any) => void }>
+  stderrBuffer: string
   autoAccept: boolean
   /** 宸插彂鍑?tool_use 娑堟伅鐨勫伐鍏?ID 闆嗗悎锛岀敤浜?created/completed 鍘婚噸 */
   activeToolUseIds: Set<string>
@@ -238,6 +239,12 @@ const CODEX_MODEL_FALLBACKS = [
   { id: 'gpt-5.3-codex', name: 'GPT-5.3 Codex' },
   { id: 'codex-mini-latest', name: 'Codex Mini Latest' },
 ]
+
+const CODEX_RPC_TIMEOUTS: Record<string, number> = {
+  initialize: 120_000,
+  'thread/start': 120_000,
+  'turn/start': 10 * 60_000,
+}
 
 function isCodexModelRefreshTimeout(text: string): boolean {
   return /failed to refresh available models/i.test(text) && /timeout waiting for child process to exit/i.test(text)
@@ -390,6 +397,7 @@ export class CodexAppServerAdapter extends BaseProviderAdapter {
       config,
       requestId: 0,
       pendingRequests: new Map(),
+      stderrBuffer: '',
       autoAccept: config.autoAccept ?? false,
       activeToolUseIds: new Set(),
       lastServerEventAt: Date.now(),
@@ -405,7 +413,6 @@ export class CodexAppServerAdapter extends BaseProviderAdapter {
     })
 
     // 娑堣垂 stderr锛堥槻姝㈢閬撶紦鍐插尯闃诲锛涘皢鍏抽敭閿欒淇℃伅鎺ㄩ€佸埌瀵硅瘽瑙嗗浘鏂逛究鎺掓煡锛?
-    let stderrBuffer = ''
     proc.stderr?.on('data', (data) => {
       const text: string = data.toString()
       if (!text.trim()) return
@@ -414,16 +421,16 @@ export class CodexAppServerAdapter extends BaseProviderAdapter {
         return
       }
       console.debug(`[CodexAdapter] stderr for ${sessionId}: ${text.slice(0, 300)}`)
-      stderrBuffer += text
+      session.stderrBuffer += text
       // 瓒呰繃 2KB 鎴柇锛屽彧淇濈暀鏈€鏂板唴瀹?
-      if (stderrBuffer.length > 2048) stderrBuffer = stderrBuffer.slice(-2048)
+      if (session.stderrBuffer.length > 2048) session.stderrBuffer = session.stderrBuffer.slice(-2048)
     })
 
     // 杩涚▼閫€鍑烘椂锛岃嫢寮傚父閫€鍑猴紙code !== 0锛夛紝灏嗛敊璇俊鎭帹閫佸埌瀵硅瘽瑙嗗浘
     // 鏈?stderr 鍐呭鍒欏睍绀猴紝鍚﹀垯缁欏嚭閫氱敤鎻愮ず锛岀‘淇濈敤鎴蜂笉浼氱湅鍒扮┖鐧?
     proc.once('exit', (code) => {
       if (code !== 0) {
-        const errSnippet = stderrBuffer.trim().slice(0, 800)
+        const errSnippet = session.stderrBuffer.trim().slice(0, 800)
         const content = errSnippet
           ? `鈿狅笍 Codex 寮傚父閫€鍑?(exit ${code}):\n${errSnippet}`
           : `Codex 异常退出 (exit ${code})，没有详细错误信息。\n请检查 Codex CLI 是否正确安装，或尝试重新发送消息。`
@@ -442,6 +449,15 @@ export class CodexAppServerAdapter extends BaseProviderAdapter {
     // 杩涚▼閫€鍑?
     proc.on('exit', (code) => {
       this.stopHeartbeat(sessionId)
+      for (const [, pending] of session.pendingRequests) {
+        const errSnippet = session.stderrBuffer.trim()
+        pending.reject(new Error(
+          errSnippet
+            ? `Codex process exited before RPC response (exit ${code ?? 'unknown'}): ${errSnippet.slice(0, 800)}`
+            : `Codex process exited before RPC response (exit ${code ?? 'unknown'})`
+        ))
+      }
+      session.pendingRequests.clear()
       session.adapter.status = 'completed'
       this.emit('status-change', sessionId, 'completed')
       this.emitEvent(sessionId, {
@@ -915,6 +931,9 @@ export class CodexAppServerAdapter extends BaseProviderAdapter {
   private rpc(sessionId: string, method: string, params?: Record<string, unknown>): Promise<unknown> {
     const session = this.sessions.get(sessionId)
     if (!session) throw new Error(`Session ${sessionId} not found`)
+    if (session.process.exitCode !== null || session.process.killed) {
+      throw new Error(`Codex process is not running for ${sessionId}`)
+    }
 
     const id = ++session.requestId
     const request: JsonRpcRequest = {
@@ -936,12 +955,20 @@ export class CodexAppServerAdapter extends BaseProviderAdapter {
       })
 
       // 瓒呮椂
+      const timeoutMs = CODEX_RPC_TIMEOUTS[method] ?? 30_000
       setTimeout(() => {
         if (session.pendingRequests.has(id)) {
           session.pendingRequests.delete(id)
-          reject(new Error(`RPC timeout: ${method}`))
+          const errSnippet = session.stderrBuffer.trim()
+          const details = [
+            `RPC timeout: ${method} (${Math.round(timeoutMs / 1000)}s)`,
+            `pid=${session.process.pid ?? 'unknown'}`,
+            `exitCode=${session.process.exitCode ?? 'running'}`,
+            errSnippet ? `stderr=${errSnippet.slice(-800)}` : '',
+          ].filter(Boolean).join('; ')
+          reject(new Error(details))
         }
-      }, 30000)
+      }, timeoutMs)
     })
   }
 

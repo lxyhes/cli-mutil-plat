@@ -313,6 +313,7 @@ export class DatabaseManager implements MemoryManagedComponent {
    */
   private migrateSchema(): void {
     runMigrations(this.db, MIGRATIONS)
+    this.ensureSessionColumnsExist()
     this.ensureColumns('tasks', {
       session_id: 'TEXT',
       metadata: 'TEXT',
@@ -320,6 +321,28 @@ export class DatabaseManager implements MemoryManagedComponent {
     
     // ★ 紧急修复：如果 team_instances 表不存在，手动创建（v31 迁移可能失败）
     this.ensureTeamsTablesExist()
+  }
+
+  /**
+   * 确保 sessions 表包含当前代码依赖的列。
+   *
+   * 版本迁移允许单条失败后继续前进，旧库可能出现 schema_version 已到最新、
+   * 但个别列实际缺失的状态。这里做启动兜底，避免仓储层查询直接崩溃。
+   */
+  private ensureSessionColumnsExist(): void {
+    if (!this.db) return
+
+    try {
+      this.ensureColumns('sessions', {
+        claude_session_id: 'TEXT',
+        provider_id: 'TEXT',
+        name_locked: 'INTEGER NOT NULL DEFAULT 0',
+        is_pinned: 'INTEGER NOT NULL DEFAULT 0',
+      })
+      this.db.exec('CREATE INDEX IF NOT EXISTS idx_sessions_pinned_started ON sessions(is_pinned DESC, started_at DESC)')
+    } catch (err) {
+      console.warn('[Database] Failed to repair sessions schema:', err)
+    }
   }
 
   /**
