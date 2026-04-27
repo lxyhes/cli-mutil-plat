@@ -44,6 +44,10 @@ export function registerWorkingContextHandlers(workingContextService: WorkingCon
     return { success: true, context: workingContextService.removeItem(sessionId, category, itemId) }
   })
 
+  ipcMain.handle(IPC.WORKING_CONTEXT_SET_PINNED, (_event, sessionId: string, category: 'problems' | 'decisions' | 'todos' | 'codeSnippets', itemId: string, pinned: boolean) => {
+    return { success: true, context: workingContextService.setItemPinned(sessionId, category, itemId, pinned) }
+  })
+
   ipcMain.handle(IPC.WORKING_CONTEXT_CREATE_SNAPSHOT, (_event, sessionId: string, trigger?: 'manual' | 'session-switch' | 'auto-interval') => {
     return { success: true, snapshot: workingContextService.createSnapshot(sessionId, trigger) }
   })

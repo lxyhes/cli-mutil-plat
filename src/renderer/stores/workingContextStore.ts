@@ -11,6 +11,7 @@ export interface ContextItem {
   id: string
   content: string
   createdAt: string
+  isPinned?: boolean
   resolved?: boolean
   resolvedAt?: string
 }
@@ -22,6 +23,7 @@ export interface CodeSnippet {
   content: string
   note?: string
   createdAt: string
+  isPinned?: boolean
 }
 
 export interface ContextSnapshot {
@@ -65,6 +67,7 @@ interface WorkingContextState {
   resolveTodo: (sessionId: string, todoId: string) => Promise<void>
   addSnippet: (sessionId: string, snippet: Omit<CodeSnippet, 'id' | 'createdAt'>) => Promise<void>
   removeItem: (sessionId: string, category: 'problems' | 'decisions' | 'todos' | 'codeSnippets', itemId: string) => Promise<void>
+  setItemPinned: (sessionId: string, category: 'problems' | 'decisions' | 'todos' | 'codeSnippets', itemId: string, pinned: boolean) => Promise<void>
   createSnapshot: (sessionId: string, trigger?: 'manual' | 'session-switch' | 'auto-interval') => Promise<void>
   getContextPrompt: (sessionId: string) => Promise<string>
 }
@@ -104,6 +107,9 @@ export const useWorkingContextStore = create<WorkingContextState>((set) => ({
   },
   removeItem: async (sessionId, category, itemId) => {
     try { const r = await api()?.removeItem(sessionId, category, itemId); if (r?.success) set({ currentContext: r.context }) } catch (e) { set({ error: String(e) }) }
+  },
+  setItemPinned: async (sessionId, category, itemId, pinned) => {
+    try { const r = await api()?.setPinned(sessionId, category, itemId, pinned); if (r?.success) set({ currentContext: r.context }) } catch (e) { set({ error: String(e) }) }
   },
   createSnapshot: async (sessionId, trigger) => {
     try { await api()?.createSnapshot(sessionId, trigger) } catch (e) { set({ error: String(e) }) }

@@ -378,6 +378,7 @@ export const IPC = {
   WORKING_CONTEXT_RESOLVE_TODO: 'working-context:resolve-todo',
   WORKING_CONTEXT_ADD_SNIPPET:  'working-context:add-snippet',
   WORKING_CONTEXT_REMOVE_ITEM:  'working-context:remove-item',
+  WORKING_CONTEXT_SET_PINNED:   'working-context:set-pinned',
   WORKING_CONTEXT_CREATE_SNAPSHOT: 'working-context:create-snapshot',
   WORKING_CONTEXT_GET_PROMPT:   'working-context:get-prompt',
   WORKING_CONTEXT_STATUS:       'working-context:status',

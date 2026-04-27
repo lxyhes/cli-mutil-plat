@@ -3,19 +3,21 @@
  * 显示当前会话的任务、问题、决策、待办、代码片段
  * 集成漂移检测护栏状态
  */
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import {
   Brain, Target, AlertTriangle, CheckCircle2, Lightbulb,
-  ListTodo, Code2, Camera, Plus, Play, Pause, Shield, X
+  ListTodo, Code2, Camera, Plus, Play, Pause, Shield, X, Pin, Copy
 } from 'lucide-react'
 import { useWorkingContextStore, type WorkingContext } from '../../stores/workingContextStore'
 import { useDriftGuardStore, type SessionDriftState, type DriftConfig } from '../../stores/driftGuardStore'
 import { useSessionStore } from '../../stores/sessionStore'
 
-type TabKey = 'task' | 'problems' | 'decisions' | 'todos' | 'snippets'
+type TabKey = 'task' | 'pinned' | 'problems' | 'decisions' | 'todos' | 'snippets'
+type ContextCategory = 'problems' | 'decisions' | 'todos' | 'codeSnippets'
 
 const TABS: { key: TabKey; label: string; icon: React.ElementType }[] = [
   { key: 'task',      label: '任务',   icon: Target },
+  { key: 'pinned',    label: '置顶',   icon: Pin },
   { key: 'problems',  label: '问题',   icon: AlertTriangle },
   { key: 'decisions', label: '决策',   icon: Lightbulb },
   { key: 'todos',     label: '待办',   icon: ListTodo },
@@ -23,6 +25,14 @@ const TABS: { key: TabKey; label: string; icon: React.ElementType }[] = [
 ]
 
 const inputCls = 'w-full px-2.5 py-1.5 bg-bg-tertiary border border-border rounded-lg text-xs text-text-primary placeholder:text-text-muted focus:outline-none focus:border-accent-blue'
+
+function sortPinnedFirst<T extends { isPinned?: boolean; createdAt: string }>(items: T[] = []): T[] {
+  return [...items].sort((a, b) => {
+    const pinnedDiff = Number(!!b.isPinned) - Number(!!a.isPinned)
+    if (pinnedDiff !== 0) return pinnedDiff
+    return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+  })
+}
 
 export default function WorkingContextView() {
   const [activeTab, setActiveTab] = useState<TabKey>('task')
@@ -64,6 +74,32 @@ export default function WorkingContextView() {
   const [newProblem, setNewProblem] = useState('')
   const [newDecision, setNewDecision] = useState('')
   const [newTodo, setNewTodo] = useState('')
+  const [copiedPrompt, setCopiedPrompt] = useState(false)
+
+  const sortedProblems = useMemo(() => sortPinnedFirst(context?.problems), [context?.problems])
+  const sortedDecisions = useMemo(() => sortPinnedFirst(context?.decisions), [context?.decisions])
+  const sortedTodos = useMemo(() => sortPinnedFirst(context?.todos), [context?.todos])
+  const sortedSnippets = useMemo(() => sortPinnedFirst(context?.codeSnippets), [context?.codeSnippets])
+  const pinnedItems = useMemo(() => [
+    ...sortPinnedFirst(context?.problems).filter(item => item.isPinned).map(item => ({ category: 'problems' as const, label: '问题', item, Icon: AlertTriangle, tone: 'text-accent-yellow' })),
+    ...sortPinnedFirst(context?.decisions).filter(item => item.isPinned).map(item => ({ category: 'decisions' as const, label: '决策', item, Icon: Lightbulb, tone: 'text-accent-purple' })),
+    ...sortPinnedFirst(context?.todos).filter(item => item.isPinned).map(item => ({ category: 'todos' as const, label: '待办', item, Icon: ListTodo, tone: 'text-accent-blue' })),
+    ...sortPinnedFirst(context?.codeSnippets).filter(item => item.isPinned).map(item => ({ category: 'codeSnippets' as const, label: '片段', item, Icon: Code2, tone: 'text-accent-cyan' })),
+  ], [context])
+
+  const handleTogglePin = useCallback(async (category: ContextCategory, itemId: string, pinned: boolean) => {
+    if (!activeSessionId) return
+    await ctx.setItemPinned(activeSessionId, category, itemId, pinned)
+  }, [activeSessionId, ctx])
+
+  const handleCopyContextPrompt = useCallback(async () => {
+    if (!activeSessionId) return
+    const prompt = await ctx.getContextPrompt(activeSessionId)
+    if (!prompt) return
+    await navigator.clipboard?.writeText(prompt)
+    setCopiedPrompt(true)
+    window.setTimeout(() => setCopiedPrompt(false), 1200)
+  }, [activeSessionId, ctx])
 
   const handleAddProblem = async () => {
     if (!newProblem.trim() || !activeSessionId) return
@@ -103,6 +139,10 @@ export default function WorkingContextView() {
           工作记忆
         </div>
         <div className="flex items-center gap-1">
+          <button onClick={handleCopyContextPrompt} title={copiedPrompt ? '已复制' : '复制可复用上下文'}
+            className={`p-1 rounded hover:bg-bg-hover transition-colors ${copiedPrompt ? 'text-accent-green' : 'text-text-muted hover:text-text-primary'}`}>
+            <Copy className="w-3.5 h-3.5" />
+          </button>
           <button onClick={handleSnapshot} title="创建快照"
             className="p-1 rounded hover:bg-bg-hover text-text-muted hover:text-text-primary transition-colors">
             <Camera className="w-3.5 h-3.5" />
@@ -173,6 +213,9 @@ export default function WorkingContextView() {
             }`}>
             <tab.icon className="w-3 h-3" />
             {tab.label}
+            {tab.key === 'pinned' && pinnedItems.length ? (
+              <span className="bg-accent-yellow/20 text-accent-yellow rounded-full px-1 text-[9px]">{pinnedItems.length}</span>
+            ) : null}
             {tab.key === 'problems' && context?.problems.length ? (
               <span className="bg-accent-red/20 text-accent-red rounded-full px-1 text-[9px]">{context.problems.filter(p => !p.resolved).length}</span>
             ) : null}
@@ -187,6 +230,39 @@ export default function WorkingContextView() {
       <div className="flex-1 overflow-y-auto p-3 space-y-2">
         {loading && <div className="text-xs text-text-muted text-center py-4">加载中...</div>}
 
+        {activeTab === 'pinned' && (
+          <div className="space-y-2">
+            {pinnedItems.length === 0 ? (
+              <div className="text-xs text-text-muted text-center py-6">
+                暂无置顶上下文
+                <div className="mt-1 text-[10px]">把关键问题、决策、待办或代码片段置顶后，会优先复用到 AI 上下文。</div>
+              </div>
+            ) : (
+              pinnedItems.map(({ category, label, item, Icon, tone }) => (
+                <div key={`${category}-${item.id}`} className="rounded-lg border border-accent-yellow/30 bg-accent-yellow/5 p-2 text-xs">
+                  <div className="flex items-start gap-2">
+                    <Icon className={`mt-0.5 h-3.5 w-3.5 shrink-0 ${tone}`} />
+                    <div className="min-w-0 flex-1">
+                      <div className="mb-1 flex items-center gap-1 text-[10px] text-accent-yellow">
+                        <Pin className="h-3 w-3 fill-current" />
+                        {label}
+                        {'filePath' in item && item.filePath ? <span className="truncate text-text-muted">{item.filePath}</span> : null}
+                      </div>
+                      <div className="whitespace-pre-wrap break-words text-text-primary">
+                        {'filePath' in item ? (item.note || item.content) : item.content}
+                      </div>
+                    </div>
+                    <button onClick={() => handleTogglePin(category, item.id, false)} title="取消置顶"
+                      className="shrink-0 text-accent-yellow hover:text-text-primary">
+                      <Pin className="h-3 w-3 fill-current" />
+                    </button>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        )}
+
         {activeTab === 'problems' && (
           <>
             <div className="flex gap-1">
@@ -196,15 +272,19 @@ export default function WorkingContextView() {
                 <Plus className="w-3 h-3" />
               </button>
             </div>
-            {context?.problems.map(p => (
+            {sortedProblems.map(p => (
               <div key={p.id} className={`flex items-start gap-2 p-2 rounded-lg border text-xs ${
-                p.resolved ? 'border-border bg-bg-tertiary/50 opacity-60' : 'border-accent-yellow/30 bg-accent-yellow/5'
+                p.resolved ? 'border-border bg-bg-tertiary/50 opacity-60' : p.isPinned ? 'border-accent-yellow/40 bg-accent-yellow/10' : 'border-accent-yellow/30 bg-accent-yellow/5'
               }`}>
                 <button onClick={() => !p.resolved && ctx.resolveProblem(activeSessionId, p.id)} className="mt-0.5 shrink-0">
                   {p.resolved ? <CheckCircle2 className="w-3.5 h-3.5 text-accent-green" /> : <AlertTriangle className="w-3.5 h-3.5 text-accent-yellow" />}
                 </button>
-                <span className={p.resolved ? 'line-through text-text-muted' : 'text-text-primary'}>{p.content}</span>
-                <button onClick={() => ctx.removeItem(activeSessionId, 'problems', p.id)} className="ml-auto shrink-0 text-text-muted hover:text-accent-red">
+                <span className={`flex-1 ${p.resolved ? 'line-through text-text-muted' : 'text-text-primary'}`}>{p.content}</span>
+                <button onClick={() => handleTogglePin('problems', p.id, !p.isPinned)} title={p.isPinned ? '取消置顶' : '置顶'}
+                  className={`shrink-0 ${p.isPinned ? 'text-accent-yellow' : 'text-text-muted hover:text-accent-yellow'}`}>
+                  <Pin className={`w-3 h-3 ${p.isPinned ? 'fill-current' : ''}`} />
+                </button>
+                <button onClick={() => ctx.removeItem(activeSessionId, 'problems', p.id)} className="shrink-0 text-text-muted hover:text-accent-red">
                   <X className="w-3 h-3" />
                 </button>
               </div>
@@ -221,11 +301,17 @@ export default function WorkingContextView() {
                 <Plus className="w-3 h-3" />
               </button>
             </div>
-            {context?.decisions.map(d => (
-              <div key={d.id} className="flex items-start gap-2 p-2 rounded-lg border border-border bg-bg-tertiary/50 text-xs">
+            {sortedDecisions.map(d => (
+              <div key={d.id} className={`flex items-start gap-2 p-2 rounded-lg border text-xs ${
+                d.isPinned ? 'border-accent-yellow/40 bg-accent-yellow/10' : 'border-border bg-bg-tertiary/50'
+              }`}>
                 <Lightbulb className="w-3.5 h-3.5 text-accent-purple shrink-0 mt-0.5" />
-                <span className="text-text-primary">{d.content}</span>
+                <span className="flex-1 text-text-primary">{d.content}</span>
                 <span className="ml-auto text-text-muted shrink-0 text-[10px]">{new Date(d.createdAt).toLocaleTimeString()}</span>
+                <button onClick={() => handleTogglePin('decisions', d.id, !d.isPinned)} title={d.isPinned ? '取消置顶' : '置顶'}
+                  className={`shrink-0 ${d.isPinned ? 'text-accent-yellow' : 'text-text-muted hover:text-accent-yellow'}`}>
+                  <Pin className={`w-3 h-3 ${d.isPinned ? 'fill-current' : ''}`} />
+                </button>
                 <button onClick={() => ctx.removeItem(activeSessionId, 'decisions', d.id)} className="shrink-0 text-text-muted hover:text-accent-red">
                   <X className="w-3 h-3" />
                 </button>
@@ -243,15 +329,19 @@ export default function WorkingContextView() {
                 <Plus className="w-3 h-3" />
               </button>
             </div>
-            {context?.todos.map(t => (
+            {sortedTodos.map(t => (
               <div key={t.id} className={`flex items-start gap-2 p-2 rounded-lg border text-xs ${
-                t.resolved ? 'border-border bg-bg-tertiary/50 opacity-60' : 'border-border'
+                t.resolved ? 'border-border bg-bg-tertiary/50 opacity-60' : t.isPinned ? 'border-accent-yellow/40 bg-accent-yellow/10' : 'border-border'
               }`}>
                 <button onClick={() => !t.resolved && ctx.resolveTodo(activeSessionId, t.id)} className="mt-0.5 shrink-0">
                   {t.resolved ? <CheckCircle2 className="w-3.5 h-3.5 text-accent-green" /> : <div className="w-3.5 h-3.5 rounded border border-border" />}
                 </button>
-                <span className={t.resolved ? 'line-through text-text-muted' : 'text-text-primary'}>{t.content}</span>
-                <button onClick={() => ctx.removeItem(activeSessionId, 'todos', t.id)} className="ml-auto shrink-0 text-text-muted hover:text-accent-red">
+                <span className={`flex-1 ${t.resolved ? 'line-through text-text-muted' : 'text-text-primary'}`}>{t.content}</span>
+                <button onClick={() => handleTogglePin('todos', t.id, !t.isPinned)} title={t.isPinned ? '取消置顶' : '置顶'}
+                  className={`shrink-0 ${t.isPinned ? 'text-accent-yellow' : 'text-text-muted hover:text-accent-yellow'}`}>
+                  <Pin className={`w-3 h-3 ${t.isPinned ? 'fill-current' : ''}`} />
+                </button>
+                <button onClick={() => ctx.removeItem(activeSessionId, 'todos', t.id)} className="shrink-0 text-text-muted hover:text-accent-red">
                   <X className="w-3 h-3" />
                 </button>
               </div>
@@ -264,13 +354,21 @@ export default function WorkingContextView() {
             {context?.codeSnippets.length === 0 && (
               <div className="text-xs text-text-muted text-center py-4">代码片段可在文件管理器中右键注入</div>
             )}
-            {context?.codeSnippets.map(s => (
-              <div key={s.id} className="p-2 rounded-lg border border-border bg-bg-tertiary/50 text-xs">
+            {sortedSnippets.map(s => (
+              <div key={s.id} className={`p-2 rounded-lg border text-xs ${
+                s.isPinned ? 'border-accent-yellow/40 bg-accent-yellow/10' : 'border-border bg-bg-tertiary/50'
+              }`}>
                 <div className="flex items-center justify-between mb-1">
                   <span className="text-text-secondary font-medium">{s.filePath.split('/').pop()}</span>
-                  <button onClick={() => ctx.removeItem(activeSessionId, 'codeSnippets', s.id)} className="text-text-muted hover:text-accent-red">
-                    <X className="w-3 h-3" />
-                  </button>
+                  <div className="flex items-center gap-1">
+                    <button onClick={() => handleTogglePin('codeSnippets', s.id, !s.isPinned)} title={s.isPinned ? '取消置顶' : '置顶'}
+                      className={`${s.isPinned ? 'text-accent-yellow' : 'text-text-muted hover:text-accent-yellow'}`}>
+                      <Pin className={`w-3 h-3 ${s.isPinned ? 'fill-current' : ''}`} />
+                    </button>
+                    <button onClick={() => ctx.removeItem(activeSessionId, 'codeSnippets', s.id)} className="text-text-muted hover:text-accent-red">
+                      <X className="w-3 h-3" />
+                    </button>
+                  </div>
                 </div>
                 {s.lineRange && <div className="text-[9px] text-text-muted mb-1">行 {s.lineRange}</div>}
                 <pre className="text-text-primary bg-bg-primary rounded p-1.5 overflow-x-auto text-[10px] leading-relaxed">{s.content}</pre>

@@ -904,6 +904,7 @@ if (!ctxBr) {
     resolveTodo: (sessionId: string, todoId: string) => ipcRenderer.invoke(IPC.WORKING_CONTEXT_RESOLVE_TODO, sessionId, todoId),
     addSnippet: (sessionId: string, snippet: any) => ipcRenderer.invoke(IPC.WORKING_CONTEXT_ADD_SNIPPET, sessionId, snippet),
     removeItem: (sessionId: string, category: string, itemId: string) => ipcRenderer.invoke(IPC.WORKING_CONTEXT_REMOVE_ITEM, sessionId, category, itemId),
+    setPinned: (sessionId: string, category: string, itemId: string, pinned: boolean) => ipcRenderer.invoke(IPC.WORKING_CONTEXT_SET_PINNED, sessionId, category, itemId, pinned),
     createSnapshot: (sessionId: string, trigger?: string) => ipcRenderer.invoke(IPC.WORKING_CONTEXT_CREATE_SNAPSHOT, sessionId, trigger),
     getPrompt: (sessionId: string) => ipcRenderer.invoke(IPC.WORKING_CONTEXT_GET_PROMPT, sessionId),
     onStatus: (callback: (status: any) => void) => {

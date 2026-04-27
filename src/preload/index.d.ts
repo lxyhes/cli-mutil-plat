@@ -385,6 +385,7 @@ export interface SpectrAIAPI {
     resolveTodo: (sessionId: string, todoId: string) => Promise<any>
     addSnippet: (sessionId: string, snippet: any) => Promise<any>
     removeItem: (sessionId: string, category: string, itemId: string) => Promise<any>
+    setPinned: (sessionId: string, category: string, itemId: string, pinned: boolean) => Promise<any>
     createSnapshot: (sessionId: string, trigger?: string) => Promise<any>
     getPrompt: (sessionId: string) => Promise<any>
     onStatus: (callback: (status: any) => void) => () => void

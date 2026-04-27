@@ -42,6 +42,7 @@ export interface ContextItem {
   id: string
   content: string
   createdAt: string
+  isPinned?: boolean
   resolved?: boolean
   resolvedAt?: string
 }
@@ -53,6 +54,7 @@ export interface CodeSnippet {
   content: string
   note?: string
   createdAt: string
+  isPinned?: boolean
 }
 
 export interface ContextSnapshot {
@@ -91,6 +93,13 @@ export class WorkingContextService extends EventEmitter {
     return this.rawDb!
   }
 
+  private ensureColumn(db: BetterSqlite3.Database, table: string, column: string, definition: string): void {
+    const columns = db.prepare(`PRAGMA table_info(${table})`).all() as Array<{ name: string }>
+    if (!columns.some(item => item.name === column)) {
+      db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`)
+    }
+  }
+
   /** 初始化数据库表 */
   private initDatabase(): void {
     const db = this.getRawDb()
@@ -111,12 +120,14 @@ export class WorkingContextService extends EventEmitter {
         file_path TEXT,
         line_range TEXT,
         note TEXT,
+        is_pinned INTEGER NOT NULL DEFAULT 0,
         resolved INTEGER NOT NULL DEFAULT 0,
         resolved_at TEXT,
         created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (session_id) REFERENCES working_contexts(session_id) ON DELETE CASCADE
       )
     `)
+    this.ensureColumn(db, 'working_context_items', 'is_pinned', 'INTEGER NOT NULL DEFAULT 0')
     db.exec('CREATE INDEX IF NOT EXISTS idx_wci_session ON working_context_items(session_id, category)')
     db.exec(`
       CREATE TABLE IF NOT EXISTS working_context_snapshots (
@@ -160,6 +171,7 @@ export class WorkingContextService extends EventEmitter {
             id: item.id,
             content: item.content,
             createdAt: item.created_at,
+            isPinned: item.is_pinned === 1,
             resolved: item.resolved === 1,
             resolvedAt: item.resolved_at || undefined,
           }
@@ -182,6 +194,7 @@ export class WorkingContextService extends EventEmitter {
                 content: item.content,
                 note: item.note || undefined,
                 createdAt: item.created_at,
+                isPinned: item.is_pinned === 1,
               })
               break
           }
@@ -228,18 +241,30 @@ export class WorkingContextService extends EventEmitter {
       if (category === 'codeSnippet') {
         const snippet = item as CodeSnippet
         db.prepare(`
-          INSERT OR REPLACE INTO working_context_items (id, session_id, category, content, file_path, line_range, note, resolved, resolved_at, created_at)
-          VALUES (?, ?, ?, ?, ?, ?, ?, 0, NULL, ?)
-        `).run(snippet.id, sessionId, category, snippet.content, snippet.filePath, snippet.lineRange || null, snippet.note || null, snippet.createdAt)
+          INSERT OR REPLACE INTO working_context_items (id, session_id, category, content, file_path, line_range, note, is_pinned, resolved, resolved_at, created_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, NULL, ?)
+        `).run(snippet.id, sessionId, category, snippet.content, snippet.filePath, snippet.lineRange || null, snippet.note || null, snippet.isPinned ? 1 : 0, snippet.createdAt)
       } else {
         const ctxItem = item as ContextItem
         db.prepare(`
-          INSERT OR REPLACE INTO working_context_items (id, session_id, category, content, resolved, resolved_at, created_at)
-          VALUES (?, ?, ?, ?, ?, ?, ?)
-        `).run(ctxItem.id, sessionId, category, ctxItem.content, ctxItem.resolved ? 1 : 0, ctxItem.resolvedAt || null, ctxItem.createdAt)
+          INSERT OR REPLACE INTO working_context_items (id, session_id, category, content, is_pinned, resolved, resolved_at, created_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        `).run(ctxItem.id, sessionId, category, ctxItem.content, ctxItem.isPinned ? 1 : 0, ctxItem.resolved ? 1 : 0, ctxItem.resolvedAt || null, ctxItem.createdAt)
       }
     } catch (err) {
       console.error('[WorkingContext] 持久化条目失败:', err)
+    }
+  }
+
+  /** 更新条目置顶状态 */
+  private persistItemPinned(sessionId: string, itemId: string, pinned: boolean): void {
+    try {
+      const db = this.getRawDb()
+      db.prepare(`
+        UPDATE working_context_items SET is_pinned = ? WHERE session_id = ? AND id = ?
+      `).run(pinned ? 1 : 0, sessionId, itemId)
+    } catch (err) {
+      console.error('[WorkingContext] 更新条目置顶状态失败:', err)
     }
   }
 
@@ -436,6 +461,21 @@ export class WorkingContextService extends EventEmitter {
     return ctx
   }
 
+  /** 置顶/取消置顶关键上下文条目 */
+  setItemPinned(sessionId: string, category: 'problems' | 'decisions' | 'todos' | 'codeSnippets', itemId: string, pinned: boolean): WorkingContext {
+    const ctx = this.getOrCreateContext(sessionId)
+    const list = ctx[category] as ContextItem[] | CodeSnippet[]
+    const item = list.find(entry => entry.id === itemId)
+    if (item) {
+      item.isPinned = pinned
+      ctx.updatedAt = new Date().toISOString()
+      this.persistContext(ctx)
+      this.persistItemPinned(sessionId, itemId, pinned)
+      this.emitChange(sessionId, pinned ? 'item-pinned' : 'item-unpinned', ctx)
+    }
+    return ctx
+  }
+
   // ── 快照 ────────────────────────────────────────────────
 
   /** 创建快照 */
@@ -479,20 +519,36 @@ export class WorkingContextService extends EventEmitter {
 
     const parts: string[] = []
 
+    const pinnedLines = [
+      ...ctx.problems.filter(item => item.isPinned && !item.resolved).map(item => `- [问题] ${item.content}`),
+      ...ctx.decisions.filter(item => item.isPinned).map(item => `- [决策] ${item.content}`),
+      ...ctx.todos.filter(item => item.isPinned && !item.resolved).map(item => `- [待办] ${item.content}`),
+      ...ctx.codeSnippets.filter(item => item.isPinned).map(item => {
+        const location = [item.filePath, item.lineRange].filter(Boolean).join(':')
+        const content = item.content.length > 800 ? `${item.content.slice(0, 800)}...` : item.content
+        return `- [代码片段] ${location}${item.note ? `（${item.note}）` : ''}\n${content}`
+      }),
+    ]
+
+    if (pinnedLines.length > 0) {
+      parts.push(`置顶关键上下文:\n${pinnedLines.join('\n')}`)
+    }
+
     if (ctx.currentTask) {
       parts.push(`当前任务: ${ctx.currentTask}`)
     }
 
-    const unresolvedProblems = ctx.problems.filter(p => !p.resolved)
+    const unresolvedProblems = ctx.problems.filter(p => !p.resolved && !p.isPinned)
     if (unresolvedProblems.length > 0) {
       parts.push(`未解决的问题:\n${unresolvedProblems.map(p => `- ${p.content}`).join('\n')}`)
     }
 
-    if (ctx.decisions.length > 0) {
-      parts.push(`已做决策:\n${ctx.decisions.map(d => `- ${d.content}`).join('\n')}`)
+    const regularDecisions = ctx.decisions.filter(d => !d.isPinned)
+    if (regularDecisions.length > 0) {
+      parts.push(`已做决策:\n${regularDecisions.map(d => `- ${d.content}`).join('\n')}`)
     }
 
-    const unresolvedTodos = ctx.todos.filter(t => !t.resolved)
+    const unresolvedTodos = ctx.todos.filter(t => !t.resolved && !t.isPinned)
     if (unresolvedTodos.length > 0) {
       parts.push(`待办事项:\n${unresolvedTodos.map(t => `- ${t.content}`).join('\n')}`)
     }
