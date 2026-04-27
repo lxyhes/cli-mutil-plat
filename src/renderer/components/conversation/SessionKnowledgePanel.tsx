@@ -22,9 +22,9 @@ export default function SessionKnowledgePanel({ sessionId, projectPath, onClose 
   const [activeTab, setActiveTab] = useState<'knowledge' | 'reference'>('knowledge')
 
   return (
-    <div className="flex flex-col h-full border-l border-border bg-bg-primary">
+    <div className="flex h-full w-full min-w-0 flex-col bg-bg-primary">
       {/* ===== Tab 切换 ===== */}
-      <div className="flex items-center justify-between px-3 py-2 border-b border-border bg-bg-secondary">
+      <div className="flex items-center justify-between border-b border-border-subtle bg-bg-elevated px-3 py-2">
         <div className="flex gap-1">
           <button
             onClick={() => setActiveTab('knowledge')}

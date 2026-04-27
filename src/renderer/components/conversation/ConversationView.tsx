@@ -915,7 +915,7 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
   ]
 
   return (
-    <div className="flex flex-row flex-1 min-h-0 bg-bg-primary">
+    <div className="relative flex flex-row flex-1 min-h-0 overflow-hidden bg-bg-primary">
       {/* 左侧：消息区域 */}
       <div className="flex flex-col flex-1 min-h-0 relative">
         {/* 消息列表 */}
@@ -1409,13 +1409,17 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
       )}
       </div>
 
-      {/* 右侧：知识库抽屉 */}
+      {/* 右侧：知识库抽屉。作为浮层显示，避免被主区/右侧详情面板挤压成窄栏。 */}
       {knowledgePanelOpen && workingDirectory && (
-        <SessionKnowledgePanel
-          sessionId={sessionId}
-          projectPath={workingDirectory}
-          onClose={() => setKnowledgePanelOpen(false)}
-        />
+        <div className="pointer-events-none absolute inset-y-0 right-0 z-40 flex max-w-full justify-end">
+          <div className="pointer-events-auto h-full w-[min(420px,calc(100vw-96px))] min-w-[320px] max-w-full border-l border-border-subtle bg-bg-primary shadow-[-18px_0_36px_var(--color-shadow-sm)]">
+            <SessionKnowledgePanel
+              sessionId={sessionId}
+              projectPath={workingDirectory}
+              onClose={() => setKnowledgePanelOpen(false)}
+            />
+          </div>
+        </div>
       )}
     </div>
   )

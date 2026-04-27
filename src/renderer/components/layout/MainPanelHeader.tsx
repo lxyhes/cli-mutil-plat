@@ -42,28 +42,28 @@ export default function MainPanelHeader() {
   const getTabClass = (content: 'sessions' | 'files') => {
     if (!isSplit) {
       return primaryPane === content
-        ? 'border-accent-blue text-text-primary'
-        : 'border-transparent text-text-secondary hover:text-text-primary'
+        ? 'bg-bg-elevated text-accent-blue shadow-sm'
+        : 'text-text-secondary hover:bg-bg-hover hover:text-text-primary'
     }
     return primaryPane === content
-      ? 'border-accent-blue text-text-primary'
-      : 'border-accent-blue/30 text-text-secondary hover:text-text-primary hover:border-accent-blue/60'
+      ? 'bg-bg-elevated text-accent-blue shadow-sm'
+      : 'text-text-muted hover:bg-bg-hover hover:text-text-secondary'
   }
 
   return (
-    <div className="flex items-center justify-between border-b border-border bg-bg-secondary flex-shrink-0 h-9 px-2">
+    <div className="flex h-10 flex-shrink-0 items-center justify-between border-b border-border-subtle bg-bg-primary/95 px-3">
       {/* 左侧：分类 Tab */}
-      <div className="flex items-center">
+      <div className="inline-flex items-center gap-0.5 rounded-lg border border-border-subtle bg-bg-tertiary p-0.5">
         <button
           onClick={handleSessionsClick}
-          className={`flex items-center gap-1.5 px-3 h-9 text-xs font-medium border-b-2 transition-colors ${getTabClass('sessions')}`}
+          className={`flex h-7 items-center gap-1.5 rounded-md px-2.5 text-xs font-medium transition-colors ${getTabClass('sessions')}`}
         >
           <MessageSquare size={13} />
           会话
         </button>
         <button
           onClick={handleFilesClick}
-          className={`flex items-center gap-1.5 px-3 h-9 text-xs font-medium border-b-2 transition-colors ${getTabClass('files')}`}
+          className={`flex h-7 items-center gap-1.5 rounded-md px-2.5 text-xs font-medium transition-colors ${getTabClass('files')}`}
         >
           <FolderOpen size={13} />
           文件

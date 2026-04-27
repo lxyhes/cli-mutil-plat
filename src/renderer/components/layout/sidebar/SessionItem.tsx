@@ -30,6 +30,7 @@ export const SessionItem = React.memo(function SessionItem({
   const activityPreview = lastActivity
     ? (getActivityPreview(lastActivity) || '暂无可展示活动')
     : '暂无活动'
+  const showActivityPreview = !!lastActivity && !isInterrupted
 
   const [isEditing, setIsEditing] = useState(false)
   const [editName, setEditName] = useState('')
@@ -71,20 +72,18 @@ export const SessionItem = React.memo(function SessionItem({
     <div
       onClick={() => onSelect(session.id)}
       onContextMenu={(e) => onContextMenu(e, session.id, session.status)}
-      className={`relative overflow-hidden rounded-lg border border-l-2 px-2.5 py-2 cursor-pointer btn-transition ${
+      className={`relative overflow-hidden rounded-md border border-l-2 px-2.5 py-1.5 cursor-pointer btn-transition ${
         isSelected
-          ? 'bg-accent-blue/10 border-accent-blue/35 border-l-accent-blue'
+          ? 'bg-accent-blue/10 border-accent-blue/30 border-l-accent-blue'
           : isStuck
-            ? 'bg-bg-hover border-orange-500/30 hover:border-orange-500/50 border-l-orange-500/50'
+            ? 'bg-accent-yellow/5 border-accent-yellow/25 hover:border-accent-yellow/45 border-l-accent-yellow/60'
             : needsAttention
-              ? 'bg-bg-hover border-accent-yellow/30 hover:border-accent-yellow/50 border-l-accent-yellow/50'
+              ? 'bg-accent-yellow/5 border-accent-yellow/20 hover:border-accent-yellow/40 border-l-accent-yellow/50'
               : session.isPinned
-                ? 'bg-accent-yellow/5 border-accent-yellow/25 hover:border-accent-yellow/45 border-l-accent-yellow/60'
-                : 'bg-bg-hover border-transparent border-l-transparent hover:bg-bg-tertiary hover:border-l-accent-blue/30'
+                ? 'bg-accent-yellow/5 border-transparent hover:bg-bg-hover border-l-accent-yellow/50'
+                : 'bg-transparent border-transparent border-l-transparent hover:bg-bg-hover hover:border-l-accent-blue/25'
       }`}
-      style={isSelected ? { boxShadow: '0 8px 20px var(--color-shadow-sm)' } : undefined}
     >
-      {isSelected && <div className="absolute left-0 top-0 h-full w-1 rounded-l bg-accent-blue/80" />}
       <div className="flex items-start gap-2">
         <div
           className={`mt-1.5 h-2 w-2 flex-shrink-0 rounded-full ${session.status === 'running' ? 'animate-pulse' : ''}`}
@@ -153,14 +152,14 @@ export const SessionItem = React.memo(function SessionItem({
         </div>
       </div>
 
-      <div className="mt-2 flex items-center justify-between gap-2">
+      <div className="mt-1.5 flex items-center justify-between gap-2">
         <div className="flex min-w-0 items-center gap-1.5">
           <span
-            className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium"
+            className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-medium"
             style={{
               color: isStuck ? '#f97316' : statusColor,
-              backgroundColor: (isStuck ? '#f97316' : statusColor) + '18',
-              border: `1px solid ${(isStuck ? '#f97316' : statusColor)}30`,
+              backgroundColor: (isStuck ? '#f97316' : statusColor) + (isSelected || needsAttention || isStuck ? '18' : '10'),
+              border: `1px solid ${(isStuck ? '#f97316' : statusColor)}22`,
             }}
           >
             {!isStuck && needsAttention && <AlertCircle className="h-3 w-3" />}
@@ -184,8 +183,8 @@ export const SessionItem = React.memo(function SessionItem({
         )}
       </div>
 
-      {!isInterrupted && (
-        <div className={`mt-1.5 rounded-md bg-bg-primary/35 px-2 py-1 text-[11px] truncate ${isSelected ? 'text-text-secondary' : 'text-text-muted'}`}>
+      {showActivityPreview && (
+        <div className={`mt-1.5 truncate border-l border-border-subtle pl-2 text-[11px] ${isSelected ? 'text-text-secondary' : 'text-text-muted'}`}>
           {activityPreview}
         </div>
       )}

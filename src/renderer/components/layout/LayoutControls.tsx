@@ -4,13 +4,14 @@
  */
 
 import { Square, PanelsLeftRight, PanelsTopBottom, ArrowLeftRight, ArrowUpDown } from 'lucide-react'
+import type { ElementType } from 'react'
 import { useUIStore } from '../../stores/uiStore'
 import type { LayoutMode } from '../../../shared/types'
 
 export default function LayoutControls() {
   const { layoutMode, setLayoutMode, swapPanes } = useUIStore()
 
-  const buttons: Array<{ mode: LayoutMode; icon: React.ElementType; title: string }> = [
+  const buttons: Array<{ mode: LayoutMode; icon: ElementType; title: string }> = [
     { mode: 'single',  icon: Square,          title: '单窗格' },
     { mode: 'split-h', icon: PanelsLeftRight,  title: '左右分栏' },
     { mode: 'split-v', icon: PanelsTopBottom,  title: '上下分栏' },
@@ -20,30 +21,32 @@ export default function LayoutControls() {
   const SwapIcon = layoutMode === 'split-v' ? ArrowUpDown : ArrowLeftRight
 
   return (
-    <div className="flex items-center gap-0.5">
+    <div className="inline-flex items-center gap-1">
       {isSplit && (
         <button
           onClick={swapPanes}
           title={layoutMode === 'split-v' ? '交换上下内容' : '交换左右内容'}
-          className="p-1 rounded transition-colors text-gray-500 hover:text-gray-300 hover:bg-gray-700/50"
+          className="flex h-7 w-7 items-center justify-center rounded-md border border-border-subtle bg-bg-tertiary text-text-muted transition-colors hover:bg-bg-hover hover:text-text-secondary"
         >
           <SwapIcon size={13} />
         </button>
       )}
-      {buttons.map(({ mode, icon: Icon, title }) => (
-        <button
-          key={mode}
-          onClick={() => setLayoutMode(mode)}
-          title={title}
-          className={`p-1 rounded transition-colors ${
-            layoutMode === mode
-              ? 'text-blue-400 bg-blue-400/10'
-              : 'text-gray-500 hover:text-gray-300 hover:bg-gray-700/50'
-          }`}
-        >
-          <Icon size={13} />
-        </button>
-      ))}
+      <div className="inline-flex items-center gap-0.5 rounded-lg border border-border-subtle bg-bg-tertiary p-0.5">
+        {buttons.map(({ mode, icon: Icon, title }) => (
+          <button
+            key={mode}
+            onClick={() => setLayoutMode(mode)}
+            title={title}
+            className={`flex h-6 w-6 items-center justify-center rounded-md transition-colors ${
+              layoutMode === mode
+                ? 'bg-bg-elevated text-accent-blue shadow-sm'
+                : 'text-text-muted hover:bg-bg-hover hover:text-text-secondary'
+            }`}
+          >
+            <Icon size={13} />
+          </button>
+        ))}
+      </div>
     </div>
   )
 }

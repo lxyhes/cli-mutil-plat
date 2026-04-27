@@ -552,10 +552,10 @@ export function SessionsContent() {
       </div>
 
       {/* ── 底部快速操作 ── */}
-      <div className="p-4 border-t border-border">
+      <div className="border-t border-border px-3 py-3">
         <button
           onClick={() => openNewSessionDialog()}
-          className="w-full py-2 px-4 bg-gradient-to-r from-accent-blue to-accent-blue/80 hover:from-accent-blue/90 hover:to-accent-blue/70 text-white rounded btn-transition flex items-center justify-center gap-2 shadow-sm"
+          className="flex w-full items-center justify-center gap-2 rounded-lg border border-accent-blue/25 bg-accent-blue/10 px-3 py-2 text-sm font-medium text-accent-blue transition-colors hover:border-accent-blue/40 hover:bg-accent-blue/15"
         >
           <Terminal className="w-4 h-4" />
           <span>新建会话</span>

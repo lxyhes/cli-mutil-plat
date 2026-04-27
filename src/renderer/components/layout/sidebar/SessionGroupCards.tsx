@@ -28,13 +28,13 @@ export const TimeGroupCard = React.memo(function TimeGroupCard({
   const hasMore = group.sessions.length > MAX_DEFAULT_VISIBLE
 
   return (
-    <div className="card p-3">
-      <div className="flex items-center gap-2 mb-2">
+    <div className="rounded-lg border border-border-subtle/70 bg-bg-elevated/45 p-2">
+      <div className="mb-1.5 flex items-center gap-2 px-1">
         <div className={`w-2 h-2 rounded-full ${group.color}`} />
         <h3 className="text-xs font-medium text-text-secondary">{group.title}</h3>
         <span className="text-xs text-text-muted ml-auto">{group.sessions.length}</span>
       </div>
-      <div className="space-y-1">
+      <div className="space-y-0.5">
         {displaySessions.map(session => (
           <div key={session.id} data-session-id={session.id}>
             <SessionItem
@@ -90,12 +90,16 @@ export const DirGroupCard = React.memo(function DirGroupCard({
       : <FolderOpen className="w-3.5 h-3.5 text-accent-blue flex-shrink-0" />
 
   return (
-    <div className={`overflow-hidden rounded-lg border ${hasSelected ? 'border-accent-blue/35' : 'border-border-subtle'}`}>
+    <div className={`overflow-hidden rounded-lg border ${
+      hasSelected
+        ? 'border-accent-blue/30 bg-accent-blue/5'
+        : 'border-transparent bg-bg-elevated/35 hover:bg-bg-elevated/55'
+    } transition-colors`}>
       {/* 分组 Header — 左键弹出会话选择器，右键弹出目录菜单 */}
       <button
         onClick={onOpenPicker}
         onContextMenu={(e) => onDirContextMenu(e, group.type === 'directory' ? group.key : '')}
-        className="w-full flex items-center gap-1.5 bg-bg-elevated px-2.5 py-2 text-left select-none btn-transition hover:bg-bg-hover"
+        className="w-full flex items-center gap-1.5 px-2.5 py-2 text-left select-none btn-transition hover:bg-bg-hover"
       >
         <ChevronDown className={`w-3 h-3 text-text-muted flex-shrink-0 transition-transform ${hasActive ? 'rotate-0' : '-rotate-90'}`} />
         {GroupIcon}
@@ -134,7 +138,7 @@ export const DirGroupCard = React.memo(function DirGroupCard({
 
       {/* 活跃会话直接内联展示 */}
       {hasActive && (
-        <div className="space-y-1 border-t border-border-subtle px-2 pb-2 pt-1.5">
+        <div className="space-y-0.5 border-t border-border-subtle/70 px-2 pb-1.5 pt-1.5">
           {activeSessions.map(session => (
             <div key={session.id} data-session-id={session.id}>
               <SessionItem

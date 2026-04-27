@@ -70,12 +70,12 @@ export default function StatusBar({ className = '' }: StatusBarProps) {
   }
 
   return (
-    <div className={`h-8 bg-bg-secondary border-t border-border flex items-center justify-between px-4 text-xs text-text-secondary ${className}`}>
+    <div className={`flex h-7 items-center justify-between border-t border-border-subtle bg-bg-primary/95 px-3 text-xs text-text-secondary ${className}`}>
       {/* 左侧：活跃会话数 */}
-      <div className="flex items-center gap-4">
+      <div className="flex min-w-0 items-center gap-3">
         <div className="flex items-center gap-2">
           <div
-            className={`w-2 h-2 rounded-full ${
+            className={`h-1.5 w-1.5 rounded-full ${
               activeSessions.length > 0 ? 'bg-accent-green animate-pulse' : 'bg-text-muted'
             }`}
           ></div>
@@ -91,15 +91,15 @@ export default function StatusBar({ className = '' }: StatusBarProps) {
       </div>
 
       {/* 中间：视图模式切换 + 布局切换 */}
-      <div className="flex items-center gap-1.5">
+      <div className="flex shrink-0 items-center gap-1.5">
       {/* 视图模式按钮组 */}
-      <div className="flex items-center gap-1 bg-bg-tertiary rounded px-1">
+      <div className="inline-flex items-center gap-0.5 rounded-lg border border-border-subtle bg-bg-tertiary p-0.5">
         <button
           onClick={() => handleViewModeChange('grid')}
-          className={`p-1.5 rounded btn-transition ${
+          className={`flex h-5 w-5 items-center justify-center rounded-md transition-colors ${
             viewMode === 'grid'
-              ? 'bg-accent-blue text-white'
-              : 'text-text-secondary hover:text-text-primary'
+              ? 'bg-bg-elevated text-accent-blue shadow-sm'
+              : 'text-text-muted hover:bg-bg-hover hover:text-text-secondary'
           }`}
           title={`网格视图 (${toPlatformShortcutLabel('Ctrl+1')})`}
         >
@@ -107,10 +107,10 @@ export default function StatusBar({ className = '' }: StatusBarProps) {
         </button>
         <button
           onClick={() => handleViewModeChange('tabs')}
-          className={`p-1.5 rounded btn-transition ${
+          className={`flex h-5 w-5 items-center justify-center rounded-md transition-colors ${
             viewMode === 'tabs'
-              ? 'bg-accent-blue text-white'
-              : 'text-text-secondary hover:text-text-primary'
+              ? 'bg-bg-elevated text-accent-blue shadow-sm'
+              : 'text-text-muted hover:bg-bg-hover hover:text-text-secondary'
           }`}
           title={`标签页视图 (${toPlatformShortcutLabel('Ctrl+2')})`}
         >
@@ -118,10 +118,10 @@ export default function StatusBar({ className = '' }: StatusBarProps) {
         </button>
         <button
           onClick={() => handleViewModeChange('dashboard')}
-          className={`p-1.5 rounded btn-transition ${
+          className={`flex h-5 w-5 items-center justify-center rounded-md transition-colors ${
             viewMode === 'dashboard'
-              ? 'bg-accent-blue text-white'
-              : 'text-text-secondary hover:text-text-primary'
+              ? 'bg-bg-elevated text-accent-blue shadow-sm'
+              : 'text-text-muted hover:bg-bg-hover hover:text-text-secondary'
           }`}
           title={`仪表盘 (${toPlatformShortcutLabel('Ctrl+3')})`}
         >
@@ -129,10 +129,10 @@ export default function StatusBar({ className = '' }: StatusBarProps) {
         </button>
         <button
           onClick={() => handleViewModeChange('kanban')}
-          className={`p-1.5 rounded btn-transition ${
+          className={`flex h-5 w-5 items-center justify-center rounded-md transition-colors ${
             viewMode === 'kanban'
-              ? 'bg-accent-blue text-white'
-              : 'text-text-secondary hover:text-text-primary'
+              ? 'bg-bg-elevated text-accent-blue shadow-sm'
+              : 'text-text-muted hover:bg-bg-hover hover:text-text-secondary'
           }`}
           title={`任务看板 (${toPlatformShortcutLabel('Ctrl+4')})`}
         >
@@ -142,9 +142,9 @@ export default function StatusBar({ className = '' }: StatusBarProps) {
       </div>
 
       {/* 右侧：会话统计 + Token 用量 + 运行总时间 */}
-      <div className="flex items-center gap-4">
+      <div className="flex min-w-0 items-center justify-end gap-3">
         <div
-          className="hidden md:flex items-center gap-3 text-[11px] cursor-default"
+          className="hidden items-center gap-2 text-[11px] cursor-default md:flex"
           title="会话统计：总计 / 运行 / 等待 / 异常"
         >
           <span className="text-text-muted">
@@ -161,7 +161,7 @@ export default function StatusBar({ className = '' }: StatusBarProps) {
           </span>
         </div>
         <div
-          className="flex md:hidden items-center gap-2 text-[11px] cursor-default"
+          className="flex items-center gap-1.5 text-[11px] cursor-default md:hidden"
           title="会话统计：总计 / 运行 / 等待 / 异常"
         >
           <span className="text-text-muted">总 <span className="font-semibold text-text-primary">{totalSessions}</span></span>
@@ -184,9 +184,9 @@ export default function StatusBar({ className = '' }: StatusBarProps) {
         )}
         <span
           title="应用本次启动运行时长"
-          className="cursor-default"
+          className="hidden cursor-default text-text-muted sm:inline"
         >
-          运行 {formatDuration(elapsed * 1000)}
+          {formatDuration(elapsed * 1000)}
         </span>
       </div>
     </div>
