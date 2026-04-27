@@ -770,7 +770,7 @@ export class KnowledgeCenterService {
               category: row.category as any,
               title: row.title,
               content: row.content,
-              tags: JSON.parse(row.tags || '[]'),
+              tags: this.parseStringList(row.tags),
               priority: row.priority as any,
               autoInject: Boolean(row.auto_inject),
               source: row.source as any,
@@ -790,6 +790,16 @@ export class KnowledgeCenterService {
             LIMIT 1000
           `)
           for (const row of memoryEntries) {
+            const existing = this.db.prepare(`
+              SELECT id FROM unified_knowledge
+              WHERE type = 'cross-session-memory'
+                AND session_id = ?
+                AND content = ?
+              LIMIT 1
+            `).get(row.session_id, row.summary || '') as any
+
+            if (existing) continue
+
             // 为每个记忆生成统一条目
             await this.createEntry({
               type: 'cross-session-memory',
@@ -799,7 +809,7 @@ export class KnowledgeCenterService {
               category: 'summary',
               title: row.session_name || '会话摘要',
               content: row.summary || '',
-              tags: JSON.parse(row.keywords || '[]'),
+              tags: this.parseStringList(row.keywords),
               priority: 'medium',
               autoInject: true,
               source: 'ai-generated',
@@ -920,6 +930,33 @@ export class KnowledgeCenterService {
   /**
    * 辅助方法 - 执行原始 SQL 查询获取所有行
    */
+  private parseStringList(raw: unknown): string[] {
+    if (Array.isArray(raw)) {
+      return raw.map(item => String(item).trim()).filter(Boolean)
+    }
+
+    if (raw === null || raw === undefined) return []
+    const text = String(raw).trim()
+    if (!text) return []
+
+    try {
+      const parsed = JSON.parse(text)
+      if (Array.isArray(parsed)) {
+        return parsed.map(item => String(item).trim()).filter(Boolean)
+      }
+      if (typeof parsed === 'string') {
+        return this.parseStringList(parsed)
+      }
+    } catch {
+      // Legacy rows stored keywords as comma-separated text.
+    }
+
+    return text
+      .split(/[,，;；\n]+/)
+      .map(item => item.trim())
+      .filter(Boolean)
+  }
+
   private rawDbAll(sql: string): any[] {
     if (!this.db) return []
     try {
