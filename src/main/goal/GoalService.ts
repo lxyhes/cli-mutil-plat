@@ -222,6 +222,7 @@ export class GoalService extends EventEmitter {
     }
 
     const planId = result.planSession.id
+    this.linkSession(goalId, sessionId, true)
 
     // 将规划与目标关联(通过活动记录)
     this.addActivity({
