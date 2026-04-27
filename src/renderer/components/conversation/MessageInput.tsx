@@ -17,7 +17,7 @@
  */
 
 import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react'
-import { FileText, Code, FileImage, FileArchive, X, ExternalLink, MessagesSquare, AtSign, Mic, MicOff } from 'lucide-react'
+import { AlertTriangle, Code, ExternalLink, FileArchive, FileImage, FileText, ImagePlus, MessagesSquare, Mic, MicOff, Paperclip, SendHorizontal, AtSign, X } from 'lucide-react'
 import { useSessionStore } from '../../stores/sessionStore'
 import { useUIStore } from '../../stores/uiStore'
 import { toPlatformShortcutLabel } from '../../utils/shortcut'
@@ -983,7 +983,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
 
   return (
     <div
-      className="px-4 pb-3 pt-1 bg-bg-primary relative"
+      className="relative bg-bg-primary px-0 pb-0 pt-1"
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
@@ -1125,7 +1125,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
       )}
 
       <div className={`mx-auto flex max-w-[1080px] flex-col rounded-lg border bg-bg-input p-2 shadow-[0_10px_28px_var(--color-shadow-sm)] transition-colors
-        ${dragOver ? 'border-accent-blue' : 'border-border-subtle'} focus-within:border-accent-blue/50 md:p-3`}>
+        ${dragOver ? 'border-accent-blue' : 'border-border-subtle'} focus-within:border-accent-blue/50 md:p-2.5`}>
 
         {/* 附件区域：图片预览 + 文件引用卡片（有附件时显示） */}
         {hasAttachments && (
@@ -1184,7 +1184,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
         {/* 拖拽覆盖提示 */}
         {dragOver && (
           <div className="flex items-center justify-center py-2 text-xs text-accent-blue gap-1.5">
-            <span>{dragHasNonImage ? '📁' : '🖼️'}</span>
+            {dragHasNonImage ? <Paperclip size={14} /> : <ImagePlus size={14} />}
             <span>{dragHasNonImage ? '松开鼠标添加文件引用' : '松开鼠标添加图片'}</span>
           </div>
         )}
@@ -1192,7 +1192,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
         {/* ★ 语音输入状态提示 */}
         {speechError && (
           <div className="flex items-center justify-center py-1.5 text-xs text-accent-red gap-1.5 bg-accent-red/5 rounded px-2">
-            <span>⚠️</span>
+            <AlertTriangle size={14} />
             <span>{speechError}</span>
             <button
               type="button"
@@ -1267,12 +1267,19 @@ const MessageInput: React.FC<MessageInputProps> = ({
           <button
             onClick={handleSend}
             disabled={isDisabled || (!text.trim() && !hasAttachments)}
-            className="px-3 py-1.5 bg-accent-blue/80 text-white text-xs font-medium
-              rounded-lg hover:bg-accent-blue active:scale-95
+            className="inline-flex h-8 items-center justify-center gap-1.5 rounded-lg bg-accent-blue/80 px-3 text-xs font-medium text-white
+              hover:bg-accent-blue active:scale-95
               disabled:opacity-30 disabled:cursor-not-allowed
               transition-all duration-200 whitespace-nowrap flex-shrink-0"
           >
-            {sending ? <span className="inline-block w-3 h-3 border-2 border-white/40 border-t-white rounded-full animate-spin" /> : '发送'}
+            {sending ? (
+              <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-white/40 border-t-white" />
+            ) : (
+              <>
+                <SendHorizontal size={13} />
+                <span>发送</span>
+              </>
+            )}
           </button>
         </div>
       </div>

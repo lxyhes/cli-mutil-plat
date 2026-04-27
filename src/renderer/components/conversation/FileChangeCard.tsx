@@ -82,47 +82,62 @@ const FileChangeCard: React.FC<FileChangeCardProps> = ({ message }) => {
   ], [expanded, fc, openFileInTab])
 
   return (
-    <div className="my-2 mx-2">
+    <div
+      className={`group my-1.5 ml-3 mr-2 max-w-[min(980px,96%)] rounded-lg transition-colors md:ml-8 md:mr-20 md:max-w-[min(980px,92%)] ${
+        expanded ? 'bg-bg-elevated/70' : ''
+      }`}
+      onContextMenu={(e) => {
+        e.preventDefault()
+        e.stopPropagation()
+        setCtxMenu({ visible: true, x: e.clientX, y: e.clientY })
+      }}
+    >
       {/* 卡片头部 */}
-      <button
-        onClick={() => setExpanded(!expanded)}
-        onContextMenu={(e) => {
-          e.preventDefault()
-          e.stopPropagation()
-          setCtxMenu({ visible: true, x: e.clientX, y: e.clientY })
-        }}
-        className={`w-full text-left flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-mono
-          ${style.bgColor} hover:brightness-110 transition-all border border-border/50`}
-      >
-        <span className="text-[10px] text-text-muted">{expanded ? '▼' : '▶'}</span>
-        <Icon size={14} className={style.color} />
-        <span className={`font-semibold ${style.color}`}>{style.label}</span>
-        <span className="text-text-primary font-medium truncate">{fileName}</span>
-        <span className="text-text-muted truncate flex-1 text-[11px]">{dirPath}</span>
+      <div className="flex items-center gap-1.5">
+        <button
+          onClick={() => setExpanded(!expanded)}
+          className="group flex min-w-0 flex-1 items-center gap-2 rounded-lg px-0 py-1.5 text-left font-mono text-xs text-text-muted transition-colors hover:text-text-secondary"
+        >
+          <span className="flex-shrink-0 text-text-muted/70 group-hover:text-text-secondary">
+            {expanded ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
+          </span>
+          <Icon size={14} className={`${style.color} flex-shrink-0`} />
+          <span className={`flex-shrink-0 font-semibold ${style.color}`}>{style.label}</span>
+          <span className="min-w-0 truncate font-medium text-text-secondary group-hover:text-text-primary">{fileName}</span>
+          <span className="min-w-0 flex-1 truncate text-[11px] text-text-muted/70">{dirPath}</span>
 
-        {/* +N / -N 统计 */}
-        <span className="flex items-center gap-1.5 flex-shrink-0">
-          {fc.additions > 0 && (
-            <span className="flex items-center gap-0.5 text-accent-green">
-              <Plus size={10} />
-              <span>{fc.additions}</span>
-            </span>
-          )}
-          {fc.deletions > 0 && (
-            <span className="flex items-center gap-0.5 text-accent-red">
-              <Minus size={10} />
-              <span>{fc.deletions}</span>
-            </span>
-          )}
-        </span>
-      </button>
+          {/* +N / -N 统计 */}
+          <span className="flex flex-shrink-0 items-center gap-1.5">
+            {fc.additions > 0 && (
+              <span className="flex items-center gap-0.5 text-accent-green">
+                <Plus size={10} />
+                <span>{fc.additions}</span>
+              </span>
+            )}
+            {fc.deletions > 0 && (
+              <span className="flex items-center gap-0.5 text-accent-red">
+                <Minus size={10} />
+                <span>{fc.deletions}</span>
+              </span>
+            )}
+          </span>
+        </button>
+        <button
+          type="button"
+          onClick={() => openFileInTab(fc.filePath)}
+          className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-md text-text-muted opacity-100 transition-colors hover:bg-bg-hover hover:text-accent-blue md:opacity-0 md:group-hover:opacity-100"
+          title="在编辑器中打开"
+        >
+          <ExternalLink size={12} />
+        </button>
+      </div>
 
       {/* 展开的 Diff 区域 */}
       {expanded && (
-        <div className="mt-1 mx-0.5 rounded-lg bg-bg-tertiary border border-border overflow-hidden">
+        <div className="ml-5 mt-1 overflow-hidden rounded-lg border border-border-subtle bg-bg-tertiary">
           {/* Tab 切换（仅当有累积 diff 时显示） */}
           {fc.cumulativeDiff && (
-            <div className="flex border-b border-border">
+            <div className="flex border-b border-border-subtle">
               <button
                 onClick={() => setActiveTab('operation')}
                 className={`px-3 py-1.5 text-[11px] font-medium transition-colors ${

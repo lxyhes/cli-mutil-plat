@@ -275,8 +275,8 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({ message, isStreaming }) =
         <div
           className={`group/message relative text-sm transition-all duration-200
             ${isUser
-              ? 'max-w-[min(640px,70%)] rounded-lg border border-accent-blue/25 bg-accent-blue/10 px-4 py-2.5 text-text-primary shadow-[0_8px_22px_var(--color-shadow-sm)]'
-              : 'max-w-[min(980px,92%)] py-1.5 pl-6 pr-3 text-text-primary'
+              ? 'max-w-[min(640px,86%)] rounded-lg border border-accent-blue/25 bg-accent-blue/10 px-4 py-2.5 text-text-primary shadow-[0_8px_22px_var(--color-shadow-sm)] md:max-w-[min(640px,70%)]'
+              : 'max-w-[min(980px,96%)] py-1.5 pl-4 pr-1 text-text-primary md:max-w-[min(980px,92%)] md:pl-6 md:pr-3'
             } animate-fade-in`}
         >
           {!isUser && (
@@ -290,6 +290,30 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({ message, isStreaming }) =
                     <span title={formatExactTime(timestamp)}>{formatRelativeTime(timestamp)}</span>
                   </>
                 )}
+                <div className="ml-auto flex items-center gap-0.5 opacity-0 transition-opacity group-hover/message:opacity-100">
+                  <button
+                    type="button"
+                    onClick={(event) => {
+                      event.stopPropagation()
+                      navigator.clipboard.writeText(parsedContent.textContent || '')
+                    }}
+                    className="flex h-6 w-6 items-center justify-center rounded-md text-text-muted transition-colors hover:bg-bg-hover hover:text-accent-blue"
+                    title="复制为纯文本"
+                  >
+                    <Copy size={12} />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={(event) => {
+                      event.stopPropagation()
+                      navigator.clipboard.writeText(content || '')
+                    }}
+                    className="flex h-6 w-6 items-center justify-center rounded-md text-text-muted transition-colors hover:bg-bg-hover hover:text-accent-blue"
+                    title="复制 Markdown"
+                  >
+                    <FileText size={12} />
+                  </button>
+                </div>
               </div>
             </>
           )}

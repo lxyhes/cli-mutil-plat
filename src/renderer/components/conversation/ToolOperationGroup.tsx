@@ -73,7 +73,7 @@ const ToolOperationGroup: React.FC<ToolOperationGroupProps> = ({ messages, isAct
 
   return (
     <div
-      className={`my-1.5 ml-8 mr-20 max-w-[min(980px,92%)] overflow-hidden rounded-lg transition-colors ${
+      className={`my-1.5 ml-3 mr-2 max-w-[min(980px,96%)] overflow-hidden rounded-lg transition-colors md:ml-8 md:mr-20 md:max-w-[min(980px,92%)] ${
         isActive
           ? 'bg-accent-purple/5'
           : hasError

@@ -406,7 +406,6 @@ function buildDebugLoopPrompt(input: {
 
 const SessionToolbar: React.FC<SessionToolbarProps> = ({ sessionId, onSkillClick, onSkillExecute, onCodeGraphAnswer, promptActions }) => {
   const [skillPopoverOpen, setSkillPopoverOpen] = useState(false)
-  const [mcpPopoverOpen, setMcpPopoverOpen] = useState(false)
   const [codeGraphPopoverOpen, setCodeGraphPopoverOpen] = useState(false)
   const [codeGraphQuestion, setCodeGraphQuestion] = useState('')
   const [codeGraphLoading, setCodeGraphLoading] = useState(false)
@@ -424,8 +423,6 @@ const SessionToolbar: React.FC<SessionToolbarProps> = ({ sessionId, onSkillClick
   const skillBtnRef = useRef<HTMLButtonElement>(null)
   const skillPopoverRef = useRef<HTMLDivElement>(null)
   const skillFilterRef = useRef<HTMLInputElement>(null)
-  const mcpBtnRef = useRef<HTMLButtonElement>(null)
-  const mcpPopoverRef = useRef<HTMLDivElement>(null)
   const codeGraphBtnRef = useRef<HTMLButtonElement>(null)
   const codeGraphPopoverRef = useRef<HTMLDivElement>(null)
   const [modelPopoverOpen, setModelPopoverOpen] = useState(false)
@@ -1005,7 +1002,6 @@ const SessionToolbar: React.FC<SessionToolbarProps> = ({ sessionId, onSkillClick
 
   // ---- Popover 关闭逻辑 ----
   usePopoverClose(skillPopoverOpen, setSkillPopoverOpen, skillBtnRef, skillPopoverRef)
-  usePopoverClose(mcpPopoverOpen, setMcpPopoverOpen, mcpBtnRef, mcpPopoverRef)
 
   // 点击 Skill 列表项：根据类型路由
   // - native：插入 /command 到输入框，由 CLI 原生处理
@@ -1020,7 +1016,7 @@ const SessionToolbar: React.FC<SessionToolbarProps> = ({ sessionId, onSkillClick
   }, [onSkillClick, onSkillExecute])
 
   return (
-    <div className="relative z-20 mx-auto mb-1 flex min-h-8 w-full max-w-[1080px] flex-nowrap items-center gap-1 overflow-visible rounded-md border border-border-subtle bg-bg-elevated px-2 py-1 whitespace-nowrap shadow-none">
+    <div className="relative z-20 mx-auto mb-1 flex h-8 w-full max-w-[1080px] flex-nowrap items-center gap-1 overflow-visible rounded-lg border border-border-subtle bg-bg-elevated/90 px-2 py-1 whitespace-nowrap shadow-[0_6px_18px_var(--color-shadow-sm)] backdrop-blur-sm">
       <span className="hidden">
         会话配置
       </span>
@@ -1487,83 +1483,6 @@ const SessionToolbar: React.FC<SessionToolbarProps> = ({ sessionId, onSkillClick
         </div>
       )}
 
-      {/* ---- MCP 状态按钮 ---- */}
-      {mcpList.length > 0 && (
-        <div className="relative order-4 flex-shrink-0">
-          <button
-            ref={mcpBtnRef}
-            onClick={() => setMcpPopoverOpen(o => !o)}
-            className={`inline-flex h-6 items-center gap-1 px-1.5 py-0.5 rounded-md text-[11px]
-              bg-bg-tertiary border border-transparent text-text-muted
-              hover:text-text-secondary hover:bg-bg-hover
-              transition-colors cursor-pointer select-none
-              ${mcpPopoverOpen ? 'border-accent-blue/40 text-text-secondary' : ''}`}
-          >
-            <Plug size={12} />
-            <span>能力 {mcpList.length}</span>
-          </button>
-
-          {/* 只读 Popover */}
-          {mcpPopoverOpen && (
-            <div
-              ref={mcpPopoverRef}
-              className="absolute bottom-full left-0 mb-1.5
-                w-64 rounded-lg border border-border-subtle bg-bg-elevated shadow-lg
-                py-1.5 z-50"
-            >
-              <div className="mb-1 border-b border-border-subtle px-3 pb-1.5 text-[11px] font-medium uppercase tracking-wide text-text-muted">
-                当前会话已启用 MCP
-              </div>
-              <div className="max-h-72 overflow-y-auto" style={{ scrollbarWidth: 'thin' }}>
-                {mcpList.map((mcp, mcpIdx) => {
-                  const isExpanded = expandedMcps.has(mcp.key)
-                  const hasTools = mcp.tools && mcp.tools.length > 0
-                  return (
-                    <div key={`mcp-${mcpIdx}-${mcp.key}`}>
-                      {/* MCP 服务器行 */}
-                      <div
-                        className={`px-3 py-1.5 flex items-center gap-2 ${hasTools ? 'cursor-pointer hover:bg-bg-hover' : ''} transition-colors`}
-                        onClick={() => hasTools && toggleMcpExpand(mcp.key)}
-                      >
-                        <span className="w-1.5 h-1.5 rounded-full bg-accent-green flex-shrink-0" />
-                        <span className="flex-1 text-xs text-text-secondary truncate">{mcp.name}</span>
-                        {mcp.category && (
-                          <span className="flex-shrink-0 rounded bg-bg-primary px-1 py-0.5 text-[10px] text-text-muted">
-                            {mcp.category}
-                          </span>
-                        )}
-                        {hasTools && (
-                          <span className="text-[10px] text-text-muted flex-shrink-0 ml-0.5">
-                            {isExpanded ? '▲' : '▼'}
-                          </span>
-                        )}
-                      </div>
-                      {/* 工具列表（展开时显示） */}
-                      {isExpanded && hasTools && (
-                        <div className="bg-bg-primary pb-1">
-                          <div className="px-4 py-0.5 text-[10px] text-text-muted">
-                            {mcp.tools.length} 个工具
-                          </div>
-                          {mcp.tools.map((tool: string, toolIdx: number) => (
-                            <div key={`tool-${mcpIdx}-${toolIdx}`} className="px-5 py-0.5 flex items-center gap-1.5">
-                              <span className="text-text-muted text-[10px]">›</span>
-                              <span className="text-[11px] text-text-secondary font-mono truncate">{tool}</span>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  )
-                })}
-              </div>
-              <div className="mt-0.5 border-t border-border-subtle px-3 pt-1.5">
-                <p className="text-[10px] text-text-muted">在设置中管理 MCP 服务器</p>
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-
       {/* ---- 工具箱功能按钮 ---- */}
       <div className="relative order-4 flex-shrink-0">
         <button
@@ -1576,45 +1495,105 @@ const SessionToolbar: React.FC<SessionToolbarProps> = ({ sessionId, onSkillClick
             ${toolboxPopoverOpen ? 'border-accent-blue/40 text-text-secondary' : ''}`}
         >
           <Zap size={12} />
-          <span>工具箱</span>
+          <span>工具</span>
+          <span className="text-[10px] text-text-muted">{toolboxFeatures.length + mcpList.length}</span>
         </button>
 
-        {/* 工具箱功能 Popover */}
+        {/* 工具与能力 Popover */}
         {toolboxPopoverOpen && (
           <div
             ref={toolboxPopoverRef}
-            className="absolute bottom-full left-0 mb-1.5
-              w-80 rounded-lg border border-border-subtle bg-bg-elevated shadow-lg
+            className="absolute bottom-full right-0 mb-1.5
+              w-80 max-w-[calc(100vw-32px)] rounded-lg border border-border-subtle bg-bg-elevated shadow-lg
               py-1.5 z-50"
           >
-            <div className="mb-1 border-b border-border-subtle px-3 pb-1.5 text-[11px] font-medium uppercase tracking-wide text-text-muted">
-              工具箱功能
+            <div className="mb-1 flex items-center justify-between border-b border-border-subtle px-3 pb-1.5">
+              <span className="text-[11px] font-medium uppercase tracking-wide text-text-muted">工具与能力</span>
+              {mcpList.length > 0 && (
+                <span className="rounded bg-bg-primary px-1.5 py-0.5 text-[10px] text-text-muted">
+                  MCP {mcpList.length}
+                </span>
+              )}
             </div>
-            <div className="max-h-60 overflow-y-auto" style={{ scrollbarWidth: 'thin' }}>
-              {toolboxFeatures.map((feature, idx) => {
-                const Icon = feature.icon
-                return (
-                  <button
-                    key={`toolbox-${idx}-${feature.id}`}
-                    onClick={() => handleToolboxFeatureClick(feature.id)}
-                    className="w-full px-3 py-1.5 flex items-center gap-2 text-left
-                      hover:bg-bg-hover transition-colors"
-                  >
-                    <Icon className={`w-4 h-4 ${feature.color} flex-shrink-0`} />
-                    <div className="flex-1 min-w-0">
-                      <div className="text-xs text-text-secondary font-medium">
-                        {feature.name}
-                      </div>
-                      <div className="text-[11px] text-text-muted leading-snug">
-                        {feature.description}
-                      </div>
-                    </div>
-                  </button>
-                )
-              })}
-            </div>
-            <div className="mt-0.5 border-t border-border-subtle px-3 pt-1.5">
-              <p className="text-[10px] text-text-muted">更多功能在工具箱面板中</p>
+            <div className="max-h-[360px] overflow-y-auto" style={{ scrollbarWidth: 'thin' }}>
+              <div className="px-2">
+                <div className="mb-1 px-1 text-[10px] font-medium uppercase tracking-wide text-text-muted">
+                  工作台
+                </div>
+                <div className="grid grid-cols-2 gap-1">
+                  {toolboxFeatures.map((feature, idx) => {
+                    const Icon = feature.icon
+                    return (
+                      <button
+                        key={`toolbox-${idx}-${feature.id}`}
+                        onClick={() => handleToolboxFeatureClick(feature.id)}
+                        className="flex min-w-0 items-start gap-2 rounded-md px-2 py-1.5 text-left
+                          transition-colors hover:bg-bg-hover"
+                      >
+                        <Icon className={`mt-0.5 h-3.5 w-3.5 ${feature.color} flex-shrink-0`} />
+                        <span className="min-w-0">
+                          <span className="block truncate text-xs font-medium text-text-secondary">
+                            {feature.name}
+                          </span>
+                          <span className="block truncate text-[10px] text-text-muted">
+                            {feature.description}
+                          </span>
+                        </span>
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+
+              {mcpList.length > 0 && (
+                <div className="mt-2 border-t border-border-subtle px-2 pt-2">
+                  <div className="mb-1 flex items-center gap-1 px-1 text-[10px] font-medium uppercase tracking-wide text-text-muted">
+                    <Plug size={11} />
+                    <span>会话能力</span>
+                  </div>
+                  <div className="space-y-0.5">
+                    {mcpList.map((mcp, mcpIdx) => {
+                      const isExpanded = expandedMcps.has(mcp.key)
+                      const hasTools = mcp.tools && mcp.tools.length > 0
+                      return (
+                        <div key={`mcp-${mcpIdx}-${mcp.key}`} className="rounded-md">
+                          <button
+                            type="button"
+                            className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left transition-colors ${hasTools ? 'hover:bg-bg-hover' : ''}`}
+                            onClick={() => hasTools && toggleMcpExpand(mcp.key)}
+                          >
+                            <span className="h-1.5 w-1.5 flex-shrink-0 rounded-full bg-accent-green" />
+                            <span className="min-w-0 flex-1 truncate text-xs text-text-secondary">{mcp.name}</span>
+                            {mcp.category && (
+                              <span className="flex-shrink-0 rounded bg-bg-primary px-1 py-0.5 text-[10px] text-text-muted">
+                                {mcp.category}
+                              </span>
+                            )}
+                            {hasTools && (
+                              <ChevronDown
+                                size={11}
+                                className={`flex-shrink-0 text-text-muted transition-transform ${isExpanded ? 'rotate-180' : ''}`}
+                              />
+                            )}
+                          </button>
+                          {isExpanded && hasTools && (
+                            <div className="ml-4 border-l border-border-subtle pb-1 pl-2">
+                              <div className="py-0.5 text-[10px] text-text-muted">
+                                {mcp.tools.length} 个工具
+                              </div>
+                              {mcp.tools.map((tool: string, toolIdx: number) => (
+                                <div key={`tool-${mcpIdx}-${toolIdx}`} className="truncate py-0.5 font-mono text-[11px] text-text-secondary">
+                                  {tool}
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         )}
