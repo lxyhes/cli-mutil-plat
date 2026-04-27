@@ -19,6 +19,7 @@ import { useSessionStore } from '../../stores/sessionStore'
 import { useSkillStore } from '../../stores/skillStore'
 import { useMcpStore } from '../../stores/mcpStore'
 import { useUIStore } from '../../stores/uiStore'
+import { useFileManagerStore } from '../../stores/fileManagerStore'
 import type { ToolboxFeatureId } from '../../stores/uiStore'
 
 // ---- 类型 ----
@@ -41,9 +42,20 @@ export interface SkillItem {
 }
 
 interface CodeGraphAnswer {
+  projectPath?: string
   summary?: string
   suggestedPrompt?: string
   sections?: Array<{ title: string; items: string[] }>
+  references?: CodeGraphReference[]
+}
+
+interface CodeGraphReference {
+  type: 'file' | 'symbol'
+  filePath: string
+  symbolName?: string
+  line?: number
+  label: string
+  reason: string
 }
 
 interface SessionToolbarProps {
@@ -123,6 +135,14 @@ const REASONING_LABEL: Record<string, string> = {
   high: '\u9ad8',
   xhigh: '\u8d85\u9ad8',
 }
+
+function resolveProjectFilePath(projectPath: string | undefined, filePath: string): string {
+  if (!projectPath || /^[A-Za-z]:[\\/]/.test(filePath) || filePath.startsWith('/') || filePath.startsWith('\\\\')) {
+    return filePath
+  }
+  const separator = projectPath.includes('\\') ? '\\' : '/'
+  return `${projectPath.replace(/[\\/]+$/, '')}${separator}${filePath.replace(/[\\/]+/g, separator)}`
+}
 // ---- 主组件 ----
 
 const SessionToolbar: React.FC<SessionToolbarProps> = ({ sessionId, onSkillClick, onSkillExecute, onCodeGraphAnswer }) => {
@@ -170,6 +190,7 @@ const SessionToolbar: React.FC<SessionToolbarProps> = ({ sessionId, onSkillClick
   const fetchSkills = useSkillStore(s => s.fetchAll)
   const allMcpServers = useMcpStore(s => s.servers)
   const fetchMcps = useMcpStore(s => s.fetchAll)
+  const openFileInTab = useFileManagerStore(s => s.openFileInTab)
 
   // 首次挂载时确保数据已加载
   useEffect(() => {
@@ -428,6 +449,21 @@ const SessionToolbar: React.FC<SessionToolbarProps> = ({ sessionId, onSkillClick
     }
   }, [codeGraphQuestion, workingDirectory, codeGraphLoading, onCodeGraphAnswer])
 
+  const handleOpenGraphReference = useCallback((reference: CodeGraphReference) => {
+    void openFileInTab(resolveProjectFilePath(codeGraphAnswer?.projectPath || workingDirectory, reference.filePath))
+  }, [codeGraphAnswer?.projectPath, workingDirectory, openFileInTab])
+
+  const handleInsertGraphReference = useCallback((reference: CodeGraphReference) => {
+    const absolutePath = resolveProjectFilePath(codeGraphAnswer?.projectPath || workingDirectory, reference.filePath)
+    const lineSuffix = reference.line ? `:${reference.line}` : ''
+    const symbolSuffix = reference.symbolName ? `#${reference.symbolName}` : ''
+    onCodeGraphAnswer?.({
+      suggestedPrompt: reference.type === 'symbol'
+        ? `[符号: ${absolutePath}${lineSuffix}${symbolSuffix}]`
+        : `[文件: ${absolutePath}]`,
+    })
+  }, [codeGraphAnswer?.projectPath, workingDirectory, onCodeGraphAnswer])
+
   // ---- Popover 关闭逻辑 ----
   usePopoverClose(skillPopoverOpen, setSkillPopoverOpen, skillBtnRef, skillPopoverRef)
   usePopoverClose(mcpPopoverOpen, setMcpPopoverOpen, mcpBtnRef, mcpPopoverRef)
@@ -629,6 +665,50 @@ const SessionToolbar: React.FC<SessionToolbarProps> = ({ sessionId, onSkillClick
                       {codeGraphAnswer.sections[0].title}：{codeGraphAnswer.sections[0].items.slice(0, 2).join('；')}
                     </div>
                   ) : null}
+                </div>
+              )}
+              {!!codeGraphAnswer?.references?.length && (
+                <div className="rounded-md border border-border/50 bg-bg-primary/35 px-2.5 py-2">
+                  <div className="mb-1.5 flex items-center justify-between gap-2">
+                    <span className="text-[11px] font-medium text-text-secondary">可操作引用</span>
+                    <span className="text-[10px] text-text-muted">{codeGraphAnswer.references.length} 个</span>
+                  </div>
+                  <div className="max-h-36 space-y-1 overflow-y-auto pr-1" style={{ scrollbarWidth: 'thin' }}>
+                    {codeGraphAnswer.references.slice(0, 10).map((reference, index) => (
+                      <div
+                        key={`${reference.type}-${reference.filePath}-${reference.symbolName || ''}-${index}`}
+                        className="flex items-center gap-1.5 rounded border border-border/35 bg-bg-secondary/40 px-2 py-1.5"
+                        title={`${reference.reason}: ${reference.label}`}
+                      >
+                        <span className={`rounded px-1.5 py-0.5 text-[10px] ${
+                          reference.type === 'symbol'
+                            ? 'bg-accent-purple/10 text-accent-purple'
+                            : 'bg-accent-blue/10 text-accent-blue'
+                        }`}>
+                          {reference.type === 'symbol' ? '符号' : '文件'}
+                        </span>
+                        <span className="min-w-0 flex-1 truncate font-mono text-[11px] text-text-secondary">
+                          {reference.label}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => handleOpenGraphReference(reference)}
+                          className="rounded px-1.5 py-0.5 text-[10px] text-text-muted hover:bg-bg-hover hover:text-accent-blue transition-colors"
+                          title="打开文件"
+                        >
+                          打开
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleInsertGraphReference(reference)}
+                          className="rounded px-1.5 py-0.5 text-[10px] text-text-muted hover:bg-bg-hover hover:text-accent-green transition-colors"
+                          title="插入到输入框"
+                        >
+                          引用
+                        </button>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               )}
             </div>

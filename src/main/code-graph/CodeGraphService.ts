@@ -91,6 +91,15 @@ export interface CodeGraphQuestionSection {
   items: string[]
 }
 
+export interface CodeGraphReference {
+  type: 'file' | 'symbol'
+  filePath: string
+  symbolName?: string
+  line?: number
+  label: string
+  reason: string
+}
+
 export interface CodeGraphQuestionAnswer {
   projectPath: string
   question: string
@@ -99,6 +108,7 @@ export interface CodeGraphQuestionAnswer {
   targetSymbols?: string[]
   summary: string
   sections: CodeGraphQuestionSection[]
+  references: CodeGraphReference[]
   stats: CodeGraphStats
   suggestedPrompt: string
 }
@@ -645,6 +655,7 @@ export class CodeGraphService {
     }
 
     const summary = this.buildQuestionSummary(intent, targetFile, targetSymbols, sections, stats)
+    const references = this.collectQuestionReferences(root, files, targetFile, targetSymbols, sections)
     return {
       projectPath: root,
       question: normalizedQuestion,
@@ -653,6 +664,7 @@ export class CodeGraphService {
       targetSymbols: targetSymbols.length > 0 ? targetSymbols : undefined,
       summary,
       sections,
+      references,
       stats,
       suggestedPrompt: this.buildSuggestedPrompt(root, normalizedQuestion, intent, targetFile, targetSymbols, summary, sections),
     }
@@ -833,6 +845,73 @@ export class CodeGraphService {
       .map(item => `${item.filePath} - ${item.dependents} 个直接依赖方`)
 
     return ranked.length > 0 ? ranked : ['当前图谱里还没有明显的高复用文件。']
+  }
+
+  private collectQuestionReferences(
+    root: string,
+    files: CodeGraphFile[],
+    targetFile: string | undefined,
+    targetSymbols: string[],
+    sections: CodeGraphQuestionSection[],
+  ): CodeGraphReference[] {
+    const knownFiles = new Set(files.map(file => file.filePath))
+    const references = new Map<string, CodeGraphReference>()
+    const addFile = (filePath: string | undefined, reason: string) => {
+      if (!filePath || !knownFiles.has(filePath)) return
+      const key = `file:${filePath}`
+      if (!references.has(key)) {
+        references.set(key, {
+          type: 'file',
+          filePath,
+          label: filePath,
+          reason,
+        })
+      }
+    }
+    const addSymbol = (filePath: string | undefined, symbolName: string | undefined, reason: string, line?: number) => {
+      if (!filePath || !symbolName || !knownFiles.has(filePath)) return
+      const key = `symbol:${filePath}:${symbolName}`
+      if (!references.has(key)) {
+        references.set(key, {
+          type: 'symbol',
+          filePath,
+          symbolName,
+          line,
+          label: `${symbolName} - ${filePath}${line ? `:${line}` : ''}`,
+          reason,
+        })
+      }
+    }
+
+    addFile(targetFile, '目标文件')
+    if (targetFile && targetSymbols.length > 0) {
+      const symbols = this.getSymbols(root, targetFile)
+      for (const symbolName of targetSymbols) {
+        const symbol = symbols.find(item => item.name === symbolName)
+        addSymbol(targetFile, symbolName, '目标符号', symbol?.line)
+      }
+    }
+
+    for (const section of sections) {
+      for (const item of section.items) {
+        for (const file of files) {
+          if (item.includes(file.filePath)) addFile(file.filePath, section.title)
+        }
+
+        const symbolWithFile = item.match(/^([A-Za-z_$][\w$]*)\s+\([^)]+\)\s+-\s+([^，,\s]+)(?:.*?line\s+(\d+))?/)
+        if (symbolWithFile) {
+          addSymbol(symbolWithFile[2], symbolWithFile[1], section.title, symbolWithFile[3] ? Number(symbolWithFile[3]) : undefined)
+          continue
+        }
+
+        const symbolInTargetFile = item.match(/^(?:export\s+)?([A-Za-z_$][\w$]*)\s+\([^)]+\)\s+-\s+line\s+(\d+)/)
+        if (symbolInTargetFile && targetFile) {
+          addSymbol(targetFile, symbolInTargetFile[1], section.title, Number(symbolInTargetFile[2]))
+        }
+      }
+    }
+
+    return Array.from(references.values()).slice(0, 32)
   }
 
   private buildQuestionSummary(

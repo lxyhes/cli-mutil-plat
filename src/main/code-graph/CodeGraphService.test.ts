@@ -139,6 +139,7 @@ describe('CodeGraphService', () => {
     expect(answer.intent).toBe('impact')
     expect(answer.targetFile).toBe('src/util.ts')
     expect(answer.sections.some(section => section.items.some(item => item.includes('src/app.ts')))).toBe(true)
+    expect(answer.references.some(ref => ref.type === 'file' && ref.filePath === 'src/app.ts')).toBe(true)
     expect(answer.suggestedPrompt).toContain('Code Graph')
     expect(answer.suggestedPrompt).toContain('src/util.ts')
   })
