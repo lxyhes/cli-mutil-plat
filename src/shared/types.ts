@@ -328,6 +328,7 @@ export interface Session {
   estimatedTokens: number
   claudeSessionId?: string
   providerId?: string       // 冗余存储，列表展示用
+  isPinned?: boolean
 }
 
 export interface SessionStats {

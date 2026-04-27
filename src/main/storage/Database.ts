@@ -204,7 +204,8 @@ export class DatabaseManager implements MemoryManagedComponent {
         exit_code INTEGER,
         estimated_tokens INTEGER NOT NULL DEFAULT 0,
         config TEXT NOT NULL,
-        claude_session_id TEXT
+        claude_session_id TEXT,
+        is_pinned INTEGER NOT NULL DEFAULT 0
       );
       CREATE TABLE IF NOT EXISTS activity_events (
         id TEXT PRIMARY KEY,
@@ -511,6 +512,7 @@ export class DatabaseManager implements MemoryManagedComponent {
   deleteSession = (...args: Parameters<SessionRepository['deleteSession']>) => this.sessionRepo.deleteSession(...args)
   getSession = (...args: Parameters<SessionRepository['getSession']>) => this.sessionRepo.getSession(...args)
   isSessionNameLocked = (...args: Parameters<SessionRepository['isSessionNameLocked']>) => this.sessionRepo.isSessionNameLocked(...args)
+  toggleSessionPin = (...args: Parameters<SessionRepository['toggleSessionPin']>) => this.sessionRepo.toggleSessionPin(...args)
   getAllSessions = () => this.sessionRepo.getAllSessions()
   getSessionActivities = (...args: Parameters<SessionRepository['getSessionActivities']>) => this.sessionRepo.getSessionActivities(...args)
   addActivityEvent = (...args: Parameters<SessionRepository['addActivityEvent']>) => this.sessionRepo.addActivityEvent(...args)

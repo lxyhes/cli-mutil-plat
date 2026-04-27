@@ -3,7 +3,7 @@
  * @author weibin
  */
 import React, { useState, useEffect, useRef, useCallback } from 'react'
-import { FolderOpen, AlertCircle, RotateCcw, GitBranch, ChevronDown, Cpu, X, FilePlus, FileEdit, FileX, Loader2 } from 'lucide-react'
+import { FolderOpen, AlertCircle, RotateCcw, GitBranch, ChevronDown, Cpu, X, FilePlus, FileEdit, FileX, Loader2, Star } from 'lucide-react'
 import { useSessionStore } from '../../../stores/sessionStore'
 import { STATUS_COLORS } from '../../../../shared/constants'
 import { STATUS_LABELS, AGENT_STATUS_COLORS } from './types'
@@ -78,7 +78,9 @@ export const SessionItem = React.memo(function SessionItem({
             ? 'bg-bg-hover border-orange-500/30 hover:border-orange-500/50 border-l-orange-500/50'
             : needsAttention
               ? 'bg-bg-hover border-accent-yellow/30 hover:border-accent-yellow/50 border-l-accent-yellow/50'
-              : 'bg-bg-hover border-transparent border-l-transparent hover:bg-bg-tertiary hover:border-l-accent-blue/30'
+              : session.isPinned
+                ? 'bg-accent-yellow/5 border-accent-yellow/25 hover:border-accent-yellow/45 border-l-accent-yellow/60'
+                : 'bg-bg-hover border-transparent border-l-transparent hover:bg-bg-tertiary hover:border-l-accent-blue/30'
       }`}
       style={isSelected ? { boxShadow: 'inset 0 0 0 1px rgba(88, 166, 255, 0.25), 0 4px 12px rgba(0, 0, 0, 0.18)' } : undefined}
     >
@@ -127,6 +129,9 @@ export const SessionItem = React.memo(function SessionItem({
                 </span>
               )
             })()}
+            {session.isPinned && (
+              <Star className="h-3 w-3 flex-shrink-0 fill-accent-yellow text-accent-yellow" aria-label="已置顶" />
+            )}
           </div>
 
           {(showDir && dirPath) || branchName ? (

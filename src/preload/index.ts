@@ -120,6 +120,9 @@ if (!ctxBr) {
     delete: (sessionId: string) =>
       ipcRenderer.invoke(IPC.SESSION_DELETE, sessionId),
 
+    togglePin: (sessionId: string) =>
+      ipcRenderer.invoke(IPC.SESSION_TOGGLE_PIN, sessionId),
+
     setModel: (sessionId: string, modelId: string, options?: { reasoningEffort?: string }) =>
       ipcRenderer.invoke(IPC.SESSION_SET_MODEL, sessionId, modelId, options),
 

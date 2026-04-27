@@ -73,6 +73,7 @@ interface SessionState {
   updateSessionName: (id: string, name: string) => void
   renameSession: (id: string, newName: string) => Promise<boolean>
   aiRenameSession: (id: string) => Promise<{ success: boolean; name?: string; error?: string }>
+  toggleSessionPin: (id: string) => Promise<boolean>
   addActivity: (sessionId: string, activity: ActivityEvent) => void
   getActivities: (sessionId: string) => ActivityEvent[]
   getLastActivity: (sessionId: string) => ActivityEvent | undefined
@@ -98,7 +99,11 @@ function getSessionStartTime(session: Session): number {
 }
 
 function sortSessionsByLatest(sessions: Session[]): Session[] {
-  return [...sessions].sort((a, b) => getSessionStartTime(b) - getSessionStartTime(a))
+  return [...sessions].sort((a, b) => {
+    const pinDiff = Number(!!b.isPinned) - Number(!!a.isPinned)
+    if (pinDiff !== 0) return pinDiff
+    return getSessionStartTime(b) - getSessionStartTime(a)
+  })
 }
 
 // 防止创建会话按钮连点导致重复请求
@@ -621,6 +626,43 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     } catch (error) {
       console.error('Failed to rename session:', error)
       return false
+    }
+  },
+
+  toggleSessionPin: async (id: string) => {
+    if (!safeAPI.isAPIReady()) {
+      console.warn('[SessionStore] SpectrAI API not ready')
+      return false
+    }
+
+    const current = get().sessions.find((session) => session.id === id)
+    const optimisticPinned = !current?.isPinned
+    set((state) => ({
+      sessions: sortSessionsByLatest(state.sessions.map((session) =>
+        session.id === id ? { ...session, isPinned: optimisticPinned } : session
+      ))
+    }))
+
+    try {
+      const result = await safeAPI.session.togglePin(id)
+      if (result?.success === false) {
+        throw new Error(result.error || 'Failed to toggle session pin')
+      }
+      const actualPinned = result?.data?.isPinned ?? result?.isPinned ?? optimisticPinned
+      set((state) => ({
+        sessions: sortSessionsByLatest(state.sessions.map((session) =>
+          session.id === id ? { ...session, isPinned: actualPinned } : session
+        ))
+      }))
+      return actualPinned
+    } catch (error) {
+      console.error('Failed to toggle session pin:', error)
+      set((state) => ({
+        sessions: sortSessionsByLatest(state.sessions.map((session) =>
+          session.id === id ? { ...session, isPinned: !!current?.isPinned } : session
+        ))
+      }))
+      return !!current?.isPinned
     }
   },
 

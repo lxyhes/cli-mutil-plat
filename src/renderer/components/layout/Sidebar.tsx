@@ -111,7 +111,7 @@ const SESSION_START_TEMPLATES: SessionStartTemplate[] = [
 
 export function SessionsContent() {
   const { toggleNewTaskDialog, showNewSessionDialog, setShowNewSessionDialog, toggleSearchPanel, setActivePanelLeft, setViewMode } = useUIStore()
-  const { createSession, resumeSession, terminateSession, deleteSession, renameSession, aiRenameSession, sessions, selectSession, selectedSessionId, lastActivities, agents, resumeError, clearResumeError, openSessionForChat } = useSessionStore()
+  const { createSession, resumeSession, terminateSession, deleteSession, renameSession, aiRenameSession, toggleSessionPin, sessions, selectSession, selectedSessionId, lastActivities, agents, resumeError, clearResumeError, openSessionForChat } = useSessionStore()
   const setGitActiveTab = useGitStore((s) => s.setActiveTab)
   // ── 分组方式 ──
   const [groupBy, setGroupBy] = useState<GroupByMode>(() => {
@@ -590,6 +590,22 @@ export function SessionsContent() {
           >
             <Sparkles className={`w-3.5 h-3.5 text-accent-purple ${aiRenamingSessionId === contextMenu.sessionId ? 'animate-pulse' : ''}`} />
             {aiRenamingSessionId === contextMenu.sessionId ? 'AI 命名中...' : 'AI 重命名'}
+          </button>
+          <button
+            onClick={() => {
+              void toggleSessionPin(contextMenu.sessionId)
+              setContextMenu(null)
+            }}
+            className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-text-primary hover:bg-bg-hover btn-transition text-left"
+          >
+            <Star
+              className={`w-3.5 h-3.5 ${
+                sessions.find(s => s.id === contextMenu.sessionId)?.isPinned
+                  ? 'fill-accent-yellow text-accent-yellow'
+                  : 'text-text-muted'
+              }`}
+            />
+            {sessions.find(s => s.id === contextMenu.sessionId)?.isPinned ? '取消置顶' : '置顶会话'}
           </button>
           {(contextMenu.status === 'completed' || contextMenu.status === 'terminated') && (
             <button

@@ -22,20 +22,22 @@ export class SessionRepository {
       startedAt: new Date(),
       estimatedTokens: session.estimatedTokens || 0,
       config: session.config,
-      providerId: session.providerId
+      providerId: session.providerId,
+      isPinned: session.isPinned || false
     }
 
     if (this.usingSqlite) {
       this.db.prepare(`
-        INSERT INTO sessions (id, task_id, name, name_locked, working_directory, status, estimated_tokens, config, provider_id)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO sessions (id, task_id, name, name_locked, working_directory, status, estimated_tokens, config, provider_id, is_pinned)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).run(
         fullSession.id, fullSession.taskId || null,
         fullSession.name, fullSession.nameLocked ? 1 : 0,
         fullSession.workingDirectory,
         fullSession.status, fullSession.estimatedTokens || 0,
         JSON.stringify(fullSession.config),
-        fullSession.providerId || 'claude-code'
+        fullSession.providerId || 'claude-code',
+        fullSession.isPinned ? 1 : 0
       )
     }
 
@@ -64,6 +66,7 @@ export class SessionRepository {
       if (updates.claudeSessionId !== undefined) { fields.push('claude_session_id = ?'); values.push(updates.claudeSessionId) }
       if (updates.config !== undefined) { fields.push('config = ?'); values.push(JSON.stringify(updates.config)) }
       if (updates.nameLocked !== undefined) { fields.push('name_locked = ?'); values.push(updates.nameLocked ? 1 : 0) }
+      if (updates.isPinned !== undefined) { fields.push('is_pinned = ?'); values.push(updates.isPinned ? 1 : 0) }
 
       if (fields.length > 0) {
         values.push(id)
@@ -97,6 +100,22 @@ export class SessionRepository {
       }
     }
     this.memSessions.delete(id)
+  }
+
+  toggleSessionPin(id: string): boolean {
+    const existing = this.getSession(id)
+    if (!existing) throw new Error(`Session not found: ${id}`)
+    const nextPinned = !existing.isPinned
+
+    if (this.usingSqlite) {
+      this.db.prepare('UPDATE sessions SET is_pinned = ? WHERE id = ?').run(nextPinned ? 1 : 0, id)
+    }
+
+    const mem = this.memSessions.get(id)
+    if (mem) {
+      this.memSessions.set(id, { ...mem, isPinned: nextPinned })
+    }
+    return nextPinned
   }
 
   /**
@@ -137,7 +156,7 @@ export class SessionRepository {
     if (this.usingSqlite) {
       try {
         const rows = this.db.prepare(
-          'SELECT * FROM sessions ORDER BY started_at DESC'
+          'SELECT * FROM sessions ORDER BY is_pinned DESC, started_at DESC'
         ).all() as any[]
         const result: Session[] = []
         for (const row of rows) {
@@ -312,7 +331,8 @@ export class SessionRepository {
       config,
       claudeSessionId: row.claude_session_id || undefined,
       providerId: row.provider_id || 'claude-code',
-      nameLocked: row.name_locked === 1
+      nameLocked: row.name_locked === 1,
+      isPinned: row.is_pinned === 1
     }
   }
 }

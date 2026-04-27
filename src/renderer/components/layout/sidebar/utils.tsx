@@ -155,6 +155,9 @@ export function formatSessionName(name: string): React.ReactNode {
 /** 组内会话排序：运行中置顶，再按时间倒序 */
 export function sortSessionsInGroup(sessions: Session[]): void {
   sessions.sort((a, b) => {
+    const aPinned = a.isPinned ? 1 : 0
+    const bPinned = b.isPinned ? 1 : 0
+    if (aPinned !== bPinned) return bPinned - aPinned
     const aR = ACTIVE_STATUSES.has(a.status) ? 1 : 0
     const bR = ACTIVE_STATUSES.has(b.status) ? 1 : 0
     if (aR !== bR) return bR - aR
@@ -185,6 +188,8 @@ export function groupSessionsByTime(sessions: Session[]): TimeGroup[] {
   }
 
   const byTimeDesc = (a: Session, b: Session) => {
+    const pinDiff = Number(!!b.isPinned) - Number(!!a.isPinned)
+    if (pinDiff !== 0) return pinDiff
     const ta = new Date(a.endedAt || a.startedAt).getTime()
     const tb = new Date(b.endedAt || b.startedAt).getTime()
     return tb - ta

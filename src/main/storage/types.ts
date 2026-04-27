@@ -98,6 +98,7 @@ export interface Session {
   claudeSessionId?: string
   providerId?: string
   nameLocked?: boolean
+  isPinned?: boolean
 }
 
 export interface Workflow {

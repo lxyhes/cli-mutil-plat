@@ -746,6 +746,17 @@ export function registerSessionHandlers(deps: IpcDependencies): void {
     }
   })
 
+  ipcMain.handle(IPC.SESSION_TOGGLE_PIN, async (_event, sessionId: string) => {
+    try {
+      const isPinned = database.toggleSessionPin(sessionId)
+      sendToRenderer(IPC.SESSION_REFRESH)
+      return createSuccessResponse({ sessionId, isPinned })
+    } catch (error: any) {
+      console.error('[IPC] SESSION_TOGGLE_PIN error:', error)
+      return createErrorResponse(error, { operation: 'session.togglePin', sessionId })
+    }
+  })
+
   ipcMain.handle(IPC.SESSION_SEND_INPUT, async (_event, sessionId: string, input: string) => {
     try {
       const smV2 = deps.sessionManagerV2
@@ -799,6 +810,7 @@ export function registerSessionHandlers(deps: IpcDependencies): void {
     try {
       const smV2 = deps.sessionManagerV2
       if (!smV2) return []
+      const pinnedById = new Map(database.getAllSessions().map((s: any) => [s.id, !!s.isPinned]))
 
       return smV2.getAllSessions().map(s => ({
         config: s.config,
@@ -810,7 +822,8 @@ export function registerSessionHandlers(deps: IpcDependencies): void {
         id: s.id,
         name: s.name,
         claudeSessionId: s.claudeSessionId,
-        providerId: s.config.providerId || 'claude-code'
+        providerId: s.config.providerId || 'claude-code',
+        isPinned: pinnedById.get(s.id) || false
       }))
     } catch (error) {
       console.error('[IPC] SESSION_GET_ALL error:', error)
@@ -853,7 +866,8 @@ export function registerSessionHandlers(deps: IpcDependencies): void {
         exitCode: s.exitCode,
         estimatedTokens: s.estimatedTokens || 0,
         claudeSessionId: s.claudeSessionId,
-        providerId: s.providerId || 'claude-code'
+        providerId: s.providerId || 'claude-code',
+        isPinned: !!s.isPinned
       }))
     } catch (error) {
       console.error('[IPC] SESSION_GET_HISTORY error:', error)

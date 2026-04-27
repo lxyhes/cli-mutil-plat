@@ -1484,4 +1484,21 @@ export const MIGRATIONS: Migration[] = [
       }
     },
   },
+
+  // v48: Session pinning
+  {
+    version: 48,
+    description: 'add is_pinned to sessions',
+    up(db) {
+      try {
+        if (tableExists(db, 'sessions')) {
+          addColumnIfNotExists(db, 'sessions', 'is_pinned', 'INTEGER NOT NULL DEFAULT 0')
+          db.exec('CREATE INDEX IF NOT EXISTS idx_sessions_pinned_started ON sessions(is_pinned DESC, started_at DESC)')
+        }
+        console.log('[Migration v48] Session is_pinned field added successfully')
+      } catch (err) {
+        console.error('[Migration v48] Failed to add session is_pinned field:', err)
+      }
+    },
+  },
 ]

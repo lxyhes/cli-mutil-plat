@@ -34,6 +34,7 @@ export const IPC = {
   SESSION_SET_MODEL: 'session:set-model',
   SESSION_AI_RENAME: 'session:ai-rename',
   SESSION_DELETE: 'session:delete',
+  SESSION_TOGGLE_PIN: 'session:toggle-pin',
 
   // SDK V2: 对话 API
   SESSION_SEND_MESSAGE: 'session:send-message',
