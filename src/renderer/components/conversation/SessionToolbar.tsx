@@ -14,7 +14,7 @@
  */
 
 import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react'
-import { Zap, Plug, Cpu, Users, Sparkles, FileText, Mic, ShieldCheck, Activity, BookMarked, Brain, ChevronDown, Check, GitBranch, Send } from 'lucide-react'
+import { Zap, Plug, Cpu, Users, Sparkles, FileText, Mic, ShieldCheck, Activity, BookMarked, Brain, ChevronDown, Check, GitBranch, Send, Bug } from 'lucide-react'
 import { useSessionStore } from '../../stores/sessionStore'
 import { useSkillStore } from '../../stores/skillStore'
 import { useMcpStore } from '../../stores/mcpStore'
@@ -194,6 +194,88 @@ function truncateShipText(text: string | undefined, max = 1600): string {
   return text.length > max ? `${text.slice(0, max)}\n...已截断...` : text
 }
 
+function unwrapIpcData<T = any>(result: any): T | undefined {
+  if (!result) return undefined
+  if (result.success === false) return undefined
+  return (result.data || result) as T
+}
+
+function tailText(value: unknown, max = 6000): string {
+  const text = Array.isArray(value) ? value.join('') : String(value || '')
+  const normalized = text.replace(/\r\n/g, '\n').trim()
+  if (normalized.length <= max) return normalized
+  return `...truncated ${normalized.length - max} chars...\n${normalized.slice(-max)}`
+}
+
+function buildDebugModePrompt(input: {
+  sessionId: string
+  workingDirectory: string
+  activities: Array<{ type?: string; detail?: string; timestamp?: string }>
+  logsText: string
+  sessionFiles: any[]
+  shipPlan?: ShipPlan
+  changeSummary?: ShipChangeSummary
+}): string {
+  const activityLines = input.activities.length > 0
+    ? input.activities.slice(-20).map(activity => {
+      const ts = activity.timestamp ? ` [${activity.timestamp}]` : ''
+      return `- ${activity.type || 'activity'}${ts}: ${tailText(activity.detail, 240)}`
+    }).join('\n')
+    : '- 暂无最近活动记录'
+
+  const fileLines = input.sessionFiles.length > 0
+    ? input.sessionFiles.slice(-30).map(file => {
+      const path = file.filePath || file.path || file.relativePath || 'unknown'
+      const type = file.changeType || file.status || 'changed'
+      const time = file.timestamp ? ` @ ${file.timestamp}` : ''
+      return `- ${type}: ${path}${time}`
+    }).join('\n')
+    : '- 暂无本会话文件改动记录'
+
+  const commandLines = input.shipPlan?.commands?.length
+    ? input.shipPlan.commands.map(command => `- ${command.command}  # ${command.label}`).join('\n')
+    : '- 暂无自动识别的验证命令，请先检查 package.json scripts'
+
+  const changedFiles = input.changeSummary?.changedFiles?.length
+    ? input.changeSummary.changedFiles.slice(0, 40).map((file: any) => `- ${file.status || 'changed'}: ${file.path || file.filePath || 'unknown'}`).join('\n')
+    : '- 暂无 git 改动摘要'
+
+  const diffStat = tailText(input.changeSummary?.markdown || input.changeSummary?.summary || '', 5000)
+  const logs = input.logsText || '暂无会话日志'
+
+  return [
+    '请进入 Debug Mode，按“诊断 -> 修复 -> 验证”的闭环处理当前问题。',
+    '',
+    '## 处理规则',
+    '- 先根据日志、最近活动、文件改动判断最可能根因，不要直接大面积重构。',
+    '- 如果需要改代码，只做最小必要修改，并说明为什么改这里。',
+    '- 修复后优先运行下方建议验证命令；如果命令失败，继续定位根因并重跑失败项。',
+    '- 最后输出：根因、改动摘要、验证结果、剩余风险。',
+    '',
+    '## 项目信息',
+    `- Session: ${input.sessionId}`,
+    `- Project: ${input.workingDirectory}`,
+    '',
+    '## 最近活动',
+    activityLines,
+    '',
+    '## 会话日志尾部',
+    '```text',
+    tailText(logs, 8000),
+    '```',
+    '',
+    '## 本会话文件改动',
+    fileLines,
+    '',
+    '## Git 改动摘要',
+    changedFiles,
+    diffStat ? ['```markdown', diffStat, '```'].join('\n') : '',
+    '',
+    '## 建议验证命令',
+    commandLines,
+  ].filter(Boolean).join('\n')
+}
+
 function buildShipRepairTask(run: ShipRunResult, workingDirectory: string, sessionId: string): ShipRepairTaskDraft {
   const failedResults = getFailedShipResults(run)
   const failedNames = failedResults
@@ -267,6 +349,7 @@ const SessionToolbar: React.FC<SessionToolbarProps> = ({ sessionId, onSkillClick
   const [shipPlanLoading, setShipPlanLoading] = useState(false)
   const [shipRunLoading, setShipRunLoading] = useState(false)
   const [shipSummaryLoading, setShipSummaryLoading] = useState(false)
+  const [debugLoading, setDebugLoading] = useState(false)
   const [shipPlanNotice, setShipPlanNotice] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
   /** Skill 搜索框内容 */
   const [skillFilter, setSkillFilter] = useState('')
@@ -570,6 +653,56 @@ const SessionToolbar: React.FC<SessionToolbarProps> = ({ sessionId, onSkillClick
       setCodeGraphLoading(false)
     }
   }, [codeGraphQuestion, workingDirectory, codeGraphLoading, onCodeGraphAnswer])
+
+  const handleCreateDebugPrompt = useCallback(async () => {
+    if (!workingDirectory || debugLoading) return
+    setDebugLoading(true)
+    setShipPlanNotice({
+      type: 'success',
+      message: '正在收集会话日志、最近活动、文件改动和验证计划...',
+    })
+
+    try {
+      const activities = useSessionStore.getState().getActivities(sessionId)
+      const [logsResult, filesResult, planResult, summaryResult] = await Promise.allSettled([
+        window.spectrAI.session.getLogs(sessionId),
+        window.spectrAI.fileManager.getSessionFiles(sessionId),
+        window.spectrAI.ship.createPlan(workingDirectory),
+        window.spectrAI.ship.generateChangeSummary(workingDirectory),
+      ])
+
+      const logsText = logsResult.status === 'fulfilled' ? tailText(logsResult.value, 9000) : ''
+      const sessionFiles = filesResult.status === 'fulfilled' && Array.isArray(filesResult.value) ? filesResult.value : []
+      const shipPlan = planResult.status === 'fulfilled' ? unwrapIpcData<ShipPlan>(planResult.value) : undefined
+      const changeSummary = summaryResult.status === 'fulfilled' ? unwrapIpcData<ShipChangeSummary>(summaryResult.value) : undefined
+
+      const prompt = buildDebugModePrompt({
+        sessionId,
+        workingDirectory,
+        activities,
+        logsText,
+        sessionFiles,
+        shipPlan,
+        changeSummary,
+      })
+
+      onCodeGraphAnswer?.({
+        summary: 'Debug Mode 诊断上下文已生成',
+        suggestedPrompt: prompt,
+      })
+      setShipPlanNotice({
+        type: 'success',
+        message: `已插入 Debug Mode：${activities.length} 条活动、${sessionFiles.length} 个改动文件、${shipPlan?.commands?.length ?? 0} 条验证命令。`,
+      })
+    } catch (error: any) {
+      setShipPlanNotice({
+        type: 'error',
+        message: error?.message || 'Debug Mode 诊断上下文生成失败',
+      })
+    } finally {
+      setDebugLoading(false)
+    }
+  }, [workingDirectory, debugLoading, sessionId, onCodeGraphAnswer])
 
   const handleCreateShipPlan = useCallback(async () => {
     if (!workingDirectory || shipPlanLoading || shipRunLoading || shipSummaryLoading) return
@@ -960,6 +1093,19 @@ const SessionToolbar: React.FC<SessionToolbarProps> = ({ sessionId, onSkillClick
       </div>
 
       {/* ---- QA/SHIP 交付检查 ---- */}
+      <div className="relative order-4 flex-shrink-0">
+        <button
+          type="button"
+          onClick={handleCreateDebugPrompt}
+          disabled={!workingDirectory || debugLoading}
+          className="inline-flex items-center gap-1 rounded-md border border-accent-red/20 bg-accent-red/10 px-2 py-1 text-xs text-accent-red transition-colors hover:bg-accent-red/15 disabled:cursor-not-allowed disabled:opacity-45"
+          title={workingDirectory ? '收集日志、活动、文件改动和验证计划，生成 Debug Mode 诊断提示' : '当前会话没有工作目录'}
+        >
+          <Bug size={12} />
+          <span>{debugLoading ? '诊断中...' : '调试诊断'}</span>
+        </button>
+      </div>
+
       <div className="relative order-4 flex-shrink-0">
         <button
           type="button"
