@@ -6,7 +6,7 @@
 
 // ★ 必须最先导入，激活 electron-log 并重定向 console.*
 import './logger'
-import { app, BrowserWindow, ipcMain, Menu, session } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain, Menu, session } from 'electron'
 
 // ★ 禁用硬件加速，解决某些显卡驱动导致的黑屏问题
 app.disableHardwareAcceleration()
@@ -362,6 +362,21 @@ async function initializeManagers(): Promise<void> {
   // 1. 数据库（最先初始化，其他模块可能依赖）
   const dbPath = join(app.getPath('userData'), 'claudeops.db')
   database = new DatabaseManager(dbPath)
+  if (!database.isUsingSqlite()) {
+    const diagnostics = database.getDiagnostics()
+    const message = [
+      'SQLite persistent storage is not available.',
+      '',
+      `Database path: ${diagnostics.dbPath}`,
+      `Reason: ${diagnostics.sqliteInitError || 'unknown'}`,
+      '',
+      'Session, team, and settings data may be lost after restart until native modules are rebuilt.',
+      'Close all running SpectrAI/Electron windows and run: npm run rebuild:sqlite'
+    ].join('\n')
+
+    console.error('[Database] Persistent storage disabled:', message)
+    dialog.showErrorBox('SpectrAI storage is not persistent', message)
+  }
 
   // 1.2 ★ 执行数据库版本迁移（确保 schema 是最新的）
   try {

@@ -47,6 +47,8 @@ export class DatabaseManager implements MemoryManagedComponent {
   name = 'DatabaseManager'
   private db: any = null
   private usingSqlite: boolean = false
+  private readonly dbPath: string
+  private sqliteInitError?: string
   private lockManager!: LockManager
   private lastCleanupTime?: Date
 
@@ -115,6 +117,7 @@ export class DatabaseManager implements MemoryManagedComponent {
 
 
   constructor(dbPath: string) {
+    this.dbPath = dbPath
     try {
       // 尝试加载 better-sqlite3
       const Database = require('better-sqlite3')
@@ -134,7 +137,11 @@ export class DatabaseManager implements MemoryManagedComponent {
       this.migrateSchema()
       console.log('[Database] SQLite initialized at', dbPath)
     } catch (error) {
-      console.warn('[Database] better-sqlite3 unavailable, using in-memory fallback:', (error as Error).message)
+      this.sqliteInitError = error instanceof Error ? error.message : String(error)
+      console.warn(
+        '[Database] better-sqlite3 unavailable; persistent storage is disabled and data will be lost after restart:',
+        this.sqliteInitError
+      )
       this.usingSqlite = false
     }
 
@@ -773,6 +780,14 @@ export class DatabaseManager implements MemoryManagedComponent {
 
   isUsingSqlite(): boolean {
     return this.usingSqlite
+  }
+
+  getDiagnostics(): { dbPath: string; usingSqlite: boolean; sqliteInitError?: string } {
+    return {
+      dbPath: this.dbPath,
+      usingSqlite: this.usingSqlite,
+      sqliteInitError: this.sqliteInitError
+    }
   }
 
   getPromptOptimizerRepository(): PromptOptimizerRepository {
