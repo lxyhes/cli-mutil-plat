@@ -1014,6 +1014,11 @@ export class CodexAppServerAdapter extends BaseProviderAdapter {
     'item/reasoning/completed': () => {},
     'item/started': (sid, s, ts, p) => this.onItemStarted(sid, s, ts, p),
     'item/completed': (sid, s, ts, p) => this.onItemCompleted(sid, s, ts, p),
+    'thread/started': (sid, s, _ts, p) => {
+      const threadId = p?.thread?.id || p?.id
+      if (threadId) s.threadId = threadId
+      console.debug(`[CodexAdapter][${sid}] thread/started ${threadId || ''}`)
+    },
     'item/commandExecution/requestApproval': (sid, s, ts, p) => {
       const command: string = p.command || ''
       this.handleApprovalRequest(sid, s, ts, {

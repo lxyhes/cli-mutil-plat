@@ -1393,6 +1393,31 @@ export class ClaudeSdkAdapter extends BaseProviderAdapter {
     this.emit('status-change', sessionId, 'waiting_input')
   }
 
+  private cleanupDeadSessionTransport(sessionId: string): void {
+    const sdkQuery = this.sdkQueries.get(sessionId)
+    if (sdkQuery) {
+      try { sdkQuery.close() } catch { /* ignore */ }
+      this.sdkQueries.delete(sessionId)
+    }
+
+    const inputStream = this.inputStreams.get(sessionId)
+    if (inputStream) {
+      try { inputStream.close() } catch { /* ignore */ }
+      this.inputStreams.delete(sessionId)
+    }
+
+    const abortController = this.abortControllers.get(sessionId)
+    if (abortController) {
+      try { abortController.abort() } catch { /* ignore */ }
+      this.abortControllers.delete(sessionId)
+    }
+
+    this.softAbortSessions.delete(sessionId)
+    this.pendingQuestions.delete(sessionId)
+    this.pendingPlanApprovals.delete(sessionId)
+    this.pendingPermissions.delete(sessionId)
+  }
+
   getConversation(sessionId: string): ConversationMessage[] {
     const session = this.sessions.get(sessionId)
     return session?.messages || []
@@ -1642,11 +1667,7 @@ export class ClaudeSdkAdapter extends BaseProviderAdapter {
       // ★ 关闭 inputStream，阻止 SDK 内部继续向已死亡进程写入
       // 不关闭的话，用户在错误状态下发消息会触发 SDK 内部 ProcessTransport 报错，
       // 进而产生 UnhandledPromiseRejectionWarning
-      const deadInputStream = this.inputStreams.get(sessionId)
-      if (deadInputStream) {
-        try { deadInputStream.close() } catch { /* ignore */ }
-        this.inputStreams.delete(sessionId)
-      }
+      this.cleanupDeadSessionTransport(sessionId)
     }
   }
 
@@ -1893,6 +1914,7 @@ export class ClaudeSdkAdapter extends BaseProviderAdapter {
   private fetchAndEmitInitData(sessionId: string, sdkQuery: SDKQuery): void {
     // 延迟 2 秒，等 CLI 进程完成初始化
     setTimeout(() => {
+      if (this.sdkQueries.get(sessionId) !== sdkQuery) return
       sdkQuery.supportedCommands().then(commands => {
         if (commands && commands.length > 0) {
           logger.info(`[ClaudeSdkAdapter] Proactive supportedCommands for ${sessionId}: ${commands.length}, sample: ${JSON.stringify(commands.slice(0, 2))}`)
@@ -1906,11 +1928,12 @@ export class ClaudeSdkAdapter extends BaseProviderAdapter {
           })
         }
       }).catch(err => {
+        if (this.sdkQueries.get(sessionId) !== sdkQuery) return
         // 首次可能失败（CLI 还没就绪），5 秒后重试一次
         logger.debug(`[ClaudeSdkAdapter] supportedCommands() first attempt failed for ${sessionId}, retrying in 5s...`)
         setTimeout(() => {
           const q = this.sdkQueries.get(sessionId)
-          if (!q) return
+          if (!q || q !== sdkQuery) return
           q.supportedCommands().then(commands => {
             if (commands && commands.length > 0) {
               logger.info(`[ClaudeSdkAdapter] Retry supportedCommands for ${sessionId}: ${commands.length}`)
