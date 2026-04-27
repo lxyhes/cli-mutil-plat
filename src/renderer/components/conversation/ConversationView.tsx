@@ -8,7 +8,7 @@
  */
 
 import React, { useEffect, useLayoutEffect, useRef, useMemo, useState, useCallback } from 'react'
-import { AlertTriangle, CheckCircle2, FolderOpen, RotateCcw, Copy, ArrowUp, ArrowDown, Download, X, BookMarked } from 'lucide-react'
+import { AlertTriangle, CheckCircle2, FolderOpen, Plus, RotateCcw, Settings2, Trash2, Copy, ArrowUp, ArrowDown, Download, X, BookMarked } from 'lucide-react'
 import type { ReactNode } from 'react'
 import type { ConversationMessage, UserQuestionMeta, AskUserQuestionMeta } from '../../../shared/types'
 import ContextMenu from '../common/ContextMenu'
@@ -51,13 +51,54 @@ type MessageGroup =
   | { type: 'tool_group'; messages: ConversationMessage[]; isActive: boolean }
   | { type: 'file_change'; message: ConversationMessage }
 
-const COMMON_PROMPTS = [
-  { label: '审视项目', text: '审视下我的项目，先给出结构、风险点和下一步优先级。' },
-  { label: '继续下一步', text: '继续下一步，按最短路径推进，改完后帮我验证。' },
-  { label: '排查问题', text: '帮我排查这个问题，先定位根因，再给出最小修复方案。' },
-  { label: '优化 UI', text: '帮我优化这个页面的 UI/UX，不破坏现有功能，完成后说明改了什么。' },
-  { label: '更新 todo', text: '根据当前进度更新 todo.md，并继续完成最高优先级事项。' },
+interface CommonPrompt {
+  id: string
+  label: string
+  text: string
+}
+
+const COMMON_PROMPTS_STORAGE_KEY = 'prismops-common-prompts'
+
+const DEFAULT_COMMON_PROMPTS: CommonPrompt[] = [
+  { id: 'review-project', label: '审视项目', text: '审视下我的项目，先给出结构、风险点和下一步优先级。' },
+  { id: 'next-step', label: '继续下一步', text: '继续下一步，按最短路径推进，改完后帮我验证。' },
+  { id: 'debug-issue', label: '排查问题', text: '帮我排查这个问题，先定位根因，再给出最小修复方案。' },
+  { id: 'improve-ui', label: '优化 UI', text: '帮我优化这个页面的 UI/UX，不破坏现有功能，完成后说明改了什么。' },
+  { id: 'update-todo', label: '更新 todo', text: '根据当前进度更新 todo.md，并继续完成最高优先级事项。' },
 ]
+
+function normalizeCommonPrompts(value: unknown): CommonPrompt[] {
+  if (!Array.isArray(value)) return DEFAULT_COMMON_PROMPTS
+  const prompts = value
+    .map((item, index) => {
+      if (!item || typeof item !== 'object') return null
+      const raw = item as Partial<CommonPrompt>
+      const label = String(raw.label || '').trim()
+      const text = String(raw.text || '').trim()
+      if (!label || !text) return null
+      return { id: String(raw.id || `custom-${index}-${label}`), label, text }
+    })
+    .filter(Boolean) as CommonPrompt[]
+  return prompts.length > 0 ? prompts : DEFAULT_COMMON_PROMPTS
+}
+
+function loadCommonPrompts(): CommonPrompt[] {
+  try {
+    const raw = localStorage.getItem(COMMON_PROMPTS_STORAGE_KEY)
+    if (raw) return normalizeCommonPrompts(JSON.parse(raw))
+  } catch {
+    // ignore
+  }
+  return DEFAULT_COMMON_PROMPTS
+}
+
+function saveCommonPrompts(prompts: CommonPrompt[]): void {
+  try {
+    localStorage.setItem(COMMON_PROMPTS_STORAGE_KEY, JSON.stringify(prompts))
+  } catch {
+    // ignore
+  }
+}
 
 /**
  * 将消息序列按规则分组：
@@ -127,6 +168,9 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
   const [queuedMessages, setQueuedMessages] = useState<QueuedMessage[]>([])
   const [queueHintText, setQueueHintText] = useState('')
   const [showScrollBottom, setShowScrollBottom] = useState(false)
+  const [commonPrompts, setCommonPrompts] = useState<CommonPrompt[]>(() => loadCommonPrompts())
+  const [promptManagerOpen, setPromptManagerOpen] = useState(false)
+  const [promptDraft, setPromptDraft] = useState({ label: '', text: '' })
   // 记录是否已完成首次滚到底部（每次组件挂载重置）
   const hasScrolledInitially = useRef(false)
 
@@ -383,6 +427,32 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
   const handleJumpToSession = useCallback((targetSessionId: string) => {
     selectSession(targetSessionId)
   }, [selectSession])
+
+  const updateCommonPrompts = useCallback((next: CommonPrompt[]) => {
+    setCommonPrompts(next)
+    saveCommonPrompts(next)
+  }, [])
+
+  const addCommonPrompt = useCallback(() => {
+    const label = promptDraft.label.trim()
+    const text = promptDraft.text.trim()
+    if (!label || !text) return
+    updateCommonPrompts([
+      ...commonPrompts,
+      { id: `custom-${Date.now()}`, label, text },
+    ])
+    setPromptDraft({ label: '', text: '' })
+  }, [commonPrompts, promptDraft, updateCommonPrompts])
+
+  const removeCommonPrompt = useCallback((id: string) => {
+    const next = commonPrompts.filter(prompt => prompt.id !== id)
+    updateCommonPrompts(next.length > 0 ? next : DEFAULT_COMMON_PROMPTS)
+  }, [commonPrompts, updateCommonPrompts])
+
+  const resetCommonPrompts = useCallback(() => {
+    updateCommonPrompts(DEFAULT_COMMON_PROMPTS)
+    setPromptDraft({ label: '', text: '' })
+  }, [updateCommonPrompts])
 
   // 右键菜单项
   const ctxMenuItems: MenuItem[] = [
@@ -688,9 +758,9 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
 
           <div className="mx-auto mb-2 flex w-full max-w-[1080px] items-center gap-1.5 overflow-x-auto rounded-2xl border border-border/35 bg-bg-secondary/25 px-2.5 py-2">
             <span className="flex-shrink-0 text-[11px] font-medium text-text-muted">常用提示词</span>
-            {COMMON_PROMPTS.map(prompt => (
+            {commonPrompts.map(prompt => (
               <button
-                key={prompt.label}
+                key={prompt.id}
                 type="button"
                 onClick={() => setPendingInsert(prompt.text)}
                 disabled={!canSend}
@@ -700,7 +770,80 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
                 {prompt.label}
               </button>
             ))}
+            <button
+              type="button"
+              onClick={() => setPromptManagerOpen(open => !open)}
+              className={`ml-auto flex-shrink-0 rounded-full border px-2 py-1 text-xs transition-colors ${
+                promptManagerOpen
+                  ? 'border-accent-blue/45 bg-accent-blue/10 text-accent-blue'
+                  : 'border-border/45 bg-bg-primary/35 text-text-muted hover:border-accent-blue/40 hover:text-accent-blue'
+              }`}
+              title="管理常用提示词"
+            >
+              <Settings2 size={12} />
+            </button>
           </div>
+
+          {promptManagerOpen && (
+            <div className="mx-auto mb-2 w-full max-w-[1080px] rounded-2xl border border-border/35 bg-bg-secondary/35 p-3 shadow-sm">
+              <div className="mb-2 flex items-center justify-between gap-2">
+                <span className="text-xs font-medium text-text-secondary">管理常用提示词</span>
+                <button
+                  type="button"
+                  onClick={resetCommonPrompts}
+                  className="inline-flex items-center gap-1 rounded-md border border-border/35 px-2 py-1 text-[11px] text-text-muted hover:border-accent-blue/35 hover:text-accent-blue transition-colors"
+                >
+                  <RotateCcw size={11} />
+                  恢复默认
+                </button>
+              </div>
+              <div className="mb-2 grid gap-2 md:grid-cols-[160px_1fr_auto]">
+                <input
+                  value={promptDraft.label}
+                  onChange={event => setPromptDraft(draft => ({ ...draft, label: event.target.value }))}
+                  placeholder="名称，例如：写测试"
+                  className="rounded-lg border border-border bg-bg-primary px-2.5 py-1.5 text-xs text-text-primary placeholder:text-text-muted focus:border-accent-blue/50 focus:outline-none"
+                />
+                <input
+                  value={promptDraft.text}
+                  onChange={event => setPromptDraft(draft => ({ ...draft, text: event.target.value }))}
+                  onKeyDown={event => {
+                    if (event.key === 'Enter') addCommonPrompt()
+                  }}
+                  placeholder="提示词内容"
+                  className="rounded-lg border border-border bg-bg-primary px-2.5 py-1.5 text-xs text-text-primary placeholder:text-text-muted focus:border-accent-blue/50 focus:outline-none"
+                />
+                <button
+                  type="button"
+                  onClick={addCommonPrompt}
+                  disabled={!promptDraft.label.trim() || !promptDraft.text.trim()}
+                  className="inline-flex items-center justify-center gap-1 rounded-lg bg-accent-blue/80 px-3 py-1.5 text-xs font-medium text-white hover:bg-accent-blue disabled:cursor-not-allowed disabled:opacity-40 transition-colors"
+                >
+                  <Plus size={12} />
+                  添加
+                </button>
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                {commonPrompts.map(prompt => (
+                  <div
+                    key={`manage-${prompt.id}`}
+                    className="inline-flex max-w-full items-center gap-1.5 rounded-full border border-border/45 bg-bg-primary/35 px-2 py-1 text-xs text-text-secondary"
+                    title={prompt.text}
+                  >
+                    <span className="truncate max-w-[180px]">{prompt.label}</span>
+                    <button
+                      type="button"
+                      onClick={() => removeCommonPrompt(prompt.id)}
+                      className="rounded-full p-0.5 text-text-muted hover:bg-accent-red/10 hover:text-accent-red transition-colors"
+                      title="删除"
+                    >
+                      <Trash2 size={11} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {queuedMessages.length > 0 && (
             <div className="px-4 pb-1">
