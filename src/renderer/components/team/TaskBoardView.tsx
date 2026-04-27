@@ -6,7 +6,7 @@
 
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import {
-  LayoutGrid, GitBranch, Lock, AlertCircle, ChevronDown, RefreshCw
+  LayoutGrid, GitBranch, Lock, AlertCircle, ChevronDown, RefreshCw, RotateCcw, UserRoundCheck, Hand
 } from 'lucide-react'
 import { useTeamStore } from '../../stores/teamStore'
 import type { DAGValidation, TaskDAGNode, TeamTask } from '../../../shared/types'
@@ -43,13 +43,22 @@ interface TaskCardProps {
   members: any[]
   onEdit: (task: TeamTask) => void
   onCancelTask: (teamId: string, taskId: string) => Promise<boolean>
+  onRetryTask: (task: TeamTask, memberId?: string) => Promise<boolean>
+  onManualTask: (task: TeamTask) => Promise<void>
   teamId: string
 }
 
-function TaskCard({ task, dagNode, members, onEdit, onCancelTask, teamId }: TaskCardProps) {
+function TaskCard({ task, dagNode, members, onEdit, onCancelTask, onRetryTask, onManualTask, teamId }: TaskCardProps) {
   const [showMenu, setShowMenu] = useState(false)
   const colors = STATUS_COLORS[task.status] || STATUS_COLORS.pending
   const claimedMember = members.find((m: any) => m.id === task.claimedBy)
+  const assignedMember = members.find((m: any) => m.id === task.assignedTo)
+  const ownerMember = claimedMember || assignedMember
+  const alternateMember = members.find((m: any) =>
+    m.status !== 'failed' &&
+    m.id !== ownerMember?.id &&
+    (!ownerMember?.providerId || m.providerId !== ownerMember.providerId)
+  ) || members.find((m: any) => m.status !== 'failed' && m.id !== ownerMember?.id)
 
   return (
     <div
@@ -102,6 +111,43 @@ function TaskCard({ task, dagNode, members, onEdit, onCancelTask, teamId }: Task
           <div className="text-[9px] text-red-400 flex items-center gap-1">
             <Lock className="w-2.5 h-2.5 flex-shrink-0" />
             <span>等待 {dagNode.blockedBy.length} 个依赖完成</span>
+          </div>
+        </div>
+      )}
+
+      {task.status === 'failed' && (
+        <div className="mt-2 space-y-1.5">
+          {task.result && (
+            <div className="line-clamp-2 rounded bg-red-500/10 px-1.5 py-1 text-[10px] text-red-300">
+              {task.result}
+            </div>
+          )}
+          <div className="grid grid-cols-3 gap-1">
+            <button
+              onClick={(e) => { e.stopPropagation(); void onRetryTask(task) }}
+              className="flex items-center justify-center gap-1 rounded bg-bg-secondary px-1.5 py-1 text-[10px] text-text-secondary hover:text-accent-green"
+              title="重置为待办，让团队重新认领"
+            >
+              <RotateCcw className="h-3 w-3" />
+              重试
+            </button>
+            <button
+              onClick={(e) => { e.stopPropagation(); if (alternateMember) void onRetryTask(task, alternateMember.id) }}
+              disabled={!alternateMember}
+              className="flex items-center justify-center gap-1 rounded bg-bg-secondary px-1.5 py-1 text-[10px] text-text-secondary hover:text-accent-blue disabled:opacity-40"
+              title={alternateMember ? `改派给 ${alternateMember.role?.name || alternateMember.roleId} (${alternateMember.providerId})` : '没有可用的其他成员'}
+            >
+              <UserRoundCheck className="h-3 w-3" />
+              换模型
+            </button>
+            <button
+              onClick={(e) => { e.stopPropagation(); void onManualTask(task) }}
+              className="flex items-center justify-center gap-1 rounded bg-bg-secondary px-1.5 py-1 text-[10px] text-text-secondary hover:text-yellow-500"
+              title="向团队广播人工介入请求"
+            >
+              <Hand className="h-3 w-3" />
+              人工
+            </button>
           </div>
         </div>
       )}
@@ -410,7 +456,7 @@ interface TaskBoardViewProps {
 }
 
 export default function TaskBoardView({ teamId, tasks, members }: TaskBoardViewProps) {
-  const { fetchTaskDAG, cancelTask } = useTeamStore()
+  const { fetchTaskDAG, cancelTask, retryTask, broadcastMessage } = useTeamStore()
   const [viewMode, setViewMode] = useState<ViewMode>('board')
   const [dag, setDAG] = useState<TaskDAGNode[]>([])
   const [validation, setValidation] = useState<DAGValidation>({ valid: true, cycles: [], missingDependencies: [], readyTasks: [], blockedTasks: [] })
@@ -443,6 +489,22 @@ export default function TaskBoardView({ teamId, tasks, members }: TaskBoardViewP
 
   const handleCancelTask = async (tid: string, taskId: string): Promise<boolean> => {
     return cancelTask(tid, taskId)
+  }
+
+  const handleRetryTask = async (task: TeamTask, memberId?: string): Promise<boolean> => {
+    const note = memberId ? '换模型/成员后重试' : '原任务重试'
+    const retried = await retryTask(teamId, task.id, { memberId, note })
+    if (retried) {
+      await loadDAG()
+      return true
+    }
+    return false
+  }
+
+  const handleManualTask = async (task: TeamTask): Promise<void> => {
+    const note = prompt('转人工处理说明', `请人工介入处理失败任务：${task.title}`)
+    if (note === null) return
+    await broadcastMessage(teamId, note.trim() || `请人工介入处理失败任务：${task.title}`)
   }
 
   const columns: { key: string; label: string; statuses: string[] }[] = [
@@ -552,6 +614,8 @@ export default function TaskBoardView({ teamId, tasks, members }: TaskBoardViewP
                           members={members}
                           onEdit={setEditingTask}
                           onCancelTask={handleCancelTask}
+                          onRetryTask={handleRetryTask}
+                          onManualTask={handleManualTask}
                           teamId={teamId}
                         />
                       ))

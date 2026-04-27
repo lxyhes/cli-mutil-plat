@@ -1466,4 +1466,22 @@ export const MIGRATIONS: Migration[] = [
       }
     },
   },
+
+  // v47: Per-member Team provider/model/prompt configuration
+  {
+    version: 47,
+    description: 'add per-member team provider model and prompt overrides',
+    up(db) {
+      try {
+        if (tableExists(db, 'team_members')) {
+          addColumnIfNotExists(db, 'team_members', 'model_override', 'TEXT')
+          addColumnIfNotExists(db, 'team_members', 'prompt_override', 'TEXT')
+          addColumnIfNotExists(db, 'team_members', 'role_system_prompt', 'TEXT')
+        }
+        console.log('[Migration v47] Team member model/prompt fields added successfully')
+      } catch (err) {
+        console.error('[Migration v47] Failed to add team member model/prompt fields:', err)
+      }
+    },
+  },
 ]

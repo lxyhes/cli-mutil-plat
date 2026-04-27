@@ -72,6 +72,9 @@ export class TeamRepository {
           session_id TEXT,
           status TEXT NOT NULL DEFAULT 'idle',
           provider_id TEXT,
+          model_override TEXT,
+          prompt_override TEXT,
+          role_system_prompt TEXT,
           goal_round INTEGER DEFAULT 1,
           retry_count INTEGER DEFAULT 0,
           max_retries INTEGER DEFAULT 2,
@@ -89,6 +92,11 @@ export class TeamRepository {
         )
       `)
       this.db.exec(`CREATE INDEX IF NOT EXISTS idx_team_members_instance ON team_members(instance_id)`)
+      this.ensureExistingColumns('team_members', {
+        model_override: 'TEXT',
+        prompt_override: 'TEXT',
+        role_system_prompt: 'TEXT',
+      })
 
       this.db.exec(`
         CREATE TABLE IF NOT EXISTS team_tasks (
@@ -157,6 +165,17 @@ export class TeamRepository {
       if (row && row[key] !== undefined && row[key] !== null) return row[key] as T
     }
     return undefined
+  }
+
+  private ensureExistingColumns(tableName: string, columns: Record<string, string>): void {
+    if (!this.db) return
+    const existing = this.getTableColumns(tableName)
+    for (const [column, definition] of Object.entries(columns)) {
+      if (existing.has(column)) continue
+      this.db.exec(`ALTER TABLE ${tableName} ADD COLUMN ${column} ${definition}`)
+      existing.add(column)
+    }
+    this.tableColumnsCache.set(tableName, existing)
   }
 
   private updateByExistingColumns(
@@ -346,6 +365,9 @@ export class TeamRepository {
         session_id: member.sessionId,
         status: member.status,
         provider_id: member.providerId,
+        model_override: member.modelOverride || null,
+        prompt_override: member.promptOverride || null,
+        role_system_prompt: member.role.systemPrompt || null,
         goal_round: 1,
         retry_count: 0,
         max_retries: 2,
@@ -389,12 +411,14 @@ export class TeamRepository {
           icon: this.getRowValue<string>(row, 'role_icon') || '',
           color: this.getRowValue<string>(row, 'role_color') || '',
           description: '',
-          systemPrompt: '',
+          systemPrompt: this.getRowValue<string>(row, 'role_system_prompt', 'prompt_override') || '',
           isLeader: this.getRowValue<string>(row, 'role_identifier') === 'leader',
         },
         sessionId: this.getRowValue<string>(row, 'session_id') || '',
         status: this.getRowValue<string>(row, 'status') || 'idle',
         providerId: this.getRowValue<string>(row, 'provider_id') || '',
+        modelOverride: this.getRowValue<string>(row, 'model_override') || undefined,
+        promptOverride: this.getRowValue<string>(row, 'prompt_override') || undefined,
         currentTaskId: this.getRowValue<string>(row, 'current_task_id'),
         workDir: this.getRowValue<string>(row, 'work_dir') || undefined,
         worktreePath: this.getRowValue<string>(row, 'worktree_path') || undefined,
@@ -423,12 +447,22 @@ export class TeamRepository {
     }
   }
 
-  updateMember(memberId: string, updates: Partial<Pick<TeamMember, 'status' | 'currentTaskId' | 'lastActiveAt'>>): void {
+  updateMember(
+    memberId: string,
+    updates: Partial<Pick<TeamMember, 'status' | 'currentTaskId' | 'lastActiveAt' | 'providerId' | 'role'>> & {
+      modelOverride?: string | null
+      promptOverride?: string | null
+    }
+  ): void {
     if (!this.db) return
     try {
       this.updateByExistingColumns('team_members', 'id = ?', [memberId], {
         ...(updates.status !== undefined ? { status: updates.status } : {}),
         ...(updates.currentTaskId !== undefined ? { current_task_id: updates.currentTaskId } : {}),
+        ...(updates.providerId !== undefined ? { provider_id: updates.providerId } : {}),
+        ...(updates.modelOverride !== undefined ? { model_override: updates.modelOverride || null } : {}),
+        ...(updates.promptOverride !== undefined ? { prompt_override: updates.promptOverride || null } : {}),
+        ...(updates.role?.systemPrompt !== undefined ? { role_system_prompt: updates.role.systemPrompt || null } : {}),
         last_active_at: updates.lastActiveAt ?? new Date().toISOString(),
       })
     } catch (err) {
@@ -467,12 +501,14 @@ export class TeamRepository {
           icon: this.getRowValue<string>(r, 'role_icon') || '',
           color: this.getRowValue<string>(r, 'role_color') || '',
           description: '',
-          systemPrompt: '',
+          systemPrompt: this.getRowValue<string>(r, 'role_system_prompt', 'prompt_override') || '',
           isLeader: this.getRowValue<string>(r, 'role_identifier') === 'leader',
         },
         sessionId: this.getRowValue<string>(r, 'session_id') || '',
         status: (this.getRowValue<string>(r, 'status') || 'idle') as MemberStatus,
         providerId: this.getRowValue<string>(r, 'provider_id') || '',
+        modelOverride: this.getRowValue<string>(r, 'model_override') || undefined,
+        promptOverride: this.getRowValue<string>(r, 'prompt_override') || undefined,
         currentTaskId: this.getRowValue<string>(r, 'current_task_id'),
         workDir: this.getRowValue<string>(r, 'work_dir') || undefined,
         worktreePath: this.getRowValue<string>(r, 'worktree_path') || undefined,
@@ -506,12 +542,14 @@ export class TeamRepository {
           icon: this.getRowValue<string>(r, 'role_icon') || '',
           color: this.getRowValue<string>(r, 'role_color') || '',
           description: '',
-          systemPrompt: '',
+          systemPrompt: this.getRowValue<string>(r, 'role_system_prompt', 'prompt_override') || '',
           isLeader: this.getRowValue<string>(r, 'role_identifier') === 'leader',
         },
         sessionId: this.getRowValue<string>(r, 'session_id') || '',
         status: (this.getRowValue<string>(r, 'status') || 'idle') as MemberStatus,
         providerId: this.getRowValue<string>(r, 'provider_id') || '',
+        modelOverride: this.getRowValue<string>(r, 'model_override') || undefined,
+        promptOverride: this.getRowValue<string>(r, 'prompt_override') || undefined,
         currentTaskId: this.getRowValue<string>(r, 'current_task_id'),
         workDir: this.getRowValue<string>(r, 'work_dir') || undefined,
         worktreePath: this.getRowValue<string>(r, 'worktree_path') || undefined,
@@ -981,7 +1019,7 @@ export class TeamRepository {
     }
   }
 
-  updateTaskFull(taskId: string, updates: Partial<Pick<TeamTask, 'title' | 'description' | 'priority' | 'dependencies' | 'status' | 'claimedBy' | 'claimedAt' | 'result' | 'assignedTo'>>): void {
+  updateTaskFull(taskId: string, updates: Partial<Pick<TeamTask, 'title' | 'description' | 'priority' | 'dependencies' | 'status' | 'claimedBy' | 'claimedAt' | 'result' | 'assignedTo' | 'completedAt'>>): void {
     if (!this.db) return
     try {
       const setParts: string[] = []
@@ -995,6 +1033,7 @@ export class TeamRepository {
       if (updates.claimedAt !== undefined) { setParts.push('claimed_at = ?'); values.push(updates.claimedAt) }
       if (updates.result !== undefined) { setParts.push('result = ?'); values.push(updates.result) }
       if (updates.assignedTo !== undefined) { setParts.push('assigned_to = ?'); values.push(updates.assignedTo) }
+      if (updates.completedAt !== undefined) { setParts.push('completed_at = ?'); values.push(updates.completedAt) }
       if (setParts.length === 0) return
       values.push(taskId)
       this.db.prepare(`UPDATE team_tasks SET ${setParts.join(', ')} WHERE id = ?`).run(...values)

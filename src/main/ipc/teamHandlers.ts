@@ -196,6 +196,15 @@ export function registerTeamHandlers(deps: IpcDependencies): void {
   })
 
   // ---- 阶段 3: 任务编辑 ----
+  ipcMain.handle(IPC.TEAM_UPDATE_MEMBER, async (_event, teamId: string, memberId: string, updates: any) => {
+    try {
+      const member = teamManager.updateMemberConfig(teamId, memberId, updates)
+      return { success: true, member }
+    } catch (err) {
+      return { success: false, error: err instanceof Error ? err.message : String(err) }
+    }
+  })
+
   ipcMain.handle(IPC.TEAM_UPDATE_TASK, async (_event, teamId: string, taskId: string, updates: any) => {
     try {
       const task = teamManager.updateTask(teamId, taskId, updates)
@@ -218,6 +227,15 @@ export function registerTeamHandlers(deps: IpcDependencies): void {
     try {
       teamManager.reassignTask(teamId, taskId, newMemberId)
       return { success: true }
+    } catch (err) {
+      return { success: false, error: err instanceof Error ? err.message : String(err) }
+    }
+  })
+
+  ipcMain.handle(IPC.TEAM_RETRY_TASK, async (_event, teamId: string, taskId: string, options?: { memberId?: string; note?: string }) => {
+    try {
+      const task = teamManager.retryTask(teamId, taskId, options)
+      return { success: true, task }
     } catch (err) {
       return { success: false, error: err instanceof Error ? err.message : String(err) }
     }

@@ -955,6 +955,8 @@ export interface TeamMember {
   sessionId: string
   status: MemberStatus
   providerId: string
+  modelOverride?: string | null
+  promptOverride?: string | null
   currentTaskId?: string
   workDir?: string
   worktreePath?: string

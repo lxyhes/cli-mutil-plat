@@ -6,7 +6,7 @@
  * @author weibin
  */
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import type { ReactNode } from 'react'
 import {
   Users, MessageSquare, ListChecks, BarChart,
@@ -76,6 +76,38 @@ export default function TeamSessionView() {
   const inProgressTasks = tasks.filter(t => t.status === 'in_progress').length
   const pendingTasks = tasks.filter(t => t.status === 'pending').length
   const progressPercent = tasks.length > 0 ? Math.round((completedTasks / tasks.length) * 100) : 0
+  const executionSnapshot = useMemo(() => {
+    const members = team?.members || []
+    const completedKeys = new Set(
+      tasks
+        .filter(task => task.status === 'completed')
+        .flatMap(task => [task.id, task.title]),
+    )
+    const activeWork = members
+      .map(member => {
+        const currentTask =
+          tasks.find(task => task.id === member.currentTaskId) ||
+          tasks.find(task => task.claimedBy === member.id && task.status === 'in_progress')
+        return { member, currentTask }
+      })
+      .filter(item => item.member.status === 'running' || item.currentTask)
+      .slice(0, 4)
+
+    const blockedTasks = tasks
+      .filter(task =>
+        task.status === 'pending' &&
+        Array.isArray(task.dependencies) &&
+        task.dependencies.some(depId => !completedKeys.has(depId)),
+      )
+      .slice(0, 3)
+
+    const outputs = tasks
+      .filter(task => task.status === 'completed' && task.result)
+      .sort((a, b) => new Date(b.completedAt || b.createdAt).getTime() - new Date(a.completedAt || a.createdAt).getTime())
+      .slice(0, 2)
+
+    return { activeWork, blockedTasks, outputs }
+  }, [tasks, team])
 
   const tabs: { key: TabType; label: string; icon: ReactNode; badge?: number }[] = [
     { key: 'studio', label: '工作室', icon: <MonitorSmartphone size={14} /> },
@@ -182,6 +214,67 @@ export default function TeamSessionView() {
               className="h-full bg-accent-green transition-all duration-500"
               style={{ width: `${progressPercent}%` }}
             />
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 gap-2 mb-3 lg:grid-cols-3">
+          <div className="rounded-lg border border-border bg-bg-secondary/70 px-3 py-2">
+            <div className="mb-1.5 flex items-center gap-1.5 text-[10px] font-medium uppercase tracking-wide text-text-muted">
+              <Activity size={11} className="text-accent-green" />
+              谁在做
+            </div>
+            <div className="space-y-1">
+              {executionSnapshot.activeWork.length > 0 ? executionSnapshot.activeWork.map(({ member, currentTask }) => (
+                <button
+                  key={member.id}
+                  onClick={() => setSelectedMemberId(member.id)}
+                  className="flex w-full items-center gap-2 rounded-md px-1.5 py-1 text-left hover:bg-bg-hover"
+                >
+                  <span className="text-xs">{member.role?.icon || '👤'}</span>
+                  <span className="min-w-0 flex-1 truncate text-xs text-text-secondary">
+                    {member.role?.name || member.roleId}
+                    <span className="text-text-muted"> · </span>
+                    {currentTask?.title || '等待领取任务'}
+                  </span>
+                </button>
+              )) : (
+                <div className="text-xs text-text-muted">暂无成员正在执行任务</div>
+              )}
+            </div>
+          </div>
+
+          <div className="rounded-lg border border-border bg-bg-secondary/70 px-3 py-2">
+            <div className="mb-1.5 flex items-center gap-1.5 text-[10px] font-medium uppercase tracking-wide text-text-muted">
+              <AlertTriangle size={11} className="text-yellow-500" />
+              卡在哪里
+            </div>
+            <div className="space-y-1">
+              {executionSnapshot.blockedTasks.length > 0 ? executionSnapshot.blockedTasks.map(task => (
+                <div key={task.id} className="rounded-md bg-yellow-500/10 px-1.5 py-1 text-xs text-yellow-500">
+                  <div className="truncate text-text-secondary">{task.title}</div>
+                  <div className="mt-0.5 text-[10px] text-text-muted">等待 {task.dependencies.length} 个依赖</div>
+                </div>
+              )) : (
+                <div className="text-xs text-text-muted">暂无明显阻塞</div>
+              )}
+            </div>
+          </div>
+
+          <div className="rounded-lg border border-border bg-bg-secondary/70 px-3 py-2">
+            <div className="mb-1.5 flex items-center gap-1.5 text-[10px] font-medium uppercase tracking-wide text-text-muted">
+              <CheckCircle size={11} className="text-accent-blue" />
+              产出是什么
+            </div>
+            <div className="space-y-1">
+              {executionSnapshot.outputs.length > 0 ? executionSnapshot.outputs.map(task => (
+                <div key={task.id} className="rounded-md bg-accent-blue/10 px-1.5 py-1">
+                  <div className="truncate text-xs text-text-secondary">{task.title}</div>
+                  <div className="mt-0.5 line-clamp-2 text-[10px] text-text-muted">{task.result}</div>
+                </div>
+              )) : (
+                <div className="text-xs text-text-muted">暂无已记录的任务产出</div>
+              )}
+            </div>
           </div>
         </div>
 

@@ -350,6 +350,7 @@ export class TeamManager extends EventEmitter {
         id: member.sessionId,
         name: `TeamMember:${member.role.identifier}`,
         providerId: member.providerId,
+        modelOverride: member.modelOverride || undefined,
         workingDirectory: member.workDir || this.activeTeams.get(member.instanceId)?.workDir || '',
         autoAccept: true,
         worktreePath: member.worktreePath,
@@ -378,7 +379,8 @@ export class TeamManager extends EventEmitter {
    */
   private buildMemberSystemPrompt(role: TeamRole, objective: string, member: TeamMember, bridgePort: number): string {
     const team = this.activeTeams.get(member.instanceId)
-    if (!team) return role.systemPrompt
+    const basePrompt = member.promptOverride?.trim() || role.systemPrompt
+    if (!team) return basePrompt
 
     const parentTeam = team.parentTeamId ? this.teamRepo.getTeamInstance(team.parentTeamId) : undefined
     const parentMessages = parentTeam
@@ -390,7 +392,7 @@ export class TeamManager extends EventEmitter {
       .map(m => `- ${m.role.icon} ${m.role.name}（${m.role.identifier}）${m.role.isLeader ? '👑 Leader' : ''}`)
       .join('\n')
 
-    return `${role.systemPrompt}
+    return `${basePrompt}
 
 ## 团队信息
 目标：${objective}
@@ -698,6 +700,43 @@ TeamBridge WebSocket 端口：${bridgePort}
     this.emit('team:member-status-change', teamId, newMemberId, 'running')
   }
 
+  /**
+   * 重试失败/终止任务，可选指定新的执行成员。
+   */
+  retryTask(teamId: string, taskId: string, options?: { memberId?: string; note?: string }): TeamTask | null {
+    const task = this.teamRepo.getTask(taskId)
+    if (!task) return null
+    if (!['failed', 'cancelled'].includes(task.status)) {
+      throw new Error('只有失败或已终止的任务可以重试')
+    }
+
+    const nextMemberId = options?.memberId || task.assignedTo || undefined
+    if (nextMemberId) {
+      const nextMember = this.teamRepo.getMemberById(nextMemberId)
+      if (!nextMember || nextMember.instanceId !== teamId) {
+        throw new Error('目标成员不存在')
+      }
+    }
+
+    if (task.claimedBy) {
+      this.teamRepo.updateMemberTask(task.claimedBy, null)
+      this.teamRepo.updateMemberStatus(task.claimedBy, 'idle')
+      this.emit('team:member-status-change', teamId, task.claimedBy, 'idle')
+    }
+
+    this.teamRepo.updateTaskFull(taskId, {
+      status: 'pending',
+      claimedBy: null,
+      claimedAt: null,
+      assignedTo: nextMemberId || null,
+      result: options?.note ? `重试：${options.note}` : null,
+      completedAt: null,
+    } as any)
+
+    this.emit('team:task-updated', teamId, taskId)
+    return this.teamRepo.getTask(taskId) ?? null
+  }
+
   // ---- 团队生命周期控制（阶段 2）----
 
   /**
@@ -783,6 +822,31 @@ TeamBridge WebSocket 端口：${bridgePort}
       if (team) team.objective = updates.objective
     }
     this.emit('team:updated', teamId, updates)
+  }
+
+  updateMemberConfig(
+    teamId: string,
+    memberId: string,
+    updates: { providerId?: string; modelOverride?: string | null; promptOverride?: string | null }
+  ): TeamMember | null {
+    const member = this.teamRepo.getMemberById(memberId)
+    if (!member || member.instanceId !== teamId) {
+      throw new Error('目标成员不存在')
+    }
+
+    this.teamRepo.updateMember(memberId, {
+      ...(updates.providerId !== undefined ? { providerId: updates.providerId } : {}),
+      ...(updates.modelOverride !== undefined ? { modelOverride: updates.modelOverride } : {}),
+      ...(updates.promptOverride !== undefined ? { promptOverride: updates.promptOverride } : {}),
+    })
+
+    const updatedMember = this.teamRepo.getMemberById(memberId) ?? null
+    const team = this.activeTeams.get(teamId)
+    if (team && updatedMember) {
+      team.members = team.members.map(item => item.id === memberId ? { ...item, ...updatedMember } : item)
+    }
+    this.emit('team:updated', teamId, { memberId, member: updatedMember })
+    return updatedMember
   }
 
   // ---- 模板 CRUD（阶段 4）----

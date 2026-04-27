@@ -317,6 +317,7 @@ export interface SpectrAIAPI {
     updateTask: (teamId: string, taskId: string, updates: any) => Promise<{ success: boolean; task?: any; error?: string }>
     cancelTask: (teamId: string, taskId: string, reason?: string) => Promise<{ success: boolean; error?: string }>
     reassignTask: (teamId: string, taskId: string, newMemberId: string) => Promise<{ success: boolean; error?: string }>
+    retryTask: (teamId: string, taskId: string, options?: { memberId?: string; note?: string }) => Promise<{ success: boolean; task?: any; error?: string }>
     getTemplates: () => Promise<{ success: boolean; templates?: any[]; error?: string }>
     createTemplate: (template: any) => Promise<{ success: boolean; template?: any; error?: string }>
     updateTemplate: (templateId: string, updates: any) => Promise<{ success: boolean; template?: any; error?: string }>
@@ -327,6 +328,7 @@ export interface SpectrAIAPI {
     pause: (teamId: string) => Promise<{ success: boolean; error?: string }>
     resume: (teamId: string) => Promise<{ success: boolean; error?: string }>
     update: (teamId: string, updates: any) => Promise<{ success: boolean; error?: string }>
+    updateMember: (teamId: string, memberId: string, updates: any) => Promise<{ success: boolean; member?: any; error?: string }>
     sendMessage: (teamId: string, toMemberId: string, content: string) => Promise<{ success: boolean; message?: any; error?: string }>
     broadcast: (teamId: string, content: string) => Promise<{ success: boolean; message?: any; error?: string }>
     getTaskDAG: (teamId: string) => Promise<{ success: boolean; dag?: any[]; validation?: any; error?: string }>

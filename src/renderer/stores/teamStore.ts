@@ -12,6 +12,7 @@ import type {
   MemberStatus,
   TaskDAGNode,
   TeamInstance,
+  TeamMember,
   TeamMessage,
   TeamStatus,
   TeamTask,
@@ -96,6 +97,7 @@ interface TeamState {
   claimTask: (teamId: string, taskId: string, memberId: string) => Promise<boolean>
   updateTask: (teamId: string, taskId: string, updates: any) => Promise<TeamTask | null>
   cancelTask: (teamId: string, taskId: string, reason?: string) => Promise<boolean>
+  retryTask: (teamId: string, taskId: string, options?: { memberId?: string; note?: string }) => Promise<TeamTask | null>
   reassignTask: (teamId: string, taskId: string, newMemberId: string) => Promise<boolean>
 
   // 团队生命周期
@@ -103,6 +105,11 @@ interface TeamState {
   pauseTeam: (teamId: string) => Promise<boolean>
   resumeTeam: (teamId: string) => Promise<boolean>
   updateTeam: (teamId: string, updates: { name?: string; objective?: string }) => Promise<boolean>
+  updateMember: (
+    teamId: string,
+    memberId: string,
+    updates: { providerId?: string; modelOverride?: string | null; promptOverride?: string | null }
+  ) => Promise<TeamMember | null>
 
   // 模板管理
   createTemplate: (template: any) => Promise<any>
@@ -368,6 +375,41 @@ export const useTeamStore = create<TeamState>((set, get) => ({
     }
   },
 
+  retryTask: async (teamId, taskId, options) => {
+    try {
+      const result = await (window as any).spectrAI.team.retryTask(teamId, taskId, options)
+      if (result.success && result.task) {
+        set((state) => {
+          const tasks = state.teamTasks[teamId] || []
+          const oldTask = tasks.find(task => task.id === taskId)
+          const updatedAt = new Date().toISOString()
+
+          return {
+            teams: state.teams.map(team => team.id === teamId ? {
+              ...team,
+              members: team.members.map(member =>
+                member.id === oldTask?.claimedBy || member.currentTaskId === taskId
+                  ? { ...member, currentTaskId: undefined, lastActiveAt: updatedAt }
+                  : member
+              )
+            } : team),
+            teamTasks: {
+              ...state.teamTasks,
+              [teamId]: tasks.map(t =>
+                t.id === taskId ? { ...t, ...result.task } : t
+              )
+            }
+          }
+        })
+        return result.task
+      }
+      return null
+    } catch (err) {
+      console.error('[TeamStore] retryTask error:', err)
+      return null
+    }
+  },
+
   reassignTask: async (teamId, taskId, newMemberId) => {
     try {
       const result = await (window as any).spectrAI.team.reassignTask(teamId, taskId, newMemberId)
@@ -447,6 +489,27 @@ export const useTeamStore = create<TeamState>((set, get) => ({
     } catch (err) {
       console.error('[TeamStore] updateTeam error:', err)
       return false
+    }
+  },
+
+  updateMember: async (teamId, memberId, updates) => {
+    try {
+      const result = await (window as any).spectrAI.team.updateMember(teamId, memberId, updates)
+      if (result.success && result.member) {
+        set((state) => ({
+          teams: state.teams.map(team => team.id === teamId ? {
+            ...team,
+            members: team.members.map(member =>
+              member.id === memberId ? { ...member, ...result.member } : member
+            )
+          } : team)
+        }))
+        return result.member
+      }
+      return null
+    } catch (err) {
+      console.error('[TeamStore] updateMember error:', err)
+      return null
     }
   },
 
