@@ -22,13 +22,13 @@
 
 ## 下一步最短路线
 
-1. [ ] 目标到执行的一键闭环：`Goal -> Planner -> Kanban/Team -> Evaluation -> Goal progress`。
+1. [x] 目标到执行的一键闭环：`Goal -> Planner -> Kanban/Team -> Evaluation -> Goal progress`。
    - [x] Goal 生成 Planner 时保存 `goalId` 关联。
    - [x] Goal 详情页支持“生成规划”与“生成并同步到看板”。
    - [x] Planner 同步看板后能在任务 metadata/tag 中保留 plan/goal 来源。
    - [x] 看板任务完成后的 Evaluation 能稳定回写对应 Goal。
    - [x] 从看板/规划任务一键派发到 Agent Team。
-   - [ ] 完整链路端到端验证：目标 -> 规划 -> 看板 -> 完成 -> 评估 -> 目标进度。
+   - [x] 完整链路端到端验证：目标 -> 规划 -> 看板 -> 完成 -> 评估 -> 目标进度。
 2. [ ] Team/Agent 执行体验增强。
    - [ ] 团队视图突出“谁在做什么、卡在哪里、产出是什么”。
    - [x] 支持从看板/规划任务一键派发到 Agent Team。
@@ -51,6 +51,7 @@
 ## 验证记录
 
 - [x] `npm run typecheck`
+- [x] `npm test -- src/main/goal/GoalExecutionFlow.test.ts`
 - [x] `npm test`
 - [x] `npm run build`
 
