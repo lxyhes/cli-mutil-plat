@@ -65,6 +65,13 @@ interface ShipPlan {
   warnings?: string[]
 }
 
+interface ShipRunResult {
+  passed?: boolean
+  summary?: string
+  suggestedPrompt?: string
+  results?: Array<{ status: string }>
+}
+
 interface SessionToolbarProps {
   sessionId: string
   /** 原生命令点击时回调：插入 "/slashCommand " 到输入框，由 CLI 原生处理 */
@@ -161,6 +168,7 @@ const SessionToolbar: React.FC<SessionToolbarProps> = ({ sessionId, onSkillClick
   const [codeGraphError, setCodeGraphError] = useState<string | null>(null)
   const [codeGraphAnswer, setCodeGraphAnswer] = useState<CodeGraphAnswer | null>(null)
   const [shipPlanLoading, setShipPlanLoading] = useState(false)
+  const [shipRunLoading, setShipRunLoading] = useState(false)
   const [shipPlanNotice, setShipPlanNotice] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
   /** Skill 搜索框内容 */
   const [skillFilter, setSkillFilter] = useState('')
@@ -465,7 +473,7 @@ const SessionToolbar: React.FC<SessionToolbarProps> = ({ sessionId, onSkillClick
   }, [codeGraphQuestion, workingDirectory, codeGraphLoading, onCodeGraphAnswer])
 
   const handleCreateShipPlan = useCallback(async () => {
-    if (!workingDirectory || shipPlanLoading) return
+    if (!workingDirectory || shipPlanLoading || shipRunLoading) return
     setShipPlanLoading(true)
     setShipPlanNotice(null)
     try {
@@ -498,7 +506,47 @@ const SessionToolbar: React.FC<SessionToolbarProps> = ({ sessionId, onSkillClick
     } finally {
       setShipPlanLoading(false)
     }
-  }, [workingDirectory, shipPlanLoading, onCodeGraphAnswer])
+  }, [workingDirectory, shipPlanLoading, shipRunLoading, onCodeGraphAnswer])
+
+  const handleRunShipPlan = useCallback(async () => {
+    if (!workingDirectory || shipPlanLoading || shipRunLoading) return
+    setShipRunLoading(true)
+    setShipPlanNotice({
+      type: 'success',
+      message: '正在执行类型检查、相关测试和构建检查，完成后会插入结果摘要。',
+    })
+    try {
+      const result = await window.spectrAI.ship.runPlan(workingDirectory, {
+        includeOptional: false,
+        stopOnFailure: true,
+      })
+      if (!result?.success) {
+        setShipPlanNotice({
+          type: 'error',
+          message: result?.error?.userMessage || result?.error?.message || result?.error || '交付检查运行失败',
+        })
+        return
+      }
+      const run = (result.data || result) as ShipRunResult
+      if (run.suggestedPrompt) {
+        onCodeGraphAnswer?.({
+          summary: run.summary,
+          suggestedPrompt: run.suggestedPrompt,
+        })
+      }
+      setShipPlanNotice({
+        type: run.passed ? 'success' : 'error',
+        message: run.summary || '交付检查已完成',
+      })
+    } catch (error: any) {
+      setShipPlanNotice({
+        type: 'error',
+        message: error?.message || '交付检查运行失败',
+      })
+    } finally {
+      setShipRunLoading(false)
+    }
+  }, [workingDirectory, shipPlanLoading, shipRunLoading, onCodeGraphAnswer])
 
   const handleOpenGraphReference = useCallback((reference: CodeGraphReference) => {
     void openFileInTab(resolveProjectFilePath(codeGraphAnswer?.projectPath || workingDirectory, reference.filePath))
@@ -772,12 +820,22 @@ const SessionToolbar: React.FC<SessionToolbarProps> = ({ sessionId, onSkillClick
         <button
           type="button"
           onClick={handleCreateShipPlan}
-          disabled={!workingDirectory || shipPlanLoading}
+          disabled={!workingDirectory || shipPlanLoading || shipRunLoading}
           className="inline-flex items-center gap-1 rounded-md border border-accent-green/20 bg-accent-green/10 px-2 py-1 text-xs text-accent-green transition-colors hover:bg-accent-green/15 disabled:cursor-not-allowed disabled:opacity-45"
           title={workingDirectory ? '根据当前改动生成交付前验证计划' : '当前会话没有工作目录'}
         >
           <ShieldCheck size={12} />
           <span>{shipPlanLoading ? '生成中...' : '交付检查'}</span>
+        </button>
+        <button
+          type="button"
+          onClick={handleRunShipPlan}
+          disabled={!workingDirectory || shipPlanLoading || shipRunLoading}
+          className="ml-1 inline-flex items-center gap-1 rounded-md border border-accent-cyan/20 bg-accent-cyan/10 px-2 py-1 text-xs text-accent-cyan transition-colors hover:bg-accent-cyan/15 disabled:cursor-not-allowed disabled:opacity-45"
+          title={workingDirectory ? '自动执行交付检查并收集结果' : '当前会话没有工作目录'}
+        >
+          <Activity size={12} />
+          <span>{shipRunLoading ? '运行中...' : '运行检查'}</span>
         </button>
 
         {shipPlanNotice && (

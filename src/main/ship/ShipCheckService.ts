@@ -3,7 +3,8 @@
  */
 import fs from 'fs'
 import path from 'path'
-import { execFileSync } from 'child_process'
+import { execFile, execFileSync } from 'child_process'
+import { promisify } from 'util'
 
 export interface ShipCommand {
   id: string
@@ -11,6 +12,9 @@ export interface ShipCommand {
   command: string
   reason: string
   required: boolean
+  scriptName: string
+  args: string[]
+  timeoutMs: number
 }
 
 export interface ShipPlan {
@@ -24,8 +28,44 @@ export interface ShipPlan {
   suggestedPrompt: string
 }
 
+export interface ShipRunOptions {
+  commandIds?: string[]
+  includeOptional?: boolean
+  stopOnFailure?: boolean
+}
+
+export interface ShipCommandResult {
+  id: string
+  label: string
+  command: string
+  status: 'passed' | 'failed' | 'timed-out' | 'skipped'
+  required: boolean
+  exitCode: number | null
+  signal?: string | null
+  durationMs: number
+  stdout: string
+  stderr: string
+  outputTail: string
+  errorMessage?: string
+  skipReason?: string
+}
+
+export interface ShipRunResult {
+  plan: ShipPlan
+  results: ShipCommandResult[]
+  passed: boolean
+  startedAt: string
+  completedAt: string
+  durationMs: number
+  summary: string
+  suggestedPrompt: string
+}
+
+const execFileAsync = promisify(execFile)
 const SOURCE_EXTENSIONS = new Set(['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs', '.mts', '.cts'])
 const TEST_FILE_RE = /(?:^|[\\/])(?:__tests__[\\/].+|.+\.(?:test|spec))\.(?:ts|tsx|js|jsx|mjs|cjs|mts|cts)$/
+const MAX_OUTPUT_CHARS = 12000
+const MAX_TAIL_CHARS = 5000
 
 export class ShipCheckService {
   createPlan(projectPath: string): ShipPlan {
@@ -52,6 +92,62 @@ export class ShipCheckService {
       warnings,
       summary,
       suggestedPrompt: this.buildSuggestedPrompt(root, changedFiles, relatedTestFiles, commands, warnings),
+    }
+  }
+
+  async runPlan(projectPath: string, options: ShipRunOptions = {}): Promise<ShipRunResult> {
+    const startedMs = Date.now()
+    const startedAt = new Date(startedMs).toISOString()
+    const plan = this.createPlan(projectPath)
+    const commandIds = options.commandIds?.length
+      ? new Set(options.commandIds)
+      : new Set(plan.commands
+        .filter(command => options.includeOptional || command.required)
+        .map(command => command.id))
+    const stopOnFailure = options.stopOnFailure !== false
+    const results: ShipCommandResult[] = []
+    let halted = false
+
+    for (const command of plan.commands) {
+      if (!commandIds.has(command.id)) continue
+      if (halted) {
+        results.push({
+          id: command.id,
+          label: command.label,
+          command: command.command,
+          status: 'skipped',
+          required: command.required,
+          exitCode: null,
+          durationMs: 0,
+          stdout: '',
+          stderr: '',
+          outputTail: '',
+          skipReason: '前置检查失败，已按 stopOnFailure 策略停止后续命令。',
+        })
+        continue
+      }
+
+      const result = await this.runCommand(plan.projectPath, plan.packageManager, command)
+      results.push(result)
+      if (stopOnFailure && result.status !== 'passed') {
+        halted = true
+      }
+    }
+
+    const completedMs = Date.now()
+    const passed = results.length > 0 && results.every(result => result.status === 'passed' || result.status === 'skipped')
+    const completedAt = new Date(completedMs).toISOString()
+    const summary = this.buildRunSummary(results)
+
+    return {
+      plan,
+      results,
+      passed,
+      startedAt,
+      completedAt,
+      durationMs: completedMs - startedMs,
+      summary,
+      suggestedPrompt: this.buildRunSuggestedPrompt(plan, results, summary),
     }
   }
 
@@ -125,7 +221,7 @@ export class ShipCheckService {
 
   private buildCommands(packageManager: ShipPlan['packageManager'], scripts: Record<string, string>, relatedTestFiles: string[]): ShipCommand[] {
     const commands: ShipCommand[] = []
-    const run = (scriptName: string) => this.scriptCommand(packageManager, scriptName)
+    const run = (scriptName: string, args: string[] = []) => this.scriptCommand(packageManager, scriptName, args)
 
     if (scripts.typecheck) {
       commands.push({
@@ -134,6 +230,9 @@ export class ShipCheckService {
         command: run('typecheck'),
         reason: '先挡住 TypeScript/API 契约问题。',
         required: true,
+        scriptName: 'typecheck',
+        args: [],
+        timeoutMs: 120000,
       })
     }
     if (scripts.lint) {
@@ -143,19 +242,24 @@ export class ShipCheckService {
         command: run('lint'),
         reason: '检查格式、未使用代码和常见静态问题。',
         required: false,
+        scriptName: 'lint',
+        args: [],
+        timeoutMs: 120000,
       })
     }
     if (scripts.test) {
+      const testArgs = relatedTestFiles.length > 0 ? relatedTestFiles : []
       commands.push({
         id: 'test',
         label: relatedTestFiles.length > 0 ? '相关测试' : '测试套件',
-        command: relatedTestFiles.length > 0
-          ? `${this.scriptCommand(packageManager, 'test')} -- ${relatedTestFiles.join(' ')}`
-          : run('test'),
+        command: run('test', testArgs),
         reason: relatedTestFiles.length > 0
           ? '优先跑与当前改动直接相关的测试，反馈最快。'
           : '未找到精确测试文件，回退到完整测试命令。',
         required: true,
+        scriptName: 'test',
+        args: testArgs,
+        timeoutMs: 180000,
       })
     }
     if (scripts.build) {
@@ -165,17 +269,158 @@ export class ShipCheckService {
         command: run('build'),
         reason: '确认主进程、preload、renderer 打包链路没有断。',
         required: true,
+        scriptName: 'build',
+        args: [],
+        timeoutMs: 240000,
       })
     }
 
     return commands
   }
 
-  private scriptCommand(packageManager: ShipPlan['packageManager'], scriptName: string): string {
-    if (packageManager === 'yarn') return `yarn ${scriptName}`
-    if (packageManager === 'pnpm') return `pnpm ${scriptName}`
-    if (packageManager === 'bun') return `bun run ${scriptName}`
-    return `npm run ${scriptName}`
+  private scriptCommand(packageManager: ShipPlan['packageManager'], scriptName: string, args: string[] = []): string {
+    const displayArgs = args.map(arg => this.quoteArg(arg)).join(' ')
+    const suffix = displayArgs ? ` ${displayArgs}` : ''
+    if (packageManager === 'yarn') return `yarn ${scriptName}${suffix}`
+    if (packageManager === 'pnpm') return `pnpm run ${scriptName}${displayArgs ? ` -- ${displayArgs}` : ''}`
+    if (packageManager === 'bun') return `bun run ${scriptName}${suffix}`
+    return `npm run ${scriptName}${displayArgs ? ` -- ${displayArgs}` : ''}`
+  }
+
+  private packageManagerExecutable(packageManager: ShipPlan['packageManager']): string {
+    return packageManager === 'bun' ? 'bun' : packageManager
+  }
+
+  private packageManagerArgs(packageManager: ShipPlan['packageManager'], scriptName: string, args: string[]): string[] {
+    if (packageManager === 'yarn') return [scriptName, ...args]
+    if (packageManager === 'bun') return ['run', scriptName, ...args]
+    return ['run', scriptName, ...(args.length > 0 ? ['--', ...args] : [])]
+  }
+
+  private quoteArg(arg: string): string {
+    return /\s/.test(arg) ? `"${arg.replace(/"/g, '\\"')}"` : arg
+  }
+
+  private packageManagerProcess(packageManager: ShipPlan['packageManager'], scriptName: string, args: string[]): { executable: string; args: string[] } {
+    const executable = this.packageManagerExecutable(packageManager)
+    const commandArgs = this.packageManagerArgs(packageManager, scriptName, args)
+    if (process.platform !== 'win32') {
+      return { executable, args: commandArgs }
+    }
+    return {
+      executable: 'cmd.exe',
+      args: ['/d', '/s', '/c', [executable, ...commandArgs].map(arg => this.quoteCmdArg(arg)).join(' ')],
+    }
+  }
+
+  private quoteCmdArg(arg: string): string {
+    return `"${arg.replace(/"/g, '""')}"`
+  }
+
+  private async runCommand(root: string, packageManager: ShipPlan['packageManager'], command: ShipCommand): Promise<ShipCommandResult> {
+    const started = Date.now()
+    const processCommand = this.packageManagerProcess(packageManager, command.scriptName, command.args)
+
+    try {
+      const { stdout, stderr } = await execFileAsync(processCommand.executable, processCommand.args, {
+        cwd: root,
+        timeout: command.timeoutMs,
+        maxBuffer: 20 * 1024 * 1024,
+        windowsHide: true,
+        env: process.env,
+      })
+      const stdoutText = this.limitOutput(stdout)
+      const stderrText = this.limitOutput(stderr)
+      return {
+        id: command.id,
+        label: command.label,
+        command: command.command,
+        status: 'passed',
+        required: command.required,
+        exitCode: 0,
+        durationMs: Date.now() - started,
+        stdout: stdoutText,
+        stderr: stderrText,
+        outputTail: this.outputTail(stdoutText, stderrText),
+      }
+    } catch (error: any) {
+      const stdoutText = this.limitOutput(error?.stdout)
+      const stderrText = this.limitOutput(error?.stderr)
+      const timedOut = Boolean(error?.killed && error?.signal === 'SIGTERM')
+      return {
+        id: command.id,
+        label: command.label,
+        command: command.command,
+        status: timedOut ? 'timed-out' : 'failed',
+        required: command.required,
+        exitCode: typeof error?.code === 'number' ? error.code : null,
+        signal: error?.signal ?? null,
+        durationMs: Date.now() - started,
+        stdout: stdoutText,
+        stderr: stderrText,
+        outputTail: this.outputTail(stdoutText, stderrText),
+        errorMessage: error?.message || 'Command failed',
+      }
+    }
+  }
+
+  private limitOutput(value: unknown): string {
+    const text = String(value || '').replace(/\r\n/g, '\n').trim()
+    if (text.length <= MAX_OUTPUT_CHARS) return text
+    return `...输出过长，已截取最后 ${MAX_OUTPUT_CHARS} 字符...\n${text.slice(-MAX_OUTPUT_CHARS)}`
+  }
+
+  private outputTail(stdout: string, stderr: string): string {
+    const combined = [stdout, stderr].filter(Boolean).join('\n\n')
+    if (combined.length <= MAX_TAIL_CHARS) return combined
+    return combined.slice(-MAX_TAIL_CHARS)
+  }
+
+  private buildRunSummary(results: ShipCommandResult[]): string {
+    if (results.length === 0) return '没有可执行的交付检查命令'
+    const passed = results.filter(result => result.status === 'passed').length
+    const failed = results.filter(result => result.status === 'failed' || result.status === 'timed-out').length
+    const skipped = results.filter(result => result.status === 'skipped').length
+    return `执行 ${results.length} 条交付检查：${passed} 通过，${failed} 失败，${skipped} 跳过`
+  }
+
+  private buildRunSuggestedPrompt(plan: ShipPlan, results: ShipCommandResult[], summary: string): string {
+    const hasFailure = results.some(result => result.status === 'failed' || result.status === 'timed-out')
+    const resultLines = results.length > 0
+      ? results.map(result => {
+        const status = result.status === 'passed' ? '通过' : result.status === 'skipped' ? '跳过' : '失败'
+        const exitCode = result.exitCode === null ? '' : `，退出码 ${result.exitCode}`
+        const duration = `，耗时 ${Math.round(result.durationMs / 1000)}s`
+        return `- ${result.label}：${status}${exitCode}${duration}\n  命令：${result.command}`
+      }).join('\n')
+      : '- 没有命令被执行'
+    const failureBlocks = results
+      .filter(result => result.status === 'failed' || result.status === 'timed-out')
+      .map(result => [
+        `### ${result.label}`,
+        `命令：${result.command}`,
+        result.errorMessage ? `错误：${result.errorMessage}` : '',
+        result.outputTail ? '输出摘要：' : '',
+        result.outputTail ? '```text' : '',
+        result.outputTail || '',
+        result.outputTail ? '```' : '',
+      ].filter(Boolean).join('\n'))
+      .join('\n\n')
+
+    return [
+      'QA/SHIP 自动检查已完成，请根据结果继续处理。',
+      '',
+      `项目路径：${plan.projectPath}`,
+      `结果摘要：${summary}`,
+      '',
+      '## 执行结果',
+      resultLines,
+      '',
+      '## 失败详情',
+      failureBlocks || '- 暂无失败项',
+      '',
+      hasFailure ? '如果有失败项，请先定位根因并做最小修复，然后只重跑失败命令；不要跳过失败项。' : '',
+    ].filter(line => line !== '').join('\n')
   }
 
   private buildWarnings(packageJson: any | null, changedFiles: string[], relatedTestFiles: string[], commands: ShipCommand[]): string[] {

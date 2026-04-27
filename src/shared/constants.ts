@@ -59,6 +59,7 @@ export const IPC = {
   TASK_START_SESSION: 'task:start-session',
 
   SHIP_CREATE_PLAN: 'ship:create-plan',
+  SHIP_RUN_PLAN: 'ship:run-plan',
 
   SEARCH_LOGS: 'search:logs',
   USAGE_GET_SUMMARY: 'usage:get-summary',

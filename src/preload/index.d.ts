@@ -103,6 +103,7 @@ export interface SpectrAIAPI {
 
   ship: {
     createPlan: (projectPath: string) => Promise<any>
+    runPlan: (projectPath: string, options?: any) => Promise<any>
   }
 
 
