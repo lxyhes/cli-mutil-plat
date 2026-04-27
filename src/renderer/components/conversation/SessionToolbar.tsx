@@ -107,6 +107,8 @@ interface SessionToolbarProps {
   onSkillExecute: (skill: SkillItem) => void
   /** Code Graph 问答完成后，把结构化上下文交给输入框或上层会话 */
   onCodeGraphAnswer?: (answer: CodeGraphAnswer) => void
+  /** 追加到紧凑工具条末尾的轻量操作，例如常用提示词 */
+  promptActions?: React.ReactNode
 }
 
 // ---- 通用 hook ----
@@ -402,7 +404,7 @@ function buildDebugLoopPrompt(input: {
 }
 // ---- 主组件 ----
 
-const SessionToolbar: React.FC<SessionToolbarProps> = ({ sessionId, onSkillClick, onSkillExecute, onCodeGraphAnswer }) => {
+const SessionToolbar: React.FC<SessionToolbarProps> = ({ sessionId, onSkillClick, onSkillExecute, onCodeGraphAnswer, promptActions }) => {
   const [skillPopoverOpen, setSkillPopoverOpen] = useState(false)
   const [mcpPopoverOpen, setMcpPopoverOpen] = useState(false)
   const [codeGraphPopoverOpen, setCodeGraphPopoverOpen] = useState(false)
@@ -430,6 +432,9 @@ const SessionToolbar: React.FC<SessionToolbarProps> = ({ sessionId, onSkillClick
   const [modelSwitching, setModelSwitching] = useState(false)
   const modelBtnRef = useRef<HTMLButtonElement>(null)
   const modelPopoverRef = useRef<HTMLDivElement>(null)
+  const [qaPopoverOpen, setQaPopoverOpen] = useState(false)
+  const qaBtnRef = useRef<HTMLButtonElement>(null)
+  const qaPopoverRef = useRef<HTMLDivElement>(null)
 
   // ---- 数据来源 ----
   const initData = useSessionStore(s => s.sessionInitData[sessionId])
@@ -655,6 +660,7 @@ const SessionToolbar: React.FC<SessionToolbarProps> = ({ sessionId, onSkillClick
   usePopoverClose(toolboxPopoverOpen, setToolboxPopoverOpen, toolboxBtnRef, toolboxPopoverRef)
   usePopoverClose(modelPopoverOpen, setModelPopoverOpen, modelBtnRef, modelPopoverRef)
   usePopoverClose(codeGraphPopoverOpen, setCodeGraphPopoverOpen, codeGraphBtnRef, codeGraphPopoverRef)
+  usePopoverClose(qaPopoverOpen, setQaPopoverOpen, qaBtnRef, qaPopoverRef)
 
   // 处理工具箱功能点击
   const handleToolboxFeatureClick = useCallback((featureId: ToolboxFeatureId) => {
@@ -1014,13 +1020,13 @@ const SessionToolbar: React.FC<SessionToolbarProps> = ({ sessionId, onSkillClick
   }, [onSkillClick, onSkillExecute])
 
   return (
-    <div className="mx-auto mb-1.5 flex w-full max-w-[1080px] flex-wrap items-center gap-1.5 rounded-lg border border-border-subtle bg-bg-elevated px-2.5 py-1.5 shadow-[0_8px_22px_var(--color-shadow-sm)]">
-      <span className="order-1 mr-1 flex-shrink-0 text-[11px] font-medium text-text-muted">
+    <div className="relative z-20 mx-auto mb-1 flex min-h-8 w-full max-w-[1080px] flex-nowrap items-center gap-1 overflow-visible rounded-md border border-border-subtle bg-bg-elevated px-2 py-1 whitespace-nowrap shadow-none">
+      <span className="hidden">
         会话配置
       </span>
 
       {/* ---- 会话模式 + 模型信息 ---- */}
-      <div className="order-1 flex items-center gap-1.5 rounded-md bg-bg-tertiary px-2 py-1 text-xs text-text-muted select-none">
+      <div className="order-1 flex h-6 flex-shrink-0 items-center gap-1.5 rounded-md bg-bg-tertiary px-1.5 py-0.5 text-[11px] text-text-muted select-none">
         <span className={`inline-block w-1.5 h-1.5 rounded-full ${isSupervisor ? 'bg-accent-green' : 'bg-accent-blue'}`} />
         {isSupervisor ? (
           <Users size={11} className="text-accent-green flex-shrink-0" />
@@ -1038,7 +1044,7 @@ const SessionToolbar: React.FC<SessionToolbarProps> = ({ sessionId, onSkillClick
           ref={modelBtnRef}
           onClick={() => setModelPopoverOpen(o => !o)}
           disabled={modelSwitching}
-          className={`inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs
+          className={`inline-flex h-6 items-center gap-1 px-1.5 py-0.5 rounded-md text-[11px]
             bg-bg-tertiary border border-transparent text-text-muted
             hover:text-text-secondary hover:bg-bg-hover
             transition-colors cursor-pointer select-none disabled:opacity-60 disabled:cursor-wait
@@ -1121,25 +1127,25 @@ const SessionToolbar: React.FC<SessionToolbarProps> = ({ sessionId, onSkillClick
           </div>
         )}
       </div>
-      <div className="order-3 basis-full border-t border-border-subtle pt-1.5" />
-      <span className="order-4 mr-1 flex-shrink-0 text-[11px] font-medium text-text-muted">
+      <div className="hidden" />
+      <span className="hidden">
         快捷动作
       </span>
 
       {/* ---- Code Graph 问答 ---- */}
-      <div className="relative order-4 flex-shrink-0">
+      <div className="relative order-3 flex-shrink-0">
         <button
           ref={codeGraphBtnRef}
           onClick={() => setCodeGraphPopoverOpen(o => !o)}
           disabled={!workingDirectory}
-          className={`inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs
-            bg-accent-purple/10 border border-transparent text-accent-purple
-            hover:text-accent-purple hover:bg-accent-purple/15
+          className={`inline-flex h-6 items-center gap-1 px-1.5 py-0.5 rounded-md text-[11px]
+            bg-bg-tertiary border border-transparent text-text-secondary
+            hover:text-text-primary hover:bg-bg-hover
             transition-colors cursor-pointer select-none disabled:cursor-not-allowed disabled:opacity-45
-            ${codeGraphPopoverOpen ? 'border-accent-purple/50 text-accent-purple' : ''}`}
+            ${codeGraphPopoverOpen ? 'border-accent-purple/40 text-text-primary' : ''}`}
           title={workingDirectory ? '基于 Code Graph 询问当前项目' : '当前会话没有工作目录'}
         >
-          <GitBranch size={12} />
+          <GitBranch size={12} className="text-accent-purple" />
           <span>代码库问答</span>
         </button>
 
@@ -1250,61 +1256,91 @@ const SessionToolbar: React.FC<SessionToolbarProps> = ({ sessionId, onSkillClick
       </div>
 
       {/* ---- QA/SHIP 交付检查 ---- */}
-      <div className="relative order-4 flex-shrink-0">
+      <div className="relative order-3 flex-shrink-0">
         <button
+          ref={qaBtnRef}
           type="button"
-          onClick={handleCreateDebugPrompt}
-          disabled={!workingDirectory || debugLoading || debugLoopLoading}
-          className="inline-flex items-center gap-1 rounded-md border border-transparent bg-accent-red/10 px-2 py-1 text-xs text-accent-red transition-colors hover:bg-accent-red/15 disabled:cursor-not-allowed disabled:opacity-45"
-          title={workingDirectory ? '收集日志、活动、文件改动和验证计划，生成 Debug Mode 诊断提示' : '当前会话没有工作目录'}
+          onClick={() => setQaPopoverOpen(o => !o)}
+          className={`inline-flex h-6 items-center gap-1 rounded-md border px-1.5 py-0.5 text-[11px] transition-colors ${
+            qaPopoverOpen
+              ? 'border-accent-green/40 bg-accent-green/10 text-accent-green'
+              : 'border-transparent bg-bg-tertiary text-text-secondary hover:bg-bg-hover'
+          }`}
+          title="调试、验证和交付检查"
         >
-          <Bug size={12} />
-          <span>{debugLoading ? '诊断中...' : '调试诊断'}</span>
-        </button>
-        <button
-          type="button"
-          onClick={handleRunDebugLoop}
-          disabled={!workingDirectory || debugLoading || debugLoopLoading || shipPlanLoading || shipRunLoading || shipSummaryLoading}
-          className="ml-1 inline-flex items-center gap-1 rounded-md border border-transparent bg-accent-yellow/10 px-2 py-1 text-xs text-accent-yellow transition-colors hover:bg-accent-yellow/15 disabled:cursor-not-allowed disabled:opacity-45"
-          title={workingDirectory ? '运行验证闭环：失败时创建修复任务、写入工作上下文并插入复验提示' : '当前会话没有工作目录'}
-        >
-          <GitBranch size={12} />
-          <span>{debugLoopLoading ? '验证中...' : '自动验证'}</span>
-        </button>
-      </div>
-
-      <div className="relative order-4 flex-shrink-0">
-        <button
-          type="button"
-          onClick={handleCreateShipPlan}
-          disabled={!workingDirectory || debugLoopLoading || shipPlanLoading || shipRunLoading || shipSummaryLoading}
-          className="inline-flex items-center gap-1 rounded-md border border-transparent bg-accent-green/10 px-2 py-1 text-xs text-accent-green transition-colors hover:bg-accent-green/15 disabled:cursor-not-allowed disabled:opacity-45"
-          title={workingDirectory ? '根据当前改动生成交付前验证计划' : '当前会话没有工作目录'}
-        >
-          <ShieldCheck size={12} />
-          <span>{shipPlanLoading ? '生成中...' : '交付检查'}</span>
-        </button>
-        <button
-          type="button"
-          onClick={handleRunShipPlan}
-          disabled={!workingDirectory || debugLoopLoading || shipPlanLoading || shipRunLoading || shipSummaryLoading}
-          className="ml-1 inline-flex items-center gap-1 rounded-md border border-transparent bg-accent-cyan/10 px-2 py-1 text-xs text-accent-cyan transition-colors hover:bg-accent-cyan/15 disabled:cursor-not-allowed disabled:opacity-45"
-          title={workingDirectory ? '自动执行交付检查并收集结果' : '当前会话没有工作目录'}
-        >
-          <Activity size={12} />
-          <span>{shipRunLoading ? '运行中...' : '运行检查'}</span>
+          <ShieldCheck size={12} className="text-accent-green" />
+          <span>检查</span>
+          <ChevronDown size={11} />
         </button>
 
-        <button
-          type="button"
-          onClick={handleGenerateShipSummary}
-          disabled={!workingDirectory || debugLoopLoading || shipPlanLoading || shipRunLoading || shipSummaryLoading}
-          className="ml-1 inline-flex items-center gap-1 rounded-md border border-transparent bg-accent-yellow/10 px-2 py-1 text-xs text-accent-yellow transition-colors hover:bg-accent-yellow/15 disabled:cursor-not-allowed disabled:opacity-45"
-          title={workingDirectory ? '\u6839\u636e git \u53d8\u66f4\u751f\u6210\u4ea4\u4ed8\u8bf4\u660e\u3001\u9a8c\u8bc1\u547d\u4ee4\u548c\u5efa\u8bae\u63d0\u4ea4\u4fe1\u606f' : '\u5f53\u524d\u4f1a\u8bdd\u6ca1\u6709\u5de5\u4f5c\u76ee\u5f55'}
-        >
-          <FileText size={12} />
-          <span>{shipSummaryLoading ? '\u6574\u7406\u4e2d...' : '\u53d8\u66f4\u8bf4\u660e'}</span>
-        </button>
+        {qaPopoverOpen && (
+          <div
+            ref={qaPopoverRef}
+            className="absolute bottom-full left-0 z-50 mb-1.5 w-72 rounded-lg border border-border-subtle bg-bg-elevated py-1.5 shadow-lg"
+          >
+            <button
+              type="button"
+              onClick={() => { setQaPopoverOpen(false); handleCreateDebugPrompt() }}
+              disabled={!workingDirectory || debugLoading || debugLoopLoading}
+              className="flex w-full items-start gap-2 px-3 py-2 text-left transition-colors hover:bg-bg-hover disabled:cursor-not-allowed disabled:opacity-45"
+            >
+              <Bug size={14} className="mt-0.5 flex-shrink-0 text-accent-red" />
+              <span className="min-w-0">
+                <span className="block text-xs font-medium text-text-secondary">{debugLoading ? '诊断中...' : '调试诊断'}</span>
+                <span className="block truncate text-[11px] text-text-muted">收集上下文并生成排障提示</span>
+              </span>
+            </button>
+            <button
+              type="button"
+              onClick={() => { setQaPopoverOpen(false); handleRunDebugLoop() }}
+              disabled={!workingDirectory || debugLoading || debugLoopLoading || shipPlanLoading || shipRunLoading || shipSummaryLoading}
+              className="flex w-full items-start gap-2 px-3 py-2 text-left transition-colors hover:bg-bg-hover disabled:cursor-not-allowed disabled:opacity-45"
+            >
+              <GitBranch size={14} className="mt-0.5 flex-shrink-0 text-accent-yellow" />
+              <span className="min-w-0">
+                <span className="block text-xs font-medium text-text-secondary">{debugLoopLoading ? '验证中...' : '自动验证'}</span>
+                <span className="block truncate text-[11px] text-text-muted">失败时创建修复任务并复验</span>
+              </span>
+            </button>
+            <div className="my-1 border-t border-border-subtle" />
+            <button
+              type="button"
+              onClick={() => { setQaPopoverOpen(false); handleCreateShipPlan() }}
+              disabled={!workingDirectory || debugLoopLoading || shipPlanLoading || shipRunLoading || shipSummaryLoading}
+              className="flex w-full items-start gap-2 px-3 py-2 text-left transition-colors hover:bg-bg-hover disabled:cursor-not-allowed disabled:opacity-45"
+            >
+              <ShieldCheck size={14} className="mt-0.5 flex-shrink-0 text-accent-green" />
+              <span className="min-w-0">
+                <span className="block text-xs font-medium text-text-secondary">{shipPlanLoading ? '生成中...' : '交付检查'}</span>
+                <span className="block truncate text-[11px] text-text-muted">生成交付前验证计划</span>
+              </span>
+            </button>
+            <button
+              type="button"
+              onClick={() => { setQaPopoverOpen(false); handleRunShipPlan() }}
+              disabled={!workingDirectory || debugLoopLoading || shipPlanLoading || shipRunLoading || shipSummaryLoading}
+              className="flex w-full items-start gap-2 px-3 py-2 text-left transition-colors hover:bg-bg-hover disabled:cursor-not-allowed disabled:opacity-45"
+            >
+              <Activity size={14} className="mt-0.5 flex-shrink-0 text-accent-cyan" />
+              <span className="min-w-0">
+                <span className="block text-xs font-medium text-text-secondary">{shipRunLoading ? '运行中...' : '运行检查'}</span>
+                <span className="block truncate text-[11px] text-text-muted">执行检查并收集结果</span>
+              </span>
+            </button>
+            <button
+              type="button"
+              onClick={() => { setQaPopoverOpen(false); handleGenerateShipSummary() }}
+              disabled={!workingDirectory || debugLoopLoading || shipPlanLoading || shipRunLoading || shipSummaryLoading}
+              className="flex w-full items-start gap-2 px-3 py-2 text-left transition-colors hover:bg-bg-hover disabled:cursor-not-allowed disabled:opacity-45"
+            >
+              <FileText size={14} className="mt-0.5 flex-shrink-0 text-accent-yellow" />
+              <span className="min-w-0">
+                <span className="block text-xs font-medium text-text-secondary">{shipSummaryLoading ? '\u6574\u7406\u4e2d...' : '\u53d8\u66f4\u8bf4\u660e'}</span>
+                <span className="block truncate text-[11px] text-text-muted">整理变更、命令和提交说明</span>
+              </span>
+            </button>
+          </div>
+        )}
 
         {shipPlanNotice && (
           <div className={`absolute bottom-full left-0 z-50 mb-1.5 w-72 rounded-lg border px-3 py-2 text-[11px] shadow-lg ${
@@ -1322,17 +1358,17 @@ const SessionToolbar: React.FC<SessionToolbarProps> = ({ sessionId, onSkillClick
 
       {/* ---- Skill 按钮 ---- */}
       {skillList.length > 0 && (
-        <div className="relative order-4 flex-shrink-0">
+        <div className="relative order-3 flex-shrink-0">
           <button
             ref={skillBtnRef}
             onClick={() => setSkillPopoverOpen(o => !o)}
-            className={`inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs
-              bg-accent-blue/10 border border-transparent text-accent-blue
-              hover:text-accent-blue hover:bg-accent-blue/15
+            className={`inline-flex h-6 items-center gap-1 px-1.5 py-0.5 rounded-md text-[11px]
+              bg-bg-tertiary border border-transparent text-text-secondary
+              hover:text-text-primary hover:bg-bg-hover
               transition-colors cursor-pointer select-none
-              ${skillPopoverOpen ? 'border-accent-blue/50 text-accent-blue' : ''}`}
+              ${skillPopoverOpen ? 'border-accent-blue/40 text-text-primary' : ''}`}
           >
-            <Zap size={12} />
+            <Zap size={12} className="text-accent-blue" />
             <span>{skillList.length} 个 Skill</span>
           </button>
 
@@ -1453,11 +1489,11 @@ const SessionToolbar: React.FC<SessionToolbarProps> = ({ sessionId, onSkillClick
 
       {/* ---- MCP 状态按钮 ---- */}
       {mcpList.length > 0 && (
-        <div className="relative order-2 ml-auto flex-shrink-0">
+        <div className="relative order-4 flex-shrink-0">
           <button
             ref={mcpBtnRef}
             onClick={() => setMcpPopoverOpen(o => !o)}
-            className={`inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs
+            className={`inline-flex h-6 items-center gap-1 px-1.5 py-0.5 rounded-md text-[11px]
               bg-bg-tertiary border border-transparent text-text-muted
               hover:text-text-secondary hover:bg-bg-hover
               transition-colors cursor-pointer select-none
@@ -1533,7 +1569,7 @@ const SessionToolbar: React.FC<SessionToolbarProps> = ({ sessionId, onSkillClick
         <button
           ref={toolboxBtnRef}
           onClick={() => setToolboxPopoverOpen(o => !o)}
-          className={`inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs
+          className={`inline-flex h-6 items-center gap-1 px-1.5 py-0.5 rounded-md text-[11px]
             bg-bg-tertiary border border-transparent text-text-muted
             hover:text-text-secondary hover:bg-bg-hover
             transition-colors cursor-pointer select-none
@@ -1583,6 +1619,12 @@ const SessionToolbar: React.FC<SessionToolbarProps> = ({ sessionId, onSkillClick
           </div>
         )}
       </div>
+
+      {promptActions && (
+        <div className="order-5 ml-auto flex h-6 flex-shrink-0 items-center gap-1 border-l border-border-subtle pl-1.5">
+          {promptActions}
+        </div>
+      )}
     </div>
   )
 }

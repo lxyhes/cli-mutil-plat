@@ -73,20 +73,20 @@ const ToolOperationGroup: React.FC<ToolOperationGroupProps> = ({ messages, isAct
 
   return (
     <div
-      className={`my-2 ml-8 mr-20 overflow-hidden rounded-lg border transition-colors ${
+      className={`my-1.5 ml-8 mr-20 max-w-[min(980px,92%)] overflow-hidden rounded-lg transition-colors ${
         isActive
-          ? 'border-accent-purple/30 bg-bg-elevated shadow-[0_8px_22px_var(--color-shadow-sm)]'
+          ? 'bg-accent-purple/5'
           : hasError
-            ? 'border-accent-red/35 bg-accent-red/10'
-            : 'border-border-subtle bg-bg-elevated'
+            ? 'bg-accent-red/5'
+            : ''
       }`}
     >
       <button
         onClick={() => setExpanded(!expanded)}
         aria-expanded={expanded}
-        className="w-full text-left px-3 py-1.5 flex items-center gap-2 transition-colors hover:bg-bg-hover"
+        className="group w-full text-left px-0 py-1.5 flex items-center gap-2 transition-colors text-text-muted hover:text-text-secondary"
       >
-        <span className="text-text-muted flex-shrink-0">
+        <span className="flex-shrink-0 text-text-muted/70 group-hover:text-text-secondary">
           {expanded ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
         </span>
         {hasError ? (
@@ -96,7 +96,7 @@ const ToolOperationGroup: React.FC<ToolOperationGroupProps> = ({ messages, isAct
         ) : (
           <CheckCircle2 size={13} className="text-accent-green flex-shrink-0" />
         )}
-        <span className="text-xs font-medium text-text-primary flex-shrink-0">
+        <span className="text-xs font-medium text-text-muted flex-shrink-0 group-hover:text-text-secondary">
           {statusLabel}
           <span className="text-text-muted font-normal">
             {` · ${toolCount} 个操作`}
@@ -108,7 +108,7 @@ const ToolOperationGroup: React.FC<ToolOperationGroupProps> = ({ messages, isAct
           {Object.entries(toolCounts).slice(0, 4).map(([name, count]) => (
             <span
               key={name}
-              className="rounded border border-border-subtle bg-bg-tertiary px-1.5 py-0.5 font-mono text-[10px] text-text-muted"
+              className="rounded-md bg-bg-tertiary px-1.5 py-0.5 font-mono text-[10px] text-text-muted"
             >
               {name}({count})
             </span>
@@ -125,7 +125,7 @@ const ToolOperationGroup: React.FC<ToolOperationGroupProps> = ({ messages, isAct
       </button>
 
       {expanded && (
-        <div className="border-t border-border-subtle bg-bg-primary py-1.5">
+        <div className="mt-1 border-l border-border-subtle pl-3 py-1">
           {messages.map(msg => (
             <ToolUseCard key={msg.id} message={msg} compact />
           ))}

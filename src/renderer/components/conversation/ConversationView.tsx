@@ -169,6 +169,7 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
   const [queueHintText, setQueueHintText] = useState('')
   const [showScrollBottom, setShowScrollBottom] = useState(false)
   const [commonPrompts, setCommonPrompts] = useState<CommonPrompt[]>(() => loadCommonPrompts())
+  const [promptPickerOpen, setPromptPickerOpen] = useState(false)
   const [promptManagerOpen, setPromptManagerOpen] = useState(false)
   const [promptDraft, setPromptDraft] = useState({ label: '', text: '' })
   // 记录是否已完成首次滚到底部（每次组件挂载重置）
@@ -640,12 +641,12 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
 
         {/* 流式响应指示器 - 带实时计时器 + 渐变扫光动画 */}
         {isStreaming && (
-          <div className="mb-4 flex justify-start animate-fade-in">
-            <div className="relative max-w-[min(620px,78%)] overflow-hidden rounded-lg border border-border-subtle bg-bg-elevated px-4 py-3 text-sm text-text-muted shadow-[0_10px_26px_var(--color-shadow-sm)] transition-all duration-300">
-              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-accent-blue/5 to-transparent animate-pulse" />
-              <div className="relative flex items-center gap-2">
-                <span className="inline-block h-3 w-3 flex-shrink-0 animate-spin rounded-full border border-text-muted/50 border-t-accent-blue" />
-                <span className="font-medium text-text-secondary">AI 正在处理</span>
+          <div className="mb-6 flex justify-start animate-fade-in">
+            <div className="relative max-w-[min(980px,92%)] py-2 pl-6 pr-3 text-sm text-text-muted">
+              <span className="absolute bottom-0 left-0 top-0 w-px bg-border-subtle" aria-hidden="true" />
+              <div className="flex items-center gap-2">
+                <span className="inline-block h-3 w-3 flex-shrink-0 animate-spin rounded-full border border-text-muted/40 border-t-accent-blue" />
+                <span className="font-medium text-text-muted">正在思考</span>
                 {thinkingSeconds > 0 && (
                   <span className="font-mono text-[11px] text-text-muted/60">
                     {formatThinkingTime(thinkingSeconds)}
@@ -653,7 +654,7 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
                 )}
               </div>
               {!!liveProgressText && (
-                <div className="relative mt-2 max-w-full truncate text-[11px] text-text-muted/80" title={liveProgressText}>
+                <div className="mt-2 max-w-full truncate text-[12px] text-text-muted/75" title={liveProgressText}>
                   {liveProgressText}
                 </div>
               )}
@@ -755,42 +756,66 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
 
       {/* 输入区域 */}
       {!isSessionEnded && (
-        <div className="relative border-t border-border-subtle bg-bg-primary px-4 pt-2 pb-3 shadow-[0_-10px_28px_var(--color-shadow-sm)]">
+        <div className="relative border-t border-border-subtle bg-bg-primary px-4 pt-1.5 pb-2.5 shadow-[0_-10px_28px_var(--color-shadow-sm)]">
           {/* Skill 快捷按钮 + MCP 状态 */}
           <SessionToolbar
             sessionId={sessionId}
             onSkillClick={setPendingInsert}
             onSkillExecute={handleSkillExecute}
             onCodeGraphAnswer={handleCodeGraphAnswer}
+            promptActions={
+              <button
+                type="button"
+                onClick={() => {
+                  setPromptPickerOpen(open => !open)
+                  setPromptManagerOpen(false)
+                }}
+                className={`flex h-6 flex-shrink-0 items-center gap-1 rounded-md border px-1.5 py-0.5 text-[11px] transition-colors ${
+                  promptPickerOpen
+                    ? 'border-accent-blue/40 bg-accent-blue/10 text-accent-blue'
+                    : 'border-transparent bg-bg-tertiary text-text-secondary hover:bg-bg-hover'
+                }`}
+                title="打开常用提示词"
+              >
+                <Settings2 size={12} />
+                <span>提示词</span>
+                <span className="text-[10px] text-text-muted">{commonPrompts.length}</span>
+              </button>
+            }
           />
 
-          <div className="mx-auto mb-1.5 flex w-full max-w-[1080px] items-center gap-1.5 overflow-x-auto rounded-lg bg-bg-elevated px-2.5 py-1.5">
-            <span className="flex-shrink-0 text-[11px] font-medium text-text-muted">常用提示词</span>
-            {commonPrompts.map(prompt => (
+          {promptPickerOpen && !promptManagerOpen && (
+            <div className="mx-auto mb-2 flex w-full max-w-[1080px] items-center gap-1.5 overflow-x-auto rounded-lg border border-border-subtle bg-bg-elevated px-2.5 py-2 shadow-sm [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+              <span className="flex-shrink-0 text-[11px] font-medium text-text-muted">常用提示词</span>
+              {commonPrompts.map(prompt => (
+                <button
+                  key={prompt.id}
+                  type="button"
+                  onClick={() => {
+                    setPendingInsert(prompt.text)
+                    setPromptPickerOpen(false)
+                  }}
+                  disabled={!canSend}
+                  className="flex h-6 flex-shrink-0 items-center rounded-md border border-transparent bg-bg-tertiary px-2.5 py-0.5 text-[11px] text-text-secondary transition-colors hover:bg-accent-blue/10 hover:text-accent-blue disabled:cursor-not-allowed disabled:opacity-40"
+                  title={prompt.text}
+                >
+                  {prompt.label}
+                </button>
+              ))}
               <button
-                key={prompt.id}
                 type="button"
-                onClick={() => setPendingInsert(prompt.text)}
-                disabled={!canSend}
-                className="flex-shrink-0 rounded-full border border-transparent bg-bg-tertiary px-2.5 py-1 text-xs text-text-secondary transition-colors hover:bg-accent-blue/10 hover:text-accent-blue disabled:cursor-not-allowed disabled:opacity-40"
-                title={prompt.text}
+                onClick={() => {
+                  setPromptPickerOpen(false)
+                  setPromptManagerOpen(true)
+                }}
+                className="ml-auto flex h-6 flex-shrink-0 items-center gap-1 rounded-md border border-border-subtle px-2 py-0.5 text-[11px] text-text-muted transition-colors hover:border-accent-blue/35 hover:text-accent-blue"
+                title="管理常用提示词"
               >
-                {prompt.label}
+                <Settings2 size={12} />
+                管理
               </button>
-            ))}
-            <button
-              type="button"
-              onClick={() => setPromptManagerOpen(open => !open)}
-              className={`ml-auto flex-shrink-0 rounded-full border px-2 py-1 text-xs transition-colors ${
-                promptManagerOpen
-                  ? 'border-accent-blue/40 bg-accent-blue/10 text-accent-blue'
-                  : 'border-transparent bg-bg-tertiary text-text-muted hover:bg-accent-blue/10 hover:text-accent-blue'
-              }`}
-              title="管理常用提示词"
-            >
-              <Settings2 size={12} />
-            </button>
-          </div>
+            </div>
+          )}
 
           {promptManagerOpen && (
             <div className="mx-auto mb-2 w-full max-w-[1080px] rounded-lg border border-border-subtle bg-bg-elevated p-3 shadow-sm">
