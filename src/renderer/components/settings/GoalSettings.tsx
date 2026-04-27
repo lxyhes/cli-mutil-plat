@@ -4,9 +4,11 @@
 import { useState, useEffect } from 'react'
 import {
   Target, Plus, Trash2, Loader2, Check, XCircle, ChevronDown,
-  ChevronRight, AlertCircle, CheckCircle2, X, StickyNote, BookmarkCheck, Bell, Eye
+  ChevronRight, AlertCircle, CheckCircle2, X, StickyNote, BookmarkCheck, Bell, Eye, Zap
 } from 'lucide-react'
 import { useGoalStore, type Goal, type GoalActivity, type GoalPriority, type GoalActivityType } from '../../stores/goalStore'
+import { usePlannerStore } from '../../stores/plannerStore'
+import { useSessionStore } from '../../stores/sessionStore'
 import ConfirmDialog from '../common/ConfirmDialog'
 
 const PRIORITY_LABELS: Record<GoalPriority, string> = {
@@ -68,6 +70,10 @@ export default function GoalSettings() {
     initListeners,
     cleanup,
   } = useGoalStore()
+  const selectedSessionId = useSessionStore(s => s.selectedSessionId)
+  const currentSessionId = useSessionStore(s => s.currentSessionId)
+  const syncPlanToKanban = usePlannerStore(s => s.syncToKanban)
+  const fetchPlans = usePlannerStore(s => s.fetchPlans)
 
   const [activeTab, setActiveTab] = useState<'list' | 'detail' | 'create'>('list')
   const [filterStatus, setFilterStatus] = useState<string | undefined>(undefined)
@@ -210,6 +216,40 @@ export default function GoalSettings() {
       setQuickProgress('')
     } finally {
       setAddingActivity(false)
+    }
+  }
+
+  const handleGeneratePlanFromGoal = async (syncToKanban: boolean) => {
+    if (!activeGoal || generatingPlan) return
+    setGeneratingPlan(true)
+    const sessionId = selectedSessionId || currentSessionId || `goal-plan-${Date.now()}`
+    try {
+      const plan = await generatePlan(activeGoal.id, sessionId)
+      const planId = plan?.planSession?.id ?? plan?.id
+      if (!planId) {
+        alert('规划生成失败：没有返回有效的规划 ID')
+        return
+      }
+
+      let message = `规划已生成\n\n规划 ID: ${planId}`
+      if (syncToKanban) {
+        const syncResult = await syncPlanToKanban(planId, sessionId)
+        if (!syncResult?.success) {
+          const errorMessage = syncResult?.error?.userMessage || syncResult?.error?.message || syncResult?.error || '同步失败'
+          alert(`规划已生成，但同步到看板失败：${errorMessage}`)
+          return
+        }
+        const taskCount = syncResult.data?.taskCount ?? syncResult.taskCount ?? 0
+        message += `\n已同步 ${taskCount} 个任务到看板`
+      }
+
+      await fetchPlans()
+      alert(message)
+      window.dispatchEvent(new CustomEvent('open-settings-tab', { detail: syncToKanban ? 'planner' : 'planner' }))
+    } catch (err: any) {
+      alert(`生成规划失败：${err.message || String(err)}`)
+    } finally {
+      setGeneratingPlan(false)
     }
   }
 
@@ -540,6 +580,23 @@ export default function GoalSettings() {
                           <Loader2 className="w-4 h-4 animate-spin" />
                         ) : (
                           <Target className="w-4 h-4" />
+                        )}
+                      </button>
+                    )}
+                    {activeGoal.status === 'active' && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          void handleGeneratePlanFromGoal(true)
+                        }}
+                        disabled={generatingPlan}
+                        className="p-1.5 text-text-muted hover:text-accent-yellow rounded btn-transition disabled:opacity-50"
+                        title="生成规划并同步到看板"
+                      >
+                        {generatingPlan ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <Zap className="w-4 h-4" />
                         )}
                       </button>
                     )}

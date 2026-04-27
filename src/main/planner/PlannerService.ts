@@ -77,6 +77,7 @@ export class PlannerService extends EventEmitter {
    */
   async createPlan(data: {
     sessionId: string
+    goalId?: string
     goal: string
     workingDirectory?: string
     providerId?: string
@@ -91,6 +92,7 @@ export class PlannerService extends EventEmitter {
     const planSession = this.db.createPlanSession({
       id: planId,
       sessionId: data.sessionId,
+      goalId: data.goalId,
       goal: data.goal,
       status: 'pending',
     })
@@ -458,6 +460,7 @@ export class PlannerService extends EventEmitter {
     }
 
     // 获取规划的所有任务
+    const plan = this.db.getPlanSession(planId)
     const planTasks = this.db.getPlanTasks(planId)
     if (!planTasks || planTasks.length === 0) {
       throw new Error('规划中没有任务可同步')
@@ -475,6 +478,8 @@ export class PlannerService extends EventEmitter {
           createdKanbanTasks.push(existing)
           continue
         }
+        const sourceTags = ['from-planner', `plan:${planId}`, linkTag]
+        if (plan?.goalId) sourceTags.push(`goal:${plan.goalId}`)
 
         // 创建看板任务
         const kanbanTask = this.taskCoordinator.createTask({
@@ -484,11 +489,12 @@ export class PlannerService extends EventEmitter {
           status: planTask.status === 'completed' ? 'done' : 
                   planTask.status === 'skipped' ? 'done' : 'todo',
           priority: planTask.priority === 'critical' ? 'high' : planTask.priority,
-          tags: ['from-planner', `plan:${planId}`, linkTag],
+          tags: sourceTags,
           sessionId,
           metadata: {
             source: 'planner',
             planId,
+            goalId: plan?.goalId,
             planTaskId: planTask.id,
             dependencies: planTask.dependencies || []
           }

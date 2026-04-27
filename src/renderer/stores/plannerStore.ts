@@ -11,6 +11,7 @@ export type Priority = 'low' | 'medium' | 'high' | 'critical'
 export interface PlanSession {
   id: string
   sessionId: string
+  goalId?: string
   goal: string
   status: PlanStatus
   createdAt?: string
@@ -53,7 +54,7 @@ interface PlannerState {
 
   fetchPlans: () => Promise<void>
   fetchPlan: (planId: string) => Promise<PlanSession | null>
-  createPlan: (data: { sessionId: string; goal: string; workingDirectory?: string; providerId?: string }) => Promise<any>
+  createPlan: (data: { sessionId: string; goal: string; goalId?: string; workingDirectory?: string; providerId?: string }) => Promise<any>
   updatePlan: (planId: string, updates: { goal?: string; status?: string }) => Promise<any>
   deletePlan: (planId: string) => Promise<any>
   startPlan: (planId: string, sessionId: string) => Promise<any>

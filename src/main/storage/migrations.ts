@@ -1449,4 +1449,21 @@ export const MIGRATIONS: Migration[] = [
       }
     },
   },
+
+  // v46: Link planner sessions back to goals
+  {
+    version: 46,
+    description: 'add goal_id to planner sessions',
+    up(db) {
+      try {
+        if (tableExists(db, 'plan_sessions')) {
+          addColumnIfNotExists(db, 'plan_sessions', 'goal_id', 'TEXT')
+          db.exec('CREATE INDEX IF NOT EXISTS idx_plan_sessions_goal ON plan_sessions(goal_id)')
+        }
+        console.log('[Migration v46] Planner goal_id field added successfully')
+      } catch (err) {
+        console.error('[Migration v46] Failed to add planner goal_id field:', err)
+      }
+    },
+  },
 ]

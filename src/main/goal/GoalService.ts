@@ -213,6 +213,7 @@ export class GoalService extends EventEmitter {
     // 调用 PlannerService 创建规划
     const result = await this.plannerService.createPlan({
       sessionId,
+      goalId,
       goal: goalDescription,
     })
 

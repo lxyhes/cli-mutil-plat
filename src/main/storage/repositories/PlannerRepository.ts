@@ -9,6 +9,7 @@ export type Priority = 'low' | 'medium' | 'high' | 'critical'
 export interface PlanSession {
   id: string
   sessionId: string
+  goalId?: string
   goal: string
   status: PlanStatus
   createdAt?: Date
@@ -68,9 +69,9 @@ export class PlannerRepository {
     const now = new Date().toISOString()
     if (this.usingSqlite) {
       this.db.prepare(`
-        INSERT INTO plan_sessions (id, session_id, goal, status, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?)
-      `).run(session.id, session.sessionId, session.goal, session.status, now, now)
+        INSERT INTO plan_sessions (id, session_id, goal_id, goal, status, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+      `).run(session.id, session.sessionId, session.goalId || null, session.goal, session.status, now, now)
     }
     return { ...session, createdAt: new Date(now), updatedAt: new Date(now) }
   }
@@ -81,6 +82,7 @@ export class PlannerRepository {
     const values: any[] = [new Date().toISOString()]
 
     if (updates.status !== undefined) { fields.push('status = ?'); values.push(updates.status) }
+    if (updates.goalId !== undefined) { fields.push('goal_id = ?'); values.push(updates.goalId || null) }
     if (updates.startedAt !== undefined) { fields.push('started_at = ?'); values.push(updates.startedAt ? new Date(updates.startedAt).toISOString() : null) }
     if (updates.completedAt !== undefined) { fields.push('completed_at = ?'); values.push(updates.completedAt ? new Date(updates.completedAt).toISOString() : null) }
     if (updates.goal !== undefined) { fields.push('goal = ?'); values.push(updates.goal) }
@@ -211,6 +213,7 @@ export class PlannerRepository {
     return {
       id: row.id,
       sessionId: row.session_id,
+      goalId: row.goal_id || undefined,
       goal: row.goal,
       status: row.status as PlanStatus,
       createdAt: row.created_at ? new Date(row.created_at) : undefined,
