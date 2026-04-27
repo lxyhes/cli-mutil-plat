@@ -403,10 +403,13 @@ const SessionToolbar: React.FC<SessionToolbarProps> = ({ sessionId, onSkillClick
   }, [onSkillClick, onSkillExecute])
 
   return (
-    <div className="mx-auto mb-2 flex w-full max-w-[1080px] flex-wrap items-center gap-1.5 px-0 py-0.5">
+    <div className="mx-auto mb-2 flex w-full max-w-[1080px] flex-wrap items-center gap-1.5 rounded-2xl border border-border/35 bg-bg-secondary/30 px-2.5 py-2 shadow-sm">
+      <span className="order-1 mr-1 flex-shrink-0 text-[11px] font-medium text-text-muted">
+        会话配置
+      </span>
 
       {/* ---- 会话模式 + 模型信息 ---- */}
-      <div className="flex items-center gap-1.5 px-2 py-1 rounded-md text-xs bg-bg-secondary/45 border border-transparent text-text-muted select-none">
+      <div className="order-1 flex items-center gap-1.5 px-2 py-1 rounded-md text-xs bg-bg-primary/35 border border-border/25 text-text-muted select-none">
         <span className={`inline-block w-1.5 h-1.5 rounded-full ${isSupervisor ? 'bg-accent-green' : 'bg-accent-blue'}`} />
         {isSupervisor ? (
           <Users size={11} className="text-accent-green flex-shrink-0" />
@@ -419,13 +422,13 @@ const SessionToolbar: React.FC<SessionToolbarProps> = ({ sessionId, onSkillClick
       </div>
 
       {/* ---- Model / reasoning selector ---- */}
-      <div className="relative flex-shrink-0">
+      <div className="relative order-1 flex-shrink-0">
         <button
           ref={modelBtnRef}
           onClick={() => setModelPopoverOpen(o => !o)}
           disabled={modelSwitching}
           className={`inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs
-            bg-bg-secondary/45 border border-transparent text-text-muted
+            bg-bg-primary/35 border border-border/25 text-text-muted
             hover:text-text-secondary hover:bg-bg-hover
             transition-colors cursor-pointer select-none disabled:opacity-60 disabled:cursor-wait
             ${modelPopoverOpen ? 'border-accent-blue/40 text-text-secondary' : 'border-border'}`}
@@ -507,17 +510,21 @@ const SessionToolbar: React.FC<SessionToolbarProps> = ({ sessionId, onSkillClick
           </div>
         )}
       </div>
+      <div className="order-3 basis-full border-t border-border/30 pt-2" />
+      <span className="order-4 mr-1 flex-shrink-0 text-[11px] font-medium text-text-muted">
+        快捷动作
+      </span>
       {/* ---- Skill 按钮 ---- */}
       {skillList.length > 0 && (
-        <div className="relative flex-shrink-0">
+        <div className="relative order-4 flex-shrink-0">
           <button
             ref={skillBtnRef}
             onClick={() => setSkillPopoverOpen(o => !o)}
             className={`inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs
-              bg-bg-secondary/45 border border-transparent text-text-muted
-              hover:text-text-secondary hover:bg-bg-hover
+              bg-accent-blue/10 border border-accent-blue/20 text-accent-blue
+              hover:text-accent-blue hover:bg-accent-blue/15
               transition-colors cursor-pointer select-none
-              ${skillPopoverOpen ? 'border-accent-blue/40 text-text-secondary' : 'border-border'}`}
+              ${skillPopoverOpen ? 'border-accent-blue/50 text-accent-blue' : ''}`}
           >
             <Zap size={12} />
             <span>{skillList.length} 个 Skill</span>
@@ -640,18 +647,18 @@ const SessionToolbar: React.FC<SessionToolbarProps> = ({ sessionId, onSkillClick
 
       {/* ---- MCP 状态按钮 ---- */}
       {mcpList.length > 0 && (
-        <div className="relative flex-shrink-0">
+        <div className="relative order-2 ml-auto flex-shrink-0">
           <button
             ref={mcpBtnRef}
             onClick={() => setMcpPopoverOpen(o => !o)}
             className={`inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs
-              bg-bg-secondary/45 border border-transparent text-text-muted
+              bg-bg-primary/25 border border-transparent text-text-muted
               hover:text-text-secondary hover:bg-bg-hover
               transition-colors cursor-pointer select-none
               ${mcpPopoverOpen ? 'border-accent-blue/40 text-text-secondary' : 'border-border'}`}
           >
             <Plug size={12} />
-            <span>{mcpList.length} 个 MCP</span>
+            <span>能力 {mcpList.length}</span>
           </button>
 
           {/* 只读 Popover */}
@@ -716,12 +723,12 @@ const SessionToolbar: React.FC<SessionToolbarProps> = ({ sessionId, onSkillClick
       )}
 
       {/* ---- 工具箱功能按钮 ---- */}
-      <div className="relative flex-shrink-0">
+      <div className="relative order-4 flex-shrink-0">
         <button
           ref={toolboxBtnRef}
           onClick={() => setToolboxPopoverOpen(o => !o)}
           className={`inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs
-            bg-bg-secondary/45 border border-transparent text-text-muted
+            bg-bg-primary/35 border border-border/25 text-text-muted
             hover:text-text-secondary hover:bg-bg-hover
             transition-colors cursor-pointer select-none
             ${toolboxPopoverOpen ? 'border-accent-blue/40 text-text-secondary' : 'border-border'}`}

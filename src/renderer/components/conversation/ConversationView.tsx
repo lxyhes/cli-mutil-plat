@@ -679,28 +679,28 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
       {/* 输入区域 */}
       {!isSessionEnded && (
         <div className="relative border-t border-border/40 bg-bg-primary/95 px-4 pt-2 pb-3 shadow-[0_-18px_40px_rgba(0,0,0,0.14)]">
-          <div className="mx-auto mb-2 flex w-full max-w-[1080px] items-center gap-1.5 overflow-x-auto">
-            <span className="flex-shrink-0 text-[11px] text-text-muted">常用提示词</span>
-            {COMMON_PROMPTS.map(prompt => (
-              <button
-                key={prompt.label}
-                type="button"
-                onClick={() => setPendingInsert(prompt.text)}
-                disabled={!canSend}
-                className="flex-shrink-0 rounded-full border border-border/45 bg-bg-secondary/55 px-2.5 py-1 text-xs text-text-secondary hover:border-accent-blue/40 hover:bg-accent-blue/10 hover:text-accent-blue disabled:cursor-not-allowed disabled:opacity-40 transition-colors"
-                title={prompt.text}
-              >
-                {prompt.label}
-              </button>
-            ))}
-          </div>
-
           {/* Skill 快捷按钮 + MCP 状态 */}
           <SessionToolbar
             sessionId={sessionId}
             onSkillClick={setPendingInsert}
             onSkillExecute={handleSkillExecute}
           />
+
+          <div className="mx-auto mb-2 flex w-full max-w-[1080px] items-center gap-1.5 overflow-x-auto rounded-2xl border border-border/35 bg-bg-secondary/25 px-2.5 py-2">
+            <span className="flex-shrink-0 text-[11px] font-medium text-text-muted">常用提示词</span>
+            {COMMON_PROMPTS.map(prompt => (
+              <button
+                key={prompt.label}
+                type="button"
+                onClick={() => setPendingInsert(prompt.text)}
+                disabled={!canSend}
+                className="flex-shrink-0 rounded-full border border-border/45 bg-bg-primary/35 px-2.5 py-1 text-xs text-text-secondary hover:border-accent-blue/40 hover:bg-accent-blue/10 hover:text-accent-blue disabled:cursor-not-allowed disabled:opacity-40 transition-colors"
+                title={prompt.text}
+              >
+                {prompt.label}
+              </button>
+            ))}
+          </div>
 
           {queuedMessages.length > 0 && (
             <div className="px-4 pb-1">
