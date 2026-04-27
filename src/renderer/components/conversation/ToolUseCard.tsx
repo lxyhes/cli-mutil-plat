@@ -12,6 +12,7 @@ import React, { useState, useMemo } from 'react'
 import {
   ChevronDown, ChevronRight, Copy, FileJson,
   ClipboardList, ExternalLink, FolderOpen, Terminal,
+  AlertTriangle, Bot, CheckCircle2, FileText, Globe2, PenLine, Search, Wrench,
 } from 'lucide-react'
 import type { ConversationMessage } from '../../../shared/types'
 import ContextMenu from '../common/ContextMenu'
@@ -41,6 +42,24 @@ const DEFAULT_STYLE = { icon: '🔧', color: 'text-text-secondary', label: 'Tool
 
 /** 文件类工具列表，这些工具的 toolInput 中可能包含 file_path */
 const FILE_TOOLS = new Set(['Read', 'Write', 'Edit', 'Glob', 'Grep'])
+
+function getToolIcon(toolName: string, isResult: boolean, isError?: boolean) {
+  if (isResult) {
+    return isError
+      ? <AlertTriangle size={13} className="text-accent-red flex-shrink-0" />
+      : <CheckCircle2 size={13} className="text-accent-green flex-shrink-0" />
+  }
+
+  if (toolName === 'Read') return <FileText size={13} className="text-accent-blue flex-shrink-0" />
+  if (toolName === 'Write' || toolName === 'Edit') return <PenLine size={13} className="text-accent-yellow flex-shrink-0" />
+  if (toolName === 'Glob' || toolName === 'Grep') return <Search size={13} className="text-accent-blue flex-shrink-0" />
+  if (toolName === 'WebSearch') return <Globe2 size={13} className="text-accent-blue flex-shrink-0" />
+  if (toolName === 'Task') return <Bot size={13} className="text-accent-purple flex-shrink-0" />
+  if (toolName === 'Bash' || toolName === 'shell' || toolName === 'localShellCall' || toolName === 'local_shell_call') {
+    return <Terminal size={13} className="text-accent-purple flex-shrink-0" />
+  }
+  return <Wrench size={13} className="text-text-muted flex-shrink-0" />
+}
 
 interface ToolUseCardProps {
   message: ConversationMessage
@@ -145,27 +164,29 @@ const ToolUseCard: React.FC<ToolUseCardProps> = ({ message, compact = false }) =
           e.stopPropagation() // 阻止冒泡到 ConversationView
           setCtxMenu({ visible: true, x: e.clientX, y: e.clientY })
         }}
-        className={`w-full text-left flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-mono
+        className={`w-full text-left flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs border
           ${isResult
-            ? (isError ? 'bg-accent-red/10 text-accent-red' : 'bg-bg-tertiary text-text-secondary')
-            : 'bg-bg-secondary text-text-primary hover:bg-bg-hover'
+            ? (isError ? 'border-accent-red/25 bg-accent-red/10 text-accent-red' : 'border-border/25 bg-bg-tertiary/70 text-text-secondary')
+            : 'border-border/25 bg-bg-secondary/70 text-text-primary hover:bg-bg-hover'
           } transition-colors`}
       >
-        <span className="text-[10px]">{expanded ? '▼' : '▶'}</span>
-        <span>{style.icon}</span>
-        <span className={`font-semibold ${style.color}`}>
+        <span className="text-text-muted flex-shrink-0">
+          {expanded ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
+        </span>
+        {getToolIcon(toolName || '', isResult, isError)}
+        <span className={`font-semibold font-mono ${style.color}`}>
           {toolName || style.label}
         </span>
-        <span className="text-text-muted truncate flex-1">
+        <span className="text-text-muted truncate flex-1 font-mono">
           {content?.slice(0, 80)}
         </span>
         {isResult && isError && (
-          <span className="text-accent-red text-[10px] font-bold">ERROR</span>
+          <span className="rounded-full bg-accent-red/10 px-2 py-0.5 text-accent-red text-[10px] font-bold">ERROR</span>
         )}
       </button>
 
       {expanded && (
-        <div className="mt-1 mx-1 p-2 rounded bg-bg-tertiary text-xs font-mono border border-border overflow-auto max-h-[300px]">
+        <div className="mt-1.5 mx-1 p-3 rounded-xl bg-bg-tertiary/75 text-xs font-mono border border-border/40 overflow-auto max-h-[300px]">
           {/* 工具输入 */}
           {toolInput && !isResult && (
             <div className="mb-2">

@@ -1124,8 +1124,8 @@ const MessageInput: React.FC<MessageInputProps> = ({
         </div>
       )}
 
-      <div className={`mx-auto flex max-w-[1080px] flex-col p-2 bg-bg-secondary/45 border rounded-xl transition-colors shadow-sm
-        ${dragOver ? 'border-accent-blue' : 'border-border/55'} focus-within:border-accent-blue/45 md:p-3`}>
+      <div className={`mx-auto flex max-w-[1080px] flex-col p-2 bg-bg-secondary/70 border rounded-2xl transition-colors shadow-sm
+        ${dragOver ? 'border-accent-blue' : 'border-border/45'} focus-within:border-accent-blue/45 focus-within:shadow-[0_0_0_1px_rgba(59,130,246,0.12)] md:p-3`}>
 
         {/* 附件区域：图片预览 + 文件引用卡片（有附件时显示） */}
         {hasAttachments && (

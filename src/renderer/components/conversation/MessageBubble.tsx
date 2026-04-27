@@ -17,7 +17,7 @@ import Markdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import rehypeHighlight from 'rehype-highlight'
 import type { Components } from 'react-markdown'
-import { Copy, FileText, Cpu, Zap } from 'lucide-react'
+import { ChevronDown, ChevronRight, Copy, FileText, Cpu, Sparkles, Zap } from 'lucide-react'
 import type { ConversationMessage } from '../../../shared/types'
 import { parseMessageContentWithImages } from '../../../shared/utils/messageContent'
 import ToolUseCard from './ToolUseCard'
@@ -265,7 +265,7 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({ message, isStreaming }) =
   return (
     <>
       <div
-        className={`flex ${isUser ? 'justify-end' : 'justify-start'} mb-5`}
+        className={`flex ${isUser ? 'justify-end' : 'justify-start'} mb-4`}
         onContextMenu={(e) => {
           e.preventDefault()
           e.stopPropagation() // 阻止冒泡到 ConversationView 背景
@@ -273,14 +273,18 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({ message, isStreaming }) =
         }}
       >
         <div
-          className={`relative text-sm
+          className={`group/message relative text-sm transition-all duration-200
             ${isUser
-              ? 'max-w-[min(560px,64%)] rounded-xl px-3.5 py-2.5 bg-bg-secondary border border-border/50 text-text-primary shadow-sm'
-              : 'max-w-[min(860px,82%)] px-1 py-0 text-text-primary'
+              ? 'max-w-[min(640px,70%)] rounded-2xl px-4 py-3 bg-accent-blue/10 border border-accent-blue/20 text-text-primary shadow-sm'
+              : 'max-w-[min(900px,86%)] rounded-2xl px-4 py-3 bg-bg-secondary/30 border border-border/35 text-text-primary shadow-sm hover:border-border/70'
             } animate-fade-in`}
         >
-          {/* AI 消息左侧竖线标识 */}
-          {!isUser && <div className="absolute -left-3 top-1.5 bottom-1.5 w-px rounded-full bg-border/60" />}
+          {!isUser && (
+            <div className="mb-2 flex items-center gap-1.5 text-[11px] font-medium text-text-muted">
+              <Sparkles size={12} className="text-accent-blue" />
+              <span>AI 回复</span>
+            </div>
+          )}
 
           {/* 思考内容（折叠显示） */}
           {thinkingText && <ThinkingBlock text={thinkingText} />}
@@ -289,12 +293,12 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({ message, isStreaming }) =
           {parsedContent.textContent && (
             isUser ? (
               // user 消息：纯文本渲染
-              <div className="whitespace-pre-wrap break-words font-mono text-[13px] leading-relaxed">
+              <div className="whitespace-pre-wrap break-words text-[13px] leading-relaxed">
                 {parsedContent.textContent}
               </div>
             ) : (
               // assistant 消息：流式草稿降级纯文本，完成后 Markdown 渲染
-              <div className={isStreamingDraft ? "whitespace-pre-wrap break-words text-[13px] leading-relaxed font-mono" : "markdown-body text-[13px] leading-relaxed"}>
+              <div className={isStreamingDraft ? "whitespace-pre-wrap break-words text-[13px] leading-relaxed" : "markdown-body text-[14px] leading-7"}>
                 {isStreamingDraft ? parsedContent.textContent : (
                   <Markdown
                     remarkPlugins={remarkPlugins}
@@ -398,20 +402,21 @@ const ThinkingBlock: React.FC<{ text: string }> = ({ text }) => {
   const [expanded, setExpanded] = useState(false)
 
   return (
-    <div className="mb-2">
+    <div className="mb-3">
       <button
         onClick={() => setExpanded(!expanded)}
-        className="text-xs text-text-muted hover:text-text-secondary flex items-center gap-1.5 px-1.5 py-0.5 rounded hover:bg-bg-hover/50 transition-colors"
+        className="inline-flex items-center gap-1.5 rounded-full border border-border/40 bg-bg-tertiary/60 px-2.5 py-1 text-xs text-text-muted hover:text-text-secondary hover:border-border/70 transition-colors"
       >
-        <span className="text-[10px]">{expanded ? '▼' : '▶'}</span>
-        <span className="italic">思考过程</span>
-        <span className="text-[10px] text-text-muted/40">({Math.ceil(text.length / 100) * 100}字符)</span>
+        {expanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+        <Cpu size={12} className="text-accent-purple" />
+        <span>思考过程</span>
+        <span className="text-[10px] text-text-muted/45">{text.length} 字</span>
       </button>
       <div
         className="overflow-hidden transition-all duration-300 ease-in-out"
         style={{ maxHeight: expanded ? '2000px' : '0px', opacity: expanded ? 1 : 0 }}
       >
-        <div className="mt-1 text-xs text-text-muted/70 whitespace-pre-wrap border-l-2 border-accent-purple/30 pl-2 bg-bg-tertiary/30 rounded-r py-1">
+        <div className="mt-2 rounded-xl border border-accent-purple/15 bg-bg-tertiary/40 px-3 py-2 text-xs text-text-muted/75 whitespace-pre-wrap">
           {text}
         </div>
       </div>

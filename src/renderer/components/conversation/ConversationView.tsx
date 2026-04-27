@@ -51,6 +51,14 @@ type MessageGroup =
   | { type: 'tool_group'; messages: ConversationMessage[]; isActive: boolean }
   | { type: 'file_change'; message: ConversationMessage }
 
+const COMMON_PROMPTS = [
+  { label: '审视项目', text: '审视下我的项目，先给出结构、风险点和下一步优先级。' },
+  { label: '继续下一步', text: '继续下一步，按最短路径推进，改完后帮我验证。' },
+  { label: '排查问题', text: '帮我排查这个问题，先定位根因，再给出最小修复方案。' },
+  { label: '优化 UI', text: '帮我优化这个页面的 UI/UX，不破坏现有功能，完成后说明改了什么。' },
+  { label: '更新 todo', text: '根据当前进度更新 todo.md，并继续完成最高优先级事项。' },
+]
+
 /**
  * 将消息序列按规则分组：
  * - user / assistant / system 消息各自独立
@@ -631,7 +639,23 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
 
       {/* 输入区域 */}
       {!isSessionEnded && (
-        <div className="relative">
+        <div className="relative border-t border-border/40 bg-bg-primary/95 px-4 pt-2 pb-3 shadow-[0_-18px_40px_rgba(0,0,0,0.14)]">
+          <div className="mx-auto mb-2 flex w-full max-w-[1080px] items-center gap-1.5 overflow-x-auto">
+            <span className="flex-shrink-0 text-[11px] text-text-muted">常用提示词</span>
+            {COMMON_PROMPTS.map(prompt => (
+              <button
+                key={prompt.label}
+                type="button"
+                onClick={() => setPendingInsert(prompt.text)}
+                disabled={!canSend}
+                className="flex-shrink-0 rounded-full border border-border/45 bg-bg-secondary/55 px-2.5 py-1 text-xs text-text-secondary hover:border-accent-blue/40 hover:bg-accent-blue/10 hover:text-accent-blue disabled:cursor-not-allowed disabled:opacity-40 transition-colors"
+                title={prompt.text}
+              >
+                {prompt.label}
+              </button>
+            ))}
+          </div>
+
           {/* Skill 快捷按钮 + MCP 状态 */}
           <SessionToolbar
             sessionId={sessionId}

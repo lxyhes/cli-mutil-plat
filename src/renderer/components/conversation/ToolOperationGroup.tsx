@@ -3,7 +3,7 @@
  */
 
 import React, { useEffect, useMemo, useState } from 'react'
-import { AlertTriangle, ChevronDown, ChevronRight, Loader2, Wrench } from 'lucide-react'
+import { AlertTriangle, CheckCircle2, ChevronDown, ChevronRight, Loader2 } from 'lucide-react'
 import type { ConversationMessage } from '../../../shared/types'
 import ToolUseCard from './ToolUseCard'
 
@@ -69,32 +69,35 @@ const ToolOperationGroup: React.FC<ToolOperationGroupProps> = ({ messages, isAct
   const toolCount = toolUseMessages.length
   const hasError = messages.some(m => m.role === 'tool_result' && m.isError)
   const lastSummary = summarizeTool(lastToolUse)
+  const statusLabel = hasError ? '执行异常' : isActive ? '正在执行' : '执行完成'
 
   return (
     <div
-      className={`my-2 ml-2 mr-14 rounded-md overflow-hidden border-l transition-colors ${
+      className={`my-3 ml-8 mr-20 overflow-hidden rounded-xl border transition-colors ${
         isActive
-          ? 'border-accent-purple/45 bg-bg-secondary/35'
+          ? 'border-accent-purple/30 bg-bg-secondary/45 shadow-sm shadow-accent-purple/5'
           : hasError
-            ? 'border-accent-red/45 bg-bg-secondary/25'
-            : 'border-border/60 bg-transparent'
+            ? 'border-accent-red/35 bg-accent-red/5'
+            : 'border-border/35 bg-bg-secondary/20'
       }`}
     >
       <button
         onClick={() => setExpanded(!expanded)}
         aria-expanded={expanded}
-        className="w-full text-left px-3 py-1.5 flex items-center gap-2 hover:bg-bg-hover/20 transition-colors"
+        className="w-full text-left px-3 py-2 flex items-center gap-2 hover:bg-bg-hover/20 transition-colors"
       >
         <span className="text-text-muted flex-shrink-0">
           {expanded ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
         </span>
-        {isActive ? (
+        {hasError ? (
+          <AlertTriangle size={13} className="text-accent-red flex-shrink-0" />
+        ) : isActive ? (
           <Loader2 size={13} className="text-accent-purple animate-spin flex-shrink-0" />
         ) : (
-          <Wrench size={13} className="text-text-muted flex-shrink-0" />
+          <CheckCircle2 size={13} className="text-accent-green flex-shrink-0" />
         )}
         <span className="text-xs font-medium text-text-primary flex-shrink-0">
-          {isActive ? '正在执行' : '执行完成'}
+          {statusLabel}
           <span className="text-text-muted font-normal">
             {` · ${toolCount} 个操作`}
             {isActive && activeDurationSecs > 0 ? ` · ${activeDurationSecs}s` : ''}
@@ -105,7 +108,7 @@ const ToolOperationGroup: React.FC<ToolOperationGroupProps> = ({ messages, isAct
           {Object.entries(toolCounts).slice(0, 4).map(([name, count]) => (
             <span
               key={name}
-              className="text-[10px] text-text-muted bg-bg-secondary/45 px-1.5 py-0.5 rounded font-mono"
+              className="text-[10px] text-text-muted bg-bg-tertiary/70 border border-border/25 px-1.5 py-0.5 rounded-md font-mono"
             >
               {name}({count})
             </span>
@@ -115,14 +118,14 @@ const ToolOperationGroup: React.FC<ToolOperationGroupProps> = ({ messages, isAct
           {lastSummary}
         </span>
         {hasError && (
-          <span className="inline-flex items-center gap-1 text-[10px] text-accent-red font-bold flex-shrink-0">
+          <span className="inline-flex items-center gap-1 rounded-full bg-accent-red/10 px-2 py-0.5 text-[10px] text-accent-red font-bold flex-shrink-0">
             <AlertTriangle size={11} /> ERROR
           </span>
         )}
       </button>
 
       {expanded && (
-        <div className="border-t border-border/30 py-1">
+        <div className="border-t border-border/30 bg-bg-primary/25 py-1.5">
           {messages.map(msg => (
             <ToolUseCard key={msg.id} message={msg} compact />
           ))}

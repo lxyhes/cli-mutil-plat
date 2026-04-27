@@ -403,7 +403,7 @@ const SessionToolbar: React.FC<SessionToolbarProps> = ({ sessionId, onSkillClick
   }, [onSkillClick, onSkillExecute])
 
   return (
-    <div className="mx-auto mb-1 flex w-[calc(100%-2rem)] max-w-[1080px] items-center gap-1.5 px-1 py-0.5">
+    <div className="mx-auto mb-2 flex w-full max-w-[1080px] flex-wrap items-center gap-1.5 px-0 py-0.5">
 
       {/* ---- 会话模式 + 模型信息 ---- */}
       <div className="flex items-center gap-1.5 px-2 py-1 rounded-md text-xs bg-bg-secondary/45 border border-transparent text-text-muted select-none">
