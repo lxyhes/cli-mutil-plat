@@ -108,29 +108,36 @@ export class KnowledgeCenterService {
 
     // FTS5 全文搜索表
     this.db.exec(`
-      CREATE VIRTUAL TABLE IF NOT EXISTS unified_knowledge_fts USING fts5(
+      DROP TRIGGER IF EXISTS unified_knowledge_fts_insert;
+      DROP TRIGGER IF EXISTS unified_knowledge_fts_update;
+      DROP TRIGGER IF EXISTS unified_knowledge_fts_delete;
+      DROP TABLE IF EXISTS unified_knowledge_fts;
+
+      CREATE VIRTUAL TABLE unified_knowledge_fts USING fts5(
+        doc_id UNINDEXED,
         title,
-        content,
-        content='unified_knowledge',
-        content_rowid='id'
+        content
       );
 
       -- 触发器：自动同步 FTS
-      CREATE TRIGGER IF NOT EXISTS unified_knowledge_fts_insert AFTER INSERT ON unified_knowledge BEGIN
-        INSERT INTO unified_knowledge_fts(rowid, title, content)
+      CREATE TRIGGER unified_knowledge_fts_insert AFTER INSERT ON unified_knowledge BEGIN
+        INSERT INTO unified_knowledge_fts(doc_id, title, content)
         VALUES (new.id, new.title, new.content);
       END;
 
-      CREATE TRIGGER IF NOT EXISTS unified_knowledge_fts_update AFTER UPDATE ON unified_knowledge BEGIN
+      CREATE TRIGGER unified_knowledge_fts_update AFTER UPDATE ON unified_knowledge BEGIN
         UPDATE unified_knowledge_fts SET
           title = new.title,
           content = new.content
-        WHERE rowid = old.id;
+        WHERE doc_id = old.id;
       END;
 
-      CREATE TRIGGER IF NOT EXISTS unified_knowledge_fts_delete AFTER DELETE ON unified_knowledge BEGIN
-        DELETE FROM unified_knowledge_fts WHERE rowid = old.id;
+      CREATE TRIGGER unified_knowledge_fts_delete AFTER DELETE ON unified_knowledge BEGIN
+        DELETE FROM unified_knowledge_fts WHERE doc_id = old.id;
       END;
+
+      INSERT INTO unified_knowledge_fts(doc_id, title, content)
+      SELECT id, title, content FROM unified_knowledge;
     `)
   }
 
@@ -288,7 +295,7 @@ export class KnowledgeCenterService {
     let searchWhere = ''
     if (query.searchQuery) {
       searchJoin = `
-        INNER JOIN unified_knowledge_fts fts ON fts.rowid = k.id
+        INNER JOIN unified_knowledge_fts fts ON fts.doc_id = k.id
       `
       searchWhere = ` AND unified_knowledge_fts MATCH ?`
       params.push(query.searchQuery)
@@ -429,7 +436,7 @@ export class KnowledgeCenterService {
     try {
       const stmt = this.db.prepare(`
         SELECT k.* FROM unified_knowledge k
-        INNER JOIN unified_knowledge_fts fts ON fts.rowid = k.id
+        INNER JOIN unified_knowledge_fts fts ON fts.doc_id = k.id
         WHERE unified_knowledge_fts MATCH ? AND k.type = 'cross-session-memory'
         ORDER BY rank
         LIMIT ?
