@@ -62,4 +62,12 @@ export function registerCodeGraphHandlers(codeGraphService: CodeGraphService): v
       return createErrorResponse(err, { operation: 'code-graph.get-symbol-blast-radius', projectPath, filePath })
     }
   })
+
+  ipcMain.handle(IPC.CODE_GRAPH_ASK, async (_event, projectPath: string, question: string, options?: any) => {
+    try {
+      return createSuccessResponse(codeGraphService.answerQuestion(projectPath, question, options))
+    } catch (err) {
+      return createErrorResponse(err, { operation: 'code-graph.ask', projectPath, question })
+    }
+  })
 }

@@ -418,6 +418,7 @@ export const IPC = {
   CODE_GRAPH_GET_BLAST_RADIUS:  'code-graph:get-blast-radius',
   CODE_GRAPH_GET_SYMBOLS:       'code-graph:get-symbols',
   CODE_GRAPH_GET_SYMBOL_BLAST_RADIUS: 'code-graph:get-symbol-blast-radius',
+  CODE_GRAPH_ASK:               'code-graph:ask',
 
   // OpenAI Compatible Provider
   OPENAI_COMPAT_TEST:       'openai-compat:test',

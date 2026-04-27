@@ -14,7 +14,7 @@
  */
 
 import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react'
-import { Zap, Plug, Cpu, Users, Sparkles, FileText, Mic, ShieldCheck, Activity, BookMarked, Brain, ChevronDown, Check } from 'lucide-react'
+import { Zap, Plug, Cpu, Users, Sparkles, FileText, Mic, ShieldCheck, Activity, BookMarked, Brain, ChevronDown, Check, GitBranch, Send } from 'lucide-react'
 import { useSessionStore } from '../../stores/sessionStore'
 import { useSkillStore } from '../../stores/skillStore'
 import { useMcpStore } from '../../stores/mcpStore'
@@ -40,12 +40,20 @@ export interface SkillItem {
   promptTemplate?: string
 }
 
+interface CodeGraphAnswer {
+  summary?: string
+  suggestedPrompt?: string
+  sections?: Array<{ title: string; items: string[] }>
+}
+
 interface SessionToolbarProps {
   sessionId: string
   /** 原生命令点击时回调：插入 "/slashCommand " 到输入框，由 CLI 原生处理 */
   onSkillClick: (command: string) => void
   /** Prompt 型 Skill 点击时回调：父组件负责静默展开并发送，不插入输入框 */
   onSkillExecute: (skill: SkillItem) => void
+  /** Code Graph 问答完成后，把结构化上下文交给输入框或上层会话 */
+  onCodeGraphAnswer?: (answer: CodeGraphAnswer) => void
 }
 
 // ---- 通用 hook ----
@@ -117,9 +125,14 @@ const REASONING_LABEL: Record<string, string> = {
 }
 // ---- 主组件 ----
 
-const SessionToolbar: React.FC<SessionToolbarProps> = ({ sessionId, onSkillClick, onSkillExecute }) => {
+const SessionToolbar: React.FC<SessionToolbarProps> = ({ sessionId, onSkillClick, onSkillExecute, onCodeGraphAnswer }) => {
   const [skillPopoverOpen, setSkillPopoverOpen] = useState(false)
   const [mcpPopoverOpen, setMcpPopoverOpen] = useState(false)
+  const [codeGraphPopoverOpen, setCodeGraphPopoverOpen] = useState(false)
+  const [codeGraphQuestion, setCodeGraphQuestion] = useState('')
+  const [codeGraphLoading, setCodeGraphLoading] = useState(false)
+  const [codeGraphError, setCodeGraphError] = useState<string | null>(null)
+  const [codeGraphAnswer, setCodeGraphAnswer] = useState<CodeGraphAnswer | null>(null)
   /** Skill 搜索框内容 */
   const [skillFilter, setSkillFilter] = useState('')
 
@@ -128,6 +141,8 @@ const SessionToolbar: React.FC<SessionToolbarProps> = ({ sessionId, onSkillClick
   const skillFilterRef = useRef<HTMLInputElement>(null)
   const mcpBtnRef = useRef<HTMLButtonElement>(null)
   const mcpPopoverRef = useRef<HTMLDivElement>(null)
+  const codeGraphBtnRef = useRef<HTMLButtonElement>(null)
+  const codeGraphPopoverRef = useRef<HTMLDivElement>(null)
   const [modelPopoverOpen, setModelPopoverOpen] = useState(false)
   const [modelSwitching, setModelSwitching] = useState(false)
   const modelBtnRef = useRef<HTMLButtonElement>(null)
@@ -143,6 +158,9 @@ const SessionToolbar: React.FC<SessionToolbarProps> = ({ sessionId, onSkillClick
   // 当前会话是否为 Supervisor 模式
   const isSupervisor = useSessionStore(s =>
     !!s.sessions.find(sess => sess.id === sessionId)?.config?.supervisorMode
+  )
+  const workingDirectory = useSessionStore(s =>
+    s.sessions.find(sess => sess.id === sessionId)?.config?.workingDirectory
   )
   // 当前使用的模型
   const currentModel = initData?.model || ''
@@ -345,6 +363,7 @@ const SessionToolbar: React.FC<SessionToolbarProps> = ({ sessionId, onSkillClick
   // 工具箱 Popover 关闭逻辑
   usePopoverClose(toolboxPopoverOpen, setToolboxPopoverOpen, toolboxBtnRef, toolboxPopoverRef)
   usePopoverClose(modelPopoverOpen, setModelPopoverOpen, modelBtnRef, modelPopoverRef)
+  usePopoverClose(codeGraphPopoverOpen, setCodeGraphPopoverOpen, codeGraphBtnRef, codeGraphPopoverRef)
 
   // 处理工具箱功能点击
   const handleToolboxFeatureClick = useCallback((featureId: ToolboxFeatureId) => {
@@ -385,6 +404,29 @@ const SessionToolbar: React.FC<SessionToolbarProps> = ({ sessionId, onSkillClick
       setModelPopoverOpen(false)
     }
   }, [sessionId, modelSwitching, setSessionInitData, currentReasoningEffort])
+
+  const handleCodeGraphAsk = useCallback(async () => {
+    const question = codeGraphQuestion.trim()
+    if (!question || !workingDirectory || codeGraphLoading) return
+    setCodeGraphLoading(true)
+    setCodeGraphError(null)
+    try {
+      const result = await window.spectrAI.codeGraph.ask(workingDirectory, question)
+      if (!result?.success) {
+        setCodeGraphError(result?.error?.userMessage || result?.error?.message || result?.error || '代码库问答失败')
+        return
+      }
+      const answer = (result.data || result) as CodeGraphAnswer
+      setCodeGraphAnswer(answer)
+      if (answer.suggestedPrompt) {
+        onCodeGraphAnswer?.(answer)
+      }
+    } catch (error: any) {
+      setCodeGraphError(error?.message || '代码库问答失败')
+    } finally {
+      setCodeGraphLoading(false)
+    }
+  }, [codeGraphQuestion, workingDirectory, codeGraphLoading, onCodeGraphAnswer])
 
   // ---- Popover 关闭逻辑 ----
   usePopoverClose(skillPopoverOpen, setSkillPopoverOpen, skillBtnRef, skillPopoverRef)
@@ -514,6 +556,86 @@ const SessionToolbar: React.FC<SessionToolbarProps> = ({ sessionId, onSkillClick
       <span className="order-4 mr-1 flex-shrink-0 text-[11px] font-medium text-text-muted">
         快捷动作
       </span>
+
+      {/* ---- Code Graph 问答 ---- */}
+      <div className="relative order-4 flex-shrink-0">
+        <button
+          ref={codeGraphBtnRef}
+          onClick={() => setCodeGraphPopoverOpen(o => !o)}
+          disabled={!workingDirectory}
+          className={`inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs
+            bg-accent-purple/10 border border-accent-purple/20 text-accent-purple
+            hover:text-accent-purple hover:bg-accent-purple/15
+            transition-colors cursor-pointer select-none disabled:cursor-not-allowed disabled:opacity-45
+            ${codeGraphPopoverOpen ? 'border-accent-purple/50 text-accent-purple' : ''}`}
+          title={workingDirectory ? '基于 Code Graph 询问当前项目' : '当前会话没有工作目录'}
+        >
+          <GitBranch size={12} />
+          <span>代码库问答</span>
+        </button>
+
+        {codeGraphPopoverOpen && (
+          <div
+            ref={codeGraphPopoverRef}
+            className="absolute bottom-full left-0 mb-1.5 w-96 max-w-[calc(100vw-32px)] rounded-lg border border-border bg-bg-secondary py-2 shadow-lg z-50"
+          >
+            <div className="border-b border-border px-3 pb-2">
+              <div className="text-xs font-medium text-text-secondary">问当前代码库</div>
+              <div className="mt-0.5 truncate text-[10px] text-text-muted" title={workingDirectory || ''}>
+                {workingDirectory || '未绑定工作目录'}
+              </div>
+            </div>
+            <div className="space-y-2 px-3 pt-2">
+              <textarea
+                value={codeGraphQuestion}
+                onChange={event => {
+                  setCodeGraphQuestion(event.target.value)
+                  setCodeGraphError(null)
+                }}
+                onKeyDown={event => {
+                  if (event.key === 'Enter' && !event.shiftKey) {
+                    event.preventDefault()
+                    void handleCodeGraphAsk()
+                  }
+                }}
+                placeholder="例如：改 src/main/agent/AgentBridge.ts 会影响哪里？"
+                className="h-20 w-full resize-none rounded-md border border-border bg-bg-primary px-2.5 py-2 text-xs text-text-primary placeholder:text-text-muted focus:border-accent-purple/50 focus:outline-none"
+              />
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleCodeGraphAsk}
+                  disabled={!codeGraphQuestion.trim() || !workingDirectory || codeGraphLoading}
+                  className="inline-flex items-center gap-1 rounded-md bg-accent-purple/80 px-2.5 py-1.5 text-xs font-medium text-white transition-colors hover:bg-accent-purple disabled:cursor-not-allowed disabled:opacity-45"
+                >
+                  <Send size={12} />
+                  {codeGraphLoading ? '分析中...' : '分析并插入'}
+                </button>
+                {codeGraphAnswer?.suggestedPrompt && (
+                  <span className="text-[11px] text-accent-green">已插入到输入框</span>
+                )}
+              </div>
+              {codeGraphError && (
+                <div className="rounded-md border border-accent-red/30 bg-accent-red/10 px-2 py-1.5 text-[11px] text-accent-red">
+                  {codeGraphError}
+                </div>
+              )}
+              {codeGraphAnswer?.summary && (
+                <div className="rounded-md border border-border/50 bg-bg-primary/40 px-2.5 py-2">
+                  <div className="text-[11px] font-medium text-text-secondary">图谱结论</div>
+                  <div className="mt-1 text-[11px] leading-5 text-text-muted">{codeGraphAnswer.summary}</div>
+                  {codeGraphAnswer.sections?.[0]?.items?.length ? (
+                    <div className="mt-1.5 text-[10px] text-text-muted">
+                      {codeGraphAnswer.sections[0].title}：{codeGraphAnswer.sections[0].items.slice(0, 2).join('；')}
+                    </div>
+                  ) : null}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+
       {/* ---- Skill 按钮 ---- */}
       {skillList.length > 0 && (
         <div className="relative order-4 flex-shrink-0">

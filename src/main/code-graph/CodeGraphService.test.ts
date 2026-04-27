@@ -125,4 +125,21 @@ describe('CodeGraphService', () => {
       },
     ])
   })
+
+  it('answers natural-language impact questions with suggested prompts', () => {
+    const projectDir = path.join(tempDir, 'project')
+    fs.mkdirSync(path.join(projectDir, 'src'), { recursive: true })
+    fs.writeFileSync(path.join(projectDir, 'src', 'util.ts'), 'export const value = 1\n')
+    fs.writeFileSync(path.join(projectDir, 'src', 'feature.ts'), "import { value } from './util'\nexport const feature = value\n")
+    fs.writeFileSync(path.join(projectDir, 'src', 'app.ts'), "import { feature } from './feature'\nexport const app = feature\n")
+
+    service.indexProject(projectDir)
+
+    const answer = service.answerQuestion(projectDir, '改 `src/util.ts` 会影响哪里？')
+    expect(answer.intent).toBe('impact')
+    expect(answer.targetFile).toBe('src/util.ts')
+    expect(answer.sections.some(section => section.items.some(item => item.includes('src/app.ts')))).toBe(true)
+    expect(answer.suggestedPrompt).toContain('Code Graph')
+    expect(answer.suggestedPrompt).toContain('src/util.ts')
+  })
 })

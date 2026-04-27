@@ -454,6 +454,13 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
     setPromptDraft({ label: '', text: '' })
   }, [updateCommonPrompts])
 
+  const handleCodeGraphAnswer = useCallback((answer: { suggestedPrompt?: string }) => {
+    if (answer.suggestedPrompt) {
+      setExternalInsert(answer.suggestedPrompt)
+      setQueueHintText('已插入 Code Graph 上下文，检查后发送即可')
+    }
+  }, [])
+
   // 右键菜单项
   const ctxMenuItems: MenuItem[] = [
     {
@@ -754,6 +761,7 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
             sessionId={sessionId}
             onSkillClick={setPendingInsert}
             onSkillExecute={handleSkillExecute}
+            onCodeGraphAnswer={handleCodeGraphAnswer}
           />
 
           <div className="mx-auto mb-2 flex w-full max-w-[1080px] items-center gap-1.5 overflow-x-auto rounded-2xl border border-border/35 bg-bg-secondary/25 px-2.5 py-2">

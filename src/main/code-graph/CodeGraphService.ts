@@ -71,6 +71,38 @@ export interface SymbolBlastRadiusResult {
   affectedSymbols: SymbolBlastRadiusItem[]
 }
 
+export type CodeGraphQuestionIntent =
+  | 'overview'
+  | 'dependencies'
+  | 'dependents'
+  | 'impact'
+  | 'symbols'
+  | 'entry'
+
+export interface CodeGraphQuestionOptions {
+  filePath?: string
+  symbols?: string[]
+  depth?: number
+  autoIndex?: boolean
+}
+
+export interface CodeGraphQuestionSection {
+  title: string
+  items: string[]
+}
+
+export interface CodeGraphQuestionAnswer {
+  projectPath: string
+  question: string
+  intent: CodeGraphQuestionIntent
+  targetFile?: string
+  targetSymbols?: string[]
+  summary: string
+  sections: CodeGraphQuestionSection[]
+  stats: CodeGraphStats
+  suggestedPrompt: string
+}
+
 interface ImportBinding {
   importedPath: string
   importedSymbol: string
@@ -514,6 +546,343 @@ export class CodeGraphService {
         a.distance - b.distance || a.filePath.localeCompare(b.filePath) || a.symbolName.localeCompare(b.symbolName)
       ),
     }
+  }
+
+  answerQuestion(projectPath: string, question: string, options: CodeGraphQuestionOptions = {}): CodeGraphQuestionAnswer {
+    const root = path.resolve(projectPath)
+    const normalizedQuestion = question.trim()
+    if (!normalizedQuestion) {
+      throw new Error('Question is required')
+    }
+
+    const stats = this.ensureProjectIndexed(root, options.autoIndex !== false)
+    const intent = this.detectQuestionIntent(normalizedQuestion)
+    const files = this.getIndexedFiles(root)
+    const targetFile = this.findTargetFile(root, files, normalizedQuestion, options.filePath)
+    const depth = Math.max(1, Math.min(5, Math.floor(options.depth || 2)))
+    const targetSymbols = this.resolveTargetSymbols(root, files, normalizedQuestion, targetFile, options.symbols)
+    const sections: CodeGraphQuestionSection[] = []
+
+    if (intent === 'overview') {
+      sections.push({
+        title: '索引概况',
+        items: [
+          `${stats.fileCount} 个源码文件`,
+          `${stats.importCount} 条导入关系`,
+          `${stats.internalImportCount} 条项目内依赖`,
+          stats.lastIndexedAt ? `最近索引：${stats.lastIndexedAt}` : '还没有索引时间',
+        ],
+      })
+      sections.push({ title: '可能的入口文件', items: this.getEntryCandidates(files) })
+      sections.push({ title: '被引用最多的文件', items: this.getCentralFiles(root, files) })
+    } else if (intent === 'entry') {
+      sections.push({ title: '可能的入口文件', items: this.getEntryCandidates(files) })
+      sections.push({ title: '建议追踪路径', items: ['从入口文件开始看 imports，再用“改这里影响哪里”查看反向依赖。'] })
+    } else if (!targetFile) {
+      sections.push({
+        title: '需要更明确的目标',
+        items: [
+          '我没有从问题里识别到文件路径或唯一符号。',
+          '可以用 src/main/index.ts、`AgentBridge`、`SessionManagerV2` 这类文件或符号再问一次。',
+        ],
+      })
+      const symbolMatches = this.findSymbolCandidates(root, files, normalizedQuestion).slice(0, 8)
+      if (symbolMatches.length > 0) {
+        sections.push({
+          title: '可能相关的符号',
+          items: symbolMatches.map(symbol => `${symbol.name} (${symbol.kind}) - ${symbol.filePath}:${symbol.line}`),
+        })
+      }
+    } else if (intent === 'dependencies') {
+      const dependencies = this.getDependencies(root, targetFile)
+      sections.push({
+        title: `${targetFile} 直接依赖`,
+        items: dependencies.length > 0
+          ? dependencies.map(edge => `${edge.importedPath}${edge.resolvedFilePath ? ` -> ${edge.resolvedFilePath}` : ' (外部依赖)'}`)
+          : ['未找到直接依赖。'],
+      })
+    } else if (intent === 'dependents') {
+      if (targetSymbols.length > 0) {
+        const radius = this.getSymbolBlastRadius(root, targetFile, targetSymbols, depth)
+        sections.push({
+          title: `${targetSymbols.join(', ')} 的符号级调用影响`,
+          items: radius.affectedSymbols.length > 0
+            ? radius.affectedSymbols.map(item => `${item.symbolName} (${item.kind}) - ${item.filePath}，距离 ${item.distance}${item.viaSymbol ? `，经由 ${item.viaSymbol}` : ''}`)
+            : ['未找到符号级依赖。'],
+        })
+      } else {
+        const dependents = this.getDependents(root, targetFile)
+        sections.push({
+          title: `谁依赖 ${targetFile}`,
+          items: dependents.length > 0
+            ? dependents.map(edge => `${edge.filePath} 通过 ${edge.importedPath} 引用`)
+            : ['未找到直接依赖方。'],
+        })
+      }
+    } else if (intent === 'symbols') {
+      const symbols = this.getSymbols(root, targetFile)
+      sections.push({
+        title: `${targetFile} 中的符号`,
+        items: symbols.length > 0
+          ? symbols.slice(0, 40).map(symbol => `${symbol.exported ? 'export ' : ''}${symbol.name} (${symbol.kind}) - line ${symbol.line}`)
+          : ['未识别到符号。'],
+      })
+    } else {
+      if (targetSymbols.length > 0) {
+        const radius = this.getSymbolBlastRadius(root, targetFile, targetSymbols, depth)
+        sections.push({
+          title: `${targetSymbols.join(', ')} 的影响范围`,
+          items: radius.affectedSymbols.length > 0
+            ? radius.affectedSymbols.map(item => `${item.symbolName} (${item.kind}) - ${item.filePath}，距离 ${item.distance}${item.viaFile ? `，来自 ${item.viaFile}` : ''}`)
+            : ['未找到符号级影响范围。'],
+        })
+      }
+      const radius = this.getBlastRadius(root, targetFile, depth)
+      sections.push({
+        title: `${targetFile} 的文件级影响范围`,
+        items: radius.affectedFiles.map(file => `${file.filePath} - ${file.relation}，距离 ${file.distance}`),
+      })
+    }
+
+    const summary = this.buildQuestionSummary(intent, targetFile, targetSymbols, sections, stats)
+    return {
+      projectPath: root,
+      question: normalizedQuestion,
+      intent,
+      targetFile,
+      targetSymbols: targetSymbols.length > 0 ? targetSymbols : undefined,
+      summary,
+      sections,
+      stats,
+      suggestedPrompt: this.buildSuggestedPrompt(root, normalizedQuestion, intent, targetFile, targetSymbols, summary, sections),
+    }
+  }
+
+  private ensureProjectIndexed(root: string, autoIndex: boolean): CodeGraphStats {
+    const stats = this.getStats(root)
+    if (stats.fileCount > 0 || !autoIndex) return stats
+    return this.indexProject(root)
+  }
+
+  private detectQuestionIntent(question: string): CodeGraphQuestionIntent {
+    const q = question.toLowerCase()
+    if (/(入口|启动|从哪|entry|main|bootstrap|start)/i.test(q)) return 'entry'
+    if (/(影响|爆炸|改.*影响|修改.*影响|blast|impact|affect|change)/i.test(q)) return 'impact'
+    if (/(谁.*(调用|引用|依赖)|被.*(调用|引用|依赖)|callers|used by|dependents|references)/i.test(q)) return 'dependents'
+    if (/(依赖.*(什么|哪些)|引用.*(什么|哪些)|imports|dependencies|uses)/i.test(q)) return 'dependencies'
+    if (/(导出|符号|函数|类|接口|exports|symbols)/i.test(q)) return 'symbols'
+    return 'overview'
+  }
+
+  private getIndexedFiles(root: string): CodeGraphFile[] {
+    if (!this.usingSqlite) {
+      return Array.from(this.memoryFiles.values())
+        .filter(file => file.projectPath === root)
+        .sort((a, b) => a.filePath.localeCompare(b.filePath))
+    }
+
+    const rows = this.rawDb.prepare(`
+      SELECT project_path, file_path, language, content_hash, updated_at
+      FROM code_graph_files
+      WHERE project_path = ?
+      ORDER BY file_path ASC
+    `).all(root) as any[]
+    return rows.map(row => ({
+      projectPath: row.project_path,
+      filePath: row.file_path,
+      language: row.language,
+      contentHash: row.content_hash,
+      updatedAt: row.updated_at,
+    }))
+  }
+
+  private findTargetFile(root: string, files: CodeGraphFile[], question: string, explicitFilePath?: string): string | undefined {
+    const byRelPath = (candidate: string) => {
+      const normalized = this.normalizeInputFile(root, candidate)
+      return files.find(file => file.filePath === normalized)?.filePath
+    }
+
+    if (explicitFilePath) {
+      const explicit = byRelPath(explicitFilePath)
+      if (explicit) return explicit
+    }
+
+    for (const mention of this.extractQuestionMentions(question)) {
+      const exact = byRelPath(mention)
+      if (exact) return exact
+    }
+
+    const pathMatch = question.match(/[A-Za-z0-9_@./\\:-]+\.(?:ts|tsx|js|jsx|mjs|cjs|mts|cts)\b/)
+    if (pathMatch) {
+      const raw = pathMatch[0].replace(/\\/g, '/')
+      const exact = files.find(file => file.filePath === raw || file.filePath.endsWith(`/${raw}`))
+      if (exact) return exact.filePath
+    }
+
+    const basenameMatches = files.filter(file => {
+      const parsed = path.parse(file.filePath)
+      return question.includes(parsed.base) || question.includes(parsed.name)
+    })
+    if (basenameMatches.length === 1) return basenameMatches[0].filePath
+
+    const symbolMatches = this.findSymbolCandidates(root, files, question)
+    const uniqueFiles = Array.from(new Set(symbolMatches.map(symbol => symbol.filePath)))
+    if (uniqueFiles.length === 1) return uniqueFiles[0]
+
+    return undefined
+  }
+
+  private resolveTargetSymbols(
+    root: string,
+    files: CodeGraphFile[],
+    question: string,
+    targetFile?: string,
+    explicitSymbols?: string[],
+  ): string[] {
+    const requested = new Set((explicitSymbols || []).map(symbol => symbol.trim()).filter(Boolean))
+    const mentions = this.extractQuestionMentions(question)
+    for (const mention of mentions) {
+      if (/^[A-Za-z_$][\w$]*$/.test(mention)) requested.add(mention)
+    }
+
+    const candidates = this.findSymbolCandidates(root, files, question)
+      .filter(symbol => !targetFile || symbol.filePath === targetFile)
+    for (const symbol of candidates) {
+      requested.add(symbol.name)
+    }
+
+    return Array.from(requested).slice(0, 8)
+  }
+
+  private extractQuestionMentions(question: string): string[] {
+    const mentions: string[] = []
+    const patterns = [
+      /`([^`]+)`/g,
+      /"([^"]+)"/g,
+      /'([^']+)'/g,
+      /「([^」]+)」/g,
+      /“([^”]+)”/g,
+    ]
+    for (const pattern of patterns) {
+      let match: RegExpExecArray | null
+      while ((match = pattern.exec(question)) !== null) {
+        const value = match[1]?.trim()
+        if (value) mentions.push(value)
+      }
+    }
+    return mentions
+  }
+
+  private findSymbolCandidates(root: string, files: CodeGraphFile[], question: string): CodeGraphSymbol[] {
+    const tokens = new Set<string>()
+    for (const mention of this.extractQuestionMentions(question)) {
+      if (/^[A-Za-z_$][\w$]*$/.test(mention)) tokens.add(mention)
+    }
+    const identifierMatches = question.match(/\b[A-Za-z_$][\w$]{2,}\b/g) || []
+    for (const token of identifierMatches) {
+      if (!this.isCommonQuestionToken(token)) tokens.add(token)
+    }
+    if (tokens.size === 0) return []
+
+    const results: CodeGraphSymbol[] = []
+    for (const file of files) {
+      const content = this.readProjectFile(root, file.filePath)
+      if (!content) continue
+      for (const symbol of this.extractSymbols(content, file.filePath)) {
+        if (tokens.has(symbol.name)) results.push(symbol)
+      }
+    }
+    return results.sort((a, b) => Number(b.exported) - Number(a.exported) || a.filePath.localeCompare(b.filePath))
+  }
+
+  private isCommonQuestionToken(token: string): boolean {
+    return new Set([
+      'what', 'where', 'which', 'who', 'how', 'does', 'this', 'that',
+      'import', 'imports', 'export', 'exports', 'file', 'class', 'function',
+      'const', 'type', 'interface', 'impact', 'change', 'used', 'uses',
+    ]).has(token.toLowerCase())
+  }
+
+  private getEntryCandidates(files: CodeGraphFile[]): string[] {
+    const scored = files
+      .map(file => {
+        const normalized = file.filePath.toLowerCase()
+        let score = 0
+        if (/(^|\/)(index|main|app|server|bootstrap|cli|electron)\.(ts|tsx|js|jsx|mjs|cjs)$/.test(normalized)) score += 3
+        if (/src\/(main|renderer|app|pages|routes)\//.test(normalized)) score += 2
+        if (/\/main\.(ts|js)$/.test(normalized) || /\/index\.(ts|tsx|js|jsx)$/.test(normalized)) score += 2
+        return { filePath: file.filePath, score }
+      })
+      .filter(item => item.score > 0)
+      .sort((a, b) => b.score - a.score || a.filePath.localeCompare(b.filePath))
+      .slice(0, 8)
+      .map(item => item.filePath)
+
+    return scored.length > 0 ? scored : ['未从当前索引中识别到明显入口文件。']
+  }
+
+  private getCentralFiles(root: string, files: CodeGraphFile[]): string[] {
+    const ranked = files
+      .map(file => ({
+        filePath: file.filePath,
+        dependents: this.getDependents(root, file.filePath).length,
+      }))
+      .filter(item => item.dependents > 0)
+      .sort((a, b) => b.dependents - a.dependents || a.filePath.localeCompare(b.filePath))
+      .slice(0, 8)
+      .map(item => `${item.filePath} - ${item.dependents} 个直接依赖方`)
+
+    return ranked.length > 0 ? ranked : ['当前图谱里还没有明显的高复用文件。']
+  }
+
+  private buildQuestionSummary(
+    intent: CodeGraphQuestionIntent,
+    targetFile: string | undefined,
+    targetSymbols: string[],
+    sections: CodeGraphQuestionSection[],
+    stats: CodeGraphStats,
+  ): string {
+    if (!targetFile && intent !== 'overview' && intent !== 'entry') {
+      return `已索引 ${stats.fileCount} 个源码文件，但还需要更明确的文件或符号目标。`
+    }
+    if (intent === 'overview') return `当前图谱包含 ${stats.fileCount} 个源码文件和 ${stats.internalImportCount} 条项目内依赖。`
+    if (intent === 'entry') return '已根据文件名和目录位置推断可能入口。'
+    const target = targetSymbols.length > 0 ? `${targetFile} 中的 ${targetSymbols.join(', ')}` : targetFile
+    const count = sections.reduce((total, section) => total + section.items.length, 0)
+    return `已基于 Code Graph 分析 ${target}，得到 ${count} 条结构化线索。`
+  }
+
+  private buildSuggestedPrompt(
+    projectPath: string,
+    question: string,
+    intent: CodeGraphQuestionIntent,
+    targetFile: string | undefined,
+    targetSymbols: string[],
+    summary: string,
+    sections: CodeGraphQuestionSection[],
+  ): string {
+    const body = sections
+      .map(section => {
+        const items = section.items.map(item => `- ${item}`).join('\n')
+        return `## ${section.title}\n${items}`
+      })
+      .join('\n\n')
+
+    return [
+      '请基于下面的 Code Graph 结果回答我的代码库问题，并在需要时继续查看相关文件验证。',
+      '',
+      `用户问题：${question}`,
+      `项目路径：${projectPath}`,
+      `识别意图：${intent}`,
+      targetFile ? `目标文件：${targetFile}` : undefined,
+      targetSymbols.length > 0 ? `目标符号：${targetSymbols.join(', ')}` : undefined,
+      '',
+      `图谱摘要：${summary}`,
+      '',
+      body,
+      '',
+      '请给出清晰结论、关键文件/符号引用，以及下一步建议。如果图谱信息不足，请说明还需要检查哪些文件。',
+    ].filter(Boolean).join('\n')
   }
 
   private ensureTables(): void {
