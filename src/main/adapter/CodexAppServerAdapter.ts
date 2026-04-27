@@ -203,23 +203,31 @@ interface JsonRpcResponse {
   error?: { code: number; message: string; data?: unknown }
 }
 
+type RpcRequestId = number | string
+
 interface CodexSession {
   adapter: AdapterSession
   process: ChildProcess
   readline: ReadlineInterface
   config: AdapterSessionConfig
+  protocolMode: 'app-server' | 'proto'
   threadId?: string
   model?: string
   reasoningEffort?: ReasoningEffort
   baseInstructions?: string
   requestId: number
-  pendingRequests: Map<number, { resolve: (v: any) => void; reject: (e: any) => void }>
+  pendingRequests: Map<RpcRequestId, { resolve: (v: any) => void; reject: (e: any) => void }>
   stderrBuffer: string
   autoAccept: boolean
   /** 宸插彂鍑?tool_use 娑堟伅鐨勫伐鍏?ID 闆嗗悎锛岀敤浜?created/completed 鍘婚噸 */
   activeToolUseIds: Set<string>
   /** 寰呭鐞嗙殑 commandExecution 瀹℃壒 itemId锛堥潪 autoAccept 妯″紡涓嬬敤浜?sendConfirmation锛?*/
   pendingApprovalItemId?: string
+  pendingApprovalRequest?: {
+    id: RpcRequestId
+    method: 'execCommandApproval' | 'applyPatchApproval'
+    params: any
+  }
   /** 鏈€杩戜竴娆℃敹鍒?app-server 浠绘剰 JSON 浜嬩欢/鍝嶅簲鐨勬椂闂?*/
   lastServerEventAt: number
   /** 褰撳墠 turn 宸叉帹閫佽繃鐨勫績璺虫彁绀烘鏁帮紙鐢ㄤ簬闄愰锛?*/
@@ -244,6 +252,71 @@ const CODEX_RPC_TIMEOUTS: Record<string, number> = {
   initialize: 120_000,
   'thread/start': 120_000,
   'turn/start': 10 * 60_000,
+}
+
+const CODEX_ENV_ALLOWLIST = new Set([
+  'CODEX_HOME',
+  'CODEX_API_KEY',
+  'CODEX_BASE_URL',
+  'CODEX_AUTH_TOKEN',
+  'CODEX_MANAGED_BY_NPM',
+])
+
+function buildCodexChildEnv(envOverrides?: Record<string, string>, nodeVersion?: string): NodeJS.ProcessEnv {
+  const cleanEnv: NodeJS.ProcessEnv = { ...process.env }
+
+  // The host app may itself be launched by Electron/Codex. Those process-local
+  // flags confuse a nested Codex CLI and can make it enter sandbox/TTY paths
+  // that are invalid for stdio app-server mode.
+  delete cleanEnv.ELECTRON_RUN_AS_NODE
+  delete cleanEnv.ELECTRON_NO_ASAR
+
+  for (const key of Object.keys(cleanEnv)) {
+    if (key.startsWith('CODEX_') && !CODEX_ENV_ALLOWLIST.has(key)) {
+      delete cleanEnv[key]
+    }
+  }
+
+  if (!cleanEnv.HOME) cleanEnv.HOME = os.homedir()
+  if (process.platform === 'win32' && !cleanEnv.USERPROFILE) cleanEnv.USERPROFILE = cleanEnv.HOME
+  if (!cleanEnv.TERM || cleanEnv.TERM === 'dumb') cleanEnv.TERM = 'xterm-256color'
+
+  return prependNodeVersionToEnvPath(
+    { ...cleanEnv, ...envOverrides },
+    nodeVersion
+  )
+}
+
+function codexSupportsAppServer(codexCommand: string, env: NodeJS.ProcessEnv, useShell: boolean): boolean {
+  try {
+    execFileSync(codexCommand, ['help', 'app-server'], {
+      encoding: 'utf8',
+      timeout: 5000,
+      windowsHide: true,
+      env,
+      shell: useShell,
+      stdio: 'pipe',
+    })
+    return true
+  } catch {
+    return false
+  }
+}
+
+function codexSupportsProto(codexCommand: string, env: NodeJS.ProcessEnv, useShell: boolean): boolean {
+  try {
+    execFileSync(codexCommand, ['help', 'proto'], {
+      encoding: 'utf8',
+      timeout: 5000,
+      windowsHide: true,
+      env,
+      shell: useShell,
+      stdio: 'pipe',
+    })
+    return true
+  } catch {
+    return false
+  }
 }
 
 function isCodexModelRefreshTimeout(text: string): boolean {
@@ -312,10 +385,7 @@ export class CodexAppServerAdapter extends BaseProviderAdapter {
     // 浣跨敤 findCodexExecutable() 鎼滅储缁濆璺緞锛?
     // 鑻ユ壘鍒扮殑鏄?.cmd 鍖呰鍣紙npm 鍏ㄥ眬瀹夎鍦烘櫙锛夛紝闇€瑕?shell:true 鎵嶈兘姝ｅ父鎵ц
     const codexCommand = findCodexExecutable(config.command)
-    const env = prependNodeVersionToEnvPath(
-      { ...process.env, ...config.envOverrides },
-      config.nodeVersion
-    )
+    const env = buildCodexChildEnv(config.envOverrides, config.nodeVersion)
     // Windows 涓嬮潪 .exe 鏂囦欢锛?cmd 鍖呰鍣ㄣ€佹棤鎵╁睍鍚嶇殑 npm shim 鑴氭湰绛夛級
     // 蹇呴』閫氳繃 shell 鎵ц锛屽惁鍒?Node.js spawn 浼氭姤 ENOENT
     const useShell = process.platform === 'win32' && !codexCommand.endsWith('.exe')
@@ -374,7 +444,42 @@ export class CodexAppServerAdapter extends BaseProviderAdapter {
       throw new Error(errMessage)
     }
 
-    const proc = spawn(codexCommand, ['app-server'], {
+    const appServerSupported = codexSupportsAppServer(codexCommand, env, useShell)
+    const protoSupported = appServerSupported ? false : codexSupportsProto(codexCommand, env, useShell)
+    const protocolMode: CodexSession['protocolMode'] = appServerSupported ? 'app-server' : 'proto'
+
+    if (!appServerSupported && !protoSupported) {
+      let version = 'unknown'
+      try {
+        version = execFileSync(codexCommand, ['--version'], {
+          encoding: 'utf8',
+          timeout: 5000,
+          windowsHide: true,
+          env,
+          shell: useShell,
+          stdio: 'pipe',
+        }).trim()
+      } catch { /* ignore */ }
+
+      const errMessage =
+        `当前 Codex CLI 不支持 PrismOps 可用的服务协议（command: ${codexCommand}, version: ${version}）。\n` +
+        '请升级 Codex CLI，或在 Provider 管理中把 command 指向支持 app-server 或 proto 子命令的 Codex 可执行文件。'
+      console.error(`[CodexAdapter] ${errMessage}`)
+      this.emitEvent(sessionId, {
+        type: 'error',
+        sessionId,
+        timestamp: new Date().toISOString(),
+        data: { text: errMessage },
+      })
+      throw new Error(errMessage)
+    }
+
+    if (protocolMode === 'proto') {
+      console.warn(`[CodexAdapter] app-server is not supported by ${codexCommand}; falling back to codex proto.`)
+    }
+
+    const procArgs = protocolMode === 'app-server' ? ['app-server'] : ['proto']
+    const proc = spawn(codexCommand, procArgs, {
       cwd: config.workingDirectory,
       stdio: ['pipe', 'pipe', 'pipe'],
       env,
@@ -395,6 +500,7 @@ export class CodexAppServerAdapter extends BaseProviderAdapter {
       process: proc,
       readline: rl,
       config,
+      protocolMode,
       requestId: 0,
       pendingRequests: new Map(),
       stderrBuffer: '',
@@ -494,48 +600,40 @@ export class CodexAppServerAdapter extends BaseProviderAdapter {
 
     // JSON-RPC 鍒濆鍖栨彙鎵?
     try {
-      console.log(`[CodexAdapter] Sending initialize for ${sessionId} (+${Date.now() - startTime}ms)`)
-      const initResult = await this.rpc(sessionId, 'initialize', {
-        clientInfo: { name: 'spectrai', version: '2.0.0' },
-      })
-      console.log(`[CodexAdapter] initialize OK for ${sessionId} (+${Date.now() - startTime}ms):`, JSON.stringify(initResult).slice(0, 300))
-      // 鈿狅笍 娉ㄦ剰锛欳odex v0.98+ 涓嶆敮鎸?initialized 閫氱煡锛堜細瀵艰嚧 serde untagged enum 閿欒锛?
-      // 鍥犳杩欓噷涓嶅彂閫?initialized 閫氱煡
-
-      // 鍒涘缓 Thread
-      // 娉ㄦ剰锛歮odel 鐢?adapterConfig.model 浼犲叆锛堟潵鑷?provider.defaultModel 鎴栫敤鎴烽厤缃級
-      // Codex CLI 鏀寔鐨勬ā鍨嬶細codex-mini-latest, o4-mini 绛夛紱涓嶄紶鍒欑敱 codex 浣跨敤鍏堕粯璁ゆā鍨?
+      console.log(`[CodexAdapter] Initializing ${session.protocolMode} session ${sessionId} (+${Date.now() - startTime}ms)`)
       const baseInstructions = await this.resolveSystemPrompt(config.systemPrompt as any)
       session.baseInstructions = baseInstructions
-      console.log(`[CodexAdapter] Sending thread/start for ${sessionId} (+${Date.now() - startTime}ms)`)
-      const threadResult = await this.rpc(sessionId, 'thread/start', {
-        ...(config.model ? { model: config.model } : {}),
-        cwd: config.workingDirectory,
-        // Supervisor 妯″紡涓嬫敞鍏ョ郴缁熸寚浠わ紙鏉ヨ嚜 SessionManagerV2.getSupervisorPrompt锛?
-        ...(baseInstructions ? { baseInstructions } : {}),
-        // 鏈夋晥鍊硷細'untrusted' | 'on-failure' | 'on-request' | 'never'
-        // autoAccept=true  鈫?'never'锛欳odex 鐩存帴鎵ц鎵€鏈夋搷浣滐紝瀹屽叏涓嶅彂 requestApproval 浜嬩欢
-        //   鈿狅笍 娉ㄦ剰锛?on-failure' 鏂囨。璇村け璐ユ椂鎵嶉棶锛屼絾瀹炴祴浠嶄細鍙?requestApproval锛?
-        //            涓?approval/respond RPC 鍦ㄩ儴鍒嗙増鏈腑涓嶅瓨鍦紝浼氬鑷?turn 姘镐箙闃诲銆?
-        //            鏀圭敤 'never' 褰诲簳閬垮厤瀹℃壒璇锋眰銆?
-        // autoAccept=false 鈫?'on-request'锛氭瘡娆″啓鏂囦欢/鎵ц鍛戒护鍓嶅彂 requestApproval锛屽墠绔脊绐楃‘璁?
-        approvalPolicy: config.autoAccept ? 'never' : 'on-request',
-        // 鈿狅笍 娌欑绛栫暐锛氬繀椤绘樉寮忎紶鍏ワ紝鍚﹀垯 Codex 榛樿鐢?read-only 娌欑锛?
-        // 瀵艰嚧 git pull/fetch銆乶pm install 绛夌綉缁滃懡浠ゅ強鍐欐搷浣滃叏閮ㄨ鎷︽埅銆?
-        // 瀛楁鍚嶆槸 sandbox锛堥潪 sandboxPolicy锛夛紝鍊间负瀛楃涓叉灇涓撅細
-        //   'workspace-write'   鈥?鍙鍐欏伐浣滅洰褰曪紝鏃犵綉缁滐紙榛樿锛?
-        //   'danger-full-access' 鈥?瀹屽叏鏀惧紑锛堟枃浠剁郴缁?+ 缃戠粶锛夛紝閫傚悎鏈湴寮€鍙戝伐鍏?
-        sandbox: 'danger-full-access',
-      })
-      console.log(`[CodexAdapter] thread/start OK for ${sessionId} (+${Date.now() - startTime}ms):`, JSON.stringify(threadResult).slice(0, 300))
-      // 鍏煎涓嶅悓 app-server 杩斿洖缁撴瀯锛岀‘淇?threadId 鍙敤鍚庡啀鍏佽 turn/start
-      const threadId = (threadResult as any)?.thread?.id || (threadResult as any)?.id
-      if (!threadId) {
-        throw new Error('Codex thread/start did not return thread id')
+
+      if (session.protocolMode === 'proto') {
+        session.threadId = sessionId
+        session.model = config.model || 'gpt-5-codex'
+        session.reasoningEffort = this.normalizeReasoningEffort(config.envOverrides?.CODEX_REASONING_EFFORT)
+        console.log(`[CodexAdapter] proto session ready for ${sessionId} (+${Date.now() - startTime}ms)`)
+      } else {
+        const initResult = await this.rpc(sessionId, 'initialize', {
+          clientInfo: { name: 'spectrai', version: '2.0.0' },
+        })
+        console.log(`[CodexAdapter] initialize OK for ${sessionId} (+${Date.now() - startTime}ms):`, JSON.stringify(initResult).slice(0, 300))
+
+        console.log(`[CodexAdapter] Sending thread/start for ${sessionId} (+${Date.now() - startTime}ms)`)
+        const threadResult = await this.rpc(sessionId, 'thread/start', {
+          ...(config.model ? { model: config.model } : {}),
+          cwd: config.workingDirectory,
+          ...(baseInstructions ? { baseInstructions } : {}),
+          approvalPolicy: config.autoAccept ? 'never' : 'on-request',
+          sandbox: 'danger-full-access',
+        })
+        console.log(`[CodexAdapter] thread/start OK for ${sessionId} (+${Date.now() - startTime}ms):`, JSON.stringify(threadResult).slice(0, 300))
+        const threadId = (threadResult as any)?.thread?.id || (threadResult as any)?.id
+        if (!threadId) {
+          throw new Error('Codex thread/start did not return thread id')
+        }
+        session.threadId = threadId
+        session.model = (threadResult as any)?.model || config.model
+        session.reasoningEffort = this.normalizeReasoningEffort((threadResult as any)?.reasoningEffort)
       }
-      session.threadId = threadId
-      session.model = (threadResult as any)?.model || config.model
-      session.reasoningEffort = this.normalizeReasoningEffort((threadResult as any)?.reasoningEffort)
+
+      const threadId = session.threadId
       this.emit('provider-session-id', sessionId, threadId)
       this.emit('session-init-data', sessionId, {
         model: session.model || '',
@@ -604,12 +702,26 @@ export class CodexAppServerAdapter extends BaseProviderAdapter {
     // 鍙戦€?turn
     // 瀹為檯鏍煎紡锛歩nput 鏁扮粍锛宼ype='text'锛堥潪 userMessage 瀛楁锛?
     try {
-      console.log(`[CodexAdapter] Sending turn/start for ${sessionId}, threadId=${session.threadId}, msgLen=${message.length}`)
-      const turnResult = await this.rpc(sessionId, 'turn/start', {
-        threadId: session.threadId,
-        input: [{ type: 'text', text: message }],
-      })
-      console.log(`[CodexAdapter] turn/start OK for ${sessionId}:`, JSON.stringify(turnResult).slice(0, 200))
+      if (session.protocolMode === 'proto') {
+        console.log(`[CodexAdapter] Sending proto user_turn for ${sessionId}, msgLen=${message.length}`)
+        this.sendProtoSubmission(sessionId, {
+          type: 'user_turn',
+          items: [{ type: 'text', text: message, text_elements: [] }],
+          cwd: session.config.workingDirectory,
+          approval_policy: session.autoAccept ? 'never' : 'on-request',
+          sandbox_policy: { type: 'danger-full-access' },
+          model: session.model || session.config.model || 'gpt-5-codex',
+          effort: this.toProtoReasoningEffort(session.reasoningEffort),
+          summary: 'auto',
+        })
+      } else {
+        console.log(`[CodexAdapter] Sending turn/start for ${sessionId}, threadId=${session.threadId}, msgLen=${message.length}`)
+        const turnResult = await this.rpc(sessionId, 'turn/start', {
+          threadId: session.threadId,
+          input: [{ type: 'text', text: message }],
+        })
+        console.log(`[CodexAdapter] turn/start OK for ${sessionId}:`, JSON.stringify(turnResult).slice(0, 200))
+      }
       // turn/start 绔嬪嵆杩斿洖 {turn: {status:'inProgress'}}锛屾祦寮忎簨浠跺紓姝ユ帹閫?
     } catch (err: any) {
       this.stopHeartbeat(sessionId)
@@ -628,6 +740,18 @@ export class CodexAppServerAdapter extends BaseProviderAdapter {
 
   async sendConfirmation(sessionId: string, accept: boolean): Promise<void> {
     const session = this.sessions.get(sessionId)
+    if (session?.protocolMode === 'proto' && session.pendingApprovalRequest) {
+      const pending = session.pendingApprovalRequest
+      delete session.pendingApprovalRequest
+      const decision = accept ? 'approved' : 'denied'
+      this.sendProtoSubmission(sessionId, {
+        type: pending.method === 'execCommandApproval' ? 'exec_approval' : 'patch_approval',
+        id: pending.id,
+        decision,
+      })
+      return
+    }
+
     // 鍙栧嚭骞舵竻闄ゅ緟澶勭悊 itemId锛堜竴娆℃€ф秷璐癸級
     const itemId = session?.pendingApprovalItemId
     if (session) delete session.pendingApprovalItemId
@@ -712,6 +836,36 @@ export class CodexAppServerAdapter extends BaseProviderAdapter {
     }
 
     console.log(`[CodexAdapter] Switching model for ${sessionId}: ${session.model || '(default)'} -> ${model}, effort=${requestedEffort || '(keep)'}`)
+    if (session.protocolMode === 'proto') {
+      const effectiveModel = model
+      session.model = effectiveModel
+      session.reasoningEffort = requestedEffort || session.reasoningEffort
+      session.adapter.status = 'waiting_input'
+      session.agentMessageBuffer = ''
+      session.activeToolUseIds.clear()
+      this.stopHeartbeat(sessionId)
+
+      this.emit('provider-session-id', sessionId, session.threadId || sessionId)
+      this.emit('session-init-data', sessionId, {
+        model: session.model,
+        reasoningEffort: session.reasoningEffort || '',
+        availableModels: this.buildAvailableModels(session.model),
+      })
+      this.emit('status-change', sessionId, 'waiting_input')
+
+      const msg = {
+        id: uuidv4(),
+        sessionId,
+        role: 'system' as const,
+        content: `模型已切换为 ${effectiveModel}${session.reasoningEffort ? `（${session.reasoningEffort}）` : ''}，后续消息将使用新设置。`,
+        timestamp: new Date().toISOString(),
+      }
+      session.adapter.messages.push(msg)
+      this.emit('conversation-message', sessionId, msg)
+
+      return { model: effectiveModel, providerSessionId: session.threadId || sessionId, effectiveNow: true, reasoningEffort: session.reasoningEffort }
+    }
+
     const threadResult = await this.rpc(sessionId, 'thread/start', {
       model,
       cwd: session.config.workingDirectory,
@@ -923,6 +1077,24 @@ export class CodexAppServerAdapter extends BaseProviderAdapter {
     this.turnStartTimes.delete(sessionId)
   }
 
+  private toProtoReasoningEffort(effort?: ReasoningEffort): 'low' | 'medium' | 'high' | null {
+    if (effort === 'low' || effort === 'medium' || effort === 'high') return effort
+    if (effort === 'xhigh') return 'high'
+    return null
+  }
+
+  private sendProtoSubmission(sessionId: string, op: Record<string, unknown>, subId?: string): string {
+    const session = this.sessions.get(sessionId)
+    if (!session) throw new Error(`Session ${sessionId} not found`)
+    if (session.process.exitCode !== null || session.process.killed) {
+      throw new Error(`Codex process is not running for ${sessionId}`)
+    }
+
+    const id = subId || `spectrai-${++session.requestId}`
+    session.process.stdin!.write(JSON.stringify({ id, op }) + '\n')
+    return id
+  }
+
   // ---- JSON-RPC 閫氫俊 ----
 
   /**
@@ -935,13 +1107,17 @@ export class CodexAppServerAdapter extends BaseProviderAdapter {
       throw new Error(`Codex process is not running for ${sessionId}`)
     }
 
-    const id = ++session.requestId
-    const request: JsonRpcRequest = {
-      jsonrpc: '2.0',
-      id,
-      method,
-      params,
-    }
+    const id: RpcRequestId = session.protocolMode === 'proto'
+      ? `spectrai-${++session.requestId}`
+      : ++session.requestId
+    const request: JsonRpcRequest | { id: RpcRequestId; method: string; params?: Record<string, unknown> } = session.protocolMode === 'proto'
+      ? { id, method, ...(params ? { params } : {}) }
+      : {
+          jsonrpc: '2.0',
+          id,
+          method,
+          params,
+        }
 
     return new Promise((resolve, reject) => {
       session.pendingRequests.set(id, { resolve, reject })
@@ -979,13 +1155,24 @@ export class CodexAppServerAdapter extends BaseProviderAdapter {
     const session = this.sessions.get(sessionId)
     if (!session) return
 
-    const request: JsonRpcRequest = {
-      jsonrpc: '2.0',
-      method,
-      params,
-    }
+    const request: JsonRpcRequest | { method: string; params?: Record<string, unknown> } = session.protocolMode === 'proto'
+      ? { method, ...(params ? { params } : {}) }
+      : {
+          jsonrpc: '2.0',
+          method,
+          params,
+        }
 
     session.process.stdin!.write(JSON.stringify(request) + '\n')
+  }
+
+  private respondRpc(sessionId: string, id: RpcRequestId, result: unknown): void {
+    const session = this.sessions.get(sessionId)
+    if (!session) return
+    const response = session.protocolMode === 'proto'
+      ? { id, result }
+      : { jsonrpc: '2.0', id, result }
+    session.process.stdin!.write(JSON.stringify(response) + '\n')
   }
 
   /**
@@ -1007,6 +1194,11 @@ export class CodexAppServerAdapter extends BaseProviderAdapter {
     // 浠绘剰鏈夋晥 JSON 閮借涓衡€滄湇鍔＄浠嶆湁鍝嶅簲鈥濓紝鐢ㄤ簬蹇冭烦 watchdog 璁＄畻
     session.lastServerEventAt = Date.now()
 
+    if (session.protocolMode === 'proto' && data.msg) {
+      this.handleCodexProtoEvent(sessionId, data.msg)
+      return
+    }
+
     // JSON-RPC 鍝嶅簲锛堟湁 id锛?
     if (data.id !== undefined && (data.result !== undefined || data.error !== undefined)) {
       const pending = session.pendingRequests.get(data.id)
@@ -1021,8 +1213,18 @@ export class CodexAppServerAdapter extends BaseProviderAdapter {
       return
     }
 
+    if (data.id !== undefined && data.method) {
+      this.handleServerRequest(sessionId, data.id, data.method, data.params || {})
+      return
+    }
+
     // JSON-RPC 閫氱煡锛堟棤 id锛夆€?浜嬩欢娴?
     if (data.method) {
+      if (data.method === 'codex/event') {
+        const params = data.params || {}
+        this.handleCodexProtoEvent(sessionId, params.msg || params.event || params)
+        return
+      }
       this.handleNotification(sessionId, data.method, data.params || {})
       return
     }
@@ -1030,6 +1232,234 @@ export class CodexAppServerAdapter extends BaseProviderAdapter {
     // 瑁镐簨浠讹紙闈炴爣鍑?JSON-RPC锛屼竴浜?app-server 鐗堟湰鍙兘浣跨敤锛?
     if (data.type) {
       this.handleCodexItem(sessionId, data)
+    }
+  }
+
+  private handleServerRequest(sessionId: string, id: RpcRequestId | null, method: string, params: any): void {
+    const session = this.sessions.get(sessionId)
+    if (!session) return
+    const ts = new Date().toISOString()
+
+    if (method === 'execCommandApproval' || method === 'applyPatchApproval') {
+      if (session.autoAccept) {
+        if (id !== null) this.respondRpc(sessionId, id, { decision: 'approved' })
+        return
+      }
+
+      if (id !== null) {
+        session.pendingApprovalRequest = {
+          id,
+          method: method as 'execCommandApproval' | 'applyPatchApproval',
+          params,
+        }
+      }
+
+      if (method === 'execCommandApproval') {
+        const command = Array.isArray(params.command) ? params.command.join(' ') : String(params.command || '')
+        this.emitEvent(sessionId, {
+          type: 'permission_request',
+          sessionId,
+          timestamp: ts,
+          data: {
+            permissionPrompt: `${params.reason || 'Codex 请求执行命令'}\n${command}`.trim(),
+            toolName: 'shell',
+            toolInput: { command, cwd: params.cwd },
+          },
+        })
+        return
+      }
+
+      this.emitEvent(sessionId, {
+        type: 'permission_request',
+        sessionId,
+        timestamp: ts,
+        data: {
+          permissionPrompt: `${params.reason || 'Codex 请求修改文件'}\n${Object.keys(params.file_changes || {}).join(', ')}`.trim(),
+          toolName: 'apply_patch',
+          toolInput: { changes: params.file_changes || {}, grantRoot: params.grant_root || null },
+        },
+      })
+      return
+    }
+
+    console.debug(`[CodexAdapter][${sessionId}] Unhandled server request: ${method}`, JSON.stringify(params).slice(0, 300))
+    if (id !== null) {
+      this.respondRpc(sessionId, id, {
+        error: `Unsupported server request: ${method}`,
+      })
+    }
+  }
+
+  private handleCodexProtoEvent(sessionId: string, event: any): void {
+    const session = this.sessions.get(sessionId)
+    if (!session || !event) return
+    const ts = new Date().toISOString()
+    const eventType = String(event.type || '')
+
+    switch (eventType) {
+      case 'session_configured': {
+        const conversationId = event.session_id || session.threadId
+        if (conversationId) session.threadId = String(conversationId)
+        session.model = event.model || session.model
+        session.reasoningEffort = this.normalizeReasoningEffort(event.reasoning_effort) || session.reasoningEffort
+        if (session.threadId) this.emit('provider-session-id', sessionId, session.threadId)
+        this.emit('session-init-data', sessionId, {
+          model: session.model || '',
+          reasoningEffort: session.reasoningEffort || '',
+          tools: [],
+          skills: [],
+          mcpServers: [],
+          availableModels: this.buildAvailableModels(session.model),
+        })
+        if (Array.isArray(event.initial_messages)) {
+          for (const msg of event.initial_messages) this.handleCodexProtoEvent(sessionId, msg)
+        }
+        return
+      }
+
+      case 'task_started':
+        session.adapter.status = 'running'
+        this.emit('status-change', sessionId, 'running')
+        return
+
+      case 'task_complete':
+        if (!session.agentMessageBuffer && event.last_agent_message) {
+          session.agentMessageBuffer = String(event.last_agent_message)
+        }
+        this.finalizeTurn(sessionId, session, ts)
+        return
+
+      case 'turn_aborted':
+      case 'shutdown_complete':
+        this.finalizeTurn(sessionId, session, ts)
+        return
+
+      case 'agent_message_delta':
+        this.onAgentMessageDelta(sessionId, session, ts, { delta: event.delta || '' })
+        return
+
+      case 'agent_message':
+        this.onAgentMessageCompleted(sessionId, session, ts, { text: event.message || '' })
+        return
+
+      case 'agent_reasoning_delta':
+      case 'agent_reasoning_raw_content_delta':
+        this.onReasoningDelta(sessionId, ts, { delta: event.delta || '' })
+        return
+
+      case 'agent_reasoning':
+      case 'agent_reasoning_raw_content':
+        this.onReasoningDelta(sessionId, ts, { delta: event.text || event.message || '' })
+        return
+
+      case 'exec_command_begin': {
+        const command = Array.isArray(event.command) ? event.command.join(' ') : String(event.command || '')
+        this.onItemStarted(sessionId, session, ts, {
+          item: { id: event.call_id, type: 'commandExecution', command },
+        })
+        return
+      }
+
+      case 'exec_command_end':
+        this.onCommandExecutionCompleted(sessionId, session, ts, {
+          id: event.call_id,
+          type: 'commandExecution',
+          output: event.aggregated_output || event.formatted_output || [event.stdout, event.stderr].filter(Boolean).join('\n'),
+          exitCode: event.exit_code,
+        })
+        return
+
+      case 'mcp_tool_call_begin': {
+        const invocation = event.invocation || {}
+        this.onItemStarted(sessionId, session, ts, {
+          item: {
+            id: event.call_id,
+            type: 'mcpToolCall',
+            tool: invocation.tool || invocation.name || 'mcp',
+            server: invocation.server || invocation.server_name,
+            arguments: invocation.arguments || invocation.params || {},
+          },
+        })
+        return
+      }
+
+      case 'mcp_tool_call_end': {
+        const invocation = event.invocation || {}
+        const result = event.result?.Ok ?? event.result?.Err ?? event.result
+        this.onMcpToolCallCompleted(sessionId, session, ts, {
+          id: event.call_id,
+          type: 'mcpToolCall',
+          tool: invocation.tool || invocation.name || 'mcp',
+          server: invocation.server || invocation.server_name,
+          arguments: invocation.arguments || invocation.params || {},
+          result,
+          error: event.result?.Err,
+        })
+        return
+      }
+
+      case 'exec_approval_request':
+        if (session.autoAccept) {
+          this.sendProtoSubmission(sessionId, {
+            type: 'exec_approval',
+            id: event.call_id,
+            decision: 'approved',
+          })
+          return
+        }
+        session.pendingApprovalRequest = {
+          id: String(event.call_id || ''),
+          method: 'execCommandApproval',
+          params: event,
+        }
+        this.handleServerRequest(sessionId, null, 'execCommandApproval', event)
+        return
+
+      case 'apply_patch_approval_request':
+        if (session.autoAccept) {
+          this.sendProtoSubmission(sessionId, {
+            type: 'patch_approval',
+            id: event.call_id,
+            decision: 'approved',
+          })
+          return
+        }
+        session.pendingApprovalRequest = {
+          id: String(event.call_id || ''),
+          method: 'applyPatchApproval',
+          params: event,
+        }
+        this.handleServerRequest(sessionId, null, 'applyPatchApproval', {
+          ...event,
+          file_changes: event.changes,
+        })
+        return
+
+      case 'token_count': {
+        const total = event.info?.total_token_usage
+        if (total) {
+          session.adapter.totalUsage.inputTokens = total.input_tokens || total.inputTokens || 0
+          session.adapter.totalUsage.outputTokens = total.output_tokens || total.outputTokens || 0
+        }
+        return
+      }
+
+      case 'error':
+        this.onCodexError(sessionId, session, ts, event)
+        return
+
+      case 'stream_error':
+        this.onCodexStreamError(sessionId, session, ts, event)
+        return
+
+      case 'background_event':
+        console.debug(`[CodexAdapter][${sessionId}] ${event.message || ''}`)
+        return
+
+      default:
+        if (eventType) {
+          console.debug(`[CodexAdapter][${sessionId}] Unhandled proto event: ${eventType}`, JSON.stringify(event).slice(0, 300))
+        }
     }
   }
 
