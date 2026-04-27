@@ -3,7 +3,7 @@
  */
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
-  Activity, AlertTriangle, BarChart3, Clock, DollarSign, Gauge,
+  Activity, AlertTriangle, Archive, BarChart3, DollarSign, Gauge,
   RefreshCw, WalletCards, Zap
 } from 'lucide-react'
 import { useCostStore } from '../../stores/costStore'
@@ -22,6 +22,18 @@ interface UsageSummary {
   todayMinutes: number
   activeSessions: number
   sessionBreakdown: Record<string, number>
+}
+
+type StrategyTone = 'normal' | 'warning' | 'danger' | 'info'
+
+interface StrategySuggestion {
+  id: string
+  title: string
+  description: string
+  tone: StrategyTone
+  icon: React.ElementType
+  actionLabel?: string
+  onAction?: () => void
 }
 
 function formatTokens(n: number): string {
@@ -106,12 +118,44 @@ function ProgressRow({
   )
 }
 
+function StrategyCard({ suggestion }: { suggestion: StrategySuggestion }) {
+  const Icon = suggestion.icon
+  const toneClass: Record<StrategyTone, string> = {
+    normal: 'border-accent-green/20 bg-accent-green/5 text-accent-green',
+    warning: 'border-accent-yellow/25 bg-accent-yellow/10 text-accent-yellow',
+    danger: 'border-accent-red/30 bg-accent-red/10 text-accent-red',
+    info: 'border-accent-blue/20 bg-accent-blue/5 text-accent-blue',
+  }
+
+  return (
+    <div className={`rounded-lg border p-2.5 ${toneClass[suggestion.tone]}`}>
+      <div className="flex items-start gap-2">
+        <Icon className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+        <div className="min-w-0 flex-1">
+          <div className="text-xs font-medium">{suggestion.title}</div>
+          <div className="mt-1 text-[10px] leading-4 text-text-muted">{suggestion.description}</div>
+          {suggestion.actionLabel && suggestion.onAction && (
+            <button
+              type="button"
+              onClick={suggestion.onAction}
+              className="mt-2 rounded border border-current/20 px-2 py-1 text-[10px] font-medium transition-colors hover:bg-current/10"
+            >
+              {suggestion.actionLabel}
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function ResourceMonitorView() {
   const [activeTab, setActiveTab] = useState<ResourceTab>('overview')
   const [usageSummary, setUsageSummary] = useState<UsageSummary | null>(null)
   const [usageLoading, setUsageLoading] = useState(false)
 
   const selectedSessionId = useSessionStore(s => s.selectedSessionId)
+  const sessions = useSessionStore(s => s.sessions)
   const costSummary = useCostStore(s => s.summary)
   const costBudget = useCostStore(s => s.budget)
   const costLoading = useCostStore(s => s.loading)
@@ -175,6 +219,69 @@ export default function ResourceMonitorView() {
     () => (costSummary?.byProvider ?? []).slice(0, 3),
     [costSummary?.byProvider]
   )
+
+  const inactiveSessionCount = useMemo(() => sessions.filter(session => (
+    ['completed', 'terminated', 'error', 'interrupted'].includes(session.status) ||
+    (session.estimatedTokens >= 30_000 && !['starting', 'running', 'waiting_input'].includes(session.status))
+  )).length, [sessions])
+
+  const strategySuggestions = useMemo<StrategySuggestion[]>(() => {
+    const suggestions: StrategySuggestion[] = []
+    const alertThreshold = costBudget?.alertThreshold ?? 0.8
+    const costRatio = Math.max(dailyRatio ?? 0, monthlyRatio ?? 0)
+
+    if (costRatio >= alertThreshold) {
+      suggestions.push({
+        id: 'cost-model-switch',
+        title: costRatio >= 1 ? '预算已超，后续任务切换低成本模型' : '预算接近上限，建议切换低成本模型',
+        description: '新会话优先使用 gpt-5.4 low、codex-mini-latest、Gemini Flash 或 Qwen Coder；把高推理模型留给架构设计、复杂修复和最终审查。',
+        tone: costRatio >= 1 ? 'danger' : 'warning',
+        icon: DollarSign,
+        actionLabel: '查看成本设置',
+        onAction: () => setActiveTab('cost'),
+      })
+    }
+
+    const warningThreshold = contextConfig?.warningThreshold ?? 0.7
+    const criticalThreshold = contextConfig?.criticalThreshold ?? 0.9
+    if (selectedSessionId && contextRatio >= warningThreshold) {
+      suggestions.push({
+        id: 'context-compress',
+        title: contextRatio >= criticalThreshold ? '上下文快满，请迁移或压缩' : '上下文偏高，建议先压缩',
+        description: contextRatio >= criticalThreshold
+          ? '当前会话继续堆上下文容易丢失早期约束。建议压缩后继续，或迁移到新会话保留关键上下文。'
+          : '当前会话已进入高水位。先压缩会话，再继续长任务，可以减少响应变慢和遗忘风险。',
+        tone: contextRatio >= criticalThreshold ? 'danger' : 'warning',
+        icon: Gauge,
+        actionLabel: '处理上下文',
+        onAction: () => setActiveTab('context'),
+      })
+    }
+
+    if (inactiveSessionCount > 0) {
+      suggestions.push({
+        id: 'archive-low-value',
+        title: '建议归档低价值会话',
+        description: `发现 ${inactiveSessionCount} 个已结束、异常中断或高 token 空闲会话。建议保留关键结论到知识中心，然后归档，避免侧边栏和资源统计被旧会话干扰。`,
+        tone: 'info',
+        icon: Archive,
+        actionLabel: '查看用量',
+        onAction: () => setActiveTab('usage'),
+      })
+    }
+
+    if (suggestions.length === 0) {
+      suggestions.push({
+        id: 'healthy',
+        title: '资源状态健康',
+        description: '当前没有明显的预算或上下文风险。继续保持：短任务用轻量模型，复杂任务再切到高推理模型。',
+        tone: 'normal',
+        icon: Zap,
+      })
+    }
+
+    return suggestions
+  }, [costBudget?.alertThreshold, contextConfig?.criticalThreshold, contextConfig?.warningThreshold, contextRatio, dailyRatio, inactiveSessionCount, monthlyRatio, selectedSessionId])
 
   const tabs: Array<{ id: ResourceTab; label: string; icon: React.ElementType }> = [
     { id: 'overview', label: '总览', icon: Activity },
@@ -289,6 +396,21 @@ export default function ResourceMonitorView() {
                 )}
               </div>
             )}
+
+            <div className="rounded-lg border border-border bg-bg-primary p-3">
+              <div className="mb-2 flex items-center justify-between gap-2">
+                <div className="flex items-center gap-1.5 text-xs font-medium text-text-secondary">
+                  <Zap className="h-3.5 w-3.5 text-accent-yellow" />
+                  策略建议
+                </div>
+                <div className="text-[10px] text-text-muted">{strategySuggestions.length} 条</div>
+              </div>
+              <div className="space-y-2">
+                {strategySuggestions.map(suggestion => (
+                  <StrategyCard key={suggestion.id} suggestion={suggestion} />
+                ))}
+              </div>
+            </div>
 
             {topProviders.length > 0 && (
               <div className="rounded-lg border border-border bg-bg-primary p-3">
