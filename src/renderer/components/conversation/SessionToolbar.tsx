@@ -1016,7 +1016,7 @@ const SessionToolbar: React.FC<SessionToolbarProps> = ({ sessionId, onSkillClick
   }, [onSkillClick, onSkillExecute])
 
   return (
-    <div className="relative z-20 mx-auto mb-1 flex h-8 w-full max-w-[1080px] flex-nowrap items-center gap-1 overflow-visible rounded-lg border border-border-subtle bg-bg-elevated/90 px-2 py-1 whitespace-nowrap shadow-[0_6px_18px_var(--color-shadow-sm)] backdrop-blur-sm">
+    <div className="relative z-20 mx-auto mb-1 flex h-8 w-full max-w-[1080px] flex-nowrap items-center gap-1 overflow-visible rounded-lg border border-border-subtle bg-bg-elevated px-2 py-1 whitespace-nowrap shadow-sm">
       <span className="hidden">
         会话配置
       </span>

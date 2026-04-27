@@ -298,7 +298,7 @@ interface OpsBriefProps {
   onToggleExpanded: () => void
 }
 
-const MissionLaunchpad: React.FC<MissionLaunchpadProps> = ({ providerId, sessionId, workingDirectory, canSend, onInsertPrompt }) => {
+const MissionLaunchpad = React.memo(function MissionLaunchpad({ providerId, sessionId, workingDirectory, canSend, onInsertPrompt }: MissionLaunchpadProps) {
   const projectName = getProjectName(workingDirectory)
   const providerColor = getProviderColor(providerId)
 
@@ -333,7 +333,7 @@ const MissionLaunchpad: React.FC<MissionLaunchpadProps> = ({ providerId, session
       </section>
 
       <div className="mt-5 grid gap-4 lg:grid-cols-[0.9fr_1.35fr]">
-        <section className="rounded-lg border border-border-subtle bg-bg-elevated p-4 shadow-[0_10px_24px_var(--color-shadow-sm)]">
+        <section className="rounded-lg border border-border-subtle bg-bg-elevated p-4 shadow-sm">
           <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-text-primary">
             <FolderOpen size={15} className="text-accent-blue" />
             当前上下文
@@ -374,7 +374,7 @@ const MissionLaunchpad: React.FC<MissionLaunchpadProps> = ({ providerId, session
               type="button"
               onClick={() => onInsertPrompt(template.prompt)}
               disabled={!canSend}
-              className={`min-h-[116px] rounded-lg border p-3 text-left shadow-[0_8px_18px_var(--color-shadow-sm)] transition-colors disabled:cursor-not-allowed disabled:opacity-45 ${MISSION_TONE_CLASS[template.tone]}`}
+              className={`min-h-[116px] rounded-lg border p-3 text-left shadow-sm transition-colors disabled:cursor-not-allowed disabled:opacity-45 ${MISSION_TONE_CLASS[template.tone]}`}
               title={template.prompt}
             >
               <div className="flex items-start justify-between gap-3">
@@ -410,9 +410,9 @@ const MissionLaunchpad: React.FC<MissionLaunchpadProps> = ({ providerId, session
       </section>
     </div>
   )
-}
+})
 
-const OpsBrief: React.FC<OpsBriefProps> = ({ snapshot, onInsertPrompt, onOpenKnowledge, canOpenKnowledge, expanded, onToggleExpanded }) => {
+const OpsBrief = React.memo(function OpsBrief({ snapshot, onInsertPrompt, onOpenKnowledge, canOpenKnowledge, expanded, onToggleExpanded }: OpsBriefProps) {
   const statusClass = {
     neutral: 'bg-bg-tertiary text-text-secondary',
     active: 'bg-accent-blue/10 text-accent-blue',
@@ -452,7 +452,7 @@ const OpsBrief: React.FC<OpsBriefProps> = ({ snapshot, onInsertPrompt, onOpenKno
   ]
 
   return (
-    <section className={`mb-4 overflow-hidden rounded-lg border border-border-subtle bg-bg-elevated shadow-[0_12px_28px_var(--color-shadow-sm)] ${expanded ? 'mb-5' : ''}`}>
+    <section className={`mb-4 overflow-hidden rounded-lg border border-border-subtle bg-bg-elevated shadow-sm ${expanded ? 'mb-5' : ''}`}>
       <div className="flex min-w-0">
         <div className={`w-1.5 shrink-0 ${accentRailClass}`} />
         <div className={`min-w-0 flex-1 ${expanded ? 'px-4 py-3' : 'px-3 py-2.5'}`}>
@@ -692,7 +692,7 @@ const OpsBrief: React.FC<OpsBriefProps> = ({ snapshot, onInsertPrompt, onOpenKno
       </div>
     </section>
   )
-}
+})
 
 const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
   const scrollRef = useRef<HTMLDivElement>(null)
@@ -725,6 +725,7 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
   })
   // 记录是否已完成首次滚到底部（每次组件挂载重置）
   const hasScrolledInitially = useRef(false)
+  const scrollFrameRef = useRef<number | null>(null)
 
   // 思考计时器：streaming 开始时重置，每秒 +1
   const [thinkingSeconds, setThinkingSeconds] = useState(0)
@@ -854,10 +855,22 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
   }, [])
 
   const handleConversationScroll = useCallback(() => {
-    const el = scrollRef.current
-    if (!el) return
-    const isNearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 180
-    setShowScrollBottom(prev => prev === !isNearBottom ? prev : !isNearBottom)
+    if (scrollFrameRef.current !== null) return
+    scrollFrameRef.current = window.requestAnimationFrame(() => {
+      scrollFrameRef.current = null
+      const el = scrollRef.current
+      if (!el) return
+      const shouldShow = el.scrollHeight - el.scrollTop - el.clientHeight >= 180
+      setShowScrollBottom(prev => prev === shouldShow ? prev : shouldShow)
+    })
+  }, [])
+
+  useEffect(() => {
+    return () => {
+      if (scrollFrameRef.current !== null) {
+        window.cancelAnimationFrame(scrollFrameRef.current)
+      }
+    }
   }, [])
 
   // 切换标签页时滚动到底部
@@ -978,20 +991,50 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
   const messageGroups = useMemo(() => groupMessages(messages), [messages])
 
   const opsBrief = useMemo<OpsBriefSnapshot>(() => {
-    const userGoal = [...messages].reverse().find(m =>
-      m.role === 'user' &&
-      m.content &&
-      !m.content.startsWith('\u25B6 /')
-    )?.content
-    const fileChanges = messages.filter(m => m.fileChange)
-    const uniqueFiles = Array.from(new Set(fileChanges.map(m => m.fileChange?.filePath).filter(Boolean) as string[]))
-    const additions = fileChanges.reduce((sum, m) => sum + (m.fileChange?.additions || 0), 0)
-    const deletions = fileChanges.reduce((sum, m) => sum + (m.fileChange?.deletions || 0), 0)
-    const toolUseMessages = messages.filter(m => m.role === 'tool_use')
-    const commands = toolUseMessages.map(getToolCommand).filter(Boolean)
-    const validationCommands = commands.filter(isValidationCommand)
-    const failedToolCount = messages.filter(m => m.role === 'tool_result' && m.isError).length
-    const messageCount = messages.filter(m => m.role === 'user' || m.role === 'assistant').length
+    let userGoal = ''
+    let additions = 0
+    let deletions = 0
+    let failedToolCount = 0
+    let messageCount = 0
+    const uniqueFiles: string[] = []
+    const seenFiles = new Set<string>()
+    const toolUseMessages: ConversationMessage[] = []
+    const commands: string[] = []
+    const validationCommands: string[] = []
+
+    for (const message of messages) {
+      if ((message.role === 'user' || message.role === 'assistant')) {
+        messageCount += 1
+      }
+
+      if (message.role === 'user' && message.content && !message.content.startsWith('\u25B6 /')) {
+        userGoal = message.content
+      }
+
+      if (message.fileChange) {
+        const filePath = message.fileChange.filePath
+        if (filePath && !seenFiles.has(filePath)) {
+          seenFiles.add(filePath)
+          uniqueFiles.push(filePath)
+        }
+        additions += message.fileChange.additions || 0
+        deletions += message.fileChange.deletions || 0
+      }
+
+      if (message.role === 'tool_use') {
+        toolUseMessages.push(message)
+        const command = getToolCommand(message)
+        if (command) {
+          commands.push(command)
+          if (isValidationCommand(command)) {
+            validationCommands.push(command)
+          }
+        }
+      } else if (message.role === 'tool_result' && message.isError) {
+        failedToolCount += 1
+      }
+    }
+
     const hasWaitingAction = pendingPermission || pendingAskQuestion || pendingQuestion || pendingPlanApproval
     const phaseLabel = pendingPermission || pendingAskQuestion || pendingQuestion || pendingPlanApproval || status === 'error'
       ? '需要处理'
@@ -1263,7 +1306,7 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
             <button
               onClick={() => setKnowledgePanelOpen(true)}
               title="打开项目知识库"
-              className="absolute top-3 right-4 z-10 flex items-center gap-1.5 rounded-lg border border-border-subtle bg-bg-elevated px-2.5 py-1.5 text-xs text-text-secondary shadow-sm backdrop-blur-sm transition-all hover:border-accent-purple/40 hover:bg-bg-hover hover:text-accent-purple hover:shadow-md hover:scale-105 active:scale-95"
+              className="absolute top-3 right-4 z-10 flex items-center gap-1.5 rounded-lg border border-border-subtle bg-bg-elevated px-2.5 py-1.5 text-xs text-text-secondary shadow-sm transition-colors hover:border-accent-purple/40 hover:bg-bg-hover hover:text-accent-purple"
             >
               <BookMarked className="w-3.5 h-3.5 transition-all duration-300 hover:rotate-12" />
               <span>知识库</span>
@@ -1372,7 +1415,7 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
             <button
               type="button"
               onClick={() => scrollToBottom()}
-              className="pointer-events-auto inline-flex items-center gap-1.5 rounded-full border border-border-subtle bg-bg-elevated px-3 py-1.5 text-xs text-text-secondary shadow-lg backdrop-blur-sm transition-all hover:border-accent-blue/40 hover:text-accent-blue"
+              className="pointer-events-auto inline-flex items-center gap-1.5 rounded-full border border-border-subtle bg-bg-elevated px-3 py-1.5 text-xs text-text-secondary shadow-sm transition-colors hover:border-accent-blue/40 hover:text-accent-blue"
               title="滚动到底部"
             >
               <ArrowDown size={13} />
@@ -1461,7 +1504,7 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
 
       {/* 输入区域 */}
       {!isSessionEnded && (
-        <div className="relative border-t border-border-subtle bg-bg-primary px-4 pt-1.5 pb-2.5 shadow-[0_-10px_28px_var(--color-shadow-sm)]">
+        <div className="relative border-t border-border-subtle bg-bg-primary px-4 pt-1.5 pb-2.5 shadow-sm">
           {/* Skill 快捷按钮 + MCP 状态 */}
           <SessionToolbar
             sessionId={sessionId}
@@ -1707,9 +1750,9 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
             type="button"
             aria-label="关闭知识中心"
             onClick={() => setKnowledgePanelOpen(false)}
-            className="h-full flex-1 cursor-default bg-bg-primary/20 backdrop-blur-[1px]"
+            className="h-full flex-1 cursor-default bg-bg-primary/20"
           />
-          <div className="h-full w-[min(440px,100%)] min-w-0 border-l border-border-subtle bg-bg-primary shadow-[-18px_0_36px_var(--color-shadow-sm)] sm:min-w-[340px]">
+          <div className="h-full w-[min(440px,100%)] min-w-0 border-l border-border-subtle bg-bg-primary shadow-sm sm:min-w-[340px]">
             <SessionKnowledgePanel
               sessionId={sessionId}
               projectPath={workingDirectory}
