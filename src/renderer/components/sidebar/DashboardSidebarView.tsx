@@ -51,33 +51,33 @@ export default function DashboardSidebarView() {
             </span>
           </div>
 
-          {/* 运行中 */}
+          {/* 正在处理 */}
           <div className="bg-bg-secondary border border-border rounded-lg p-2 flex flex-col gap-0.5">
             <div className="flex items-center gap-1">
               <Activity className="w-3 h-3 text-accent-green shrink-0" />
-              <span className="text-xs text-text-muted truncate">运行中</span>
+              <span className="text-xs text-text-muted truncate">正在处理</span>
             </div>
             <span className="text-lg font-bold text-accent-green leading-none">
               {runningCount}
             </span>
           </div>
 
-          {/* 等待输入 */}
+          {/* 等你继续 */}
           <div className="bg-bg-secondary border border-border rounded-lg p-2 flex flex-col gap-0.5">
             <div className="flex items-center gap-1">
               <HelpCircle className="w-3 h-3 text-accent-yellow shrink-0" />
-              <span className="text-xs text-text-muted truncate">等待输入</span>
+              <span className="text-xs text-text-muted truncate">等你继续</span>
             </div>
             <span className="text-lg font-bold text-accent-yellow leading-none">
               {waitingInputCount}
             </span>
           </div>
 
-          {/* 出错 */}
+          {/* 需要处理 */}
           <div className="bg-bg-secondary border border-border rounded-lg p-2 flex flex-col gap-0.5">
             <div className="flex items-center gap-1">
               <AlertCircle className="w-3 h-3 text-accent-red shrink-0" />
-              <span className="text-xs text-text-muted truncate">出错</span>
+              <span className="text-xs text-text-muted truncate">需要处理</span>
             </div>
             <span className="text-lg font-bold text-accent-red leading-none">
               {errorCount}

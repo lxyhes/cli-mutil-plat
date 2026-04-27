@@ -68,9 +68,9 @@ export function getActivityPreview(activity: ActivityEvent): string {
     case 'tool_use':
       return '🔧 使用工具'
     case 'waiting_confirmation':
-      return '❓ 等待确认'
+      return '需要你确认'
     case 'turn_complete':
-      return '🔄 本轮完成（等待下一步）'
+      return '已完成，等你继续'
     case 'task_complete':
       return '✅ 任务完成'
     case 'session_start':
@@ -194,7 +194,7 @@ export function groupSessionsByTime(sessions: Session[]): TimeGroup[] {
   older.sort(byTimeDesc)
 
   const groups: TimeGroup[] = []
-  if (running.length) groups.push({ key: 'running', title: '运行中', sessions: running, color: 'bg-accent-green' })
+  if (running.length) groups.push({ key: 'running', title: '进行中', sessions: running, color: 'bg-accent-green' })
   if (today.length) groups.push({ key: 'today', title: '今天', sessions: today, color: 'bg-accent-blue' })
   if (week.length) groups.push({ key: 'week', title: '过去 7 天', sessions: week, color: 'bg-text-muted' })
   if (older.length) groups.push({ key: 'older', title: '更早', sessions: older, color: 'bg-text-muted' })

@@ -8,7 +8,7 @@
  */
 
 import React, { useEffect, useLayoutEffect, useRef, useMemo, useState, useCallback } from 'react'
-import { FolderOpen, RotateCcw, Copy, ArrowUp, ArrowDown, Download, X, BookMarked } from 'lucide-react'
+import { AlertTriangle, CheckCircle2, FolderOpen, RotateCcw, Copy, ArrowUp, ArrowDown, Download, X, BookMarked } from 'lucide-react'
 import type { ReactNode } from 'react'
 import type { ConversationMessage, UserQuestionMeta, AskUserQuestionMeta } from '../../../shared/types'
 import ContextMenu from '../common/ContextMenu'
@@ -769,10 +769,25 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
 
       {/* 已结束会话：恢复继续按钮 */}
       {isSessionEnded && (
-        <div className="px-4 py-3 bg-bg-secondary border-t border-border flex items-center justify-center gap-3 animate-fade-in">
-          <span className="text-xs text-text-muted">
-            会话已{status === 'error' ? '出错' : '结束'}
-          </span>
+        <div className="border-t border-border bg-bg-secondary px-4 py-3 animate-fade-in">
+          <div className="mx-auto flex max-w-[1080px] items-center justify-between gap-3 rounded-2xl border border-border/45 bg-bg-primary/35 px-3 py-2.5">
+            <div className="flex min-w-0 items-center gap-2">
+              {status === 'error' ? (
+                <AlertTriangle className="h-4 w-4 flex-shrink-0 text-accent-red" />
+              ) : (
+                <CheckCircle2 className="h-4 w-4 flex-shrink-0 text-accent-blue" />
+              )}
+              <div className="min-w-0">
+                <div className="text-xs font-medium text-text-secondary">
+                  {status === 'error' ? '会话需要处理' : '会话已结束'}
+                </div>
+                <div className="truncate text-[11px] text-text-muted">
+                  {status === 'error'
+                    ? '可以恢复会话后继续排查，原有上下文会尽量保留。'
+                    : '需要继续时可以恢复会话，并接着发送新消息。'}
+                </div>
+              </div>
+            </div>
           <button
             disabled={resuming}
             onClick={async () => {
@@ -786,8 +801,9 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
             className="flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-medium bg-accent-blue/20 text-accent-blue hover:bg-accent-blue/30 hover:scale-105 active:scale-95 transition-all duration-200 disabled:opacity-50"
           >
             <RotateCcw className={`w-3.5 h-3.5 ${resuming ? 'animate-spin' : ''}`} />
-            {resuming ? '恢复中...' : '恢复会话继续对话'}
+            {resuming ? '恢复中...' : '恢复继续'}
           </button>
+          </div>
         </div>
       )}
 

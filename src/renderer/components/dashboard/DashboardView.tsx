@@ -120,19 +120,19 @@ export default function DashboardView() {
         />
         <StatCard
           icon={PlayCircle}
-          label="运行中"
+          label="正在处理"
           value={runningSessions.length}
           color="#3FB950"
         />
         <StatCard
           icon={PauseCircle}
-          label="等待中"
+          label="等你继续"
           value={waitingSessions.length}
           color="#D29922"
         />
         <StatCard
           icon={AlertCircle}
-          label="异常"
+          label="需要处理"
           value={errorSessions.length}
           color="#F85149"
         />

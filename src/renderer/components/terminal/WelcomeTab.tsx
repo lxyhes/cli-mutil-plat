@@ -6,7 +6,7 @@
 import { Terminal, BarChart2 } from 'lucide-react'
 import { useSessionStore } from '../../stores/sessionStore'
 import { useUIStore } from '../../stores/uiStore'
-import { STATUS_COLORS } from '../../../shared/constants'
+import { STATUS_COLORS, STATUS_LABELS } from '../../../shared/constants'
 import { toPlatformShortcutLabel } from '../../utils/shortcut'
 import { formatSessionName } from '../layout/sidebar/utils'
 import BrandLogo from '../brand/BrandLogo'
@@ -94,7 +94,7 @@ export default function WelcomeTab() {
                   </span>
                   {/* 状态文字 */}
                   <span className="text-xs text-text-muted flex-shrink-0">
-                    {session.status}
+                    {STATUS_LABELS[session.status] || session.status}
                   </span>
                   {/* 时间 */}
                   <span className="text-xs text-text-muted flex-shrink-0">
