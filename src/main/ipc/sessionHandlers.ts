@@ -406,7 +406,7 @@ export function registerSessionHandlers(deps: IpcDependencies): void {
         throw new SpectrAIError({
           code: ErrorCode.INTERNAL,
           message: 'SDK V2 SessionManager not initialized',
-          userMessage: 'SDK V2 SessionManager 鏈垵濮嬪寲'
+          userMessage: 'SDK V2 SessionManager 未初始化'
         })
       }
 
@@ -1044,7 +1044,7 @@ export function registerSessionHandlers(deps: IpcDependencies): void {
         throw new SpectrAIError({
           code: ErrorCode.SESSION_NOT_FOUND,
           message: 'Original session not found',
-          userMessage: '鎵句笉鍒板師浼氳瘽璁板綍'
+          userMessage: '找不到原会话记录'
         })
       }
 

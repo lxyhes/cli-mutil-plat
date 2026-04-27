@@ -113,6 +113,41 @@ const resumeSessionInFlight = new Map<string, Promise<ResumeSessionResult>>()
 let autoResumeInFlight = false
 const chatViewTerminalStatuses = new Set<SessionStatus>(['completed', 'terminated', 'error', 'interrupted'])
 
+function cleanKnownMojibake(text: string): string {
+  return text
+    .replace(/鎵句笉鍒板師浼氳瘽璁板綍/g, '找不到原会话记录')
+    .replace(/SDK V2 SessionManager 鏈垵濮嬪寲/g, 'SDK V2 SessionManager 未初始化')
+}
+
+function normalizeErrorMessage(error: unknown, fallback: string): string {
+  if (!error) return fallback
+
+  if (typeof error === 'string') {
+    return cleanKnownMojibake(sanitizeDisplayText(error)) || fallback
+  }
+
+  if (error instanceof Error) {
+    return cleanKnownMojibake(sanitizeDisplayText(error.message)) || fallback
+  }
+
+  if (typeof error === 'object') {
+    const record = error as Record<string, unknown>
+    const candidate = record.userMessage || record.message || record.error
+    if (typeof candidate === 'string') {
+      return cleanKnownMojibake(sanitizeDisplayText(candidate)) || fallback
+    }
+    if (candidate && typeof candidate === 'object') {
+      return normalizeErrorMessage(candidate, fallback)
+    }
+  }
+
+  try {
+    return cleanKnownMojibake(sanitizeDisplayText(JSON.stringify(error))) || fallback
+  } catch {
+    return fallback
+  }
+}
+
 // ── IPC 监听器 unsubscribe 句柄（防止重复注册导致内存泄漏） ──
 let _sessionListenerUnsubs: Array<() => void> = []
 let _agentListenerUnsubs: Array<() => void> = []
@@ -392,7 +427,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
           return { success: true, sessionId: resumedId }
         }
 
-        const errorMsg = result.error || '恢复会话失败'
+        const errorMsg = normalizeErrorMessage(result.error, '恢复会话失败')
         set((state) => {
           const next = new Set(state.resumingSessions)
           next.delete(oldSessionId)
@@ -400,8 +435,8 @@ export const useSessionStore = create<SessionState>((set, get) => ({
         })
         console.error('Failed to resume session:', result.error)
         return { success: false, error: errorMsg }
-      } catch (error: any) {
-        const errorMsg = error.message || '恢复会话时发生未知错误'
+      } catch (error) {
+        const errorMsg = normalizeErrorMessage(error, '恢复会话时发生未知错误')
         set((state) => {
           const next = new Set(state.resumingSessions)
           next.delete(oldSessionId)
