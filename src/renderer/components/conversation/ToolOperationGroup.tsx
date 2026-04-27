@@ -73,18 +73,18 @@ const ToolOperationGroup: React.FC<ToolOperationGroupProps> = ({ messages, isAct
 
   return (
     <div
-      className={`my-3 ml-8 mr-20 overflow-hidden rounded-xl border transition-colors ${
+      className={`my-2 ml-8 mr-20 overflow-hidden rounded-lg border transition-colors ${
         isActive
-          ? 'border-accent-purple/30 bg-bg-secondary/45 shadow-sm shadow-accent-purple/5'
+          ? 'border-accent-purple/30 bg-bg-elevated shadow-[0_8px_22px_var(--color-shadow-sm)]'
           : hasError
-            ? 'border-accent-red/35 bg-accent-red/5'
-            : 'border-border/35 bg-bg-secondary/20'
+            ? 'border-accent-red/35 bg-accent-red/10'
+            : 'border-border-subtle bg-bg-elevated'
       }`}
     >
       <button
         onClick={() => setExpanded(!expanded)}
         aria-expanded={expanded}
-        className="w-full text-left px-3 py-2 flex items-center gap-2 hover:bg-bg-hover/20 transition-colors"
+        className="w-full text-left px-3 py-1.5 flex items-center gap-2 transition-colors hover:bg-bg-hover"
       >
         <span className="text-text-muted flex-shrink-0">
           {expanded ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
@@ -108,7 +108,7 @@ const ToolOperationGroup: React.FC<ToolOperationGroupProps> = ({ messages, isAct
           {Object.entries(toolCounts).slice(0, 4).map(([name, count]) => (
             <span
               key={name}
-              className="text-[10px] text-text-muted bg-bg-tertiary/70 border border-border/25 px-1.5 py-0.5 rounded-md font-mono"
+              className="rounded border border-border-subtle bg-bg-tertiary px-1.5 py-0.5 font-mono text-[10px] text-text-muted"
             >
               {name}({count})
             </span>
@@ -125,7 +125,7 @@ const ToolOperationGroup: React.FC<ToolOperationGroupProps> = ({ messages, isAct
       </button>
 
       {expanded && (
-        <div className="border-t border-border/30 bg-bg-primary/25 py-1.5">
+        <div className="border-t border-border-subtle bg-bg-primary py-1.5">
           {messages.map(msg => (
             <ToolUseCard key={msg.id} message={msg} compact />
           ))}

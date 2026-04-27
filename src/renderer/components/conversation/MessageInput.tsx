@@ -192,8 +192,8 @@ function FileRefCard({
 
   return (
     <div
-      className="group flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-border
-        bg-bg-secondary hover:border-accent-blue/40 transition-colors
+      className="group flex items-center gap-1.5 rounded-lg border border-border-subtle px-2.5 py-1.5
+        bg-bg-elevated transition-colors hover:border-accent-blue/40
         max-w-[220px] flex-shrink-0"
       title={fileRef.filePath}
     >
@@ -993,7 +993,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
         <div
           ref={menuRef}
           className="absolute bottom-full left-4 right-4 mb-1
-            bg-bg-secondary border border-border rounded-lg shadow-lg
+            rounded-lg border border-border-subtle bg-bg-elevated shadow-lg
             max-h-52 overflow-y-auto z-50"
           style={{ scrollbarWidth: 'thin' }}
         >
@@ -1025,12 +1025,12 @@ const MessageInput: React.FC<MessageInputProps> = ({
         <div
           ref={modelMenuRef}
           className="absolute bottom-full left-4 right-4 mb-1
-            bg-bg-secondary border border-border rounded-lg shadow-lg
+            rounded-lg border border-border-subtle bg-bg-elevated shadow-lg
             max-h-64 overflow-y-auto z-50"
           style={{ scrollbarWidth: 'thin' }}
         >
           {/* 标题 */}
-          <div className="px-3 py-2 border-b border-border">
+          <div className="border-b border-border-subtle px-3 py-2">
             <span className="text-xs font-medium text-text-muted uppercase tracking-wide">
               可用模型
             </span>
@@ -1074,12 +1074,12 @@ const MessageInput: React.FC<MessageInputProps> = ({
         <div
           ref={atMenuRef}
           className="absolute bottom-full left-4 right-4 mb-1
-            bg-bg-secondary border border-border rounded-lg shadow-lg
+            rounded-lg border border-border-subtle bg-bg-elevated shadow-lg
             max-h-52 overflow-y-auto z-50"
           style={{ scrollbarWidth: 'thin' }}
         >
           {/* 标题行 */}
-          <div className="flex items-center justify-between px-3 py-1.5 border-b border-border/50 sticky top-0 bg-bg-secondary">
+          <div className="sticky top-0 flex items-center justify-between border-b border-border-subtle bg-bg-elevated px-3 py-1.5">
             <div className="flex items-center gap-1.5 text-xs text-text-muted">
               <AtSign size={12} />
               <span>引用文件{atQuery ? `："${atQuery}"` : ''}</span>
@@ -1124,12 +1124,12 @@ const MessageInput: React.FC<MessageInputProps> = ({
         </div>
       )}
 
-      <div className={`mx-auto flex max-w-[1080px] flex-col p-2 bg-bg-secondary/70 border rounded-2xl transition-colors shadow-sm
-        ${dragOver ? 'border-accent-blue' : 'border-border/45'} focus-within:border-accent-blue/45 focus-within:shadow-[0_0_0_1px_rgba(59,130,246,0.12)] md:p-3`}>
+      <div className={`mx-auto flex max-w-[1080px] flex-col rounded-lg border bg-bg-input p-2 shadow-[0_10px_28px_var(--color-shadow-sm)] transition-colors
+        ${dragOver ? 'border-accent-blue' : 'border-border-subtle'} focus-within:border-accent-blue/50 md:p-3`}>
 
         {/* 附件区域：图片预览 + 文件引用卡片（有附件时显示） */}
         {hasAttachments && (
-          <div className="px-2 pt-2 pb-1 border-b border-border mb-1">
+          <div className="mb-1 border-b border-border-subtle px-2 pb-1 pt-2">
             <div className="flex flex-wrap gap-2 pb-1">
 
               {/* 图片缩略图 */}
@@ -1139,7 +1139,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
                     type="button"
                     title={att.name}
                     onClick={() => setPreviewAttachment(att)}
-                    className="w-20 h-20 rounded-lg overflow-hidden border border-border bg-bg-tertiary hover:border-accent-blue/40 btn-transition"
+                    className="h-20 w-20 overflow-hidden rounded-lg border border-border-subtle bg-bg-tertiary btn-transition hover:border-accent-blue/40"
                   >
                     <img
                       src={att.previewUrl}
@@ -1160,7 +1160,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
                       setAttachments(prev => prev.filter(a => a.id !== att.id))
                     }}
                     className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full
-                      bg-bg-primary border border-border
+                      bg-bg-primary border border-border-subtle
                       flex items-center justify-center
                       text-text-secondary hover:text-accent-red hover:border-accent-red
                       opacity-0 group-hover:opacity-100 transition-all
@@ -1297,7 +1297,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
             <img
               src={previewAttachment.previewUrl}
               alt={previewAttachment.name}
-              className="max-w-full max-h-[82vh] object-contain rounded border border-border bg-black/20"
+              className="max-w-full max-h-[82vh] object-contain rounded border border-border-subtle bg-black/20"
             />
             <div className="w-full text-[11px] text-white/85 text-center break-all">
               {previewAttachment.name}

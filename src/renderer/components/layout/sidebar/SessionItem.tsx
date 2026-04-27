@@ -71,9 +71,9 @@ export const SessionItem = React.memo(function SessionItem({
     <div
       onClick={() => onSelect(session.id)}
       onContextMenu={(e) => onContextMenu(e, session.id, session.status)}
-      className={`relative overflow-hidden px-2.5 py-2 rounded cursor-pointer btn-transition border border-l-2 ${
+      className={`relative overflow-hidden rounded-lg border border-l-2 px-2.5 py-2 cursor-pointer btn-transition ${
         isSelected
-          ? 'bg-accent-blue/10 border-accent-blue/80 border-l-accent-blue'
+          ? 'bg-accent-blue/10 border-accent-blue/35 border-l-accent-blue'
           : isStuck
             ? 'bg-bg-hover border-orange-500/30 hover:border-orange-500/50 border-l-orange-500/50'
             : needsAttention
@@ -82,9 +82,9 @@ export const SessionItem = React.memo(function SessionItem({
                 ? 'bg-accent-yellow/5 border-accent-yellow/25 hover:border-accent-yellow/45 border-l-accent-yellow/60'
                 : 'bg-bg-hover border-transparent border-l-transparent hover:bg-bg-tertiary hover:border-l-accent-blue/30'
       }`}
-      style={isSelected ? { boxShadow: 'inset 0 0 0 1px var(--color-glow-blue), 0 4px 12px var(--color-shadow-sm)' } : undefined}
+      style={isSelected ? { boxShadow: '0 8px 20px var(--color-shadow-sm)' } : undefined}
     >
-      {isSelected && <div className="absolute left-0 top-0 h-full w-1 rounded-l bg-accent-blue/90" />}
+      {isSelected && <div className="absolute left-0 top-0 h-full w-1 rounded-l bg-accent-blue/80" />}
       <div className="flex items-start gap-2">
         <div
           className={`mt-1.5 h-2 w-2 flex-shrink-0 rounded-full ${session.status === 'running' ? 'animate-pulse' : ''}`}

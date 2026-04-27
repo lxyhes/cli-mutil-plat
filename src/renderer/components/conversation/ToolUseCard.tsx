@@ -164,10 +164,10 @@ const ToolUseCard: React.FC<ToolUseCardProps> = ({ message, compact = false }) =
           e.stopPropagation() // 阻止冒泡到 ConversationView
           setCtxMenu({ visible: true, x: e.clientX, y: e.clientY })
         }}
-        className={`w-full text-left flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs border
+        className={`w-full text-left flex items-center gap-2 px-3 py-1.5 rounded-md text-xs border
           ${isResult
-            ? (isError ? 'border-accent-red/25 bg-accent-red/10 text-accent-red' : 'border-border/25 bg-bg-tertiary/70 text-text-secondary')
-            : 'border-border/25 bg-bg-secondary/70 text-text-primary hover:bg-bg-hover'
+            ? (isError ? 'border-accent-red/30 bg-accent-red/10 text-accent-red' : 'border-transparent bg-bg-tertiary text-text-secondary')
+            : 'border-transparent bg-bg-secondary text-text-primary hover:bg-bg-hover'
           } transition-colors`}
       >
         <span className="text-text-muted flex-shrink-0">
@@ -186,7 +186,7 @@ const ToolUseCard: React.FC<ToolUseCardProps> = ({ message, compact = false }) =
       </button>
 
       {expanded && (
-        <div className="mt-1.5 mx-1 p-3 rounded-xl bg-bg-tertiary/75 text-xs font-mono border border-border/40 overflow-auto max-h-[300px]">
+        <div className="mt-1.5 mx-1 max-h-[300px] overflow-auto rounded-lg border border-border-subtle bg-bg-tertiary p-3 font-mono text-xs">
           {/* 工具输入 */}
           {toolInput && !isResult && (
             <div className="mb-2">

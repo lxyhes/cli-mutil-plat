@@ -528,7 +528,7 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
             <button
               onClick={() => setKnowledgePanelOpen(true)}
               title="打开项目知识库"
-              className="absolute top-3 right-4 z-10 flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-bg-secondary/90 border border-border text-xs text-text-secondary hover:text-accent-purple hover:border-accent-purple/40 transition-all backdrop-blur-sm shadow-sm hover:shadow-md hover:scale-105 active:scale-95 hover:bg-bg-secondary"
+              className="absolute top-3 right-4 z-10 flex items-center gap-1.5 rounded-lg border border-border-subtle bg-bg-elevated px-2.5 py-1.5 text-xs text-text-secondary shadow-sm backdrop-blur-sm transition-all hover:border-accent-purple/40 hover:bg-bg-hover hover:text-accent-purple hover:shadow-md hover:scale-105 active:scale-95"
             >
               <BookMarked className="w-3.5 h-3.5 transition-all duration-300 hover:rotate-12" />
               <span>知识库</span>
@@ -546,7 +546,7 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
                 <span>加载对话历史...</span>
               </div>
             ) : isSessionEnded ? '会话已结束，点击下方恢复继续对话' : (
-              <div className="w-full max-w-[640px] rounded-2xl border border-border/40 bg-bg-secondary/35 p-6 shadow-sm">
+              <div className="w-full max-w-[640px] rounded-lg border border-border-subtle bg-bg-elevated p-6 shadow-[0_12px_32px_var(--color-shadow-sm)]">
                 <div className="mb-5 flex items-start justify-between gap-4">
                   <div>
                     <div className="mb-2 flex items-center gap-2">
@@ -568,7 +568,7 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
                 </div>
 
                 {workingDirectory && (
-                  <div className="mb-5 flex items-start gap-2 rounded-xl border border-border/35 bg-bg-primary/35 px-3 py-2.5">
+                  <div className="mb-5 flex items-start gap-2 rounded-lg border border-border-subtle bg-bg-primary px-3 py-2.5">
                     <FolderOpen className="w-4 h-4 mt-0.5 flex-shrink-0 text-text-muted" />
                     <span className="break-all font-mono text-xs text-text-secondary leading-relaxed">
                       {workingDirectory}
@@ -583,8 +583,8 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
                     { key: '@',             desc: '引用项目文件' },
                     { key: toPlatformShortcutLabel('Ctrl+Shift+F'),  desc: '跨会话搜索' },
                   ].map(({ key, desc }) => (
-                    <div key={key} className="rounded-xl border border-border/30 bg-bg-primary/25 px-3 py-2 text-xs text-text-muted">
-                      <kbd className="mb-1 inline-flex rounded border border-border/45 bg-bg-primary px-1.5 py-0.5 font-mono text-[11px] text-text-secondary">
+                    <div key={key} className="rounded-lg border border-border-subtle bg-bg-primary px-3 py-2 text-xs text-text-muted">
+                      <kbd className="mb-1 inline-flex rounded border border-border-subtle bg-bg-elevated px-1.5 py-0.5 font-mono text-[11px] text-text-secondary">
                         {key}
                       </kbd>
                       <div>{desc}</div>
@@ -607,9 +607,9 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
                   const timeLabel = new Date(curTime).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
                   elements.push(
                     <div key={`divider-${group.message.id}`} className="flex items-center gap-3 my-4">
-                      <div className="flex-1 border-t border-border/40" />
+                      <div className="flex-1 border-t border-border-subtle" />
                       <span className="text-[10px] text-text-muted">{timeLabel}</span>
-                      <div className="flex-1 border-t border-border/40" />
+                      <div className="flex-1 border-t border-border-subtle" />
                     </div>
                   )
                 }
@@ -641,7 +641,7 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
         {/* 流式响应指示器 - 带实时计时器 + 渐变扫光动画 */}
         {isStreaming && (
           <div className="mb-4 flex justify-start animate-fade-in">
-            <div className="relative max-w-[min(620px,78%)] overflow-hidden rounded-2xl border border-border/35 bg-bg-secondary/35 px-4 py-3 text-sm text-text-muted shadow-sm transition-all duration-300 hover:border-border/70">
+            <div className="relative max-w-[min(620px,78%)] overflow-hidden rounded-lg border border-border-subtle bg-bg-elevated px-4 py-3 text-sm text-text-muted shadow-[0_10px_26px_var(--color-shadow-sm)] transition-all duration-300">
               <div className="absolute inset-0 bg-gradient-to-r from-transparent via-accent-blue/5 to-transparent animate-pulse" />
               <div className="relative flex items-center gap-2">
                 <span className="inline-block h-3 w-3 flex-shrink-0 animate-spin rounded-full border border-text-muted/50 border-t-accent-blue" />
@@ -666,7 +666,7 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
             <button
               type="button"
               onClick={() => scrollToBottom()}
-              className="pointer-events-auto inline-flex items-center gap-1.5 rounded-full border border-border/60 bg-bg-secondary/95 px-3 py-1.5 text-xs text-text-secondary shadow-lg backdrop-blur-sm transition-all hover:border-accent-blue/40 hover:text-accent-blue"
+              className="pointer-events-auto inline-flex items-center gap-1.5 rounded-full border border-border-subtle bg-bg-elevated px-3 py-1.5 text-xs text-text-secondary shadow-lg backdrop-blur-sm transition-all hover:border-accent-blue/40 hover:text-accent-blue"
               title="滚动到底部"
             >
               <ArrowDown size={13} />
@@ -732,7 +732,7 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
           <div className="sticky bottom-0 flex justify-center py-2 bg-gradient-to-t from-bg-primary via-bg-primary/95 to-transparent z-10">
             <button
               onClick={abortSession}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-bg-secondary border border-border rounded-full text-xs text-text-secondary hover:text-accent-red hover:border-accent-red/50 hover:bg-accent-red/5 transition-all shadow-sm"
+              className="flex items-center gap-1.5 rounded-full border border-border-subtle bg-bg-elevated px-3 py-1.5 text-xs text-text-secondary shadow-sm transition-all hover:border-accent-red/50 hover:bg-accent-red/10 hover:text-accent-red"
               title="停止 AI 思考（软中断，会话保持可用）"
             >
               <span className="inline-block w-2 h-2 rounded-sm bg-current opacity-80" />
@@ -755,7 +755,7 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
 
       {/* 输入区域 */}
       {!isSessionEnded && (
-        <div className="relative border-t border-border/40 bg-bg-primary/95 px-4 pt-2 pb-3 shadow-[0_-18px_40px_rgba(0,0,0,0.14)]">
+        <div className="relative border-t border-border-subtle bg-bg-primary px-4 pt-2 pb-3 shadow-[0_-10px_28px_var(--color-shadow-sm)]">
           {/* Skill 快捷按钮 + MCP 状态 */}
           <SessionToolbar
             sessionId={sessionId}
@@ -764,7 +764,7 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
             onCodeGraphAnswer={handleCodeGraphAnswer}
           />
 
-          <div className="mx-auto mb-2 flex w-full max-w-[1080px] items-center gap-1.5 overflow-x-auto rounded-2xl border border-border/35 bg-bg-secondary/25 px-2.5 py-2">
+          <div className="mx-auto mb-1.5 flex w-full max-w-[1080px] items-center gap-1.5 overflow-x-auto rounded-lg bg-bg-elevated px-2.5 py-1.5">
             <span className="flex-shrink-0 text-[11px] font-medium text-text-muted">常用提示词</span>
             {commonPrompts.map(prompt => (
               <button
@@ -772,7 +772,7 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
                 type="button"
                 onClick={() => setPendingInsert(prompt.text)}
                 disabled={!canSend}
-                className="flex-shrink-0 rounded-full border border-border/45 bg-bg-primary/35 px-2.5 py-1 text-xs text-text-secondary hover:border-accent-blue/40 hover:bg-accent-blue/10 hover:text-accent-blue disabled:cursor-not-allowed disabled:opacity-40 transition-colors"
+                className="flex-shrink-0 rounded-full border border-transparent bg-bg-tertiary px-2.5 py-1 text-xs text-text-secondary transition-colors hover:bg-accent-blue/10 hover:text-accent-blue disabled:cursor-not-allowed disabled:opacity-40"
                 title={prompt.text}
               >
                 {prompt.label}
@@ -783,8 +783,8 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
               onClick={() => setPromptManagerOpen(open => !open)}
               className={`ml-auto flex-shrink-0 rounded-full border px-2 py-1 text-xs transition-colors ${
                 promptManagerOpen
-                  ? 'border-accent-blue/45 bg-accent-blue/10 text-accent-blue'
-                  : 'border-border/45 bg-bg-primary/35 text-text-muted hover:border-accent-blue/40 hover:text-accent-blue'
+                  ? 'border-accent-blue/40 bg-accent-blue/10 text-accent-blue'
+                  : 'border-transparent bg-bg-tertiary text-text-muted hover:bg-accent-blue/10 hover:text-accent-blue'
               }`}
               title="管理常用提示词"
             >
@@ -793,13 +793,13 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
           </div>
 
           {promptManagerOpen && (
-            <div className="mx-auto mb-2 w-full max-w-[1080px] rounded-2xl border border-border/35 bg-bg-secondary/35 p-3 shadow-sm">
+            <div className="mx-auto mb-2 w-full max-w-[1080px] rounded-lg border border-border-subtle bg-bg-elevated p-3 shadow-sm">
               <div className="mb-2 flex items-center justify-between gap-2">
                 <span className="text-xs font-medium text-text-secondary">管理常用提示词</span>
                 <button
                   type="button"
                   onClick={resetCommonPrompts}
-                  className="inline-flex items-center gap-1 rounded-md border border-border/35 px-2 py-1 text-[11px] text-text-muted hover:border-accent-blue/35 hover:text-accent-blue transition-colors"
+                  className="inline-flex items-center gap-1 rounded-md border border-border-subtle px-2 py-1 text-[11px] text-text-muted transition-colors hover:border-accent-blue/35 hover:text-accent-blue"
                 >
                   <RotateCcw size={11} />
                   恢复默认
@@ -810,7 +810,7 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
                   value={promptDraft.label}
                   onChange={event => setPromptDraft(draft => ({ ...draft, label: event.target.value }))}
                   placeholder="名称，例如：写测试"
-                  className="rounded-lg border border-border bg-bg-primary px-2.5 py-1.5 text-xs text-text-primary placeholder:text-text-muted focus:border-accent-blue/50 focus:outline-none"
+                  className="rounded-lg border border-border-subtle bg-bg-primary px-2.5 py-1.5 text-xs text-text-primary placeholder:text-text-muted focus:border-accent-blue/50 focus:outline-none"
                 />
                 <input
                   value={promptDraft.text}
@@ -819,7 +819,7 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
                     if (event.key === 'Enter') addCommonPrompt()
                   }}
                   placeholder="提示词内容"
-                  className="rounded-lg border border-border bg-bg-primary px-2.5 py-1.5 text-xs text-text-primary placeholder:text-text-muted focus:border-accent-blue/50 focus:outline-none"
+                  className="rounded-lg border border-border-subtle bg-bg-primary px-2.5 py-1.5 text-xs text-text-primary placeholder:text-text-muted focus:border-accent-blue/50 focus:outline-none"
                 />
                 <button
                   type="button"
@@ -835,7 +835,7 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
                 {commonPrompts.map(prompt => (
                   <div
                     key={`manage-${prompt.id}`}
-                    className="inline-flex max-w-full items-center gap-1.5 rounded-full border border-border/45 bg-bg-primary/35 px-2 py-1 text-xs text-text-secondary"
+                    className="inline-flex max-w-full items-center gap-1.5 rounded-full border border-transparent bg-bg-tertiary px-2 py-1 text-xs text-text-secondary"
                     title={prompt.text}
                   >
                     <span className="truncate max-w-[180px]">{prompt.label}</span>
@@ -920,8 +920,8 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
 
       {/* 已结束会话：恢复继续按钮 */}
       {isSessionEnded && (
-        <div className="border-t border-border bg-bg-secondary px-4 py-3 animate-fade-in">
-          <div className="mx-auto flex max-w-[1080px] items-center justify-between gap-3 rounded-2xl border border-border/45 bg-bg-primary/35 px-3 py-2.5">
+        <div className="border-t border-border-subtle bg-bg-primary px-4 py-3 animate-fade-in">
+          <div className="mx-auto flex max-w-[1080px] items-center justify-between gap-3 rounded-lg border border-border-subtle bg-bg-elevated px-3 py-2.5">
             <div className="flex min-w-0 items-center gap-2">
               {status === 'error' ? (
                 <AlertTriangle className="h-4 w-4 flex-shrink-0 text-accent-red" />

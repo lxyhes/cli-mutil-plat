@@ -1014,13 +1014,13 @@ const SessionToolbar: React.FC<SessionToolbarProps> = ({ sessionId, onSkillClick
   }, [onSkillClick, onSkillExecute])
 
   return (
-    <div className="mx-auto mb-2 flex w-full max-w-[1080px] flex-wrap items-center gap-1.5 rounded-2xl border border-border/35 bg-bg-secondary/30 px-2.5 py-2 shadow-sm">
+    <div className="mx-auto mb-1.5 flex w-full max-w-[1080px] flex-wrap items-center gap-1.5 rounded-lg border border-border-subtle bg-bg-elevated px-2.5 py-1.5 shadow-[0_8px_22px_var(--color-shadow-sm)]">
       <span className="order-1 mr-1 flex-shrink-0 text-[11px] font-medium text-text-muted">
         会话配置
       </span>
 
       {/* ---- 会话模式 + 模型信息 ---- */}
-      <div className="order-1 flex items-center gap-1.5 px-2 py-1 rounded-md text-xs bg-bg-primary/35 border border-border/25 text-text-muted select-none">
+      <div className="order-1 flex items-center gap-1.5 rounded-md bg-bg-tertiary px-2 py-1 text-xs text-text-muted select-none">
         <span className={`inline-block w-1.5 h-1.5 rounded-full ${isSupervisor ? 'bg-accent-green' : 'bg-accent-blue'}`} />
         {isSupervisor ? (
           <Users size={11} className="text-accent-green flex-shrink-0" />
@@ -1039,10 +1039,10 @@ const SessionToolbar: React.FC<SessionToolbarProps> = ({ sessionId, onSkillClick
           onClick={() => setModelPopoverOpen(o => !o)}
           disabled={modelSwitching}
           className={`inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs
-            bg-bg-primary/35 border border-border/25 text-text-muted
+            bg-bg-tertiary border border-transparent text-text-muted
             hover:text-text-secondary hover:bg-bg-hover
             transition-colors cursor-pointer select-none disabled:opacity-60 disabled:cursor-wait
-            ${modelPopoverOpen ? 'border-accent-blue/40 text-text-secondary' : 'border-border'}`}
+            ${modelPopoverOpen ? 'border-accent-blue/40 text-text-secondary' : ''}`}
           title={`${currentModel || 'Model'}${currentReasoningEffort ? ` / ${REASONING_LABEL[currentReasoningEffort] || currentReasoningEffort}` : ''}`}
         >
           <Brain size={12} />
@@ -1058,9 +1058,9 @@ const SessionToolbar: React.FC<SessionToolbarProps> = ({ sessionId, onSkillClick
         {modelPopoverOpen && (
           <div
             ref={modelPopoverRef}
-            className="absolute bottom-full left-0 mb-1.5 w-48 bg-bg-secondary border border-border rounded-lg shadow-lg py-1.5 z-50"
+            className="absolute bottom-full left-0 z-50 mb-1.5 w-48 rounded-lg border border-border-subtle bg-bg-elevated py-1.5 shadow-lg"
           >
-            <div className="px-2 pb-1 border-b border-border/70">
+            <div className="border-b border-border-subtle px-2 pb-1">
               {REASONING_OPTIONS.map(option => {
                 const targetModel = option.model || currentModel || 'gpt-5.5'
                 const active = currentReasoningEffort === option.effort && (!option.model || currentModel === option.model)
@@ -1121,7 +1121,7 @@ const SessionToolbar: React.FC<SessionToolbarProps> = ({ sessionId, onSkillClick
           </div>
         )}
       </div>
-      <div className="order-3 basis-full border-t border-border/30 pt-2" />
+      <div className="order-3 basis-full border-t border-border-subtle pt-1.5" />
       <span className="order-4 mr-1 flex-shrink-0 text-[11px] font-medium text-text-muted">
         快捷动作
       </span>
@@ -1133,7 +1133,7 @@ const SessionToolbar: React.FC<SessionToolbarProps> = ({ sessionId, onSkillClick
           onClick={() => setCodeGraphPopoverOpen(o => !o)}
           disabled={!workingDirectory}
           className={`inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs
-            bg-accent-purple/10 border border-accent-purple/20 text-accent-purple
+            bg-accent-purple/10 border border-transparent text-accent-purple
             hover:text-accent-purple hover:bg-accent-purple/15
             transition-colors cursor-pointer select-none disabled:cursor-not-allowed disabled:opacity-45
             ${codeGraphPopoverOpen ? 'border-accent-purple/50 text-accent-purple' : ''}`}
@@ -1146,9 +1146,9 @@ const SessionToolbar: React.FC<SessionToolbarProps> = ({ sessionId, onSkillClick
         {codeGraphPopoverOpen && (
           <div
             ref={codeGraphPopoverRef}
-            className="absolute bottom-full left-0 mb-1.5 w-96 max-w-[calc(100vw-32px)] rounded-lg border border-border bg-bg-secondary py-2 shadow-lg z-50"
+            className="absolute bottom-full left-0 z-50 mb-1.5 w-96 max-w-[calc(100vw-32px)] rounded-lg border border-border-subtle bg-bg-elevated py-2 shadow-lg"
           >
-            <div className="border-b border-border px-3 pb-2">
+            <div className="border-b border-border-subtle px-3 pb-2">
               <div className="text-xs font-medium text-text-secondary">问当前代码库</div>
               <div className="mt-0.5 truncate text-[10px] text-text-muted" title={workingDirectory || ''}>
                 {workingDirectory || '未绑定工作目录'}
@@ -1168,7 +1168,7 @@ const SessionToolbar: React.FC<SessionToolbarProps> = ({ sessionId, onSkillClick
                   }
                 }}
                 placeholder="例如：改 src/main/agent/AgentBridge.ts 会影响哪里？"
-                className="h-20 w-full resize-none rounded-md border border-border bg-bg-primary px-2.5 py-2 text-xs text-text-primary placeholder:text-text-muted focus:border-accent-purple/50 focus:outline-none"
+                className="h-20 w-full resize-none rounded-md border border-border-subtle bg-bg-primary px-2.5 py-2 text-xs text-text-primary placeholder:text-text-muted focus:border-accent-purple/50 focus:outline-none"
               />
               <div className="flex items-center gap-2">
                 <button
@@ -1190,7 +1190,7 @@ const SessionToolbar: React.FC<SessionToolbarProps> = ({ sessionId, onSkillClick
                 </div>
               )}
               {codeGraphAnswer?.summary && (
-                <div className="rounded-md border border-border/50 bg-bg-primary/40 px-2.5 py-2">
+                <div className="rounded-md border border-border-subtle bg-bg-primary px-2.5 py-2">
                   <div className="text-[11px] font-medium text-text-secondary">图谱结论</div>
                   <div className="mt-1 text-[11px] leading-5 text-text-muted">{codeGraphAnswer.summary}</div>
                   {codeGraphAnswer.sections?.[0]?.items?.length ? (
@@ -1201,7 +1201,7 @@ const SessionToolbar: React.FC<SessionToolbarProps> = ({ sessionId, onSkillClick
                 </div>
               )}
               {!!codeGraphAnswer?.references?.length && (
-                <div className="rounded-md border border-border/50 bg-bg-primary/35 px-2.5 py-2">
+                <div className="rounded-md border border-border-subtle bg-bg-primary px-2.5 py-2">
                   <div className="mb-1.5 flex items-center justify-between gap-2">
                     <span className="text-[11px] font-medium text-text-secondary">可操作引用</span>
                     <span className="text-[10px] text-text-muted">{codeGraphAnswer.references.length} 个</span>
@@ -1210,7 +1210,7 @@ const SessionToolbar: React.FC<SessionToolbarProps> = ({ sessionId, onSkillClick
                     {codeGraphAnswer.references.slice(0, 10).map((reference, index) => (
                       <div
                         key={`${reference.type}-${reference.filePath}-${reference.symbolName || ''}-${index}`}
-                        className="flex items-center gap-1.5 rounded border border-border/35 bg-bg-secondary/40 px-2 py-1.5"
+                        className="flex items-center gap-1.5 rounded border border-border-subtle bg-bg-secondary px-2 py-1.5"
                         title={`${reference.reason}: ${reference.label}`}
                       >
                         <span className={`rounded px-1.5 py-0.5 text-[10px] ${
@@ -1255,7 +1255,7 @@ const SessionToolbar: React.FC<SessionToolbarProps> = ({ sessionId, onSkillClick
           type="button"
           onClick={handleCreateDebugPrompt}
           disabled={!workingDirectory || debugLoading || debugLoopLoading}
-          className="inline-flex items-center gap-1 rounded-md border border-accent-red/20 bg-accent-red/10 px-2 py-1 text-xs text-accent-red transition-colors hover:bg-accent-red/15 disabled:cursor-not-allowed disabled:opacity-45"
+          className="inline-flex items-center gap-1 rounded-md border border-transparent bg-accent-red/10 px-2 py-1 text-xs text-accent-red transition-colors hover:bg-accent-red/15 disabled:cursor-not-allowed disabled:opacity-45"
           title={workingDirectory ? '收集日志、活动、文件改动和验证计划，生成 Debug Mode 诊断提示' : '当前会话没有工作目录'}
         >
           <Bug size={12} />
@@ -1265,7 +1265,7 @@ const SessionToolbar: React.FC<SessionToolbarProps> = ({ sessionId, onSkillClick
           type="button"
           onClick={handleRunDebugLoop}
           disabled={!workingDirectory || debugLoading || debugLoopLoading || shipPlanLoading || shipRunLoading || shipSummaryLoading}
-          className="ml-1 inline-flex items-center gap-1 rounded-md border border-accent-yellow/20 bg-accent-yellow/10 px-2 py-1 text-xs text-accent-yellow transition-colors hover:bg-accent-yellow/15 disabled:cursor-not-allowed disabled:opacity-45"
+          className="ml-1 inline-flex items-center gap-1 rounded-md border border-transparent bg-accent-yellow/10 px-2 py-1 text-xs text-accent-yellow transition-colors hover:bg-accent-yellow/15 disabled:cursor-not-allowed disabled:opacity-45"
           title={workingDirectory ? '运行验证闭环：失败时创建修复任务、写入工作上下文并插入复验提示' : '当前会话没有工作目录'}
         >
           <GitBranch size={12} />
@@ -1278,7 +1278,7 @@ const SessionToolbar: React.FC<SessionToolbarProps> = ({ sessionId, onSkillClick
           type="button"
           onClick={handleCreateShipPlan}
           disabled={!workingDirectory || debugLoopLoading || shipPlanLoading || shipRunLoading || shipSummaryLoading}
-          className="inline-flex items-center gap-1 rounded-md border border-accent-green/20 bg-accent-green/10 px-2 py-1 text-xs text-accent-green transition-colors hover:bg-accent-green/15 disabled:cursor-not-allowed disabled:opacity-45"
+          className="inline-flex items-center gap-1 rounded-md border border-transparent bg-accent-green/10 px-2 py-1 text-xs text-accent-green transition-colors hover:bg-accent-green/15 disabled:cursor-not-allowed disabled:opacity-45"
           title={workingDirectory ? '根据当前改动生成交付前验证计划' : '当前会话没有工作目录'}
         >
           <ShieldCheck size={12} />
@@ -1288,7 +1288,7 @@ const SessionToolbar: React.FC<SessionToolbarProps> = ({ sessionId, onSkillClick
           type="button"
           onClick={handleRunShipPlan}
           disabled={!workingDirectory || debugLoopLoading || shipPlanLoading || shipRunLoading || shipSummaryLoading}
-          className="ml-1 inline-flex items-center gap-1 rounded-md border border-accent-cyan/20 bg-accent-cyan/10 px-2 py-1 text-xs text-accent-cyan transition-colors hover:bg-accent-cyan/15 disabled:cursor-not-allowed disabled:opacity-45"
+          className="ml-1 inline-flex items-center gap-1 rounded-md border border-transparent bg-accent-cyan/10 px-2 py-1 text-xs text-accent-cyan transition-colors hover:bg-accent-cyan/15 disabled:cursor-not-allowed disabled:opacity-45"
           title={workingDirectory ? '自动执行交付检查并收集结果' : '当前会话没有工作目录'}
         >
           <Activity size={12} />
@@ -1299,7 +1299,7 @@ const SessionToolbar: React.FC<SessionToolbarProps> = ({ sessionId, onSkillClick
           type="button"
           onClick={handleGenerateShipSummary}
           disabled={!workingDirectory || debugLoopLoading || shipPlanLoading || shipRunLoading || shipSummaryLoading}
-          className="ml-1 inline-flex items-center gap-1 rounded-md border border-accent-yellow/20 bg-accent-yellow/10 px-2 py-1 text-xs text-accent-yellow transition-colors hover:bg-accent-yellow/15 disabled:cursor-not-allowed disabled:opacity-45"
+          className="ml-1 inline-flex items-center gap-1 rounded-md border border-transparent bg-accent-yellow/10 px-2 py-1 text-xs text-accent-yellow transition-colors hover:bg-accent-yellow/15 disabled:cursor-not-allowed disabled:opacity-45"
           title={workingDirectory ? '\u6839\u636e git \u53d8\u66f4\u751f\u6210\u4ea4\u4ed8\u8bf4\u660e\u3001\u9a8c\u8bc1\u547d\u4ee4\u548c\u5efa\u8bae\u63d0\u4ea4\u4fe1\u606f' : '\u5f53\u524d\u4f1a\u8bdd\u6ca1\u6709\u5de5\u4f5c\u76ee\u5f55'}
         >
           <FileText size={12} />
@@ -1309,7 +1309,7 @@ const SessionToolbar: React.FC<SessionToolbarProps> = ({ sessionId, onSkillClick
         {shipPlanNotice && (
           <div className={`absolute bottom-full left-0 z-50 mb-1.5 w-72 rounded-lg border px-3 py-2 text-[11px] shadow-lg ${
             shipPlanNotice.type === 'success'
-              ? 'border-accent-green/25 bg-bg-secondary text-text-secondary'
+              ? 'border-accent-green/25 bg-bg-elevated text-text-secondary'
               : 'border-accent-red/35 bg-accent-red/10 text-accent-red'
           }`}>
             <div className="font-medium">
@@ -1327,7 +1327,7 @@ const SessionToolbar: React.FC<SessionToolbarProps> = ({ sessionId, onSkillClick
             ref={skillBtnRef}
             onClick={() => setSkillPopoverOpen(o => !o)}
             className={`inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs
-              bg-accent-blue/10 border border-accent-blue/20 text-accent-blue
+              bg-accent-blue/10 border border-transparent text-accent-blue
               hover:text-accent-blue hover:bg-accent-blue/15
               transition-colors cursor-pointer select-none
               ${skillPopoverOpen ? 'border-accent-blue/50 text-accent-blue' : ''}`}
@@ -1341,11 +1341,11 @@ const SessionToolbar: React.FC<SessionToolbarProps> = ({ sessionId, onSkillClick
             <div
               ref={skillPopoverRef}
               className="absolute bottom-full left-0 mb-1.5
-                w-80 bg-bg-secondary border border-border rounded-lg shadow-lg
+                w-80 rounded-lg border border-border-subtle bg-bg-elevated shadow-lg
                 py-1.5 z-50"
             >
               {/* 标题行 */}
-              <div className="px-3 pb-1.5 flex items-center justify-between border-b border-border">
+              <div className="flex items-center justify-between border-b border-border-subtle px-3 pb-1.5">
                 <span className="text-[11px] text-text-muted font-medium uppercase tracking-wide">
                   可用 Skill
                 </span>
@@ -1363,7 +1363,7 @@ const SessionToolbar: React.FC<SessionToolbarProps> = ({ sessionId, onSkillClick
                   onChange={e => setSkillFilter(e.target.value)}
                   placeholder="搜索 Skill..."
                   className="w-full px-2.5 py-1 text-xs rounded-md
-                    bg-bg-primary border border-border
+                    bg-bg-primary border border-border-subtle
                     text-text-primary placeholder:text-text-muted
                     focus:outline-none focus:border-accent-blue/50
                     transition-colors"
@@ -1403,7 +1403,7 @@ const SessionToolbar: React.FC<SessionToolbarProps> = ({ sessionId, onSkillClick
                         <div
                           key={`group-${skill.source}`}
                           className={`px-3 py-1 flex items-center gap-1.5
-                            ${lastSource !== null ? 'mt-0.5 border-t border-border/40' : ''}`}
+                            ${lastSource !== null ? 'mt-0.5 border-t border-border-subtle' : ''}`}
                         >
                           <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${SOURCE_DOT[skill.source]}`} />
                           <span className="text-[10px] font-medium text-text-muted uppercase tracking-wide">
@@ -1439,7 +1439,7 @@ const SessionToolbar: React.FC<SessionToolbarProps> = ({ sessionId, onSkillClick
               </div>
 
               {/* 底部统计 */}
-              <div className="px-3 pt-1 mt-0.5 border-t border-border/60">
+              <div className="mt-0.5 border-t border-border-subtle px-3 pt-1">
                 <span className="text-[10px] text-text-muted">
                   {skillFilter
                     ? `${filteredSkillList.length} / ${skillList.length} 个结果`
@@ -1458,10 +1458,10 @@ const SessionToolbar: React.FC<SessionToolbarProps> = ({ sessionId, onSkillClick
             ref={mcpBtnRef}
             onClick={() => setMcpPopoverOpen(o => !o)}
             className={`inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs
-              bg-bg-primary/25 border border-transparent text-text-muted
+              bg-bg-tertiary border border-transparent text-text-muted
               hover:text-text-secondary hover:bg-bg-hover
               transition-colors cursor-pointer select-none
-              ${mcpPopoverOpen ? 'border-accent-blue/40 text-text-secondary' : 'border-border'}`}
+              ${mcpPopoverOpen ? 'border-accent-blue/40 text-text-secondary' : ''}`}
           >
             <Plug size={12} />
             <span>能力 {mcpList.length}</span>
@@ -1472,10 +1472,10 @@ const SessionToolbar: React.FC<SessionToolbarProps> = ({ sessionId, onSkillClick
             <div
               ref={mcpPopoverRef}
               className="absolute bottom-full left-0 mb-1.5
-                w-64 bg-bg-secondary border border-border rounded-lg shadow-lg
+                w-64 rounded-lg border border-border-subtle bg-bg-elevated shadow-lg
                 py-1.5 z-50"
             >
-              <div className="px-3 pb-1.5 text-[11px] text-text-muted font-medium uppercase tracking-wide border-b border-border mb-1">
+              <div className="mb-1 border-b border-border-subtle px-3 pb-1.5 text-[11px] font-medium uppercase tracking-wide text-text-muted">
                 当前会话已启用 MCP
               </div>
               <div className="max-h-72 overflow-y-auto" style={{ scrollbarWidth: 'thin' }}>
@@ -1492,7 +1492,7 @@ const SessionToolbar: React.FC<SessionToolbarProps> = ({ sessionId, onSkillClick
                         <span className="w-1.5 h-1.5 rounded-full bg-accent-green flex-shrink-0" />
                         <span className="flex-1 text-xs text-text-secondary truncate">{mcp.name}</span>
                         {mcp.category && (
-                          <span className="text-[10px] text-text-muted flex-shrink-0 bg-bg-primary px-1 py-0.5 rounded">
+                          <span className="flex-shrink-0 rounded bg-bg-primary px-1 py-0.5 text-[10px] text-text-muted">
                             {mcp.category}
                           </span>
                         )}
@@ -1504,7 +1504,7 @@ const SessionToolbar: React.FC<SessionToolbarProps> = ({ sessionId, onSkillClick
                       </div>
                       {/* 工具列表（展开时显示） */}
                       {isExpanded && hasTools && (
-                        <div className="pb-1 bg-bg-primary/40">
+                        <div className="bg-bg-primary pb-1">
                           <div className="px-4 py-0.5 text-[10px] text-text-muted">
                             {mcp.tools.length} 个工具
                           </div>
@@ -1520,7 +1520,7 @@ const SessionToolbar: React.FC<SessionToolbarProps> = ({ sessionId, onSkillClick
                   )
                 })}
               </div>
-              <div className="px-3 pt-1.5 mt-0.5 border-t border-border">
+              <div className="mt-0.5 border-t border-border-subtle px-3 pt-1.5">
                 <p className="text-[10px] text-text-muted">在设置中管理 MCP 服务器</p>
               </div>
             </div>
@@ -1534,10 +1534,10 @@ const SessionToolbar: React.FC<SessionToolbarProps> = ({ sessionId, onSkillClick
           ref={toolboxBtnRef}
           onClick={() => setToolboxPopoverOpen(o => !o)}
           className={`inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs
-            bg-bg-primary/35 border border-border/25 text-text-muted
+            bg-bg-tertiary border border-transparent text-text-muted
             hover:text-text-secondary hover:bg-bg-hover
             transition-colors cursor-pointer select-none
-            ${toolboxPopoverOpen ? 'border-accent-blue/40 text-text-secondary' : 'border-border'}`}
+            ${toolboxPopoverOpen ? 'border-accent-blue/40 text-text-secondary' : ''}`}
         >
           <Zap size={12} />
           <span>工具箱</span>
@@ -1548,10 +1548,10 @@ const SessionToolbar: React.FC<SessionToolbarProps> = ({ sessionId, onSkillClick
           <div
             ref={toolboxPopoverRef}
             className="absolute bottom-full left-0 mb-1.5
-              w-80 bg-bg-secondary border border-border rounded-lg shadow-lg
+              w-80 rounded-lg border border-border-subtle bg-bg-elevated shadow-lg
               py-1.5 z-50"
           >
-            <div className="px-3 pb-1.5 text-[11px] text-text-muted font-medium uppercase tracking-wide border-b border-border mb-1">
+            <div className="mb-1 border-b border-border-subtle px-3 pb-1.5 text-[11px] font-medium uppercase tracking-wide text-text-muted">
               工具箱功能
             </div>
             <div className="max-h-60 overflow-y-auto" style={{ scrollbarWidth: 'thin' }}>
@@ -1577,7 +1577,7 @@ const SessionToolbar: React.FC<SessionToolbarProps> = ({ sessionId, onSkillClick
                 )
               })}
             </div>
-            <div className="px-3 pt-1.5 mt-0.5 border-t border-border">
+            <div className="mt-0.5 border-t border-border-subtle px-3 pt-1.5">
               <p className="text-[10px] text-text-muted">更多功能在工具箱面板中</p>
             </div>
           </div>

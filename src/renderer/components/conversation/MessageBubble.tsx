@@ -275,13 +275,13 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({ message, isStreaming }) =
         <div
           className={`group/message relative text-sm transition-all duration-200
             ${isUser
-              ? 'max-w-[min(640px,70%)] rounded-2xl px-4 py-3 bg-accent-blue/10 border border-accent-blue/20 text-text-primary shadow-sm'
-              : 'max-w-[min(900px,86%)] rounded-2xl px-4 py-3 bg-bg-secondary/30 border border-border/35 text-text-primary shadow-sm hover:border-border/70'
+              ? 'max-w-[min(640px,70%)] rounded-lg border border-accent-blue/25 bg-accent-blue/10 px-4 py-2.5 text-text-primary shadow-[0_8px_22px_var(--color-shadow-sm)]'
+              : 'max-w-[min(920px,88%)] rounded-lg border border-border-subtle bg-bg-elevated px-4 py-3 text-text-primary shadow-[0_10px_26px_var(--color-shadow-sm)] hover:border-border'
             } animate-fade-in`}
         >
           {!isUser && (
-            <div className="mb-2 flex items-center gap-1.5 text-[11px] font-medium text-text-muted">
-              <Sparkles size={12} className="text-accent-blue" />
+            <div className="mb-1.5 flex items-center gap-1.5 text-[11px] font-medium text-text-muted">
+              <Sparkles size={12} className="text-accent-blue/80" />
               <span>AI 回复</span>
             </div>
           )}
@@ -321,7 +321,7 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({ message, isStreaming }) =
                   <button
                     key={`${path}-${idx}`}
                     type="button"
-                    className="group relative rounded-lg overflow-hidden border border-border bg-bg-tertiary hover:border-accent-blue/40 btn-transition text-left"
+                    className="group relative overflow-hidden rounded-lg border border-border-subtle bg-bg-tertiary text-left btn-transition hover:border-accent-blue/40"
                     onClick={() => {
                       setPreviewImageSrc(src)
                       setPreviewImagePath(path)
@@ -376,7 +376,7 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({ message, isStreaming }) =
             <img
               src={previewImageSrc}
               alt={getAttachmentName(previewImagePath)}
-              className="max-w-full max-h-[82vh] object-contain rounded border border-border bg-black/20"
+              className="max-w-full max-h-[82vh] object-contain rounded border border-border-subtle bg-black/20"
             />
             <div className="w-full max-w-[92vw] text-[11px] text-white/85 text-center break-all">
               {previewImagePath}
@@ -405,7 +405,7 @@ const ThinkingBlock: React.FC<{ text: string }> = ({ text }) => {
     <div className="mb-3">
       <button
         onClick={() => setExpanded(!expanded)}
-        className="inline-flex items-center gap-1.5 rounded-full border border-border/40 bg-bg-tertiary/60 px-2.5 py-1 text-xs text-text-muted hover:text-text-secondary hover:border-border/70 transition-colors"
+        className="inline-flex items-center gap-1.5 rounded-full border border-border-subtle bg-bg-tertiary px-2.5 py-1 text-xs text-text-muted transition-colors hover:border-border hover:text-text-secondary"
       >
         {expanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
         <Cpu size={12} className="text-accent-purple" />
@@ -416,7 +416,7 @@ const ThinkingBlock: React.FC<{ text: string }> = ({ text }) => {
         className="overflow-hidden transition-all duration-300 ease-in-out"
         style={{ maxHeight: expanded ? '2000px' : '0px', opacity: expanded ? 1 : 0 }}
       >
-        <div className="mt-2 rounded-xl border border-accent-purple/15 bg-bg-tertiary/40 px-3 py-2 text-xs text-text-muted/75 whitespace-pre-wrap">
+        <div className="mt-2 rounded-lg border border-border-subtle bg-bg-tertiary px-3 py-2 text-xs text-text-muted/80 whitespace-pre-wrap">
           {text}
         </div>
       </div>
