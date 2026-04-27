@@ -8,7 +8,7 @@
  */
 
 import React, { useEffect, useLayoutEffect, useRef, useMemo, useState, useCallback } from 'react'
-import { AlertTriangle, CheckCircle2, FolderOpen, Plus, RotateCcw, Settings2, Trash2, Copy, ArrowUp, ArrowDown, Download, X, BookMarked } from 'lucide-react'
+import { AlertTriangle, CheckCircle2, FolderOpen, Plus, RotateCcw, Settings2, Trash2, Copy, ArrowUp, ArrowDown, Download, X, BookMarked, Target, GitPullRequest, Wrench, ShieldCheck, FileText, Activity } from 'lucide-react'
 import type { ReactNode } from 'react'
 import type { ConversationMessage, UserQuestionMeta, AskUserQuestionMeta } from '../../../shared/types'
 import ContextMenu from '../common/ContextMenu'
@@ -50,6 +50,25 @@ type MessageGroup =
   | { type: 'message'; message: ConversationMessage }
   | { type: 'tool_group'; messages: ConversationMessage[]; isActive: boolean }
   | { type: 'file_change'; message: ConversationMessage }
+
+interface OpsBriefSnapshot {
+  projectName: string
+  projectPath?: string
+  goal: string
+  statusLabel: string
+  statusTone: 'neutral' | 'active' | 'blocked' | 'done'
+  changedFileCount: number
+  additions: number
+  deletions: number
+  toolCount: number
+  failedToolCount: number
+  validationCount: number
+  messageCount: number
+  lastFiles: string[]
+  lastCommand?: string
+  phaseLabel: string
+  liveProgressText?: string
+}
 
 interface CommonPrompt {
   id: string
@@ -100,6 +119,45 @@ function saveCommonPrompts(prompts: CommonPrompt[]): void {
   }
 }
 
+function getProjectName(workingDirectory?: string, fallback?: string): string {
+  const normalized = (workingDirectory || '').replace(/\\/g, '/').replace(/\/+$/, '')
+  const parts = normalized.split('/').filter(Boolean)
+  return parts[parts.length - 1] || fallback || '未绑定项目'
+}
+
+function getShortFileName(filePath: string): string {
+  const normalized = (filePath || '').replace(/\\/g, '/')
+  return normalized.split('/').filter(Boolean).pop() || filePath
+}
+
+function compactText(value: string, max = 110): string {
+  const text = value.replace(/\s+/g, ' ').trim()
+  if (text.length <= max) return text
+  return `${text.slice(0, max - 1)}…`
+}
+
+function getToolCommand(message: ConversationMessage): string {
+  const command = message.toolInput?.command
+  if (typeof command === 'string') return command
+  return ''
+}
+
+function isValidationCommand(command: string): boolean {
+  return /\b(test|typecheck|build|lint|check|pytest|vitest|jest|tsc|cargo\s+check|go\s+test)\b/i.test(command)
+}
+
+const SESSION_STATUS_LABEL: Record<string, string> = {
+  starting: '启动中',
+  running: '执行中',
+  idle: '空闲',
+  waiting_input: '待输入',
+  paused: '已暂停',
+  completed: '已完成',
+  error: '需处理',
+  terminated: '已终止',
+  interrupted: '已中断',
+}
+
 /**
  * 将消息序列按规则分组：
  * - user / assistant / system 消息各自独立
@@ -148,6 +206,167 @@ function formatThinkingTime(seconds: number): string {
 
 interface ConversationViewProps {
   sessionId: string
+}
+
+interface OpsBriefProps {
+  snapshot: OpsBriefSnapshot
+  onInsertPrompt: (text: string) => void
+  onOpenKnowledge: () => void
+  canOpenKnowledge: boolean
+}
+
+const OpsBrief: React.FC<OpsBriefProps> = ({ snapshot, onInsertPrompt, onOpenKnowledge, canOpenKnowledge }) => {
+  const statusClass = {
+    neutral: 'bg-bg-tertiary text-text-secondary',
+    active: 'bg-accent-blue/10 text-accent-blue',
+    blocked: 'bg-accent-yellow/10 text-accent-yellow',
+    done: 'bg-accent-green/10 text-accent-green',
+  }[snapshot.statusTone]
+  const deliverySteps = [
+    { label: '理解', done: snapshot.messageCount > 0, active: snapshot.messageCount > 0 && snapshot.changedFileCount === 0 && snapshot.toolCount === 0 },
+    { label: '执行', done: snapshot.toolCount > 0 || snapshot.changedFileCount > 0, active: snapshot.toolCount > 0 && snapshot.changedFileCount === 0 },
+    { label: '改动', done: snapshot.changedFileCount > 0, active: snapshot.changedFileCount > 0 && snapshot.validationCount === 0 },
+    { label: '验证', done: snapshot.validationCount > 0, active: snapshot.validationCount > 0 && snapshot.failedToolCount === 0 },
+    { label: '交付', done: snapshot.validationCount > 0 && snapshot.changedFileCount > 0 && snapshot.failedToolCount === 0, active: false },
+  ]
+
+  return (
+    <section className="mb-5 rounded-lg border border-border-subtle bg-bg-elevated px-4 py-3 shadow-[0_12px_28px_var(--color-shadow-sm)]">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <div className="mb-2 flex flex-wrap items-center gap-2">
+            <span className="inline-flex items-center gap-1.5 rounded-md bg-bg-tertiary px-2 py-1 text-xs font-medium text-text-secondary">
+              <Target size={13} className="text-accent-blue" />
+              {snapshot.projectName}
+            </span>
+            <span className={`inline-flex items-center rounded-md px-2 py-1 text-xs font-medium ${statusClass}`}>
+              {snapshot.statusLabel}
+            </span>
+            {snapshot.projectPath && (
+              <span className="min-w-0 truncate font-mono text-[11px] text-text-muted" title={snapshot.projectPath}>
+                {snapshot.projectPath}
+              </span>
+            )}
+          </div>
+          <div className="text-sm font-medium leading-6 text-text-primary">
+            {snapshot.goal}
+          </div>
+          {snapshot.liveProgressText && (
+            <div className="mt-1 truncate text-xs text-text-muted" title={snapshot.liveProgressText}>
+              {snapshot.liveProgressText}
+            </div>
+          )}
+        </div>
+
+        <div className="flex flex-wrap items-center gap-1.5">
+          <button
+            type="button"
+            onClick={() => onInsertPrompt('继续推进当前目标。先总结当前状态，再执行下一步；如果涉及代码改动，完成后运行必要验证。')}
+            className="inline-flex h-7 items-center gap-1 rounded-md bg-accent-blue/10 px-2 text-xs font-medium text-accent-blue transition-colors hover:bg-accent-blue/15"
+          >
+            <Activity size={13} />
+            继续推进
+          </button>
+          <button
+            type="button"
+            onClick={() => onInsertPrompt('基于当前改动做一次交付前检查：列出变更摘要、风险点、建议验证命令和提交说明。')}
+            className="inline-flex h-7 items-center gap-1 rounded-md bg-accent-green/10 px-2 text-xs font-medium text-accent-green transition-colors hover:bg-accent-green/15"
+          >
+            <ShieldCheck size={13} />
+            交付检查
+          </button>
+          <button
+            type="button"
+            onClick={onOpenKnowledge}
+            disabled={!canOpenKnowledge}
+            className="inline-flex h-7 items-center gap-1 rounded-md bg-bg-tertiary px-2 text-xs font-medium text-text-secondary transition-colors hover:bg-bg-hover disabled:cursor-not-allowed disabled:opacity-45"
+          >
+            <BookMarked size={13} />
+            项目记忆
+          </button>
+        </div>
+      </div>
+
+      <div className="mt-3 border-t border-border-subtle pt-3">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+          <div className="inline-flex items-center gap-2">
+            <span className="text-[11px] font-medium text-text-muted">交付阶段</span>
+            <span className="rounded-md bg-bg-tertiary px-2 py-0.5 text-xs font-medium text-text-secondary">
+              {snapshot.phaseLabel}
+            </span>
+          </div>
+          {snapshot.lastCommand && (
+            <span className="max-w-full truncate rounded-md bg-bg-tertiary px-2 py-0.5 font-mono text-[11px] text-text-muted" title={snapshot.lastCommand}>
+              {snapshot.lastCommand}
+            </span>
+          )}
+        </div>
+        <div className="grid gap-1.5 md:grid-cols-5">
+          {deliverySteps.map((step, index) => {
+            const active = step.active || (!step.done && deliverySteps.slice(0, index).every(s => s.done))
+            return (
+              <div
+                key={step.label}
+                className={`flex items-center gap-2 rounded-md px-2 py-1.5 ${
+                  step.done
+                    ? 'bg-accent-green/10 text-accent-green'
+                    : active
+                      ? 'bg-accent-blue/10 text-accent-blue'
+                      : 'bg-bg-tertiary text-text-muted'
+                }`}
+              >
+                <span className={`flex h-4 w-4 items-center justify-center rounded-full text-[10px] ${
+                  step.done ? 'bg-accent-green/20' : active ? 'bg-accent-blue/20' : 'bg-bg-hover'
+                }`}>
+                  {step.done ? '✓' : index + 1}
+                </span>
+                <span className="text-xs font-medium">{step.label}</span>
+              </div>
+            )
+          })}
+        </div>
+      </div>
+
+      <div className="mt-3 grid gap-2 border-t border-border-subtle pt-3 md:grid-cols-4">
+        <div className="flex items-center gap-2">
+          <GitPullRequest size={14} className="text-accent-green" />
+          <div className="min-w-0">
+            <div className="text-xs font-medium text-text-secondary">
+              {snapshot.changedFileCount} 个文件
+              <span className="ml-1 text-accent-green">+{snapshot.additions}</span>
+              <span className="ml-1 text-accent-red">-{snapshot.deletions}</span>
+            </div>
+            <div className="truncate text-[11px] text-text-muted">
+              {snapshot.lastFiles.length ? snapshot.lastFiles.join('、') : '暂无文件改动'}
+            </div>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <Wrench size={14} className="text-accent-purple" />
+          <div>
+            <div className="text-xs font-medium text-text-secondary">{snapshot.toolCount} 次工具调用</div>
+            <div className={`text-[11px] ${snapshot.failedToolCount ? 'text-accent-red' : 'text-text-muted'}`}>
+              {snapshot.failedToolCount ? `${snapshot.failedToolCount} 个异常需看` : '工具链正常'}
+            </div>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <FileText size={14} className="text-accent-yellow" />
+          <div>
+            <div className="text-xs font-medium text-text-secondary">{snapshot.messageCount} 条对话</div>
+            <div className="text-[11px] text-text-muted">上下文仍在当前会话内</div>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <CheckCircle2 size={14} className="text-accent-cyan" />
+          <div>
+            <div className="text-xs font-medium text-text-secondary">{snapshot.validationCount} 次验证</div>
+            <div className="text-[11px] text-text-muted">推进、检查或写入项目记忆</div>
+          </div>
+        </div>
+      </div>
+    </section>
+  )
 }
 
 const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
@@ -407,6 +626,81 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
   // 将消息分组
   const messageGroups = useMemo(() => groupMessages(messages), [messages])
 
+  const opsBrief = useMemo<OpsBriefSnapshot>(() => {
+    const userGoal = [...messages].reverse().find(m =>
+      m.role === 'user' &&
+      m.content &&
+      !m.content.startsWith('\u25B6 /')
+    )?.content
+    const fileChanges = messages.filter(m => m.fileChange)
+    const uniqueFiles = Array.from(new Set(fileChanges.map(m => m.fileChange?.filePath).filter(Boolean) as string[]))
+    const additions = fileChanges.reduce((sum, m) => sum + (m.fileChange?.additions || 0), 0)
+    const deletions = fileChanges.reduce((sum, m) => sum + (m.fileChange?.deletions || 0), 0)
+    const toolUseMessages = messages.filter(m => m.role === 'tool_use')
+    const commands = toolUseMessages.map(getToolCommand).filter(Boolean)
+    const validationCommands = commands.filter(isValidationCommand)
+    const failedToolCount = messages.filter(m => m.role === 'tool_result' && m.isError).length
+    const phaseLabel = pendingPermission || pendingAskQuestion || pendingQuestion || pendingPlanApproval || status === 'error'
+      ? '需要处理'
+      : validationCommands.length > 0 && uniqueFiles.length > 0 && failedToolCount === 0
+        ? '待交付'
+        : validationCommands.length > 0
+          ? '验证中'
+          : uniqueFiles.length > 0
+            ? '实现中'
+            : toolUseMessages.length > 0
+              ? '探索中'
+              : '理解任务'
+    const statusTone: OpsBriefSnapshot['statusTone'] =
+      pendingPermission || pendingAskQuestion || pendingPlanApproval || status === 'error'
+        ? 'blocked'
+        : isStreaming || status === 'running'
+          ? 'active'
+          : status === 'completed'
+            ? 'done'
+            : 'neutral'
+
+    return {
+      projectName: getProjectName(workingDirectory, session?.name || session?.config?.name),
+      projectPath: workingDirectory,
+      goal: compactText(userGoal || session?.config?.initialPrompt || session?.name || session?.config?.name || '还没有明确目标，先发送一条任务描述开始推进。', 120),
+      statusLabel: pendingPermission
+        ? '等待确认'
+        : pendingAskQuestion || pendingQuestion
+          ? '等待回答'
+          : pendingPlanApproval
+            ? '等待审批'
+            : isStreaming
+              ? '处理中'
+              : SESSION_STATUS_LABEL[status || ''] || '待输入',
+      statusTone,
+      changedFileCount: uniqueFiles.length,
+      additions,
+      deletions,
+      toolCount: toolUseMessages.length,
+      failedToolCount,
+      validationCount: validationCommands.length,
+      messageCount: messages.filter(m => m.role === 'user' || m.role === 'assistant').length,
+      lastFiles: uniqueFiles.slice(-3).map(getShortFileName),
+      lastCommand: compactText(commands[commands.length - 1] || validationCommands[validationCommands.length - 1] || '', 92),
+      phaseLabel,
+      liveProgressText,
+    }
+  }, [
+    messages,
+    workingDirectory,
+    session?.name,
+    session?.config?.name,
+    session?.config?.initialPrompt,
+    pendingPermission,
+    pendingAskQuestion,
+    pendingQuestion,
+    pendingPlanApproval,
+    status,
+    isStreaming,
+    liveProgressText,
+  ])
+
   // Prompt 型 Skill 静默执行：展开模板后静默发送，用户只看到 ▶ /skillname 徽章
   const handleSkillExecute = useCallback(async (skill: SkillItem) => {
     if (!skill.promptTemplate) return
@@ -536,6 +830,14 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
             </button>
           )}
           <div className="mx-auto max-w-[1080px]">
+        {messages.length > 0 && (
+          <OpsBrief
+            snapshot={opsBrief}
+            onInsertPrompt={setPendingInsert}
+            onOpenKnowledge={() => setKnowledgePanelOpen(true)}
+            canOpenKnowledge={!!workingDirectory}
+          />
+        )}
         {messages.length === 0 ? (
           <div className="flex min-h-[420px] items-center justify-center text-text-muted text-sm">
             {isLoading ? (
