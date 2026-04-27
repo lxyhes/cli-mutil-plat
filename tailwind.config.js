@@ -1,3 +1,14 @@
+const cssVarColor = (name) => {
+  return ({ opacityValue } = {}) => {
+    if (opacityValue === undefined) return `var(${name})`
+    const numericOpacity = Number(opacityValue)
+    const opacity = Number.isFinite(numericOpacity)
+      ? `${numericOpacity * 100}%`
+      : `calc(${opacityValue} * 100%)`
+    return `color-mix(in srgb, var(${name}) ${opacity}, transparent)`
+  }
+}
+
 /** @type {import('tailwindcss').Config} */
 module.exports = {
   content: ['./src/renderer/**/*.{js,ts,jsx,tsx,html}'],
@@ -6,32 +17,32 @@ module.exports = {
     extend: {
       colors: {
         bg: {
-          primary: 'var(--color-bg-primary)',
-          secondary: 'var(--color-bg-secondary)',
-          tertiary: 'var(--color-bg-tertiary)',
-          hover: 'var(--color-bg-hover)',
-          elevated: 'var(--color-bg-elevated)',
-          input: 'var(--color-input-bg)'
+          primary: cssVarColor('--color-bg-primary'),
+          secondary: cssVarColor('--color-bg-secondary'),
+          tertiary: cssVarColor('--color-bg-tertiary'),
+          hover: cssVarColor('--color-bg-hover'),
+          elevated: cssVarColor('--color-bg-elevated'),
+          input: cssVarColor('--color-input-bg')
         },
         text: {
-          primary: 'var(--color-text-primary)',
-          secondary: 'var(--color-text-secondary)',
-          muted: 'var(--color-text-muted)',
-          placeholder: 'var(--color-text-placeholder)'
+          primary: cssVarColor('--color-text-primary'),
+          secondary: cssVarColor('--color-text-secondary'),
+          muted: cssVarColor('--color-text-muted'),
+          placeholder: cssVarColor('--color-text-placeholder')
         },
         accent: {
-          blue: 'var(--color-accent-blue)',
-          green: 'var(--color-accent-green)',
-          yellow: 'var(--color-accent-yellow)',
-          red: 'var(--color-accent-red)',
-          purple: 'var(--color-accent-purple)',
-          orange: 'var(--color-accent-orange)',
-          cyan: 'var(--color-accent-cyan)',
-          pink: 'var(--color-accent-pink)'
+          blue: cssVarColor('--color-accent-blue'),
+          green: cssVarColor('--color-accent-green'),
+          yellow: cssVarColor('--color-accent-yellow'),
+          red: cssVarColor('--color-accent-red'),
+          purple: cssVarColor('--color-accent-purple'),
+          orange: cssVarColor('--color-accent-orange'),
+          cyan: cssVarColor('--color-accent-cyan'),
+          pink: cssVarColor('--color-accent-pink')
         },
         border: {
-          DEFAULT: 'var(--color-border)',
-          subtle: 'var(--color-border-subtle)'
+          DEFAULT: cssVarColor('--color-border'),
+          subtle: cssVarColor('--color-border-subtle')
         }
       },
       fontFamily: {
