@@ -27,7 +27,7 @@ import AskUserQuestionPanel from './AskUserQuestionPanel'
 import PlanApprovalPanel from './PlanApprovalPanel'
 import CrossSessionSearch from './CrossSessionSearch'
 import SessionKnowledgePanel from './SessionKnowledgePanel'
-import { isPrimaryModifierPressed, toPlatformShortcutLabel } from '../../utils/shortcut'
+import { isPrimaryModifierPressed } from '../../utils/shortcut'
 
 
 // ---- Provider 颜色映射 ----
@@ -57,6 +57,11 @@ interface OpsBriefSnapshot {
   goal: string
   statusLabel: string
   statusTone: 'neutral' | 'active' | 'blocked' | 'done'
+  missionHealthLabel: string
+  missionHealthTone: 'good' | 'warn' | 'bad' | 'neutral'
+  missionHealthScore: number
+  deliveryReadiness: string
+  primarySignal: string
   changedFileCount: number
   additions: number
   deletions: number
@@ -79,6 +84,23 @@ interface CommonPrompt {
   text: string
 }
 
+interface MissionTemplate {
+  id: string
+  label: string
+  subtitle: string
+  signal: string
+  prompt: string
+  tone: 'blue' | 'green' | 'yellow' | 'purple'
+}
+
+interface MissionLaunchpadProps {
+  providerId?: string
+  sessionId: string
+  workingDirectory?: string
+  canSend: boolean
+  onInsertPrompt: (text: string) => void
+}
+
 const COMMON_PROMPTS_STORAGE_KEY = 'prismops-common-prompts'
 
 const DEFAULT_COMMON_PROMPTS: CommonPrompt[] = [
@@ -87,6 +109,62 @@ const DEFAULT_COMMON_PROMPTS: CommonPrompt[] = [
   { id: 'debug-issue', label: '排查问题', text: '帮我排查这个问题，先定位根因，再给出最小修复方案。' },
   { id: 'improve-ui', label: '优化 UI', text: '帮我优化这个页面的 UI/UX，不破坏现有功能，完成后说明改了什么。' },
   { id: 'update-todo', label: '更新 todo', text: '根据当前进度更新 todo.md，并继续完成最高优先级事项。' },
+]
+
+const MISSION_TEMPLATES: MissionTemplate[] = [
+  {
+    id: 'project-audit',
+    label: '项目体检',
+    subtitle: '结构、风险、优先级',
+    signal: '先建立全局判断',
+    tone: 'blue',
+    prompt: '像交付负责人一样审视这个项目：先梳理结构、核心链路、明显风险和下一步优先级，再给出最短推进路线。',
+  },
+  {
+    id: 'debug-root-cause',
+    label: '问题定位',
+    subtitle: '根因、修复、验证',
+    signal: '把问题收敛到证据',
+    tone: 'yellow',
+    prompt: '帮我定位当前问题。先复述现象和影响范围，再找根因，给出最小修复方案；涉及代码改动后请运行必要验证。',
+  },
+  {
+    id: 'ui-polish',
+    label: '体验打磨',
+    subtitle: '界面、交互、可用性',
+    signal: '让产品更像工作台',
+    tone: 'purple',
+    prompt: '帮我优化当前产品的 UI/UX。重点关注信息层级、操作效率、视觉噪音和主题适配；不要破坏已有功能，完成后说明变更和验证结果。',
+  },
+  {
+    id: 'delivery-check',
+    label: '交付检查',
+    subtitle: '变更、风险、提交说明',
+    signal: '确认能不能交付',
+    tone: 'green',
+    prompt: '为当前项目做一次交付前检查：总结改动范围、验证结果、剩余风险、建议提交说明，以及还需要补的下一步。',
+  },
+]
+
+const MISSION_TONE_CLASS: Record<MissionTemplate['tone'], string> = {
+  blue: 'border-accent-blue/25 bg-accent-blue/5 text-accent-blue hover:border-accent-blue/45 hover:bg-accent-blue/10',
+  green: 'border-accent-green/25 bg-accent-green/5 text-accent-green hover:border-accent-green/45 hover:bg-accent-green/10',
+  yellow: 'border-accent-yellow/25 bg-accent-yellow/5 text-accent-yellow hover:border-accent-yellow/45 hover:bg-accent-yellow/10',
+  purple: 'border-accent-purple/25 bg-accent-purple/5 text-accent-purple hover:border-accent-purple/45 hover:bg-accent-purple/10',
+}
+
+const MISSION_STEP_TONE_CLASS = [
+  'text-accent-blue',
+  'text-accent-purple',
+  'text-accent-cyan',
+  'text-accent-green',
+]
+
+const MISSION_DELIVERY_STEPS = [
+  { label: '定目标', detail: '范围与验收' },
+  { label: '推进', detail: '读码与修改' },
+  { label: '验证', detail: '命令与证据' },
+  { label: '交付', detail: '摘要与风险' },
 ]
 
 function normalizeCommonPrompts(value: unknown): CommonPrompt[] {
@@ -220,6 +298,120 @@ interface OpsBriefProps {
   onToggleExpanded: () => void
 }
 
+const MissionLaunchpad: React.FC<MissionLaunchpadProps> = ({ providerId, sessionId, workingDirectory, canSend, onInsertPrompt }) => {
+  const projectName = getProjectName(workingDirectory)
+  const providerColor = getProviderColor(providerId)
+
+  return (
+    <div className="mx-auto flex min-h-[420px] max-w-[920px] flex-col justify-center py-8 text-sm">
+      <section className="border-b border-border-subtle pb-4">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div className="min-w-0">
+            <div className="mb-2 inline-flex items-center gap-1.5 rounded-md bg-accent-blue/10 px-2 py-1 text-xs font-semibold text-accent-blue">
+              <Target size={13} />
+              Mission Launchpad
+            </div>
+            <h2 className="text-xl font-semibold leading-7 text-text-primary">
+              把这次 AI 工作推进到可交付
+            </h2>
+            <p className="mt-1 max-w-[620px] text-xs leading-5 text-text-muted">
+              目标、上下文、执行、验证、交付，保持同一条任务线。
+            </p>
+          </div>
+          <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
+            <span
+              className="inline-flex items-center rounded-md px-2 py-1 text-xs font-medium text-white"
+              style={{ backgroundColor: providerColor }}
+            >
+              {providerId ?? '未知'}
+            </span>
+            <span className="rounded-md border border-border-subtle bg-bg-elevated px-2 py-1 font-mono text-xs text-text-muted">
+              #{sessionId.slice(0, 8)}
+            </span>
+          </div>
+        </div>
+      </section>
+
+      <div className="mt-5 grid gap-4 lg:grid-cols-[0.9fr_1.35fr]">
+        <section className="rounded-lg border border-border-subtle bg-bg-elevated p-4 shadow-[0_10px_24px_var(--color-shadow-sm)]">
+          <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-text-primary">
+            <FolderOpen size={15} className="text-accent-blue" />
+            当前上下文
+          </div>
+          <div className="space-y-3 text-xs">
+            <div>
+              <div className="mb-1 text-text-muted">项目</div>
+              <div className="truncate font-medium text-text-primary" title={projectName}>
+                {projectName}
+              </div>
+            </div>
+            <div>
+              <div className="mb-1 text-text-muted">目录</div>
+              <div className="line-clamp-2 break-all font-mono leading-5 text-text-secondary" title={workingDirectory || '未绑定项目目录'}>
+                {workingDirectory || '未绑定项目目录'}
+              </div>
+            </div>
+          </div>
+          <div className="mt-4 border-t border-border-subtle pt-3">
+            <div className="mb-2 flex items-center gap-1.5 text-xs font-semibold text-text-secondary">
+              <BookMarked size={13} className="text-accent-purple" />
+              项目记忆
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              {['决策', '证据', '风险', '交付结果'].map(item => (
+                <span key={item} className="rounded-md bg-bg-primary px-2 py-1 text-[11px] font-medium text-text-muted">
+                  {item}
+                </span>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <section className="grid gap-2 sm:grid-cols-2">
+          {MISSION_TEMPLATES.map(template => (
+            <button
+              key={template.id}
+              type="button"
+              onClick={() => onInsertPrompt(template.prompt)}
+              disabled={!canSend}
+              className={`min-h-[116px] rounded-lg border p-3 text-left shadow-[0_8px_18px_var(--color-shadow-sm)] transition-colors disabled:cursor-not-allowed disabled:opacity-45 ${MISSION_TONE_CLASS[template.tone]}`}
+              title={template.prompt}
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="font-semibold text-text-primary">{template.label}</div>
+                  <div className="mt-1 text-xs text-text-muted">{template.subtitle}</div>
+                </div>
+                <span className="rounded-md bg-bg-primary/70 px-2 py-0.5 text-[11px] font-medium">
+                  Mission
+                </span>
+              </div>
+              <div className="mt-4 flex items-center gap-2 text-xs font-medium">
+                <Activity size={13} />
+                <span className="min-w-0 truncate">{template.signal}</span>
+              </div>
+            </button>
+          ))}
+        </section>
+      </div>
+
+      <section className="mt-5 grid gap-2 border-y border-border-subtle py-3 sm:grid-cols-4">
+        {MISSION_DELIVERY_STEPS.map((step, index) => (
+          <div key={step.label} className="flex min-w-0 items-center gap-2">
+            <span className={`inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-bg-elevated text-xs font-semibold ${MISSION_STEP_TONE_CLASS[index]}`}>
+              {index + 1}
+            </span>
+            <div className="min-w-0">
+              <div className="truncate text-xs font-semibold text-text-secondary">{step.label}</div>
+              <div className="truncate text-[11px] text-text-muted">{step.detail}</div>
+            </div>
+          </div>
+        ))}
+      </section>
+    </div>
+  )
+}
+
 const OpsBrief: React.FC<OpsBriefProps> = ({ snapshot, onInsertPrompt, onOpenKnowledge, canOpenKnowledge, expanded, onToggleExpanded }) => {
   const statusClass = {
     neutral: 'bg-bg-tertiary text-text-secondary',
@@ -227,7 +419,30 @@ const OpsBrief: React.FC<OpsBriefProps> = ({ snapshot, onInsertPrompt, onOpenKno
     blocked: 'bg-accent-yellow/10 text-accent-yellow',
     done: 'bg-accent-green/10 text-accent-green',
   }[snapshot.statusTone]
+  const healthClass = {
+    good: 'border-accent-green/25 bg-accent-green/10 text-accent-green',
+    warn: 'border-accent-yellow/25 bg-accent-yellow/10 text-accent-yellow',
+    bad: 'border-accent-red/25 bg-accent-red/10 text-accent-red',
+    neutral: 'border-border-subtle bg-bg-tertiary text-text-secondary',
+  }[snapshot.missionHealthTone]
+  const healthBarClass = {
+    good: 'bg-accent-green',
+    warn: 'bg-accent-yellow',
+    bad: 'bg-accent-red',
+    neutral: 'bg-accent-blue',
+  }[snapshot.missionHealthTone]
+  const accentRailClass = {
+    good: 'bg-accent-green',
+    warn: 'bg-accent-yellow',
+    bad: 'bg-accent-red',
+    neutral: 'bg-accent-blue',
+  }[snapshot.missionHealthTone]
   const hasRisk = snapshot.risks.some(risk => !risk.includes('暂无明显'))
+  const HealthIcon = snapshot.missionHealthTone === 'bad'
+    ? AlertTriangle
+    : snapshot.missionHealthTone === 'good'
+      ? ShieldCheck
+      : Activity
   const deliverySteps = [
     { label: '理解', done: snapshot.messageCount > 0, active: snapshot.messageCount > 0 && snapshot.changedFileCount === 0 && snapshot.toolCount === 0 },
     { label: '执行', done: snapshot.toolCount > 0 || snapshot.changedFileCount > 0, active: snapshot.toolCount > 0 && snapshot.changedFileCount === 0 },
@@ -237,192 +452,244 @@ const OpsBrief: React.FC<OpsBriefProps> = ({ snapshot, onInsertPrompt, onOpenKno
   ]
 
   return (
-    <section className={`rounded-lg border border-border-subtle bg-bg-elevated shadow-[0_12px_28px_var(--color-shadow-sm)] ${expanded ? 'mb-5 px-4 py-3' : 'mb-4 px-3 py-2'}`}>
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0 flex-1">
-          <div className="mb-2 flex flex-wrap items-center gap-2">
-            <span className="inline-flex items-center gap-1.5 rounded-md bg-bg-tertiary px-2 py-1 text-xs font-medium text-text-secondary">
-              <Target size={13} className="text-accent-blue" />
-              {snapshot.projectName}
-            </span>
-            <span className={`inline-flex items-center rounded-md px-2 py-1 text-xs font-medium ${statusClass}`}>
-              {snapshot.statusLabel}
-            </span>
-            {expanded && snapshot.projectPath && (
-              <span className="min-w-0 truncate font-mono text-[11px] text-text-muted" title={snapshot.projectPath}>
-                {snapshot.projectPath}
-              </span>
-            )}
-          </div>
-          <div className={`font-medium text-text-primary ${expanded ? 'text-sm leading-6' : 'truncate text-xs leading-5'}`} title={snapshot.goal}>
-            {snapshot.goal}
-          </div>
-          {expanded && snapshot.liveProgressText && (
-            <div className="mt-1 truncate text-xs text-text-muted" title={snapshot.liveProgressText}>
-              {snapshot.liveProgressText}
+    <section className={`mb-4 overflow-hidden rounded-lg border border-border-subtle bg-bg-elevated shadow-[0_12px_28px_var(--color-shadow-sm)] ${expanded ? 'mb-5' : ''}`}>
+      <div className="flex min-w-0">
+        <div className={`w-1.5 shrink-0 ${accentRailClass}`} />
+        <div className={`min-w-0 flex-1 ${expanded ? 'px-4 py-3' : 'px-3 py-2.5'}`}>
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="min-w-0 flex-1">
+              <div className="mb-2 flex flex-wrap items-center gap-2">
+                <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-accent-blue/10 text-accent-blue">
+                  <Target size={15} />
+                </span>
+                <div className="min-w-0">
+                  <div className="text-[11px] font-semibold text-text-muted">任务驾驶舱</div>
+                  <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+                    <span className="truncate text-sm font-semibold text-text-primary" title={snapshot.projectName}>
+                      {snapshot.projectName}
+                    </span>
+                    <span className={`inline-flex items-center rounded-md px-1.5 py-0.5 text-[11px] font-medium ${statusClass}`}>
+                      {snapshot.statusLabel}
+                    </span>
+                    <span className="inline-flex items-center rounded-md bg-bg-tertiary px-1.5 py-0.5 text-[11px] font-medium text-text-secondary">
+                      {snapshot.phaseLabel}
+                    </span>
+                  </div>
+                </div>
+                {expanded && snapshot.projectPath && (
+                  <span className="min-w-0 truncate font-mono text-[11px] text-text-muted" title={snapshot.projectPath}>
+                    {snapshot.projectPath}
+                  </span>
+                )}
+              </div>
+
+              <div className={`font-medium text-text-primary ${expanded ? 'text-sm leading-6' : 'truncate text-xs leading-5'}`} title={snapshot.goal}>
+                {snapshot.goal}
+              </div>
+              <div className={`mt-1 flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-[11px] ${expanded ? 'text-text-secondary' : 'text-text-muted'}`}>
+                <span className="min-w-0 truncate" title={snapshot.deliveryReadiness}>
+                  交付状态：{snapshot.deliveryReadiness}
+                </span>
+                <span className="min-w-0 truncate" title={snapshot.primarySignal}>
+                  主信号：{snapshot.primarySignal}
+                </span>
+              </div>
+              {expanded && snapshot.liveProgressText && (
+                <div className="mt-1 truncate text-xs text-text-muted" title={snapshot.liveProgressText}>
+                  {snapshot.liveProgressText}
+                </div>
+              )}
             </div>
-          )}
-          <div className="mt-2 flex items-center gap-1.5">
+
+            <div className="flex flex-wrap items-center justify-end gap-1.5">
+              <div className={`flex h-8 min-w-[120px] items-center gap-2 rounded-md border px-2 ${healthClass}`}>
+                <HealthIcon size={13} className="shrink-0" />
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center justify-between gap-2 text-[11px] font-medium">
+                    <span className="truncate">{snapshot.missionHealthLabel}</span>
+                    <span className="font-mono">{snapshot.missionHealthScore}</span>
+                  </div>
+                  <div className="mt-1 h-1 overflow-hidden rounded-full bg-bg-primary/70">
+                    <div
+                      className={`h-full rounded-full ${healthBarClass}`}
+                      style={{ width: `${snapshot.missionHealthScore}%` }}
+                    />
+                  </div>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => onInsertPrompt('继续推进当前 Mission。先总结当前状态，再执行下一步；如果涉及代码改动，完成后运行必要验证。')}
+                className="inline-flex h-8 items-center gap-1 rounded-md bg-accent-blue/10 px-2 text-xs font-medium text-accent-blue transition-colors hover:bg-accent-blue/15"
+              >
+                <Activity size={13} />
+                推进
+              </button>
+              <button
+                type="button"
+                onClick={() => onInsertPrompt('为当前 Mission 生成交付包：变更摘要、验证结果、风险点、下一步建议和提交说明。')}
+                className={`h-8 items-center gap-1 rounded-md bg-accent-green/10 px-2 text-xs font-medium text-accent-green transition-colors hover:bg-accent-green/15 ${expanded ? 'inline-flex' : 'hidden'}`}
+              >
+                <ShieldCheck size={13} />
+                交付
+              </button>
+              <button
+                type="button"
+                onClick={onOpenKnowledge}
+                disabled={!canOpenKnowledge}
+                className={`h-8 items-center gap-1 rounded-md bg-bg-tertiary px-2 text-xs font-medium text-text-secondary transition-colors hover:bg-bg-hover disabled:cursor-not-allowed disabled:opacity-45 ${expanded ? 'inline-flex' : 'hidden'}`}
+              >
+                <BookMarked size={13} />
+                记忆
+              </button>
+              <button
+                type="button"
+                onClick={onToggleExpanded}
+                className="inline-flex h-8 items-center gap-1 rounded-md bg-bg-tertiary px-2 text-xs font-medium text-text-secondary transition-colors hover:bg-bg-hover"
+                title={expanded ? '收起任务驾驶舱' : '展开任务驾驶舱'}
+              >
+                <ChevronDown size={13} className={`transition-transform ${expanded ? 'rotate-180' : ''}`} />
+                {expanded ? '收起' : '展开'}
+              </button>
+            </div>
+          </div>
+
+          <div className="mt-3 flex items-center gap-1.5">
             {deliverySteps.map((step, index) => {
               const active = step.active || (!step.done && deliverySteps.slice(0, index).every(s => s.done))
               return (
-                <span
-                  key={step.label}
-                  title={step.label}
-                  className={`h-1.5 flex-1 max-w-12 rounded-full ${
-                    step.done
-                      ? 'bg-accent-green'
-                      : active
-                        ? 'bg-accent-blue'
-                        : 'bg-border-subtle'
-                  }`}
-                />
+                <div key={step.label} className="flex min-w-0 flex-1 items-center gap-1.5">
+                  <span
+                    title={step.label}
+                    className={`h-2 w-2 shrink-0 rounded-full ${
+                      step.done
+                        ? 'bg-accent-green'
+                        : active
+                          ? 'bg-accent-blue'
+                          : 'bg-border-subtle'
+                    }`}
+                  />
+                  <span className={`hidden truncate text-[11px] sm:block ${step.done || active ? 'text-text-secondary' : 'text-text-muted'}`}>
+                    {step.label}
+                  </span>
+                  {index < deliverySteps.length - 1 && (
+                    <span
+                      className={`h-px min-w-4 flex-1 ${
+                        step.done
+                          ? 'bg-accent-green/50'
+                          : active
+                            ? 'bg-accent-blue/45'
+                            : 'bg-border-subtle'
+                      }`}
+                    />
+                  )}
+                </div>
               )
             })}
-            <span className="ml-1 shrink-0 rounded-md bg-bg-tertiary px-2 py-0.5 text-[11px] font-medium text-text-secondary">
-              {snapshot.phaseLabel}
-            </span>
           </div>
-        </div>
 
-        <div className="flex flex-wrap items-center gap-1.5">
-          <button
-            type="button"
-            onClick={() => onInsertPrompt('继续推进当前目标。先总结当前状态，再执行下一步；如果涉及代码改动，完成后运行必要验证。')}
-            className="inline-flex h-7 items-center gap-1 rounded-md bg-accent-blue/10 px-2 text-xs font-medium text-accent-blue transition-colors hover:bg-accent-blue/15"
-          >
-            <Activity size={13} />
-            继续推进
-          </button>
-          <button
-            type="button"
-            onClick={() => onInsertPrompt('基于当前改动做一次交付前检查：列出变更摘要、风险点、建议验证命令和提交说明。')}
-            className={`h-7 items-center gap-1 rounded-md bg-accent-green/10 px-2 text-xs font-medium text-accent-green transition-colors hover:bg-accent-green/15 ${expanded ? 'inline-flex' : 'hidden'}`}
-          >
-            <ShieldCheck size={13} />
-            交付检查
-          </button>
-          <button
-            type="button"
-            onClick={onOpenKnowledge}
-            disabled={!canOpenKnowledge}
-            className={`h-7 items-center gap-1 rounded-md bg-bg-tertiary px-2 text-xs font-medium text-text-secondary transition-colors hover:bg-bg-hover disabled:cursor-not-allowed disabled:opacity-45 ${expanded ? 'inline-flex' : 'hidden'}`}
-          >
-            <BookMarked size={13} />
-            项目记忆
-          </button>
-          <button
-            type="button"
-            onClick={onToggleExpanded}
-            className="inline-flex h-7 items-center gap-1 rounded-md bg-bg-tertiary px-2 text-xs font-medium text-text-secondary transition-colors hover:bg-bg-hover"
-            title={expanded ? '收起工作简报' : '展开工作简报'}
-          >
-            <ChevronDown size={13} className={`transition-transform ${expanded ? 'rotate-180' : ''}`} />
-            {expanded ? '收起' : '展开'}
-          </button>
-        </div>
-      </div>
-
-      {!expanded && (
-        <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-border-subtle pt-2 text-[11px] text-text-muted">
-          <span className="inline-flex items-center gap-1">
-            <GitPullRequest size={12} className="text-accent-green" />
-            {snapshot.changedFileCount} 文件
-          </span>
-          <span className="inline-flex items-center gap-1">
-            <Wrench size={12} className="text-accent-purple" />
-            {snapshot.toolCount} 工具
-          </span>
-          <span className="inline-flex items-center gap-1">
-            <CheckCircle2 size={12} className="text-accent-cyan" />
-            {snapshot.validationCount} 验证
-          </span>
-          <span className={hasRisk ? 'text-accent-yellow' : 'text-accent-green'}>
-            {hasRisk ? snapshot.risks[0] : '暂无明显阻塞'}
-          </span>
-        </div>
-      )}
-
-      {expanded && (
-        <>
-          <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 border-y border-border-subtle py-2">
-            <div className="flex items-center gap-1.5 text-xs text-text-secondary">
-              <GitPullRequest size={14} className="text-accent-green" />
-              <span>{snapshot.changedFileCount} 文件</span>
-              <span className="text-accent-green">+{snapshot.additions}</span>
-              <span className="text-accent-red">-{snapshot.deletions}</span>
-            </div>
-            <div className="flex items-center gap-1.5 text-xs text-text-secondary">
-              <Wrench size={14} className="text-accent-purple" />
-              <span>{snapshot.toolCount} 工具</span>
-              {snapshot.failedToolCount > 0 && <span className="text-accent-red">{snapshot.failedToolCount} 异常</span>}
-            </div>
-            <div className="flex items-center gap-1.5 text-xs text-text-secondary">
-              <CheckCircle2 size={14} className="text-accent-cyan" />
-              <span>{snapshot.validationCount} 验证</span>
-            </div>
-            <div className="flex min-w-0 items-center gap-1.5 text-xs text-text-secondary">
-              <FileText size={14} className="shrink-0 text-accent-yellow" />
-              <span className="truncate">{snapshot.messageCount} 对话</span>
-            </div>
-            {snapshot.lastCommand && (
-              <span className="min-w-0 flex-1 truncate font-mono text-[11px] text-text-muted" title={snapshot.lastCommand}>
-                {snapshot.lastCommand}
+          {!expanded && (
+            <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-border-subtle pt-2 text-[11px] text-text-muted">
+              <span className="inline-flex items-center gap-1">
+                <GitPullRequest size={12} className="text-accent-green" />
+                {snapshot.changedFileCount} 文件
               </span>
-            )}
-          </div>
+              <span className="inline-flex items-center gap-1">
+                <Wrench size={12} className="text-accent-purple" />
+                {snapshot.toolCount} 工具
+              </span>
+              <span className="inline-flex items-center gap-1">
+                <CheckCircle2 size={12} className="text-accent-cyan" />
+                {snapshot.validationCount} 验证
+              </span>
+              <span className={hasRisk ? 'text-accent-yellow' : 'text-accent-green'}>
+                {hasRisk ? snapshot.risks[0] : '暂无明显阻塞'}
+              </span>
+            </div>
+          )}
 
-      <div className="mt-3 grid gap-3 text-xs md:grid-cols-3">
-        <div className="min-w-0">
-          <div className="mb-2 flex items-center justify-between gap-2">
-            <span className="font-medium text-text-secondary">下一步</span>
-            <button
-              type="button"
-              onClick={() => onInsertPrompt(`按当前会话状态继续推进：${snapshot.nextActions.join('；')}。执行前先说明计划，完成后给出验证结果。`)}
-              className="rounded-md px-1.5 py-0.5 text-[11px] font-medium text-accent-blue transition-colors hover:bg-accent-blue/10"
-            >
-              插入
-            </button>
-          </div>
-          <div className="space-y-1.5 text-text-secondary">
-            {snapshot.nextActions.map(action => (
-              <div key={action} className="flex min-w-0 items-start gap-2">
-                <Activity size={13} className="mt-0.5 shrink-0 text-accent-blue" />
-                <span className="min-w-0 leading-5">{action}</span>
+          {expanded && (
+            <>
+              <div className="mt-3 grid gap-x-4 gap-y-2 border-y border-border-subtle py-2 sm:grid-cols-2 lg:grid-cols-[auto_auto_auto_auto_1fr]">
+                <div className="flex items-center gap-1.5 text-xs text-text-secondary">
+                  <GitPullRequest size={14} className="text-accent-green" />
+                  <span>{snapshot.changedFileCount} 文件</span>
+                  <span className="text-accent-green">+{snapshot.additions}</span>
+                  <span className="text-accent-red">-{snapshot.deletions}</span>
+                </div>
+                <div className="flex items-center gap-1.5 text-xs text-text-secondary">
+                  <Wrench size={14} className="text-accent-purple" />
+                  <span>{snapshot.toolCount} 工具</span>
+                  {snapshot.failedToolCount > 0 && <span className="text-accent-red">{snapshot.failedToolCount} 异常</span>}
+                </div>
+                <div className="flex items-center gap-1.5 text-xs text-text-secondary">
+                  <CheckCircle2 size={14} className="text-accent-cyan" />
+                  <span>{snapshot.validationCount} 验证</span>
+                </div>
+                <div className="flex min-w-0 items-center gap-1.5 text-xs text-text-secondary">
+                  <FileText size={14} className="shrink-0 text-accent-yellow" />
+                  <span className="truncate">{snapshot.messageCount} 对话</span>
+                </div>
+                {snapshot.lastCommand && (
+                  <span className="min-w-0 truncate font-mono text-[11px] text-text-muted" title={snapshot.lastCommand}>
+                    {snapshot.lastCommand}
+                  </span>
+                )}
               </div>
-            ))}
-          </div>
-        </div>
 
-        <div className="min-w-0 md:border-l md:border-border-subtle md:pl-3">
-          <div className="mb-2 flex items-center gap-1.5">
-            <span className="font-medium text-text-secondary">风险</span>
-            {hasRisk && <span className="rounded bg-accent-yellow/10 px-1.5 py-0.5 text-[10px] font-medium text-accent-yellow">需关注</span>}
-          </div>
-          <div className="space-y-1.5">
-            {snapshot.risks.map(risk => (
-              <div key={risk} className="flex min-w-0 items-start gap-2 text-text-secondary">
-                <AlertTriangle size={13} className={`mt-0.5 shrink-0 ${hasRisk ? 'text-accent-yellow' : 'text-accent-green'}`} />
-                <span className="min-w-0 leading-5">{risk}</span>
-              </div>
-            ))}
-          </div>
-        </div>
+              <div className="mt-3 grid gap-4 text-xs md:grid-cols-3">
+                <div className="min-w-0">
+                  <div className="mb-2 flex items-center justify-between gap-2">
+                    <span className="font-semibold text-text-secondary">下一步</span>
+                    <button
+                      type="button"
+                      onClick={() => onInsertPrompt(`按当前 Mission 状态继续推进：${snapshot.nextActions.join('；')}。执行前先说明计划，完成后给出验证结果。`)}
+                      className="rounded-md px-1.5 py-0.5 text-[11px] font-medium text-accent-blue transition-colors hover:bg-accent-blue/10"
+                    >
+                      插入
+                    </button>
+                  </div>
+                  <div className="space-y-1.5 text-text-secondary">
+                    {snapshot.nextActions.map(action => (
+                      <div key={action} className="flex min-w-0 items-start gap-2">
+                        <Activity size={13} className="mt-0.5 shrink-0 text-accent-blue" />
+                        <span className="min-w-0 leading-5">{action}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
 
-        <div className="min-w-0 md:border-l md:border-border-subtle md:pl-3">
-          <div className="mb-2 font-medium text-text-secondary">证据</div>
-          <div className="space-y-1.5">
-            {snapshot.evidence.map(item => (
-              <div key={item} className="flex min-w-0 items-start gap-2 text-text-secondary">
-                <CheckCircle2 size={13} className="mt-0.5 shrink-0 text-accent-green" />
-                <span className="min-w-0 leading-5">{item}</span>
+                <div className="min-w-0 md:border-l md:border-border-subtle md:pl-4">
+                  <div className="mb-2 flex items-center gap-1.5">
+                    <span className="font-semibold text-text-secondary">风险雷达</span>
+                    {hasRisk && <span className="rounded bg-accent-yellow/10 px-1.5 py-0.5 text-[10px] font-medium text-accent-yellow">需关注</span>}
+                  </div>
+                  <div className="space-y-1.5">
+                    {snapshot.risks.map(risk => (
+                      <div key={risk} className="flex min-w-0 items-start gap-2 text-text-secondary">
+                        <AlertTriangle size={13} className={`mt-0.5 shrink-0 ${hasRisk ? 'text-accent-yellow' : 'text-accent-green'}`} />
+                        <span className="min-w-0 leading-5">{risk}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="min-w-0 md:border-l md:border-border-subtle md:pl-4">
+                  <div className="mb-2 font-semibold text-text-secondary">证据链</div>
+                  <div className="space-y-1.5">
+                    {snapshot.evidence.map(item => (
+                      <div key={item} className="flex min-w-0 items-start gap-2 text-text-secondary">
+                        <CheckCircle2 size={13} className="mt-0.5 shrink-0 text-accent-green" />
+                        <span className="min-w-0 leading-5">{item}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
               </div>
-            ))}
-          </div>
+            </>
+          )}
         </div>
       </div>
-        </>
-      )}
     </section>
   )
 }
@@ -481,6 +748,17 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
       // ignore
     }
   }, [opsBriefExpanded])
+
+  useEffect(() => {
+    if (!knowledgePanelOpen) return
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setKnowledgePanelOpen(false)
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [knowledgePanelOpen])
 
   // 获取会话状态（精确选择器，各字段独立订阅，减少无关更新触发的重渲染）
   const status = useSessionStore(state =>
@@ -767,6 +1045,53 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
       `${toolUseMessages.length} 次工具调用，${failedToolCount} 个异常`,
     ]
 
+    let missionHealthScore = 52
+    if (messageCount > 0) missionHealthScore += 6
+    if (toolUseMessages.length > 0) missionHealthScore += 10
+    if (uniqueFiles.length > 0) missionHealthScore += 10
+    if (validationCommands.length > 0) missionHealthScore += 18
+    if (validationCommands.length > 0 && uniqueFiles.length > 0) missionHealthScore += 6
+    if (failedToolCount > 0) missionHealthScore -= Math.min(34, 18 + failedToolCount * 8)
+    if (hasWaitingAction) missionHealthScore -= 18
+    if (status === 'error') missionHealthScore -= 24
+    if (!workingDirectory) missionHealthScore -= 8
+    if (uniqueFiles.length > 0 && validationCommands.length === 0) missionHealthScore -= 10
+    missionHealthScore = Math.max(5, Math.min(100, Math.round(missionHealthScore)))
+
+    const missionHealthTone: OpsBriefSnapshot['missionHealthTone'] =
+      status === 'error' || failedToolCount > 0 || missionHealthScore < 42
+        ? 'bad'
+        : hasWaitingAction || (uniqueFiles.length > 0 && validationCommands.length === 0) || missionHealthScore < 74
+          ? 'warn'
+          : validationCommands.length > 0 && failedToolCount === 0
+            ? 'good'
+            : 'neutral'
+
+    const missionHealthLabel = missionHealthTone === 'bad'
+      ? '需要处理'
+      : missionHealthTone === 'warn'
+        ? '待收敛'
+        : missionHealthTone === 'good'
+          ? '可交付'
+          : '推进中'
+
+    const deliveryReadiness = hasWaitingAction
+      ? '先处理等待项'
+      : status === 'error'
+        ? '先恢复会话'
+        : failedToolCount > 0
+          ? '先修复异常工具'
+          : uniqueFiles.length > 0 && validationCommands.length === 0
+            ? '已有改动，建议验证'
+            : validationCommands.length > 0 && uniqueFiles.length > 0
+              ? '可整理交付包'
+              : toolUseMessages.length > 0
+                ? '继续收敛方案'
+                : '先完成项目扫描'
+
+    const hasMissionRisk = risks.some(risk => !risk.includes('暂无明显'))
+    const primarySignal = compactText(hasMissionRisk ? risks[0] : nextActions[0], 54)
+
     return {
       projectName: getProjectName(workingDirectory, session?.name || session?.config?.name),
       projectPath: workingDirectory,
@@ -781,6 +1106,11 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
               ? '处理中'
               : SESSION_STATUS_LABEL[status || ''] || '待输入',
       statusTone,
+      missionHealthLabel,
+      missionHealthTone,
+      missionHealthScore,
+      deliveryReadiness,
+      primarySignal,
       changedFileCount: uniqueFiles.length,
       additions,
       deletions,
@@ -961,52 +1291,13 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
                 <span>加载对话历史...</span>
               </div>
             ) : isSessionEnded ? '会话已结束，点击下方恢复继续对话' : (
-              <div className="w-full max-w-[640px] rounded-lg border border-border-subtle bg-bg-elevated p-6 shadow-[0_12px_32px_var(--color-shadow-sm)]">
-                <div className="mb-5 flex items-start justify-between gap-4">
-                  <div>
-                    <div className="mb-2 flex items-center gap-2">
-                      <span
-                        className="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium text-white"
-                        style={{ backgroundColor: getProviderColor(providerId) }}
-                      >
-                        {providerId ?? '未知'}
-                      </span>
-                      <span className="font-mono text-xs text-text-muted select-all">
-                        #{sessionId.slice(0, 8)}
-                      </span>
-                    </div>
-                    <div className="text-lg font-semibold text-text-primary">准备开始</div>
-                    <p className="mt-1 text-xs leading-relaxed text-text-muted">
-                      从下方输入消息，或点击常用提示词快速进入工作流。
-                    </p>
-                  </div>
-                </div>
-
-                {workingDirectory && (
-                  <div className="mb-5 flex items-start gap-2 rounded-lg border border-border-subtle bg-bg-primary px-3 py-2.5">
-                    <FolderOpen className="w-4 h-4 mt-0.5 flex-shrink-0 text-text-muted" />
-                    <span className="break-all font-mono text-xs text-text-secondary leading-relaxed">
-                      {workingDirectory}
-                    </span>
-                  </div>
-                )}
-
-                <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
-                  {[
-                    { key: 'Enter',         desc: '发送消息' },
-                    { key: '/',             desc: '查看可用命令' },
-                    { key: '@',             desc: '引用项目文件' },
-                    { key: toPlatformShortcutLabel('Ctrl+Shift+F'),  desc: '跨会话搜索' },
-                  ].map(({ key, desc }) => (
-                    <div key={key} className="rounded-lg border border-border-subtle bg-bg-primary px-3 py-2 text-xs text-text-muted">
-                      <kbd className="mb-1 inline-flex rounded border border-border-subtle bg-bg-elevated px-1.5 py-0.5 font-mono text-[11px] text-text-secondary">
-                        {key}
-                      </kbd>
-                      <div>{desc}</div>
-                    </div>
-                  ))}
-                </div>
-              </div>
+              <MissionLaunchpad
+                providerId={providerId}
+                sessionId={sessionId}
+                workingDirectory={workingDirectory}
+                canSend={canSend}
+                onInsertPrompt={setPendingInsert}
+              />
             )}
           </div>
         ) : (
@@ -1411,8 +1702,14 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
 
       {/* 右侧：知识库抽屉。作为浮层显示，避免被主区/右侧详情面板挤压成窄栏。 */}
       {knowledgePanelOpen && workingDirectory && (
-        <div className="pointer-events-none absolute inset-y-0 right-0 z-40 flex max-w-full justify-end">
-          <div className="pointer-events-auto h-full w-[min(420px,calc(100vw-96px))] min-w-[320px] max-w-full border-l border-border-subtle bg-bg-primary shadow-[-18px_0_36px_var(--color-shadow-sm)]">
+        <div className="absolute inset-0 z-40 flex justify-end">
+          <button
+            type="button"
+            aria-label="关闭知识中心"
+            onClick={() => setKnowledgePanelOpen(false)}
+            className="h-full flex-1 cursor-default bg-bg-primary/20 backdrop-blur-[1px]"
+          />
+          <div className="h-full w-[min(440px,100%)] min-w-0 border-l border-border-subtle bg-bg-primary shadow-[-18px_0_36px_var(--color-shadow-sm)] sm:min-w-[340px]">
             <SessionKnowledgePanel
               sessionId={sessionId}
               projectPath={workingDirectory}
