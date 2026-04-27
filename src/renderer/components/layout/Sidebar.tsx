@@ -4,7 +4,7 @@
  * @author weibin
  */
 
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { Plus, Terminal, X, FolderOpen, RotateCcw, Play, Square, Search, Star, ChevronDown, ChevronUp, Settings2, Cpu, Pencil, Sparkles, Layers, Trash2, type LucideIcon } from 'lucide-react'
 import { useUIStore } from '../../stores/uiStore'
 import { useSessionStore } from '../../stores/sessionStore'
@@ -121,10 +121,10 @@ export function SessionsContent() {
     } catch { /* ignore */ }
     return 'directory'
   })
-  const handleSetGroupBy = (mode: GroupByMode) => {
+  const handleSetGroupBy = useCallback((mode: GroupByMode) => {
     setGroupBy(mode)
     try { localStorage.setItem('sidebar-group-by', mode) } catch { /* ignore */ }
-  }
+  }, [])
 
   // ── 工作区列表（workspace 模式加载） ──
   const [workspaces, setWorkspaces] = useState<Workspace[]>([])
@@ -138,6 +138,7 @@ export function SessionsContent() {
 
   // ── 滚动容器 ref（时间分组模式下自动滚动定位） ──
   const sessionListScrollRef = useRef<HTMLDivElement>(null)
+  const newSessionLoadSeqRef = useRef(0)
 
   // ── 自动定位激活会话（仅时间分组模式需要滚动；目录/工作区模式使用弹框选择器，无需滚动） ──
   useEffect(() => {
@@ -251,13 +252,13 @@ export function SessionsContent() {
   } | null>(null)
   const menuRef = useRef<HTMLDivElement>(null)
 
-  const handleContextMenu = (e: React.MouseEvent, sessionId: string, status: SessionStatus) => {
+  const handleContextMenu = useCallback((e: React.MouseEvent, sessionId: string, status: SessionStatus) => {
     e.preventDefault()
     e.stopPropagation()
     const x = Math.min(e.clientX, window.innerWidth - 160)
     const y = Math.min(e.clientY, window.innerHeight - 120)
     setContextMenu({ x, y, sessionId, status })
-  }
+  }, [])
 
   useEffect(() => {
     const handleClick = (e: MouseEvent) => {
@@ -275,13 +276,13 @@ export function SessionsContent() {
   } | null>(null)
   const dirMenuRef = useRef<HTMLDivElement>(null)
 
-  const handleDirContextMenu = (e: React.MouseEvent, workDir: string) => {
+  const handleDirContextMenu = useCallback((e: React.MouseEvent, workDir: string) => {
     e.preventDefault()
     e.stopPropagation()
     const x = Math.min(e.clientX, window.innerWidth - 180)
     const y = Math.min(e.clientY, window.innerHeight - 80)
     setDirContextMenu({ x, y, workDir })
-  }
+  }, [])
 
   useEffect(() => {
     const handleClick = (e: MouseEvent) => {
@@ -318,7 +319,26 @@ export function SessionsContent() {
     setSupervisorMode(template.supervisorMode)
   }
 
-  const openNewSessionDialog = async (prefillDir?: string) => {
+  const loadWorkspaceOptions = useCallback(async () => {
+    if (!window.spectrAI?.workspace) {
+      setWorkspaces([])
+      setIsWorkspacesLoading(false)
+      return
+    }
+    setIsWorkspacesLoading(true)
+    try {
+      const ws = await window.spectrAI.workspace.list()
+      setWorkspaces(ws || [])
+    } catch {
+      setWorkspaces([])
+    } finally {
+      setIsWorkspacesLoading(false)
+    }
+  }, [])
+
+  const openNewSessionDialog = (prefillDir?: string) => {
+    const loadSeq = newSessionLoadSeqRef.current + 1
+    newSessionLoadSeqRef.current = loadSeq
     setCreateSessionError(null)
     setSessionName(`会话 ${new Date().toLocaleTimeString()}`)
     setSessionPrompt('')
@@ -329,50 +349,62 @@ export function SessionsContent() {
     setSelectedWorkspaceId('')
     setShowAllDirs(false)
     setIsCreatingSession(false)
+    setIsWorkspacesLoading(false)
+    setSessionCwd(prefillDir || sessionCwd || '')
     setShowNewSessionDialog(true)
 
-    if (!window.spectrAI?.provider || !window.spectrAI?.app) {
-      console.warn('[Sidebar] window.spectrAI not available')
-      setProviders([])
-      setRecentDirs([])
-      setSessionCwd(prefillDir || '')
-      setWorkspaces([])
-      setIsWorkspacesLoading(false)
-      return
-    }
+    window.requestAnimationFrame(() => {
+      void (async () => {
+        if (!window.spectrAI?.provider || !window.spectrAI?.app) {
+          console.warn('[Sidebar] window.spectrAI not available')
+          if (newSessionLoadSeqRef.current !== loadSeq) return
+          setProviders([])
+          setRecentDirs([])
+          setSessionCwd(prefillDir || '')
+          return
+        }
 
-    try {
-      const providerList = await window.spectrAI.provider.getAll()
-      setProviders(providerList)
-      setSelectedProviderId(providerList[0]?.id || '')
-    } catch { setProviders([]) }
+        const [providerResult, dirsResult] = await Promise.allSettled([
+          window.spectrAI.provider.getAll(),
+          window.spectrAI.app.getRecentDirectories(),
+        ])
 
-    try {
-      const dirs = await window.spectrAI.app.getRecentDirectories()
-      setRecentDirs(dirs)
-      if (prefillDir) {
-        setSessionCwd(prefillDir)
-      } else if (dirs.length > 0) {
-        const mostRecent = dirs.reduce((a, b) => new Date(a.lastUsedAt) > new Date(b.lastUsedAt) ? a : b)
-        setSessionCwd(mostRecent.path || '')
-      } else {
-        setSessionCwd(window.spectrAI.app.getCwd() || '')
-      }
-    } catch {
-      setRecentDirs([])
-      try { setSessionCwd(prefillDir || window.spectrAI.app.getCwd() || '') } catch { setSessionCwd(prefillDir || '') }
-    }
+        if (newSessionLoadSeqRef.current !== loadSeq) return
 
-    setIsWorkspacesLoading(true)
-    try {
-      const ws = await window.spectrAI.workspace.list()
-      setWorkspaces(ws || [])
-    } catch {
-      setWorkspaces([])
-    } finally {
-      setIsWorkspacesLoading(false)
-    }
+        if (providerResult.status === 'fulfilled') {
+          setProviders(providerResult.value)
+          setSelectedProviderId(prev => (
+            prev && providerResult.value.some(p => p.id === prev)
+              ? prev
+              : (providerResult.value[0]?.id || '')
+          ))
+        } else {
+          setProviders([])
+        }
+
+        if (dirsResult.status === 'fulfilled') {
+          const dirs = dirsResult.value
+          setRecentDirs(dirs)
+          if (prefillDir) {
+            setSessionCwd(prefillDir)
+          } else if (dirs.length > 0) {
+            const mostRecent = dirs.reduce((a, b) => new Date(a.lastUsedAt) > new Date(b.lastUsedAt) ? a : b)
+            setSessionCwd(mostRecent.path || '')
+          } else {
+            setSessionCwd(window.spectrAI.app.getCwd() || '')
+          }
+        } else {
+          setRecentDirs([])
+          try { setSessionCwd(prefillDir || window.spectrAI.app.getCwd() || '') } catch { setSessionCwd(prefillDir || '') }
+        }
+      })()
+    })
   }
+
+  useEffect(() => {
+    if (!showNewSessionDialog || sessionMode !== 'workspace' || isWorkspacesLoading || workspaces.length > 0) return
+    void loadWorkspaceOptions()
+  }, [showNewSessionDialog, sessionMode, isWorkspacesLoading, workspaces.length, loadWorkspaceOptions])
 
   const handleCreateSession = async () => {
     if (isCreatingSession) return
@@ -427,10 +459,44 @@ export function SessionsContent() {
   }
 
   // 过滤子 Agent 会话（只显示顶层会话）
-  const topLevelSessions = sessions.filter(s => !s.config?.agentId)
+  const topLevelSessions = useMemo(
+    () => sessions.filter(s => !s.config?.agentId),
+    [sessions]
+  )
+  const executingTopLevelCount = useMemo(
+    () => topLevelSessions.filter(s => EXECUTING_STATUSES.has(s.status)).length,
+    [topLevelSessions]
+  )
+  const timeGroups = useMemo(
+    () => groupBy === 'time' ? groupSessionsByTime(topLevelSessions) : [],
+    [groupBy, topLevelSessions]
+  )
+  const directoryGroups = useMemo(
+    () => groupBy === 'directory' ? groupSessionsByDirectory(topLevelSessions) : [],
+    [groupBy, topLevelSessions]
+  )
+  const workspaceGroups = useMemo(
+    () => groupBy === 'workspace' ? groupSessionsByWorkspace(topLevelSessions, workspaces) : [],
+    [groupBy, topLevelSessions, workspaces]
+  )
+  const sortedRecentDirs = useMemo(() => {
+    const uniqueDirs = Array.from(new Map(recentDirs.map(d => [d.path, d])).values())
+      .sort((a, b) => {
+        if (a.isPinned && !b.isPinned) return -1
+        if (!a.isPinned && b.isPinned) return 1
+        return new Date(b.lastUsedAt).getTime() - new Date(a.lastUsedAt).getTime()
+      })
+    const pinnedDirs = uniqueDirs.filter(d => d.isPinned)
+    const unpinnedDirs = uniqueDirs.filter(d => !d.isPinned)
+    return {
+      pinnedDirs,
+      unpinnedDirs,
+      visibleDirs: showAllDirs ? uniqueDirs : pinnedDirs,
+    }
+  }, [recentDirs, showAllDirs])
 
   // 公共 props（时间分组卡片）
-  const commonCardProps = {
+  const commonCardProps = useMemo(() => ({
     selectedSessionId,
     lastActivities,
     selectSession: handleSelectSession,
@@ -443,10 +509,23 @@ export function SessionsContent() {
     aiRenamingSessionId,
     providers,
     agents,
-  }
+  }), [
+    selectedSessionId,
+    lastActivities,
+    handleSelectSession,
+    handleOpenWorktree,
+    handleContextMenu,
+    resumeSession,
+    renameSession,
+    renamingSessionId,
+    setRenamingSessionId,
+    aiRenamingSessionId,
+    providers,
+    agents,
+  ])
 
   // 选择器 props（传递给 SessionPickerModal）
-  const pickerProps = {
+  const pickerProps = useMemo(() => ({
     onOpenWorktree: handleOpenWorktree,
     handleContextMenu,
     lastActivities,
@@ -457,7 +536,18 @@ export function SessionsContent() {
     providers,
     agents,
     resumeSession,
-  }
+  }), [
+    handleOpenWorktree,
+    handleContextMenu,
+    lastActivities,
+    renamingSessionId,
+    setRenamingSessionId,
+    renameSession,
+    aiRenamingSessionId,
+    providers,
+    agents,
+    resumeSession,
+  ])
 
   return (
     <div className="flex flex-col h-full bg-bg-secondary border-r border-border">
@@ -500,19 +590,19 @@ export function SessionsContent() {
               <div className="flex items-center justify-between px-0.5">
                 <h3 className="text-sm font-medium text-text-primary">会话</h3>
                 <span className="text-xs text-text-muted">
-                  {topLevelSessions.filter(s => EXECUTING_STATUSES.has(s.status)).length} 处理中 / {topLevelSessions.length} 总
+                  {executingTopLevelCount} 处理中 / {topLevelSessions.length} 总
                 </span>
               </div>
               <GroupByToggle value={groupBy} onChange={handleSetGroupBy} />
             </div>
 
             {/* 时间分组 */}
-            {groupBy === 'time' && groupSessionsByTime(topLevelSessions).map(group => (
+            {groupBy === 'time' && timeGroups.map(group => (
               <TimeGroupCard key={group.key} group={group} {...commonCardProps} />
             ))}
 
             {/* 目录分组 */}
-            {groupBy === 'directory' && groupSessionsByDirectory(topLevelSessions).map(group => (
+            {groupBy === 'directory' && directoryGroups.map(group => (
               <DirGroupCard
                 key={group.key}
                 group={group}
@@ -523,7 +613,7 @@ export function SessionsContent() {
             ))}
 
             {/* 工作区分组 */}
-            {groupBy === 'workspace' && groupSessionsByWorkspace(topLevelSessions, workspaces).map(group => (
+            {groupBy === 'workspace' && workspaceGroups.map(group => (
               <DirGroupCard
                 key={group.key}
                 group={group}
@@ -757,8 +847,8 @@ export function SessionsContent() {
 
       {/* ── 新建会话对话框 ── */}
       {showNewSessionDialog && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-          <div className="bg-bg-secondary rounded-lg shadow-2xl w-full max-w-2xl border border-border max-h-[88vh] flex flex-col">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/55">
+          <div className="bg-bg-secondary rounded-lg shadow-lg w-full max-w-2xl border border-border max-h-[88vh] flex flex-col">
             <div className="flex items-center justify-between p-4 border-b border-border">
               <h2 className="text-lg font-semibold text-text-primary">新建会话</h2>
               <button onClick={() => { if (!isCreatingSession) setShowNewSessionDialog(false) }} className="text-text-muted hover:text-text-primary btn-transition">
@@ -822,33 +912,31 @@ export function SessionsContent() {
                   <label className="text-sm font-medium text-text-secondary">
                     工作目录 <span className="text-accent-red">*</span>
                   </label>
-                  {(isWorkspacesLoading || workspaces.length > 0) && (
-                    <div className="flex rounded overflow-hidden border border-border text-[11px]">
-                      <button
-                        type="button"
-                        onClick={() => setSessionMode('directory')}
-                        className={`px-2 py-0.5 btn-transition ${
-                          sessionMode === 'directory'
-                            ? 'bg-accent-blue text-white'
-                            : 'bg-bg-hover text-text-muted hover:text-text-primary'
-                        }`}
-                      >
-                        目录
-                      </button>
-                      <button
-                        type="button"
-                        disabled={isWorkspacesLoading}
-                        onClick={() => setSessionMode('workspace')}
-                        className={`px-2 py-0.5 btn-transition ${
-                          sessionMode === 'workspace'
-                            ? 'bg-accent-blue text-white'
-                            : 'bg-bg-hover text-text-muted hover:text-text-primary'
-                        } disabled:opacity-50 disabled:cursor-not-allowed`}
-                      >
-                        {isWorkspacesLoading ? '加载中…' : '工作区'}
-                      </button>
-                    </div>
-                  )}
+                  <div className="flex rounded overflow-hidden border border-border text-[11px]">
+                    <button
+                      type="button"
+                      onClick={() => setSessionMode('directory')}
+                      className={`px-2 py-0.5 btn-transition ${
+                        sessionMode === 'directory'
+                          ? 'bg-accent-blue text-white'
+                          : 'bg-bg-hover text-text-muted hover:text-text-primary'
+                      }`}
+                    >
+                      目录
+                    </button>
+                    <button
+                      type="button"
+                      disabled={isWorkspacesLoading}
+                      onClick={() => setSessionMode('workspace')}
+                      className={`px-2 py-0.5 btn-transition ${
+                        sessionMode === 'workspace'
+                          ? 'bg-accent-blue text-white'
+                          : 'bg-bg-hover text-text-muted hover:text-text-primary'
+                      } disabled:opacity-50 disabled:cursor-not-allowed`}
+                    >
+                      {isWorkspacesLoading ? '加载中…' : '工作区'}
+                    </button>
+                  </div>
                 </div>
 
                 {sessionMode === 'directory' ? (
@@ -897,20 +985,8 @@ export function SessionsContent() {
                       {recentDirs.length > 0 ? (
                         <div className="max-h-[120px] overflow-y-auto pr-1">
                           <div className="flex flex-wrap gap-1.5">
-                            {(() => {
-                              const uniqueDirs = Array.from(new Map(recentDirs.map(d => [d.path, d])).values())
-                                .sort((a, b) => {
-                                  if (a.isPinned && !b.isPinned) return -1
-                                  if (!a.isPinned && b.isPinned) return 1
-                                  return new Date(b.lastUsedAt).getTime() - new Date(a.lastUsedAt).getTime()
-                                })
-                              const pinnedDirs = uniqueDirs.filter(d => d.isPinned)
-                              const unpinnedDirs = uniqueDirs.filter(d => !d.isPinned)
-                              const visibleDirs = showAllDirs ? uniqueDirs : pinnedDirs
-
-                              return (
-                                <>
-                                  {visibleDirs.map(dir => {
+                            <>
+                                  {sortedRecentDirs.visibleDirs.map(dir => {
                                     const parts = dir.path.replace(/\\/g, '/').split('/').filter(Boolean)
                                     const shortPath = parts.length > 2 ? parts.slice(-2).join('/') : parts.join('/')
                                     return (
@@ -970,7 +1046,7 @@ export function SessionsContent() {
                                       </div>
                                     )
                                   })}
-                                  {unpinnedDirs.length > 0 && (
+                                  {sortedRecentDirs.unpinnedDirs.length > 0 && (
                                     <button
                                       type="button"
                                       onClick={() => setShowAllDirs(v => !v)}
@@ -979,13 +1055,11 @@ export function SessionsContent() {
                                       {showAllDirs ? (
                                         <><ChevronUp className="w-3 h-3" /><span>收起</span></>
                                       ) : (
-                                        <><ChevronDown className="w-3 h-3" /><span>展开更多 {unpinnedDirs.length} 个</span></>
+                                        <><ChevronDown className="w-3 h-3" /><span>展开更多 {sortedRecentDirs.unpinnedDirs.length} 个</span></>
                                       )}
                                     </button>
                                   )}
-                                </>
-                              )
-                            })()}
+                            </>
                           </div>
                         </div>
                       ) : (
