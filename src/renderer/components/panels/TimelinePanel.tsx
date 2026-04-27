@@ -25,6 +25,7 @@ const ACTIVITY_CONFIG: Record<string, {
   thinking:             { color: '#BC8CFF',              label: '思考',  icon: Sparkles },
   file_read:            { color: '#58A6FF',              label: '读取',  icon: FileText },
   file_write:           { color: '#D2A8FF',              label: '写入',  icon: FileEdit },
+  file_edit:            { color: '#D2A8FF',              label: '修改',  icon: FileEdit },
   file_create:          { color: '#D2A8FF',              label: '创建',  icon: FileEdit },
   file_delete:          { color: STATUS_COLORS.error,    label: '删除',  icon: FileEdit },
   command_execute:      { color: '#D29922',              label: '命令',  icon: Terminal },
@@ -33,14 +34,37 @@ const ACTIVITY_CONFIG: Record<string, {
   tool_use:             { color: '#58A6FF',              label: '工具',  icon: Wrench },
   error:                { color: STATUS_COLORS.error,    label: '错误',  icon: AlertTriangle },
   waiting_confirmation: { color: '#D29922',              label: '确认',  icon: HelpCircle },
-  user_input:           { color: '#3FB950',              label: '输入',  icon: MessageSquare },
-  turn_complete:        { color: '#58A6FF',              label: '回合完成',  icon: SquareCheck },
+  waiting_ask_question: { color: '#D29922',              label: '提问',  icon: HelpCircle },
+  waiting_plan_approval:{ color: '#D29922',              label: '审批',  icon: HelpCircle },
+  user_input:           { color: '#3FB950',              label: '你发送', icon: MessageSquare },
+  user_question:        { color: '#D29922',              label: '提问',  icon: HelpCircle },
+  turn_complete:        { color: '#58A6FF',              label: '等你继续',  icon: SquareCheck },
   task_complete:        { color: '#3FB950',              label: '完成',  icon: SquareCheck },
   context_summary:      { color: STATUS_COLORS.idle,     label: '摘要',  icon: Eye },
   assistant_message:    { color: '#79C0FF',              label: '回复',  icon: MessageSquare },
+  session_end:          { color: STATUS_COLORS.completed, label: '结束',  icon: SquareCheck },
   idle:                 { color: STATUS_COLORS.idle,     label: '空闲',  icon: PenTool },
   unknown_activity:     { color: STATUS_COLORS.idle,     label: '活动',  icon: Activity },
 }
+
+const KEY_ACTIVITY_TYPES = new Set<ActivityEventType>([
+  'session_start',
+  'error',
+  'waiting_confirmation',
+  'waiting_ask_question',
+  'waiting_plan_approval',
+  'user_input',
+  'user_question',
+  'turn_complete',
+  'task_complete',
+  'context_summary',
+  'file_write',
+  'file_edit',
+  'file_create',
+  'file_delete',
+  'command_execute',
+  'session_end',
+])
 
 function getActivityConfig(type: ActivityEventType) {
   return ACTIVITY_CONFIG[type] || ACTIVITY_CONFIG.unknown_activity
@@ -103,6 +127,7 @@ export default function TimelinePanel() {
   const [searchQuery, setSearchQuery] = useState('')
   const [activeFilters, setActiveFilters] = useState<Set<ActivityEventType>>(new Set())
   const [expandedGroups, setExpandedGroups] = useState<Set<number>>(new Set())
+  const [timelineMode, setTimelineMode] = useState<'key' | 'all'>('key')
 
   // 自动选中第一个活跃会话
   useEffect(() => {
@@ -118,6 +143,7 @@ export default function TimelinePanel() {
 
   const filteredActivities = useMemo(() => {
     let result = sessionActivities
+    if (timelineMode === 'key') result = result.filter(e => KEY_ACTIVITY_TYPES.has(e.type))
     if (activeFilters.size > 0) result = result.filter(e => activeFilters.has(e.type))
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase()
@@ -126,7 +152,7 @@ export default function TimelinePanel() {
       )
     }
     return result
-  }, [sessionActivities, activeFilters, searchQuery])
+  }, [sessionActivities, activeFilters, searchQuery, timelineMode])
 
   const groupedEvents = useMemo(() => {
     const reversed = [...filteredActivities].reverse()
@@ -135,9 +161,23 @@ export default function TimelinePanel() {
 
   const availableTypes = useMemo(() => {
     const types = new Set<ActivityEventType>()
-    sessionActivities.forEach(e => types.add(e.type))
+    const source = timelineMode === 'key'
+      ? sessionActivities.filter(e => KEY_ACTIVITY_TYPES.has(e.type))
+      : sessionActivities
+    source.forEach(e => types.add(e.type))
     return Array.from(types)
-  }, [sessionActivities])
+  }, [sessionActivities, timelineMode])
+
+  const hiddenDetailCount = useMemo(
+    () => sessionActivities.filter(e => !KEY_ACTIVITY_TYPES.has(e.type)).length,
+    [sessionActivities]
+  )
+
+  const setMode = (mode: 'key' | 'all') => {
+    setTimelineMode(mode)
+    setActiveFilters(new Set())
+    setExpandedGroups(new Set())
+  }
 
   // 更新运行时长
   useEffect(() => {
@@ -251,6 +291,32 @@ export default function TimelinePanel() {
         />
       </div>
 
+      <div className="mb-2 grid grid-cols-2 gap-1 rounded-lg border border-border/50 bg-bg-primary/50 p-1">
+        {([
+          ['key', '关键'],
+          ['all', '全部'],
+        ] as const).map(([mode, label]) => (
+          <button
+            key={mode}
+            type="button"
+            onClick={() => setMode(mode)}
+            className={`rounded-md px-2 py-1 text-xs transition-colors ${
+              timelineMode === mode
+                ? 'bg-accent-blue/15 text-accent-blue'
+                : 'text-text-muted hover:bg-bg-hover hover:text-text-secondary'
+            }`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {timelineMode === 'key' && hiddenDetailCount > 0 && (
+        <div className="mb-2 rounded-lg border border-border/35 bg-bg-primary/35 px-2 py-1.5 text-[11px] text-text-muted">
+          已收起 {hiddenDetailCount} 条细节事件，切到「全部」可查看回复、工具调用和命令输出。
+        </div>
+      )}
+
       {/* 类型过滤器 */}
       {availableTypes.length > 1 && (
         <div className="mb-2 flex items-center gap-1 flex-wrap">
@@ -287,7 +353,7 @@ export default function TimelinePanel() {
 
       {/* 时间线列表 */}
       <h3 className="text-[11px] font-medium mb-1.5 text-text-secondary">
-        活动时间线
+        {timelineMode === 'key' ? '关键时间线' : '活动时间线'}
         {filteredActivities.length !== sessionActivities.length && (
           <span className="text-text-muted ml-1">
             ({filteredActivities.length}/{sessionActivities.length})
@@ -297,7 +363,11 @@ export default function TimelinePanel() {
 
       {groupedEvents.length === 0 ? (
         <p className="text-xs text-text-muted">
-          {sessionActivities.length === 0 ? '等待活动事件...' : '无匹配事件'}
+          {sessionActivities.length === 0
+            ? '等待活动事件...'
+            : timelineMode === 'key' && hiddenDetailCount > 0
+              ? '暂无关键事件，切到「全部」可查看细节'
+              : '无匹配事件'}
         </p>
       ) : (
         <div className="space-y-0.5">
