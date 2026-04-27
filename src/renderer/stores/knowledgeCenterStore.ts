@@ -12,6 +12,8 @@ import type {
   UpdateUnifiedKnowledgeParams,
   UnifiedKnowledgeCategory,
   UnifiedKnowledgeExport,
+  KnowledgeScope,
+  KnowledgeLifecycle,
   KnowledgeUsageStats
 } from '../../shared/knowledgeCenterTypes'
 
@@ -51,6 +53,8 @@ interface KnowledgeCenterState {
   searchQuery: string
   filterCategory: UnifiedKnowledgeCategory | null
   filterPriority: string | null
+  filterScope: KnowledgeScope | 'all'
+  filterLifecycle: KnowledgeLifecycle | 'all'
 
   // ===== 统计 =====
   stats: KnowledgeUsageStats[]
@@ -97,6 +101,8 @@ interface KnowledgeCenterActions {
   setSearchQuery: (query: string) => void
   setFilterCategory: (category: UnifiedKnowledgeCategory | null) => void
   setFilterPriority: (priority: string | null) => void
+  setFilterScope: (scope: KnowledgeScope | 'all') => void
+  setFilterLifecycle: (lifecycle: KnowledgeLifecycle | 'all') => void
 
   // ===== 工具 =====
   getFilteredEntries: () => UnifiedKnowledgeEntry[]
@@ -120,11 +126,13 @@ export const useKnowledgeCenterStore = create<KnowledgeCenterState & KnowledgeCe
   searchQuery: '',
   filterCategory: null,
   filterPriority: null,
+  filterScope: 'all',
+  filterLifecycle: 'all',
   stats: [],
 
   // ===== 数据操作 =====
   fetchEntries: async (query?: UnifiedKnowledgeQuery) => {
-    const { currentProjectPath, currentTab } = get()
+    const { currentProjectPath, currentTab, searchQuery, filterCategory, filterPriority, filterScope, filterLifecycle } = get()
     set({ loading: true, error: null })
 
     try {
@@ -140,6 +148,26 @@ export const useKnowledgeCenterStore = create<KnowledgeCenterState & KnowledgeCe
       // 根据当前 Tab 过滤类型
       if (currentTab !== 'all') {
         baseQuery.type = currentTab
+      }
+
+      if (filterScope !== 'all') {
+        baseQuery.scope = filterScope
+      }
+
+      if (filterLifecycle !== 'all') {
+        baseQuery.lifecycle = filterLifecycle
+      }
+
+      if (searchQuery) {
+        baseQuery.searchQuery = searchQuery
+      }
+
+      if (filterCategory) {
+        baseQuery.category = filterCategory
+      }
+
+      if (filterPriority) {
+        baseQuery.priority = filterPriority as any
       }
 
       // 项目路径过滤（项目级知识）
@@ -169,7 +197,7 @@ export const useKnowledgeCenterStore = create<KnowledgeCenterState & KnowledgeCe
   },
 
   loadMore: async () => {
-    const { pagination, currentProjectPath, currentTab, searchQuery, filterCategory } = get()
+    const { pagination, currentProjectPath, currentTab, searchQuery, filterCategory, filterPriority, filterScope, filterLifecycle } = get()
     if (!pagination.hasMore || pagination.page >= Math.ceil(pagination.total / pagination.pageSize)) {
       return
     }
@@ -184,9 +212,12 @@ export const useKnowledgeCenterStore = create<KnowledgeCenterState & KnowledgeCe
         sortBy: 'updatedAt',
         sortOrder: 'desc',
         type: currentTab === 'all' ? undefined : currentTab,
-        projectPath: currentProjectPath || undefined,
+        projectPath: currentProjectPath && (currentTab === 'project-knowledge' || currentTab === 'working-memory') ? currentProjectPath : undefined,
+        scope: filterScope === 'all' ? undefined : filterScope,
+        lifecycle: filterLifecycle === 'all' ? undefined : filterLifecycle,
         searchQuery: searchQuery || undefined,
-        category: filterCategory || undefined
+        category: filterCategory || undefined,
+        priority: filterPriority ? filterPriority as any : undefined
       }
 
       const result: UnifiedKnowledgeResult = await ipc.invoke('knowledge-center:query', query)
@@ -446,10 +477,22 @@ export const useKnowledgeCenterStore = create<KnowledgeCenterState & KnowledgeCe
     set({ filterPriority: priority })
   },
 
+  setFilterScope: (scope) => {
+    set({ filterScope: scope })
+    get().fetchEntries()
+  },
+
+  setFilterLifecycle: (lifecycle) => {
+    set({ filterLifecycle: lifecycle })
+    get().fetchEntries()
+  },
+
   // ===== 工具 =====
   getFilteredEntries: () => {
-    const { entries, searchQuery, filterCategory, filterPriority } = get()
+    const { entries, searchQuery, filterCategory, filterPriority, filterScope, filterLifecycle } = get()
     return entries.filter(e => {
+      if (filterScope !== 'all' && e.scope !== filterScope) return false
+      if (filterLifecycle !== 'all' && e.lifecycle !== filterLifecycle) return false
       if (filterCategory && e.category !== filterCategory) return false
       if (filterPriority && e.priority !== filterPriority) return false
       if (searchQuery) {

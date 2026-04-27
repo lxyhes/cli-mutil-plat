@@ -40,6 +40,7 @@ export default function AppLayout() {
   const TOOLBOX_FEATURES = new Set<ToolboxFeatureId>([
     'mcp', 'skills', 'trending', 'workspace', 'scheduler', 'summary',
     'planner', 'workflow', 'evaluation', 'goal', 'prompt-optimizer',
+    'resource-monitor',
   ])
 
   useEffect(() => {

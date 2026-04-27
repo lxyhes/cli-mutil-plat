@@ -26,6 +26,7 @@ export type ToolboxFeatureId =
   | 'prompt-optimizer'
   | 'knowledge'
   | 'checkpoint'
+  | 'resource-monitor'
   | 'cost'
   | 'context-budget'
   | 'review'

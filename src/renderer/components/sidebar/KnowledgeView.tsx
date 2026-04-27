@@ -12,7 +12,7 @@ import { useState, useEffect } from 'react'
 import {
   BookMarked, Brain, Cpu, Plus, Search, Trash2, RefreshCw, Sparkles,
   Check, X, Zap, Download, Upload, MessageSquare, CheckSquare,
-  ChevronDown, Lightbulb
+  ChevronDown, Lightbulb, Layers
 } from 'lucide-react'
 import { useKnowledgeCenterStore } from '../../stores/knowledgeCenterStore'
 import { useSessionStore } from '../../stores/sessionStore'
@@ -22,7 +22,14 @@ import EntryForm from '../knowledge/EntryForm'
 import WorkingMemoryPanel from '../knowledge/WorkingMemoryPanel'
 
 // Tab 配置
-const TABS: { id: UnifiedKnowledgeType; label: string; icon: React.ComponentType<{ className?: string }>; description: string; color: string }[] = [
+const TABS: { id: UnifiedKnowledgeType | 'all'; label: string; icon: React.ComponentType<{ className?: string }>; description: string; color: string }[] = [
+  {
+    id: 'all',
+    label: '全部知识',
+    icon: Layers,
+    description: '项目知识、跨会话记忆、工作记忆统一视图',
+    color: 'text-accent-cyan'
+  },
   {
     id: 'project-knowledge',
     label: '项目知识库',
@@ -52,6 +59,9 @@ const PROJECT_CATEGORY_FILTERS: UnifiedKnowledgeCategory[] = [
   'convention',
   'api',
   'decision',
+  'summary',
+  'context',
+  'task',
   'custom',
 ]
 
@@ -65,6 +75,8 @@ export default function KnowledgeView() {
   const currentTab = useKnowledgeCenterStore(s => s.currentTab)
   const searchQuery = useKnowledgeCenterStore(s => s.searchQuery)
   const filterCategory = useKnowledgeCenterStore(s => s.filterCategory)
+  const filterScope = useKnowledgeCenterStore(s => s.filterScope)
+  const filterLifecycle = useKnowledgeCenterStore(s => s.filterLifecycle)
 
   // ===== 本地状态 =====
   const [showAdd, setShowAdd] = useState(false)
@@ -99,7 +111,7 @@ export default function KnowledgeView() {
   }, [showBatchOps])
 
   // ===== 事件处理 =====
-  const handleTabChange = (tabId: UnifiedKnowledgeType) => {
+  const handleTabChange = (tabId: UnifiedKnowledgeType | 'all') => {
     store.setCurrentTab(tabId)
     setShowAdd(false)
     setEditingId(null)
@@ -228,7 +240,7 @@ export default function KnowledgeView() {
   const editingEntry = editingId ? entries.find(e => e.id === editingId) : null
 
   // ===== 空状态提示 =====
-  if (!projectPath && currentTab !== 'cross-session-memory') {
+  if (!projectPath && currentTab !== 'cross-session-memory' && currentTab !== 'all') {
     return (
       <div className="flex flex-col items-center justify-center h-full text-text-muted p-6">
         <BookMarked className="w-8 h-8 mb-3 opacity-40" />
@@ -260,6 +272,47 @@ export default function KnowledgeView() {
             </button>
           )
         })}
+      </div>
+
+      <div className="px-3 py-2 border-b border-border bg-bg-primary/40 space-y-1.5">
+        <div className="flex items-center gap-1">
+          {[
+            { value: 'all', label: '全部范围' },
+            { value: 'project', label: '项目' },
+            { value: 'global', label: '全局' },
+          ].map(option => (
+            <button
+              key={option.value}
+              onClick={() => store.setFilterScope(option.value as any)}
+              className={`px-2 py-1 rounded text-[10px] transition-colors ${
+                filterScope === option.value
+                  ? 'bg-accent-blue/15 text-accent-blue'
+                  : 'text-text-muted hover:text-text-primary hover:bg-bg-hover'
+              }`}
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
+        <div className="flex items-center gap-1">
+          {[
+            { value: 'all', label: '全部周期' },
+            { value: 'persistent', label: '持久' },
+            { value: 'temporary', label: '临时' },
+          ].map(option => (
+            <button
+              key={option.value}
+              onClick={() => store.setFilterLifecycle(option.value as any)}
+              className={`px-2 py-1 rounded text-[10px] transition-colors ${
+                filterLifecycle === option.value
+                  ? 'bg-accent-green/15 text-accent-green'
+                  : 'text-text-muted hover:text-text-primary hover:bg-bg-hover'
+              }`}
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* ===== 头部工具栏 ===== */}
@@ -474,7 +527,7 @@ export default function KnowledgeView() {
         )}
 
         {/* 分类过滤（仅项目知识库） */}
-        {currentTab === 'project-knowledge' && (
+        {currentTab !== 'working-memory' && (
           <div className="flex gap-0.5 flex-wrap">
             <button
               onClick={() => store.setFilterCategory(null)}
@@ -497,6 +550,9 @@ export default function KnowledgeView() {
                 {cat === 'convention' && '规范'}
                 {cat === 'api' && 'API'}
                 {cat === 'decision' && '决策'}
+                {cat === 'summary' && '摘要'}
+                {cat === 'context' && '上下文'}
+                {cat === 'task' && '任务'}
                 {cat === 'custom' && '自定义'}
               </button>
             ))}
@@ -561,6 +617,7 @@ export default function KnowledgeView() {
                     onDelete={() => handleDelete(entry.id)}
                     onToggleInject={(autoInject) => handleToggleInject(entry.id, autoInject)}
                     batchMode={showBatchOps}
+                    showType={currentTab === 'all'}
                   />
                 </div>
               ))}

@@ -14,7 +14,7 @@
  */
 
 import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react'
-import { Zap, Plug, Cpu, Users, Sparkles, FileText, Mic, ShieldCheck, Gauge, BookMarked, Brain, ChevronDown, Check } from 'lucide-react'
+import { Zap, Plug, Cpu, Users, Sparkles, FileText, Mic, ShieldCheck, Activity, BookMarked, Brain, ChevronDown, Check } from 'lucide-react'
 import { useSessionStore } from '../../stores/sessionStore'
 import { useSkillStore } from '../../stores/skillStore'
 import { useMcpStore } from '../../stores/mcpStore'
@@ -327,11 +327,11 @@ const SessionToolbar: React.FC<SessionToolbarProps> = ({ sessionId, onSkillClick
       color: 'text-accent-green'
     },
     {
-      id: 'context-budget',
-      name: '上下文预算',
-      description: '管理和优化上下文用量',
-      icon: Gauge,
-      color: 'text-accent-yellow'
+      id: 'resource-monitor',
+      name: '资源监控',
+      description: '成本、Token、上下文预算',
+      icon: Activity,
+      color: 'text-accent-cyan'
     },
     {
       id: 'knowledge',

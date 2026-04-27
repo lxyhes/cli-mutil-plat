@@ -10,8 +10,8 @@ import { useState, useEffect } from 'react'
 import {
   ArrowLeft, Plug, Zap, Layers, Sparkles, Clock,
   FileText, Brain, Workflow, Target, BarChart2, Wrench, Flame,
-  History, DollarSign, BookMarked, ShieldCheck, Swords, Video, Trophy,
-  Mic, Calendar, Gauge,
+  History, BookMarked, ShieldCheck, Swords, Video, Trophy,
+  Mic, Calendar, Activity,
 } from 'lucide-react'
 import { useUIStore } from '../../stores/uiStore'
 import type { ToolboxFeatureId } from '../../stores/uiStore'
@@ -46,8 +46,7 @@ const FEATURES: FeatureDef[] = [
   { id: 'knowledge',        label: '知识中心',     description: '知识库+记忆+工作上下文',    icon: BookMarked, color: 'text-accent-purple' },
   // === 高级工具 ===
   { id: 'checkpoint',       label: '智能回溯',     description: '代码快照与一键回滚',       icon: History,  color: 'text-accent-blue' },
-  { id: 'cost',             label: '成本仪表盘',   description: 'Token 消耗换算实际金额',   icon: DollarSign, color: 'text-accent-green' },
-  { id: 'context-budget',   label: '上下文预算',   description: '管理和优化上下文用量',     icon: Gauge,    color: 'text-accent-yellow' },
+  { id: 'resource-monitor', label: '资源监控',      description: '成本、Token、上下文预算',  icon: Activity, color: 'text-accent-cyan' },
   { id: 'review',           label: '代码审查',     description: 'AI 自动代码审查',         icon: ShieldCheck, color: 'text-accent-green' },
   // === AI 竞技 ===
   { id: 'battle',           label: 'AI 对决',     description: '同任务两 AI 对比',        icon: Swords,   color: 'text-accent-yellow' },
@@ -82,6 +81,7 @@ import ArenaView from './ArenaView'
 import VoiceView from './VoiceView'
 import DailyReportView from './DailyReportView'
 import ContextBudgetView from './ContextBudgetView'
+import ResourceMonitorView from './ResourceMonitorView'
 
 function FeatureComponent({ featureId }: { featureId: ToolboxFeatureId }) {
   switch (featureId) {
@@ -97,6 +97,7 @@ function FeatureComponent({ featureId }: { featureId: ToolboxFeatureId }) {
     case 'evaluation':       return <EvaluationSettings />
     case 'goal':             return <GoalSettings />
     case 'checkpoint':       return <CheckpointView />
+    case 'resource-monitor': return <ResourceMonitorView />
     case 'cost':             return <CostDashboardView />
     case 'knowledge':        return <KnowledgeView />
     case 'review':           return <CodeReviewView />
