@@ -27,6 +27,9 @@ export const SessionItem = React.memo(function SessionItem({
   const dirPath = session.config.workingDirectory || ''
   // 分支信息：worktree session 直接用 config.worktreeBranch，普通 session 留空
   const branchName = session.config?.worktreeBranch || null
+  const activityPreview = lastActivity
+    ? (getActivityPreview(lastActivity) || '暂无可展示活动')
+    : '暂无活动'
 
   const [isEditing, setIsEditing] = useState(false)
   const [editName, setEditName] = useState('')
@@ -80,95 +83,105 @@ export const SessionItem = React.memo(function SessionItem({
       style={isSelected ? { boxShadow: 'inset 0 0 0 1px rgba(88, 166, 255, 0.25), 0 4px 12px rgba(0, 0, 0, 0.18)' } : undefined}
     >
       {isSelected && <div className="absolute left-0 top-0 h-full w-1 rounded-l bg-accent-blue/90" />}
-      <div className="flex items-center justify-between mb-0.5">
-        {isEditing ? (
-          <input
-            ref={inputRef}
-            value={editName}
-            onChange={(e) => setEditName(e.target.value)}
-            onBlur={commitEdit}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') commitEdit()
-              if (e.key === 'Escape') cancelEdit()
-            }}
-            onClick={(e) => e.stopPropagation()}
-            className="text-xs font-medium text-text-primary bg-bg-primary border border-accent-blue rounded px-1 py-0.5 flex-1 focus:outline-none min-w-0"
-          />
-        ) : (
-          <span
-            className={`text-xs truncate flex-1 ${isSelected ? 'font-semibold' : 'font-medium'} ${aiRenaming ? 'text-accent-purple animate-pulse' : 'text-text-primary'}`}
-            onDoubleClick={(e) => { e.stopPropagation(); startEditing() }}
-            title="双击重命名"
-          >
-            {aiRenaming ? 'AI 命名中...' : formatSessionName(session.name || session.config.name)}
-          </span>
-        )}
-        <div className="flex items-center gap-1 ml-2 flex-shrink-0">
-          {runningAgentCount > 0 && (
-            <span className="px-1 py-0.5 rounded text-[9px] font-medium bg-accent-green/15 text-accent-green leading-none flex-shrink-0">
-              ↳{runningAgentCount}运行
-            </span>
-          )}
-          {session.providerId && (() => {
-            const color = getProviderColor(session.providerId)
-            return (
-              <span
-                className="px-1 py-0.5 rounded text-[9px] leading-none"
-                style={{
-                  color,
-                  backgroundColor: color + '26',
-                  border: `1px solid ${color}40`
+      <div className="flex items-start gap-2">
+        <div
+          className={`mt-1.5 h-2 w-2 flex-shrink-0 rounded-full ${session.status === 'running' ? 'animate-pulse' : ''}`}
+          style={{ backgroundColor: isStuck ? '#f97316' : statusColor }}
+        />
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-1.5">
+            {isEditing ? (
+              <input
+                ref={inputRef}
+                value={editName}
+                onChange={(e) => setEditName(e.target.value)}
+                onBlur={commitEdit}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') commitEdit()
+                  if (e.key === 'Escape') cancelEdit()
                 }}
+                onClick={(e) => e.stopPropagation()}
+                className="text-xs font-medium text-text-primary bg-bg-primary border border-accent-blue rounded px-1 py-0.5 flex-1 focus:outline-none min-w-0"
+              />
+            ) : (
+              <span
+                className={`min-w-0 flex-1 truncate text-xs ${isSelected ? 'font-semibold' : 'font-medium'} ${aiRenaming ? 'text-accent-purple animate-pulse' : 'text-text-primary'}`}
+                onDoubleClick={(e) => { e.stopPropagation(); startEditing() }}
+                title="双击重命名"
               >
-                {getProviderLabel(session.providerId, providers)}
+                {aiRenaming ? 'AI 命名中...' : formatSessionName(session.name || session.config.name)}
               </span>
-            )
-          })()}
-          {isStuck && (
-            <span className="px-1 py-0.5 rounded text-[9px] font-medium bg-orange-500/20 text-orange-400 animate-pulse leading-none">
-              {stuckType === 'startup-stuck' ? '启动超时' : '卡住'}
-            </span>
-          )}
-          {!isStuck && needsAttention && (
-            <AlertCircle className="w-3 h-3 text-accent-yellow" />
-          )}
-          <div
-            className={`w-2 h-2 rounded-full ${session.status === 'running' ? 'animate-pulse' : ''}`}
-            style={{ backgroundColor: isStuck ? '#f97316' : statusColor }}
-          />
-          <span className="text-[10px]" style={{ color: isStuck ? '#f97316' : statusColor }}>
-            {statusLabel}
-          </span>
+            )}
+            {session.providerId && (() => {
+              const color = getProviderColor(session.providerId)
+              return (
+                <span
+                  className="flex-shrink-0 rounded px-1 py-0.5 text-[9px] leading-none"
+                  style={{
+                    color,
+                    backgroundColor: color + '20',
+                    border: `1px solid ${color}35`
+                  }}
+                >
+                  {getProviderLabel(session.providerId, providers)}
+                </span>
+              )
+            })()}
+          </div>
+
+          {(showDir && dirPath) || branchName ? (
+            <div className="mt-0.5 flex items-center gap-2 text-[10px] text-text-muted">
+              {showDir && dirPath && (
+                <span className="inline-flex min-w-0 items-center gap-1 truncate" title={dirPath}>
+                  <FolderOpen className="h-3 w-3 flex-shrink-0" />
+                  <span className="truncate">{getShortPath(dirPath)}</span>
+                </span>
+              )}
+              {branchName && (
+                <span className="inline-flex min-w-0 items-center gap-1 truncate">
+                  <GitBranch className="h-3 w-3 flex-shrink-0" />
+                  <span className="truncate">{branchName}</span>
+                </span>
+              )}
+            </div>
+          ) : null}
         </div>
       </div>
-      {showDir && dirPath && (
-        <div className="flex items-center gap-1 mb-0.5" title={dirPath}>
-          <FolderOpen className="w-3 h-3 text-text-muted flex-shrink-0" />
-          <span className="text-[10px] text-text-muted truncate">{getShortPath(dirPath)}</span>
+
+      <div className="mt-2 flex items-center justify-between gap-2">
+        <div className="flex min-w-0 items-center gap-1.5">
+          <span
+            className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium"
+            style={{
+              color: isStuck ? '#f97316' : statusColor,
+              backgroundColor: (isStuck ? '#f97316' : statusColor) + '18',
+              border: `1px solid ${(isStuck ? '#f97316' : statusColor)}30`,
+            }}
+          >
+            {!isStuck && needsAttention && <AlertCircle className="h-3 w-3" />}
+            {isStuck ? (stuckType === 'startup-stuck' ? '启动超时' : '卡住') : statusLabel}
+          </span>
+          {runningAgentCount > 0 && (
+            <span className="rounded-full bg-accent-green/15 px-2 py-0.5 text-[10px] font-medium leading-none text-accent-green">
+              {runningAgentCount} 子任务
+            </span>
+          )}
         </div>
-      )}
-      {branchName && (
-        <div className="flex items-center gap-1 mb-0.5">
-          <GitBranch className="w-3 h-3 text-text-muted flex-shrink-0" />
-          <span className="text-[10px] text-text-muted truncate">{branchName}</span>
-        </div>
-      )}
-      {isInterrupted ? (
-        <div className="flex items-center justify-between mt-0.5">
-          <span className="text-[11px] text-accent-yellow">上次中断</span>
+
+        {isInterrupted && (
           <button
             onClick={(e) => { e.stopPropagation(); onResume(session.id) }}
-            className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-accent-blue/20 text-accent-blue hover:bg-accent-blue/30 btn-transition"
+            className="flex flex-shrink-0 items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium bg-accent-blue/20 text-accent-blue hover:bg-accent-blue/30 btn-transition"
           >
             <RotateCcw className="w-3 h-3" />
             恢复
           </button>
-        </div>
-      ) : (
-        <div className={`text-[11px] truncate ${isSelected ? 'text-text-secondary' : 'text-text-muted'}`}>
-          {lastActivity
-            ? (getActivityPreview(lastActivity) || '等待活动...')
-            : '等待活动...'}
+        )}
+      </div>
+
+      {!isInterrupted && (
+        <div className={`mt-1.5 rounded-md bg-bg-primary/35 px-2 py-1 text-[11px] truncate ${isSelected ? 'text-text-secondary' : 'text-text-muted'}`}>
+          {activityPreview}
         </div>
       )}
     </div>

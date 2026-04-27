@@ -433,7 +433,7 @@ export function SessionsContent() {
               <div className="flex items-center justify-between px-0.5">
                 <h3 className="text-sm font-medium text-text-primary">会话</h3>
                 <span className="text-xs text-text-muted">
-                  {topLevelSessions.filter(s => EXECUTING_STATUSES.has(s.status)).length} 运行 / {topLevelSessions.length} 总
+                  {topLevelSessions.filter(s => EXECUTING_STATUSES.has(s.status)).length} 处理中 / {topLevelSessions.length} 总
                 </span>
               </div>
               <GroupByToggle value={groupBy} onChange={handleSetGroupBy} />

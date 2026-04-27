@@ -65,7 +65,7 @@ export const SessionPickerModal = React.memo(function SessionPickerModal({
             {runningCount > 0 && (
               <span className="flex items-center gap-1 text-[11px] text-accent-green font-medium">
                 <span className="w-1.5 h-1.5 rounded-full bg-accent-green animate-pulse" />
-                {runningCount} 运行中
+                {runningCount} 处理中
               </span>
             )}
             <span className="text-[11px] text-text-muted">{group.sessions.length} 个会话</span>
@@ -94,7 +94,7 @@ export const SessionPickerModal = React.memo(function SessionPickerModal({
             )}
           </div>
           <div className="flex gap-1">
-            {([['all', '全部'], ['active', '运行中'], ['done', '已完成']] as const).map(([key, label]) => (
+            {([['all', '全部'], ['active', '进行中'], ['done', '已完成']] as const).map(([key, label]) => (
               <button
                 key={key}
                 onClick={() => setStatusFilter(key)}
