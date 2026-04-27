@@ -684,9 +684,9 @@ export class GitWorktreeService {
         const content = fs.readFileSync(gitignorePath, 'utf-8')
         if (content.includes(entry)) return
         // 追加
-        fs.appendFileSync(gitignorePath, `\n# SpectrAI worktree isolation\n${entry}\n`)
+        fs.appendFileSync(gitignorePath, `\n# PrismOps worktree isolation\n${entry}\n`)
       } else {
-        fs.writeFileSync(gitignorePath, `# SpectrAI worktree isolation\n${entry}\n`, 'utf-8')
+        fs.writeFileSync(gitignorePath, `# PrismOps worktree isolation\n${entry}\n`, 'utf-8')
       }
     } catch (err) {
       console.warn('[GitWorktree] Failed to update .gitignore:', err)

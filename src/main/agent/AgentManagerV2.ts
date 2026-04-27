@@ -910,7 +910,7 @@ export class AgentManagerV2 extends EventEmitter {
 
             const mergeResult = await this.gitWorktreeService.mergeToMain(repoPath, branchName, {
               squash: params.squash ?? true,
-              message: params.message || `Merge branch ${branchName} via SpectrAI`,
+              message: params.message || `Merge branch ${branchName} via PrismOps`,
               cleanup: params.cleanup ?? false,
               targetBranch,
             })
@@ -1069,7 +1069,7 @@ export class AgentManagerV2 extends EventEmitter {
                 slashCommand: created.slashCommand,
                 type: created.type,
               },
-              message: `技能"${created.name}"已成功安装到 SpectrAI！${created.slashCommand ? `可通过 /${created.slashCommand} 触发` : ''}对话界面技能列表已自动刷新。`,
+              message: `技能"${created.name}"已成功安装到 PrismOps！${created.slashCommand ? `可通过 /${created.slashCommand} 触发` : ''}对话界面技能列表已自动刷新。`,
             }
           })
           break

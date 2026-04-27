@@ -365,7 +365,7 @@ export class GeminiHeadlessAdapter extends BaseProviderAdapter {
               `**推荐修复方式（任选其一）：**`,
               ``,
               `**方法 1（推荐）：使用 API Key**`,
-              `在 SpectrAI 设置 → Provider → Gemini CLI → 环境变量 中添加：`,
+              `在 PrismOps 设置 → Provider → Gemini CLI → 环境变量 中添加：`,
               `\`GEMINI_API_KEY=你的Key\``,
               `API Key 获取：https://aistudio.google.com/app/apikey`,
               ``,
@@ -419,7 +419,7 @@ export class GeminiHeadlessAdapter extends BaseProviderAdapter {
             sessionId,
             timestamp: new Date().toISOString(),
             data: {
-              text: '🔐 **Gemini OAuth 重新授权**\n\n检测到 Gemini CLI 需要重新授权，SpectrAI 已自动确认。\n' +
+              text: '🔐 **Gemini OAuth 重新授权**\n\n检测到 Gemini CLI 需要重新授权，PrismOps 已自动确认。\n' +
                 '如果系统浏览器已弹出，请完成 Google 账号登录——登录成功后 Gemini 将自动继续。\n\n',
             },
           })

@@ -102,7 +102,7 @@ export class ReferenceProjectService {
 
     const headers: Record<string, string> = {
       'Accept': 'application/vnd.github.v3+json',
-      'User-Agent': 'SpectrAI-Desktop/1.0',
+      'User-Agent': 'PrismOps-Desktop/1.0',
     }
     if (this.githubToken) {
       headers['Authorization'] = `Bearer ${this.githubToken}`
@@ -253,7 +253,7 @@ export class ReferenceProjectService {
       const url = `https://raw.githubusercontent.com/${owner}/${repo}/${b}/${filePath}`
       const res = await fetch(url, {
         headers: {
-          'User-Agent': 'SpectrAI-Desktop/1.0',
+          'User-Agent': 'PrismOps-Desktop/1.0',
           ...(this.githubToken ? { 'Authorization': `Bearer ${this.githubToken}` } : {}),
         },
       })

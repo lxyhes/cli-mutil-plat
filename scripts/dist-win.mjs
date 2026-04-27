@@ -30,7 +30,7 @@ function isOutputDirLocked(outputDir) {
     encoding: 'utf8',
     shell: false,
   })
-  if (tasklistResult.stdout && tasklistResult.stdout.toLowerCase().includes('spectrai.exe')) {
+  if (tasklistResult.stdout && tasklistResult.stdout.toLowerCase().includes('prismops.exe')) {
     console.warn('[dist] Detected PrismOps.exe is running, output dir may be locked')
     return true
   }

@@ -249,7 +249,7 @@ ${report.highlights.map(h => `- ${h}`).join('\n')}
 ${report.providers.map(p => `| ${p.name} | ${p.sessions} | ${this.formatTokens(p.tokens)} |`).join('\n')}
 
 ---
-*由 SpectrAI 自动生成于 ${report.generatedAt}*`
+*由 PrismOps 自动生成于 ${report.generatedAt}*`
 
       return { success: true, markdown: md }
     } catch {

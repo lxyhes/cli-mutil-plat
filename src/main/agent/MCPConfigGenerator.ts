@@ -193,7 +193,7 @@ export class MCPConfigGenerator {
     const escapedServerPath = escape(serverPath)
 
     const tomlLines = [
-      '# SpectrAI 自动生成 - MCP 配置',
+      '# PrismOps 自动生成 - MCP 配置',
       '# 此文件由 MCPConfigGenerator 管理，请勿手动编辑',
       '',
     ]

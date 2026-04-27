@@ -28,7 +28,7 @@ export function buildWorktreePrompt(baseBranch?: string): string {
 
   return `# Worktree 隔离规范
 
-当前项目已启用 **Git Worktree 隔离模式**（由 SpectrAI autoWorktree 设置控制）。
+当前项目已启用 **Git Worktree 隔离模式**（由 PrismOps autoWorktree 设置控制）。
 ${branchLine}
 ## 规则
 
@@ -108,14 +108,14 @@ export function buildWorktreeAlreadyActivePrompt(branchName?: string): string {
   const branchTag = branchName ? `（\`${branchName}\`）` : ''
   return `# 当前工作环境：已隔离的 Git Worktree
 
-SpectrAI 平台已为此会话自动创建了隔离的 Git Worktree 分支${branchTag}。
+PrismOps 平台已为此会话自动创建了隔离的 Git Worktree 分支${branchTag}。
 
 ## 工作规范
 
 - ✅ **直接在当前目录修改文件**，代码已处于隔离分支，不影响主分支
 - ✅ 修改后可执行 \`git add / git commit\`，提交记录在隔离分支上
 - ❌ **不要调用 \`enter_worktree\`**——会话已在 worktree 内，再次调用会失败
-- ❌ **不要手动合并**到主分支，由 SpectrAI 调度器在任务完成后统一合并
+- ❌ **不要手动合并**到主分支，由 PrismOps 调度器在任务完成后统一合并
 
 ## 说明
 
@@ -217,7 +217,7 @@ export function injectWorktreeRuleToAgentsMd(workDir: string): string {
 }
 
 /**
- * 从 AGENTS.md 移除 SpectrAI 管理的 Worktree 规范块（会话结束时调用）
+ * 从 AGENTS.md 移除 PrismOps 管理的 Worktree 规范块（会话结束时调用）
  */
 export function cleanupWorktreeRuleFromAgentsMd(workDir: string): void {
   try {
@@ -239,7 +239,7 @@ export function injectWorktreeRuleToGeminiMd(workDir: string): string {
 }
 
 /**
- * 从 GEMINI.md 移除 SpectrAI 管理的 Worktree 规范块（会话结束时调用）
+ * 从 GEMINI.md 移除 PrismOps 管理的 Worktree 规范块（会话结束时调用）
  */
 export function cleanupWorktreeRuleFromGeminiMd(workDir: string): void {
   try {

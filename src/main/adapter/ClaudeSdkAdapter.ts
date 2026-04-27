@@ -1217,7 +1217,7 @@ export class ClaudeSdkAdapter extends BaseProviderAdapter {
     if (!pending) return
 
     const questions = pending.toolInput.questions as Array<{ question: string; header?: string }> | undefined
-    let answersText = '用户已通过 SpectrAI UI 回答了您的问题：\n'
+    let answersText = '用户已通过 PrismOps UI 回答了您的问题：\n'
     if (Array.isArray(questions)) {
       questions.forEach((q, i) => {
         const key = String(i)
@@ -1616,7 +1616,7 @@ export class ClaudeSdkAdapter extends BaseProviderAdapter {
           errorText =
             'Claude Code 在 Windows 上需要安装 Git（含 git-bash）才能运行。\n\n' +
             '请前往 https://git-scm.com/downloads/win 下载安装，\n' +
-            '安装完成后重启 SpectrAI 即可。\n\n' +
+            '安装完成后重启 PrismOps 即可。\n\n' +
             `（原始错误：${err.message}）`
         } else if (stderrText) {
           // 有 stderr 输出但不是已知错误，把 stderr 内容直接展示给用户

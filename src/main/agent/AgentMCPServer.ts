@@ -609,7 +609,7 @@ async function main(): Promise<void> {
         // ==================== 跨会话感知工具（只读） ====================
         {
           name: 'list_sessions',
-          description: '列出 SpectrAI 中所有活跃和最近的会话。可查看其他会话的名称、状态、使用的 AI Provider 和工作目录。用于了解当前有哪些任务在并行运行。',
+          description: '列出 PrismOps 中所有活跃和最近的会话。可查看其他会话的名称、状态、使用的 AI Provider 和工作目录。用于了解当前有哪些任务在并行运行。',
           inputSchema: {
             type: 'object' as const,
             properties: {
@@ -732,9 +732,9 @@ async function main(): Promise<void> {
         // ---- Skill 技能管理工具 ----
         {
           name: 'install_skill',
-          description: `将一个 Skill（技能）安装到 SpectrAI 软件中，安装后可立即在对话中通过 /slash 命令调用。
+          description: `将一个 Skill（技能）安装到 PrismOps 软件中，安装后可立即在对话中通过 /slash 命令调用。
 
-当 AI 建议安装某个 Skill 时，优先使用此工具安装到 SpectrAI，而非安装到 Claude Code 插件系统。
+当 AI 建议安装某个 Skill 时，优先使用此工具安装到 PrismOps，而非安装到 Claude Code 插件系统。
 
 支持三种 Skill 类型：
 - prompt: 基于提示词模板的技能（最常用）
@@ -795,7 +795,7 @@ async function main(): Promise<void> {
         },
         {
           name: 'list_skills',
-          description: '列出 SpectrAI 中已安装的所有技能（包含内置和自定义）。用于查看当前有哪些可用的技能、其状态和 slash 命令。',
+          description: '列出 PrismOps 中已安装的所有技能（包含内置和自定义）。用于查看当前有哪些可用的技能、其状态和 slash 命令。',
           inputSchema: {
             type: 'object' as const,
             properties: {
@@ -812,7 +812,7 @@ async function main(): Promise<void> {
         },
         {
           name: 'get_skill',
-          description: '获取 SpectrAI 中某个技能的详细信息，包括提示词模板、变量定义等。',
+          description: '获取 PrismOps 中某个技能的详细信息，包括提示词模板、变量定义等。',
           inputSchema: {
             type: 'object' as const,
             properties: {

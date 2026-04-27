@@ -24,9 +24,9 @@ import {
  * 构建跨会话感知提示（所有 Claude Code 会话通用）
  */
 export function buildAwarenessPrompt(): string {
-  return `# SpectrAI 多会话环境
+  return `# PrismOps 多会话环境
 
-你运行在 SpectrAI 多会话编排平台中，当前有多个 AI 会话在并行工作。
+你运行在 PrismOps 多会话编排平台中，当前有多个 AI 会话在并行工作。
 你可以通过 MCP 工具了解其他会话的情况，实现跨会话协作。
 
 ## 跨会话感知工具
@@ -132,7 +132,7 @@ export function buildSupervisorPrompt(availableProviders: string[]): string {
 
 ### spawn_agent vs 内置 Task 工具 — 选择指引
 
-你同时拥有 SpectrAI 的 \`spawn_agent\` 和 Claude Code 内置的 \`Task\` 工具，两者都能委派子任务。选择原则：
+你同时拥有 PrismOps 的 \`spawn_agent\` 和 Claude Code 内置的 \`Task\` 工具，两者都能委派子任务。选择原则：
 
 || 场景 | 推荐工具 | 原因 |
 ||------|---------|------|
@@ -140,11 +140,11 @@ export function buildSupervisorPrompt(availableProviders: string[]): string {
 || 需要在 worktree 隔离目录中工作 | spawn_agent | 支持 workDir 参数 |
 || 需要多轮交互式修改 | spawn_agent(oneShot=false) | 支持 send_to_agent 追加指令 |
 || 需要跟踪子任务进度和输出 | spawn_agent | 有 get_agent_output / get_agent_status |
-|| 代码修改类任务（修 bug、加功能、重构） | spawn_agent | 改动会被 SpectrAI 平台追踪和展示 |
+|| 代码修改类任务（修 bug、加功能、重构） | spawn_agent | 改动会被 PrismOps 平台追踪和展示 |
 || 快速搜索或读取几个文件 | 直接用 Grep/Read/Glob | 无需启动完整 agent |
 || 简单的一次性代码搜索/探索 | 内置 Task 或直接搜索 | 轻量快速 |
 
-**总结：涉及代码修改、需要非 Claude provider、或需要 SpectrAI 进度追踪的任务，优先用 spawn_agent。简单的只读搜索可以直接用工具或内置 Task。**
+**总结：涉及代码修改、需要非 Claude provider、或需要 PrismOps 进度追踪的任务，优先用 spawn_agent。简单的只读搜索可以直接用工具或内置 Task。**
 
 ### Provider 选择与自动切换
 

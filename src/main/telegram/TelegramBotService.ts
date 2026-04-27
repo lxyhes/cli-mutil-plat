@@ -190,7 +190,7 @@ export class TelegramBotService extends EventEmitter {
 
       case 'help': {
         const helpText = [
-          'SpectrAI Telegram 控制命令：',
+          'PrismOps Telegram 控制命令：',
           `${prefix}sessions — 列出已关联的会话`,
           `${prefix}add <session_id> — 关联一个会话`,
           `${prefix}remove <session_id> — 取消关联`,

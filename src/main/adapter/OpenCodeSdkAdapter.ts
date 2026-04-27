@@ -234,7 +234,7 @@ export class OpenCodeSdkAdapter extends BaseProviderAdapter {
 
       // ── 步骤 4：创建 OpenCode 会话 ─────────────────────────────
       const createResult = await client.session.create({
-        body: { title: `SpectrAI-${sessionId.slice(0, 8)}` },
+        body: { title: `PrismOps-${sessionId.slice(0, 8)}` },
         query: { directory: config.workingDirectory },
       })
       const ocSession = createResult.data

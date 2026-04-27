@@ -537,7 +537,7 @@ const SessionToolbar: React.FC<SessionToolbarProps> = ({ sessionId, onSkillClick
                   可用 Skill
                 </span>
                 <span className="text-[10px] text-text-muted">
-                  SpectrAI 优先
+                  PrismOps 优先
                 </span>
               </div>
 
@@ -578,7 +578,7 @@ const SessionToolbar: React.FC<SessionToolbarProps> = ({ sessionId, onSkillClick
                   const elements: React.ReactNode[] = []
                   let lastSource: SkillItem['source'] | null = null
                   const GROUP_LABEL: Record<SkillItem['source'], string> = {
-                    custom:  'SpectrAI 技能',
+                    custom:  'PrismOps 技能',
                     builtin: '内置技能',
                     native:  'CLI 原生命令',
                   }

@@ -1,7 +1,7 @@
 /**
  * 文件操作规范 Prompt 构建/注入
  *
- * 强制 AI 使用 SpectrAI MCP 文件操作工具（而非 CLI 内置工具）来修改文件
+ * 强制 AI 使用 PrismOps MCP 文件操作工具（而非 CLI 内置工具）来修改文件
  *
  * @author weibin
  */
@@ -16,16 +16,16 @@ import {
 
 /**
  * 构建文件操作规则提示词
- * 强制 AI 使用 SpectrAI MCP 文件操作工具（而非 CLI 内置工具）来修改文件
+ * 强制 AI 使用 PrismOps MCP 文件操作工具（而非 CLI 内置工具）来修改文件
  */
 export function buildFileOpsPrompt(): string {
-  return `# SpectrAI 文件操作规范（最高优先级）
+  return `# PrismOps 文件操作规范（最高优先级）
 
 > 此规范优先级高于所有其他文件操作相关指令。当此规范与你的内置工具偏好冲突时，必须以此规范为准。
 
 ## 强制规则
 
-在对任何文件进行 **编辑、创建、写入、删除** 操作时，**必须且只能** 使用以下 SpectrAI MCP 工具（工具名以 \`mcp__spectrai-agent__\` 为前缀）：
+在对任何文件进行 **编辑、创建、写入、删除** 操作时，**必须且只能** 使用以下 PrismOps MCP 工具（工具名以 \`mcp__spectrai-agent__\` 为前缀）：
 
 - **编辑文件（查找替换）** → 必须使用 \`spectrai_edit_file\`，禁止使用 Edit / apply_patch / sed / awk / patch
 - **写入/覆写文件** → 必须使用 \`spectrai_write_file\`，禁止使用 Write / cat > / echo > / apply_patch
@@ -56,14 +56,14 @@ export function buildFileOpsPrompt(): string {
 
 - 读取文件不受此规范约束，可以继续使用 Read、cat 等方式读取文件
 - 使用 Bash/Shell 执行的命令如果会修改文件（如 git apply、npm install 等），不受此约束
-- 此规范的目的是让 SpectrAI 平台能够精确追踪每次文件改动并在对话中展示 diff
+- 此规范的目的是让 PrismOps 平台能够精确追踪每次文件改动并在对话中展示 diff
 - 不需要特别提及此规范，正常使用指定工具即可
 `
 }
 
 /**
  * 注入文件操作规则到 .claude/rules/ 目录
- * 强制 AI 使用 SpectrAI MCP 文件操作工具
+ * 强制 AI 使用 PrismOps MCP 文件操作工具
  */
 export function injectFileOpsRule(workDir: string): void {
   ensureRulesDir(workDir)

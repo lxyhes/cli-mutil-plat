@@ -1711,7 +1711,7 @@ export class AgentManager extends EventEmitter {
           }
           if (!repoPath || !branchName) { respond({ id, error: '缺少 repoPath 和 branchName（或提供 taskId）' }); break }
           try {
-            const mergeResult = await gitService.mergeToMain(repoPath, branchName, { squash: params.squash ?? true, message: params.message || `Merge branch ${branchName} via SpectrAI`, cleanup: params.cleanup ?? false })
+            const mergeResult = await gitService.mergeToMain(repoPath, branchName, { squash: params.squash ?? true, message: params.message || `Merge branch ${branchName} via PrismOps`, cleanup: params.cleanup ?? false })
 
             // ★ 合并成功后，通知 FileChangeTracker 记录 worktree 改动文件（在 cleanup 之前）
             try {

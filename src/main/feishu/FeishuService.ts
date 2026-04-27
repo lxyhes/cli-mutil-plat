@@ -234,7 +234,7 @@ export class FeishuService extends EventEmitter {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             msg_type: 'text',
-            content: { text: 'SpectrAI 连接测试消息' },
+            content: { text: 'PrismOps 连接测试消息' },
           }),
         })
         if (!res.ok) {

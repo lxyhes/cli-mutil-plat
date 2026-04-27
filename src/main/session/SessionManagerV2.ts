@@ -1703,7 +1703,7 @@ export class SessionManagerV2 extends EventEmitter implements MemoryManagedCompo
    * 生成 Supervisor 模式的系统提示
    */
   private getSupervisorPrompt(config: SessionConfig): string {
-    return `You are running in Supervisor mode within SpectrAI session ${config.id}. ` +
+    return `You are running in Supervisor mode within PrismOps session ${config.id}. ` +
       `You have access to MCP tools for spawning and managing sub-agents. ` +
       `Use these tools to delegate complex tasks to specialized agents.\n\n` +
       `IMPORTANT: The spectrai-agent MCP tools (spawn_agent, wait_agent_idle, etc.) may be deferred. ` +
