@@ -248,6 +248,13 @@ const CODEX_MODEL_FALLBACKS = [
   { id: 'codex-mini-latest', name: 'Codex Mini Latest' },
 ]
 
+const CODEX_PROTO_MODEL_FALLBACKS = [
+  { id: 'gpt-5-codex', name: 'GPT-5 Codex' },
+  { id: 'gpt-5-codex-high', name: 'GPT-5 Codex High' },
+]
+
+const CODEX_PROTO_DEFAULT_MODEL = 'gpt-5-codex'
+
 const CODEX_RPC_TIMEOUTS: Record<string, number> = {
   initialize: 120_000,
   'thread/start': 120_000,
@@ -351,6 +358,25 @@ export class CodexAppServerAdapter extends BaseProviderAdapter {
       return CODEX_MODEL_FALLBACKS
     }
     return [{ id: currentModel, name: currentModel }, ...CODEX_MODEL_FALLBACKS]
+  }
+
+  private buildProtoAvailableModels(currentModel?: string): Array<{ id: string; name: string }> {
+    if (!currentModel || CODEX_PROTO_MODEL_FALLBACKS.some(model => model.id === currentModel)) {
+      return CODEX_PROTO_MODEL_FALLBACKS
+    }
+    return [{ id: currentModel, name: currentModel }, ...CODEX_PROTO_MODEL_FALLBACKS]
+  }
+
+  private toProtoCompatibleModel(model?: string): string {
+    const requested = model?.trim()
+    if (!requested) return CODEX_PROTO_DEFAULT_MODEL
+
+    if (/^gpt-5\.\d+(?:-.+)?$/i.test(requested)) {
+      console.warn(`[CodexAdapter] Model ${requested} requires a newer Codex CLI; using ${CODEX_PROTO_DEFAULT_MODEL} for proto mode.`)
+      return CODEX_PROTO_DEFAULT_MODEL
+    }
+
+    return requested
   }
 
   private normalizeReasoningEffort(value: unknown): ReasoningEffort | undefined {
@@ -606,7 +632,7 @@ export class CodexAppServerAdapter extends BaseProviderAdapter {
 
       if (session.protocolMode === 'proto') {
         session.threadId = sessionId
-        session.model = config.model || 'gpt-5-codex'
+        session.model = this.toProtoCompatibleModel(config.model)
         session.reasoningEffort = this.normalizeReasoningEffort(config.envOverrides?.CODEX_REASONING_EFFORT)
         console.log(`[CodexAdapter] proto session ready for ${sessionId} (+${Date.now() - startTime}ms)`)
       } else {
@@ -641,7 +667,9 @@ export class CodexAppServerAdapter extends BaseProviderAdapter {
         tools: [],
         skills: [],
         mcpServers: [],
-        availableModels: this.buildAvailableModels(session.model),
+        availableModels: session.protocolMode === 'proto'
+          ? this.buildProtoAvailableModels(session.model)
+          : this.buildAvailableModels(session.model),
       })
       console.log(`[CodexAdapter] Session ${sessionId} ready, threadId=${threadId}, total startup: ${Date.now() - startTime}ms`)
 
@@ -709,8 +737,8 @@ export class CodexAppServerAdapter extends BaseProviderAdapter {
           items: [{ type: 'text', text: message, text_elements: [] }],
           cwd: session.config.workingDirectory,
           approval_policy: session.autoAccept ? 'never' : 'on-request',
-          sandbox_policy: { type: 'danger-full-access' },
-          model: session.model || session.config.model || 'gpt-5-codex',
+          sandbox_policy: { mode: 'danger-full-access' },
+          model: this.toProtoCompatibleModel(session.model || session.config.model),
           effort: this.toProtoReasoningEffort(session.reasoningEffort),
           summary: 'auto',
         })
@@ -837,7 +865,7 @@ export class CodexAppServerAdapter extends BaseProviderAdapter {
 
     console.log(`[CodexAdapter] Switching model for ${sessionId}: ${session.model || '(default)'} -> ${model}, effort=${requestedEffort || '(keep)'}`)
     if (session.protocolMode === 'proto') {
-      const effectiveModel = model
+      const effectiveModel = this.toProtoCompatibleModel(model)
       session.model = effectiveModel
       session.reasoningEffort = requestedEffort || session.reasoningEffort
       session.adapter.status = 'waiting_input'
@@ -849,7 +877,7 @@ export class CodexAppServerAdapter extends BaseProviderAdapter {
       this.emit('session-init-data', sessionId, {
         model: session.model,
         reasoningEffort: session.reasoningEffort || '',
-        availableModels: this.buildAvailableModels(session.model),
+        availableModels: this.buildProtoAvailableModels(session.model),
       })
       this.emit('status-change', sessionId, 'waiting_input')
 
@@ -1309,7 +1337,9 @@ export class CodexAppServerAdapter extends BaseProviderAdapter {
           tools: [],
           skills: [],
           mcpServers: [],
-          availableModels: this.buildAvailableModels(session.model),
+          availableModels: session.protocolMode === 'proto'
+            ? this.buildProtoAvailableModels(session.model)
+            : this.buildAvailableModels(session.model),
         })
         if (Array.isArray(event.initial_messages)) {
           for (const msg of event.initial_messages) this.handleCodexProtoEvent(sessionId, msg)
