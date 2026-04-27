@@ -522,7 +522,7 @@ function AppearanceTab() {
               className={[
                 'relative flex flex-col gap-2.5 p-3.5 rounded-lg border text-left btn-transition',
                 isActive
-                  ? 'border-accent-blue bg-accent-blue/8 ring-1 ring-accent-blue/40'
+                  ? 'border-accent-blue bg-accent-blue/10 ring-1 ring-accent-blue/40'
                   : 'border-border hover:border-text-muted bg-bg-primary/40 hover:bg-bg-hover/60',
               ].join(' ')}
             >

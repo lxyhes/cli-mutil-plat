@@ -82,13 +82,13 @@ export const SessionItem = React.memo(function SessionItem({
                 ? 'bg-accent-yellow/5 border-accent-yellow/25 hover:border-accent-yellow/45 border-l-accent-yellow/60'
                 : 'bg-bg-hover border-transparent border-l-transparent hover:bg-bg-tertiary hover:border-l-accent-blue/30'
       }`}
-      style={isSelected ? { boxShadow: 'inset 0 0 0 1px rgba(88, 166, 255, 0.25), 0 4px 12px rgba(0, 0, 0, 0.18)' } : undefined}
+      style={isSelected ? { boxShadow: 'inset 0 0 0 1px var(--color-glow-blue), 0 4px 12px var(--color-shadow-sm)' } : undefined}
     >
       {isSelected && <div className="absolute left-0 top-0 h-full w-1 rounded-l bg-accent-blue/90" />}
       <div className="flex items-start gap-2">
         <div
           className={`mt-1.5 h-2 w-2 flex-shrink-0 rounded-full ${session.status === 'running' ? 'animate-pulse' : ''}`}
-          style={{ backgroundColor: isStuck ? '#f97316' : statusColor }}
+          style={{ backgroundColor: isStuck ? 'var(--color-accent-orange)' : statusColor }}
         />
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1.5">

@@ -752,14 +752,14 @@ function MemberRow({
           : spotlight
             ? 'border-violet-400/35 bg-violet-500/10 shadow-[0_0_0_1px_rgba(167,139,250,0.12),0_8px_24px_rgba(15,23,42,0.14)]'
             : linked
-              ? 'border-amber-400/25 bg-amber-500/8 shadow-[0_0_0_1px_rgba(251,191,36,0.08)]'
-          : 'border-white/6 bg-[linear-gradient(180deg,rgba(15,23,42,0.18),rgba(15,23,42,0.08))] hover:border-white/12 hover:bg-bg-hover'
+              ? 'border-amber-400/25 bg-amber-500/10 shadow-[0_0_0_1px_rgba(251,191,36,0.08)]'
+          : 'border-white/10 bg-[linear-gradient(180deg,rgba(15,23,42,0.18),rgba(15,23,42,0.08))] hover:border-white/15 hover:bg-bg-hover'
       }`}
     >
       <div className="mb-3 flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
-            <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full border border-white/8 bg-bg-secondary px-1 text-[10px] text-text-muted">
+            <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full border border-white/10 bg-bg-secondary px-1 text-[10px] text-text-muted">
               {index + 1}
             </span>
             <span className="text-base">{member.role.icon || '👤'}</span>
@@ -775,7 +775,7 @@ function MemberRow({
         </div>
       </div>
 
-      <div className="relative mb-3 overflow-hidden rounded-[1.2rem] border border-white/6 bg-[linear-gradient(180deg,rgba(15,23,42,0.16),rgba(15,23,42,0.04))] px-3 py-3">
+      <div className="relative mb-3 overflow-hidden rounded-[1.2rem] border border-white/10 bg-[linear-gradient(180deg,rgba(15,23,42,0.16),rgba(15,23,42,0.04))] px-3 py-3">
         <div className={`studio-desk-ripple ${moodRippleClass}`} />
         <div className="relative z-10 flex items-center justify-between gap-3">
           <div className="flex items-center gap-3">
@@ -820,7 +820,7 @@ function MemberRow({
           {getActivityIcon(mood)}
           <span>{member.providerId}</span>
         </div>
-        <div className="inline-flex items-center gap-1 rounded-full border border-white/8 bg-bg-secondary px-2 py-0.5 text-[10px] text-text-muted">
+        <div className="inline-flex items-center gap-1 rounded-full border border-white/10 bg-bg-secondary px-2 py-0.5 text-[10px] text-text-muted">
           队列 {state.queuedTasks.length}
         </div>
       </div>
@@ -1468,7 +1468,7 @@ export default function TeamStudioView({
             onClick={() => setAutoFocusRisk(value => !value)}
             className={`rounded-full border px-3 py-1 ${
               autoFocusRisk
-                ? 'border-accent-blue/30 bg-accent-blue/12 text-accent-blue'
+                ? 'border-accent-blue/30 bg-accent-blue/10 text-accent-blue'
                 : 'border-border bg-bg-secondary text-text-secondary'
             }`}
           >
@@ -1478,7 +1478,7 @@ export default function TeamStudioView({
             onClick={() => setImmersiveMode(value => !value)}
             className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 ${
               immersiveMode
-                ? 'border-emerald-500/30 bg-emerald-500/12 text-emerald-300'
+                ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300'
                 : 'border-border bg-bg-secondary text-text-secondary'
             }`}
           >
@@ -1499,9 +1499,9 @@ export default function TeamStudioView({
           </div>
         )}
         {selectedState && (
-          <div className="mt-4 rounded-[1.8rem] border border-white/8 bg-[linear-gradient(180deg,rgba(15,23,42,0.12),rgba(15,23,42,0.04))] p-3">
+          <div className="mt-4 rounded-[1.8rem] border border-white/10 bg-[linear-gradient(180deg,rgba(15,23,42,0.12),rgba(15,23,42,0.04))] p-3">
             <div className="grid grid-cols-1 gap-3 xl:grid-cols-[minmax(0,1fr)_minmax(280px,0.82fr)_minmax(320px,0.82fr)]">
-            <div className="rounded-2xl border border-white/8 bg-bg-secondary/75 p-3">
+            <div className="rounded-2xl border border-white/10 bg-bg-secondary/75 p-3">
               <div className="text-[10px] uppercase tracking-[0.18em] text-text-muted">当前焦点</div>
               <div className="mt-2 flex flex-wrap items-center gap-2 text-sm text-text-primary">
                 <span className="inline-flex items-center gap-1.5 rounded-full border border-accent-blue/20 bg-accent-blue/10 px-2.5 py-1 text-[11px] text-accent-blue">
@@ -1526,12 +1526,12 @@ export default function TeamStudioView({
               </div>
             </div>
 
-            <div className="rounded-2xl border border-white/8 bg-bg-secondary/75 p-3">
+            <div className="rounded-2xl border border-white/10 bg-bg-secondary/75 p-3">
               <div className="flex items-center justify-between gap-3">
                 <div className="text-[10px] uppercase tracking-[0.18em] text-text-muted">团队流动图</div>
                 <div className="text-[10px] text-text-muted">点击节点切换焦点</div>
               </div>
-              <div className="mt-3 rounded-[1.4rem] border border-white/6 bg-[linear-gradient(180deg,rgba(15,23,42,0.18),rgba(15,23,42,0.06))] p-2">
+              <div className="mt-3 rounded-[1.4rem] border border-white/10 bg-[linear-gradient(180deg,rgba(15,23,42,0.18),rgba(15,23,42,0.06))] p-2">
                 <svg viewBox="0 0 220 156" className="h-[156px] w-full">
                   {overviewEdges.map(({ edge, from, to }) => {
                     const highlighted =
@@ -1592,22 +1592,22 @@ export default function TeamStudioView({
                 </svg>
               </div>
               <div className="mt-3 grid grid-cols-3 gap-2 text-[10px] text-text-muted">
-                <div className="rounded-xl border border-white/6 bg-bg-primary/45 px-2 py-1.5">
+                <div className="rounded-xl border border-white/10 bg-bg-primary/45 px-2 py-1.5">
                   <div className="text-text-primary">{collaborationEdges.length}</div>
                   <div>协作链路</div>
                 </div>
-                <div className="rounded-xl border border-white/6 bg-bg-primary/45 px-2 py-1.5">
+                <div className="rounded-xl border border-white/10 bg-bg-primary/45 px-2 py-1.5">
                   <div className="text-text-primary">{memberStates.filter(state => state.member.status === 'running').length}</div>
                   <div>进行中</div>
                 </div>
-                <div className="rounded-xl border border-white/6 bg-bg-primary/45 px-2 py-1.5">
+                <div className="rounded-xl border border-white/10 bg-bg-primary/45 px-2 py-1.5">
                   <div className="text-text-primary">{memberStates.filter(state => state.riskLabel === 'high').length}</div>
                   <div>高风险</div>
                 </div>
               </div>
             </div>
 
-            <div className="rounded-2xl border border-white/8 bg-bg-secondary/75 p-3">
+            <div className="rounded-2xl border border-white/10 bg-bg-secondary/75 p-3">
               <div className="flex items-center justify-between gap-3">
                 <div className="text-[10px] uppercase tracking-[0.18em] text-text-muted">下一步建议</div>
                 <div className="text-[10px] text-text-muted">系统按风险自动整理</div>
@@ -1630,13 +1630,13 @@ export default function TeamStudioView({
             </div>
             </div>
 
-            <div className="mt-3 rounded-2xl border border-white/8 bg-bg-secondary/70 p-3">
+            <div className="mt-3 rounded-2xl border border-white/10 bg-bg-secondary/70 p-3">
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <div className="text-[10px] uppercase tracking-[0.18em] text-text-muted">团队活动时间轴</div>
                   <div className="mt-1 text-[11px] text-text-muted">点击任一事件可直接切换到对应成员焦点，时间轴会自动滚到最新。</div>
                 </div>
-                <div className="rounded-full border border-white/8 bg-bg-primary/50 px-2.5 py-1 text-[10px] text-text-muted">
+                <div className="rounded-full border border-white/10 bg-bg-primary/50 px-2.5 py-1 text-[10px] text-text-muted">
                   最近 {teamActivityTimeline.length} 条
                 </div>
               </div>
@@ -1649,7 +1649,7 @@ export default function TeamStudioView({
                         className={`w-[176px] rounded-[1.2rem] border p-3 text-left transition-colors ${
                           item.actorMemberId && item.actorMemberId === selectedState.member.id
                             ? 'border-accent-blue/30 bg-accent-blue/10'
-                            : 'border-white/8 bg-bg-primary/45 hover:bg-bg-hover'
+                            : 'border-white/10 bg-bg-primary/45 hover:bg-bg-hover'
                         }`}
                       >
                         <div className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] ${getStatusTone(item.tone)}`}>
@@ -1677,19 +1677,19 @@ export default function TeamStudioView({
         )}
         {!immersiveMode && (
           <div className="mt-4 grid grid-cols-2 gap-3 xl:grid-cols-3">
-            <div className="rounded-2xl border border-white/6 bg-bg-secondary/80 p-3">
+            <div className="rounded-2xl border border-white/10 bg-bg-secondary/80 p-3">
               <div className="text-[10px] uppercase tracking-[0.18em] text-text-muted">活跃成员</div>
               <div className="mt-2 text-lg font-semibold text-text-primary">
                 {memberStates.filter(state => state.member.status === 'running').length}
               </div>
               <div className="mt-1 text-[11px] text-text-muted">当前正在执行任务的成员</div>
             </div>
-            <div className="rounded-2xl border border-white/6 bg-bg-secondary/80 p-3">
+            <div className="rounded-2xl border border-white/10 bg-bg-secondary/80 p-3">
               <div className="text-[10px] uppercase tracking-[0.18em] text-text-muted">阻塞任务</div>
               <div className="mt-2 text-lg font-semibold text-text-primary">{blockedTasks.length}</div>
               <div className="mt-1 text-[11px] text-text-muted">等待依赖完成后继续</div>
             </div>
-            <div className="rounded-2xl border border-white/6 bg-bg-secondary/80 p-3">
+            <div className="rounded-2xl border border-white/10 bg-bg-secondary/80 p-3">
               <div className="text-[10px] uppercase tracking-[0.18em] text-text-muted">高风险成员</div>
               <div className="mt-2 text-lg font-semibold text-text-primary">
                 {memberStates.filter(state => state.riskLabel === 'high').length}
@@ -1746,8 +1746,8 @@ export default function TeamStudioView({
                   onClick={() => setMemberFilter(filter.key as MemberFilter)}
                   className={`rounded-full border px-2.5 py-1 text-[10px] ${
                     memberFilter === filter.key
-                      ? 'border-accent-blue/30 bg-accent-blue/12 text-accent-blue'
-                      : 'border-white/8 bg-bg-primary/50 text-text-muted'
+                      ? 'border-accent-blue/30 bg-accent-blue/10 text-accent-blue'
+                      : 'border-white/10 bg-bg-primary/50 text-text-muted'
                   }`}
                 >
                   {filter.label}
@@ -1787,7 +1787,7 @@ export default function TeamStudioView({
         <section className="min-h-0 overflow-hidden rounded-3xl border border-border bg-bg-secondary/80 p-4">
           {selectedState ? (
             <div className="flex h-full min-h-0 flex-col">
-              <div className="shrink-0 rounded-3xl border border-white/6 bg-bg-primary/55 p-4">
+              <div className="shrink-0 rounded-3xl border border-white/10 bg-bg-primary/55 p-4">
                 <div className="mb-4 flex items-start justify-between gap-4">
                   <div>
                     <div className="flex items-center gap-2">
@@ -1812,7 +1812,7 @@ export default function TeamStudioView({
                 </div>
 
                 <div className="grid grid-cols-1 gap-3 lg:grid-cols-3">
-                  <div className="rounded-2xl border border-white/6 bg-bg-secondary/70 p-3">
+                  <div className="rounded-2xl border border-white/10 bg-bg-secondary/70 p-3">
                     <div className="text-[10px] uppercase tracking-[0.16em] text-text-muted">当前任务</div>
                     <div className="mt-2 text-sm text-text-primary">
                       {selectedState.currentTask ? selectedState.currentTask.title : '当前没有认领中的任务'}
@@ -1823,7 +1823,7 @@ export default function TeamStudioView({
                         : '等待新的任务或协作指令'}
                     </div>
                   </div>
-                  <div className="rounded-2xl border border-white/6 bg-bg-secondary/70 p-3">
+                  <div className="rounded-2xl border border-white/10 bg-bg-secondary/70 p-3">
                     <div className="text-[10px] uppercase tracking-[0.16em] text-text-muted">最近动态</div>
                     <div className="mt-2 text-sm text-text-primary">
                       {truncate(selectedState.recentMessage?.content, 90)}
@@ -1832,7 +1832,7 @@ export default function TeamStudioView({
                       {selectedState.recentMessage ? formatRelativeTime(selectedState.recentMessage.timestamp) : '暂无团队消息'}
                     </div>
                   </div>
-                  <div className="rounded-2xl border border-white/6 bg-bg-secondary/70 p-3">
+                  <div className="rounded-2xl border border-white/10 bg-bg-secondary/70 p-3">
                     <div className="text-[10px] uppercase tracking-[0.16em] text-text-muted">监控摘要</div>
                     <div className="mt-2 space-y-1 text-[11px] text-text-secondary">
                       <div>工作强度: <span className="text-text-primary">{selectedState.energy}%</span></div>
@@ -1843,7 +1843,7 @@ export default function TeamStudioView({
                   </div>
                 </div>
 
-                <div className="mt-4 rounded-2xl border border-white/6 bg-bg-secondary/70 p-3">
+                <div className="mt-4 rounded-2xl border border-white/10 bg-bg-secondary/70 p-3">
                   <div className="mb-2 flex items-center justify-between gap-3">
                     <div className="text-[10px] uppercase tracking-[0.16em] text-text-muted">快速指挥</div>
                     <div className="text-[11px] text-text-muted">指令会直接注入该成员会话</div>
@@ -1967,7 +1967,7 @@ export default function TeamStudioView({
               </div>
 
               <div className={`flex min-h-0 flex-1 flex-col overflow-hidden rounded-3xl border p-3 ${activeStudioTab.panelClass}`}>
-                <div className="mb-3 flex shrink-0 items-center justify-between gap-3 rounded-2xl border border-white/6 bg-bg-primary/35 px-3 py-2">
+                <div className="mb-3 flex shrink-0 items-center justify-between gap-3 rounded-2xl border border-white/10 bg-bg-primary/35 px-3 py-2">
                   <div>
                     <div className="inline-flex items-center gap-2 text-sm font-medium text-text-primary">
                       {activeStudioTab.icon}
@@ -1984,7 +1984,7 @@ export default function TeamStudioView({
 
                 {activeTab === 'timeline' && (
                   <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
-                    <div className="flex min-h-0 flex-col rounded-2xl border border-white/6 bg-bg-secondary/55 p-3">
+                    <div className="flex min-h-0 flex-col rounded-2xl border border-white/10 bg-bg-secondary/55 p-3">
                       <div className="mb-3 flex items-center justify-between gap-3">
                         <div>
                           <div className="text-sm font-medium text-text-primary">当前成员轨迹</div>
@@ -2005,7 +2005,7 @@ export default function TeamStudioView({
                               </div>
                               <div className="mt-1 h-full w-px bg-border" />
                             </div>
-                            <div className="flex-1 rounded-2xl border border-white/6 bg-bg-secondary/70 p-3">
+                            <div className="flex-1 rounded-2xl border border-white/10 bg-bg-secondary/70 p-3">
                               <div className="flex items-center justify-between gap-3">
                                 <div className="text-sm text-text-primary">{item.title}</div>
                                 <div className="text-[11px] text-text-muted">{formatRelativeTime(item.timestamp)}</div>
@@ -2021,7 +2021,7 @@ export default function TeamStudioView({
                       </div>
                     </div>
 
-                    <div className="flex min-h-0 flex-col rounded-2xl border border-white/6 bg-bg-secondary/55 p-3">
+                    <div className="flex min-h-0 flex-col rounded-2xl border border-white/10 bg-bg-secondary/55 p-3">
                       <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
                         <div>
                           <div className="text-sm font-medium text-text-primary">团队执行时间轴</div>
@@ -2030,19 +2030,19 @@ export default function TeamStudioView({
                           </div>
                         </div>
                         <div className="grid grid-cols-2 gap-2 text-[10px] text-text-muted md:grid-cols-4">
-                          <div className="rounded-xl border border-white/8 bg-bg-primary/45 px-2 py-1.5">
+                          <div className="rounded-xl border border-white/10 bg-bg-primary/45 px-2 py-1.5">
                             <div className="text-text-primary">{executionTimelineStats.task}</div>
                             <div>任务事件</div>
                           </div>
-                          <div className="rounded-xl border border-white/8 bg-bg-primary/45 px-2 py-1.5">
+                          <div className="rounded-xl border border-white/10 bg-bg-primary/45 px-2 py-1.5">
                             <div className="text-text-primary">{executionTimelineStats.handoff}</div>
                             <div>交接事件</div>
                           </div>
-                          <div className="rounded-xl border border-white/8 bg-bg-primary/45 px-2 py-1.5">
+                          <div className="rounded-xl border border-white/10 bg-bg-primary/45 px-2 py-1.5">
                             <div className="text-text-primary">{executionTimelineStats.message}</div>
                             <div>消息事件</div>
                           </div>
-                          <div className="rounded-xl border border-white/8 bg-bg-primary/45 px-2 py-1.5">
+                          <div className="rounded-xl border border-white/10 bg-bg-primary/45 px-2 py-1.5">
                             <div className="text-text-primary">{executionTimelineStats.log}</div>
                             <div>异常日志</div>
                           </div>
@@ -2062,8 +2062,8 @@ export default function TeamStudioView({
                             onClick={() => setTimelineFilter(item.key as TimelineFilter)}
                             className={`rounded-full border px-2.5 py-1 text-[10px] ${
                               timelineFilter === item.key
-                                ? 'border-accent-blue/30 bg-accent-blue/12 text-accent-blue'
-                                : 'border-white/8 bg-bg-primary/50 text-text-muted'
+                                ? 'border-accent-blue/30 bg-accent-blue/10 text-accent-blue'
+                                : 'border-white/10 bg-bg-primary/50 text-text-muted'
                             }`}
                           >
                             {item.label}
@@ -2079,8 +2079,8 @@ export default function TeamStudioView({
                             onClick={() => setTimelineScope(item.key as TimelineScope)}
                             className={`rounded-full border px-2.5 py-1 text-[10px] ${
                               timelineScope === item.key
-                                ? 'border-violet-500/30 bg-violet-500/12 text-violet-300'
-                                : 'border-white/8 bg-bg-primary/50 text-text-muted'
+                                ? 'border-violet-500/30 bg-violet-500/10 text-violet-300'
+                                : 'border-white/10 bg-bg-primary/50 text-text-muted'
                             }`}
                           >
                             {item.label}
@@ -2093,7 +2093,7 @@ export default function TeamStudioView({
                           <button
                             key={event.id}
                             onClick={() => handleExecutionEventFocus(event)}
-                            className="w-full rounded-2xl border border-white/6 bg-bg-primary/45 p-3 text-left transition-colors hover:bg-bg-hover"
+                            className="w-full rounded-2xl border border-white/10 bg-bg-primary/45 p-3 text-left transition-colors hover:bg-bg-hover"
                           >
                             <div className="flex items-start justify-between gap-3">
                               <div className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] ${getStatusTone(event.tone)}`}>
@@ -2188,7 +2188,7 @@ export default function TeamStudioView({
                       )}
                     </div>
 
-                    <div className="flex min-h-0 flex-col rounded-2xl border border-white/6 bg-bg-secondary/70 p-3">
+                    <div className="flex min-h-0 flex-col rounded-2xl border border-white/10 bg-bg-secondary/70 p-3">
                       <div className="mb-3 flex items-center justify-between gap-3">
                         <div>
                           <div className="text-sm font-medium text-text-primary">终端监控墙</div>
@@ -2213,7 +2213,7 @@ export default function TeamStudioView({
                                 className={`rounded-2xl border p-3 text-left transition-colors ${
                                   selectedState.member.id === desk.state.member.id
                                     ? 'border-accent-blue/30 bg-accent-blue/10'
-                                    : 'border-white/6 bg-bg-primary/45 hover:bg-bg-hover'
+                                    : 'border-white/10 bg-bg-primary/45 hover:bg-bg-hover'
                                 }`}
                               >
                                 <div className="mb-2 flex items-center justify-between gap-2">
@@ -2289,7 +2289,7 @@ export default function TeamStudioView({
                             className={`w-full rounded-2xl border p-3 text-left transition-colors ${
                               activeEdgeId === edge.id
                                 ? 'border-accent-blue/30 bg-accent-blue/10'
-                                : 'border-white/6 bg-bg-secondary/70 hover:bg-bg-hover'
+                                : 'border-white/10 bg-bg-secondary/70 hover:bg-bg-hover'
                             }`}
                           >
                             <div className="flex items-center gap-2 text-sm text-text-primary">
@@ -2312,7 +2312,7 @@ export default function TeamStudioView({
                       )}
                     </div>
 
-                    <div className="flex min-h-0 flex-col rounded-2xl border border-white/6 bg-bg-secondary/70 p-3">
+                    <div className="flex min-h-0 flex-col rounded-2xl border border-white/10 bg-bg-secondary/70 p-3">
                       <div className="mb-3 flex items-center gap-2">
                         <MessageSquareText size={13} className="text-accent-blue" />
                         <div className="text-sm font-medium text-text-primary">
@@ -2321,7 +2321,7 @@ export default function TeamStudioView({
                       </div>
                       <div className="min-h-0 flex-1 space-y-2 overflow-y-auto pr-1">
                         {activeEdge && (
-                          <div className="rounded-xl border border-white/6 bg-bg-primary/55 p-3">
+                          <div className="rounded-xl border border-white/10 bg-bg-primary/55 p-3">
                             <div className="text-[11px] text-text-muted">协作诊断</div>
                             <div className="mt-1 text-sm text-text-primary">
                               {collaborationPartner
@@ -2337,7 +2337,7 @@ export default function TeamStudioView({
                           const fromMember = team.members.find(member => member.id === message.from)
                           const toMember = team.members.find(member => member.id === message.to)
                           return (
-                            <div key={message.id} className="rounded-xl border border-white/6 bg-bg-primary/60 p-3">
+                            <div key={message.id} className="rounded-xl border border-white/10 bg-bg-primary/60 p-3">
                               <div className="flex items-center justify-between gap-3 text-xs">
                                 <div className="text-text-primary">
                                   {fromMember?.role.icon} {fromMember?.role.name} → {toMember?.role.icon} {toMember?.role.name}
@@ -2377,7 +2377,7 @@ export default function TeamStudioView({
             <div>
               <div className="mb-3 flex items-center justify-between gap-3">
                 <div className="text-[11px] font-medium text-text-primary">建议动作</div>
-                <div className="rounded-full border border-white/8 bg-bg-primary/60 px-2 py-0.5 text-[10px] text-text-muted">
+                <div className="rounded-full border border-white/10 bg-bg-primary/60 px-2 py-0.5 text-[10px] text-text-muted">
                   {recommendations.length} 项
                 </div>
               </div>
@@ -2414,13 +2414,13 @@ export default function TeamStudioView({
             <div>
               <div className="mb-3 flex items-center justify-between gap-3">
                 <div className="text-[11px] font-medium text-text-primary">阻塞摘要</div>
-                <div className="rounded-full border border-white/8 bg-bg-primary/60 px-2 py-0.5 text-[10px] text-text-muted">
+                <div className="rounded-full border border-white/10 bg-bg-primary/60 px-2 py-0.5 text-[10px] text-text-muted">
                   {blockedTasks.length} 项
                 </div>
               </div>
               <div className="space-y-2">
                 {blockedTasks.length > 0 ? blockedTasks.map(task => (
-                  <div key={task.id} className="rounded-2xl border border-white/6 bg-bg-primary/55 p-3">
+                  <div key={task.id} className="rounded-2xl border border-white/10 bg-bg-primary/55 p-3">
                     <div className="flex items-center gap-2 text-sm text-text-primary">
                       <AlertTriangle size={13} className="text-amber-300" />
                       <span>{truncate(task.title, 34)}</span>

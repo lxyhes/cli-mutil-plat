@@ -100,7 +100,7 @@ function SkillBanner() {
   const [expanded, setExpanded] = useState(false)
 
   return (
-    <div className="mb-3 bg-gradient-to-r from-blue-500/6 to-indigo-500/6 border border-blue-500/15 rounded-lg overflow-hidden">
+    <div className="mb-3 bg-gradient-to-r from-blue-500/10 to-indigo-500/10 border border-blue-500/15 rounded-lg overflow-hidden">
       <button
         className="w-full flex items-center justify-between px-3.5 py-2.5 text-left hover:bg-white/5 transition-colors"
         onClick={() => setExpanded(v => !v)}

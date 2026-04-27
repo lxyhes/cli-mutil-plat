@@ -1070,7 +1070,7 @@ const SessionToolbar: React.FC<SessionToolbarProps> = ({ sessionId, onSkillClick
                     onClick={() => handleModelSwitch(targetModel, option.effort)}
                     className={`w-full px-2 py-1.5 flex items-center gap-2 rounded-md text-left text-xs transition-colors
                       ${active
-                        ? 'bg-accent-blue/12 text-accent-blue border border-accent-blue/25'
+                        ? 'bg-accent-blue/10 text-accent-blue border border-accent-blue/25'
                         : 'text-text-secondary border border-transparent hover:bg-bg-hover'}`}
                   >
                     <span className="w-3.5 flex justify-center">
@@ -1090,7 +1090,7 @@ const SessionToolbar: React.FC<SessionToolbarProps> = ({ sessionId, onSkillClick
                     onClick={() => handleModelSwitch(model.id, currentReasoningEffort as ReasoningEffort | undefined)}
                     className={`w-full px-2 py-1.5 flex items-center gap-2 text-left text-xs transition-colors
                       ${active
-                        ? 'bg-accent-blue/12 text-accent-blue border border-accent-blue/25'
+                        ? 'bg-accent-blue/10 text-accent-blue border border-accent-blue/25'
                         : 'text-text-secondary border border-transparent hover:bg-bg-hover'}`}
                   >
                     <span className="w-3.5 flex justify-center">
@@ -1107,7 +1107,7 @@ const SessionToolbar: React.FC<SessionToolbarProps> = ({ sessionId, onSkillClick
                 onClick={() => handleModelSwitch('gpt-5.4', 'low')}
                 className={`w-full px-2 py-1.5 flex items-center gap-2 text-left text-xs transition-colors
                   ${active
-                    ? 'bg-accent-blue/12 text-accent-blue border border-accent-blue/25'
+                    ? 'bg-accent-blue/10 text-accent-blue border border-accent-blue/25'
                     : 'text-text-secondary border border-transparent hover:bg-bg-hover'}`}
               >
                 <span className="w-3.5 flex justify-center">
