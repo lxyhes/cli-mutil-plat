@@ -135,6 +135,7 @@ import { registerCrossMemoryHandlers } from './crossMemoryHandlers'
 import { registerSessionTemplateHandlers } from './sessionTemplateHandlers'
 import { registerCodeContextHandlers } from './codeContextHandlers'
 import { registerCodeGraphHandlers } from './codeGraphHandlers'
+import { registerShipHandlers } from './shipHandlers'
 import { registerOpenAICompatHandlers } from './openAICompatHandlers'
 import { registerNewFeatureHandlers, type NewFeatureDeps } from './newFeatureHandlers'
 import { registerKnowledgeCenterHandlers } from './knowledgeCenterHandlers'
@@ -171,6 +172,7 @@ export function registerIpcHandlers(deps: IpcDependencies, fileChangeTracker?: F
   registerSummaryHandlers(deps)
   registerGoalHandlers(deps)
   registerPromptOptimizerHandlers(deps)
+  registerShipHandlers()
   // ★ 新增 7 个差异化功能的 IPC 注册
   if (deps.workingContextService) {
     registerWorkingContextHandlers(deps.workingContextService)

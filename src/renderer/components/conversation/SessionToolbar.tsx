@@ -58,6 +58,13 @@ interface CodeGraphReference {
   reason: string
 }
 
+interface ShipPlan {
+  summary?: string
+  suggestedPrompt?: string
+  commands?: Array<{ id: string; label: string; command: string }>
+  warnings?: string[]
+}
+
 interface SessionToolbarProps {
   sessionId: string
   /** 原生命令点击时回调：插入 "/slashCommand " 到输入框，由 CLI 原生处理 */
@@ -153,6 +160,8 @@ const SessionToolbar: React.FC<SessionToolbarProps> = ({ sessionId, onSkillClick
   const [codeGraphLoading, setCodeGraphLoading] = useState(false)
   const [codeGraphError, setCodeGraphError] = useState<string | null>(null)
   const [codeGraphAnswer, setCodeGraphAnswer] = useState<CodeGraphAnswer | null>(null)
+  const [shipPlanLoading, setShipPlanLoading] = useState(false)
+  const [shipPlanNotice, setShipPlanNotice] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
   /** Skill 搜索框内容 */
   const [skillFilter, setSkillFilter] = useState('')
 
@@ -207,6 +216,12 @@ const SessionToolbar: React.FC<SessionToolbarProps> = ({ sessionId, onSkillClick
       setSkillFilter('')
     }
   }, [skillPopoverOpen])
+
+  useEffect(() => {
+    if (!shipPlanNotice) return
+    const timer = window.setTimeout(() => setShipPlanNotice(null), 4500)
+    return () => window.clearTimeout(timer)
+  }, [shipPlanNotice])
 
   // ---- 计算合并后的 Skill 列表 ----
   const skillList = useMemo((): SkillItem[] => {
@@ -448,6 +463,42 @@ const SessionToolbar: React.FC<SessionToolbarProps> = ({ sessionId, onSkillClick
       setCodeGraphLoading(false)
     }
   }, [codeGraphQuestion, workingDirectory, codeGraphLoading, onCodeGraphAnswer])
+
+  const handleCreateShipPlan = useCallback(async () => {
+    if (!workingDirectory || shipPlanLoading) return
+    setShipPlanLoading(true)
+    setShipPlanNotice(null)
+    try {
+      const result = await window.spectrAI.ship.createPlan(workingDirectory)
+      if (!result?.success) {
+        setShipPlanNotice({
+          type: 'error',
+          message: result?.error?.userMessage || result?.error?.message || result?.error || '交付检查计划生成失败',
+        })
+        return
+      }
+      const plan = (result.data || result) as ShipPlan
+      if (plan.suggestedPrompt) {
+        onCodeGraphAnswer?.({
+          summary: plan.summary,
+          suggestedPrompt: plan.suggestedPrompt,
+        })
+      }
+      const commandCount = plan.commands?.length ?? 0
+      const warningCount = plan.warnings?.length ?? 0
+      setShipPlanNotice({
+        type: 'success',
+        message: `已插入交付检查计划：${commandCount} 条命令，${warningCount} 条注意事项`,
+      })
+    } catch (error: any) {
+      setShipPlanNotice({
+        type: 'error',
+        message: error?.message || '交付检查计划生成失败',
+      })
+    } finally {
+      setShipPlanLoading(false)
+    }
+  }, [workingDirectory, shipPlanLoading, onCodeGraphAnswer])
 
   const handleOpenGraphReference = useCallback((reference: CodeGraphReference) => {
     void openFileInTab(resolveProjectFilePath(codeGraphAnswer?.projectPath || workingDirectory, reference.filePath))
@@ -712,6 +763,33 @@ const SessionToolbar: React.FC<SessionToolbarProps> = ({ sessionId, onSkillClick
                 </div>
               )}
             </div>
+          </div>
+        )}
+      </div>
+
+      {/* ---- QA/SHIP 交付检查 ---- */}
+      <div className="relative order-4 flex-shrink-0">
+        <button
+          type="button"
+          onClick={handleCreateShipPlan}
+          disabled={!workingDirectory || shipPlanLoading}
+          className="inline-flex items-center gap-1 rounded-md border border-accent-green/20 bg-accent-green/10 px-2 py-1 text-xs text-accent-green transition-colors hover:bg-accent-green/15 disabled:cursor-not-allowed disabled:opacity-45"
+          title={workingDirectory ? '根据当前改动生成交付前验证计划' : '当前会话没有工作目录'}
+        >
+          <ShieldCheck size={12} />
+          <span>{shipPlanLoading ? '生成中...' : '交付检查'}</span>
+        </button>
+
+        {shipPlanNotice && (
+          <div className={`absolute bottom-full left-0 z-50 mb-1.5 w-72 rounded-lg border px-3 py-2 text-[11px] shadow-lg ${
+            shipPlanNotice.type === 'success'
+              ? 'border-accent-green/25 bg-bg-secondary text-text-secondary'
+              : 'border-accent-red/35 bg-accent-red/10 text-accent-red'
+          }`}>
+            <div className="font-medium">
+              {shipPlanNotice.type === 'success' ? '交付计划已生成' : '交付计划生成失败'}
+            </div>
+            <div className="mt-1 leading-5 text-text-muted">{shipPlanNotice.message}</div>
           </div>
         )}
       </div>

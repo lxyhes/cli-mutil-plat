@@ -101,6 +101,10 @@ export interface SpectrAIAPI {
     onStatusChange: (callback: (taskId: string, updates: any) => void) => () => void
   }
 
+  ship: {
+    createPlan: (projectPath: string) => Promise<any>
+  }
+
 
   provider: {
     [key: string]: any

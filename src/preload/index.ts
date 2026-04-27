@@ -273,6 +273,11 @@ if (!ctxBr) {
     }
   },
 
+  // ==================== QA / Ship API ====================
+  ship: {
+    createPlan: (projectPath: string) => ipcRenderer.invoke(IPC.SHIP_CREATE_PLAN, projectPath),
+  },
+
 
   // ==================== Provider API ====================
   provider: {
