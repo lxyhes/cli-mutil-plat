@@ -114,7 +114,7 @@ export default function UnifiedSettingsModal({ onClose, initialTab = 'general' }
 
         {/* ── 底部版本号 ── */}
         <div className="px-5 py-2 border-t border-border text-[10px] text-text-muted shrink-0 flex items-center justify-between">
-          <span>SpectrAI</span>
+          <span>PrismOps</span>
           <span>更多功能请在左侧工具箱中访问</span>
         </div>
       </div>
@@ -395,7 +395,7 @@ function GeneralTab() {
             </div>
           </div>
           <div>
-            <div className="text-sm text-text-primary">系统登录后自动启动 SpectrAI</div>
+            <div className="text-sm text-text-primary">系统登录后自动启动 PrismOps</div>
             <div className="text-xs text-text-muted mt-0.5 leading-relaxed">
               开启后，电脑重启或用户登录时将自动启动应用。
             </div>

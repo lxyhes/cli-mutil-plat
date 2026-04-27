@@ -3,12 +3,13 @@
  * @author weibin
  */
 
-import { Bot, Terminal, BarChart2 } from 'lucide-react'
+import { Terminal, BarChart2 } from 'lucide-react'
 import { useSessionStore } from '../../stores/sessionStore'
 import { useUIStore } from '../../stores/uiStore'
 import { STATUS_COLORS } from '../../../shared/constants'
 import { toPlatformShortcutLabel } from '../../utils/shortcut'
 import { formatSessionName } from '../layout/sidebar/utils'
+import BrandLogo from '../brand/BrandLogo'
 
 /** 格式化相对时间：今天显示 HH:mm，否则显示日期 */
 function formatTime(dateStr: string): string {
@@ -42,10 +43,10 @@ export default function WelcomeTab() {
         {/* Logo 区域 */}
         <div className="flex flex-col items-center mb-10">
           <div className="flex items-center gap-3 mb-2">
-            <Bot className="w-10 h-10 text-accent-blue" />
-            <span className="text-2xl font-bold text-text-primary">SpectrAI</span>
+            <BrandLogo size={44} />
+            <span className="text-2xl font-bold text-text-primary">PrismOps</span>
           </div>
-          <span className="text-sm text-text-muted">多 AI 会话编排平台</span>
+          <span className="text-sm text-text-muted">多 Agent 编排工作台</span>
         </div>
 
         {/* 快速操作区 */}

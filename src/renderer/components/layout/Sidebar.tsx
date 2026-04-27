@@ -31,6 +31,7 @@ import StatsPanel from '../panels/StatsPanel'
 import { FileManagerPanel } from '../file-manager'
 import GitPanel from '../panels/GitPanel'
 import { toPlatformShortcutLabel } from '../../utils/shortcut'
+import BrandLogo from '../brand/BrandLogo'
 
 // ── 从 sidebar/ 子模块导入 ──
 import {
@@ -397,8 +398,8 @@ export function SessionsContent() {
       {/* ── 顶部标题栏（可拖拽） ── */}
       <div className="flex items-center justify-between p-4 border-b border-border" style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}>
         <div className="flex items-center gap-2">
-          <Terminal className="w-5 h-5 text-accent-blue" />
-          <h1 className="text-lg font-semibold text-text-primary">SpectrAI</h1>
+          <BrandLogo size={24} />
+          <h1 className="text-lg font-semibold text-text-primary">PrismOps</h1>
         </div>
         <div className="flex items-center gap-1" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
           <button

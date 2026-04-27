@@ -100,7 +100,7 @@ function showMainWindow(): void {
 const hasSingleInstanceLock = app.requestSingleInstanceLock()
 if (!hasSingleInstanceLock) {
   if (isDevelopment) {
-    console.warn('[startup] Another SpectrAI instance is already running. Close the existing app instance first if you want terminal-attached dev logs.')
+    console.warn('[startup] Another PrismOps instance is already running. Close the existing app instance first if you want terminal-attached dev logs.')
   }
   app.quit()
 }
@@ -371,11 +371,11 @@ async function initializeManagers(): Promise<void> {
       `Reason: ${diagnostics.sqliteInitError || 'unknown'}`,
       '',
       'Session, team, and settings data may be lost after restart until native modules are rebuilt.',
-      'Close all running SpectrAI/Electron windows and run: npm run rebuild:sqlite'
+      'Close all running PrismOps/Electron windows and run: npm run rebuild:sqlite'
     ].join('\n')
 
     console.error('[Database] Persistent storage disabled:', message)
-    dialog.showErrorBox('SpectrAI storage is not persistent', message)
+    dialog.showErrorBox('PrismOps storage is not persistent', message)
   }
 
   // 1.2 ★ 执行数据库版本迁移（确保 schema 是最新的）
@@ -921,7 +921,7 @@ function registerShortcuts(): void {
  */
 // ★ 开发模式下设置应用名称，确保 userData 目录正确
 if (isDevelopment) {
-  app.name = 'SpectrAI'
+  app.name = 'PrismOps'
 }
 
 app.whenReady().then(async () => {

@@ -7,7 +7,7 @@
  * - macOS:   titleBarStyle='hiddenInset'，Traffic Light 在左侧，左侧需预留 ~72px 空间
  */
 
-import { Zap } from 'lucide-react'
+import BrandLogo from '../brand/BrandLogo'
 
 const isMac =
   typeof navigator !== 'undefined' &&
@@ -31,9 +31,9 @@ export default function TitleBar({ className = '' }: TitleBarProps) {
         className="flex items-center gap-1.5 px-3.5"
         style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
       >
-        <Zap size={13} className="text-accent-blue" strokeWidth={2.5} />
+        <BrandLogo size={16} />
         <span className="text-xs font-semibold text-text-primary tracking-wide">
-          SpectrAI
+          PrismOps
         </span>
       </div>
 

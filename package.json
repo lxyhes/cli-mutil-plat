@@ -1,7 +1,7 @@
 {
   "name": "spectrai",
   "version": "0.4.6",
-  "description": "SpectrAI - Multi Claude Code Session Orchestration Platform",
+  "description": "PrismOps - Multi-Agent Coding Workspace",
   "main": "./out/main/index.js",
   "author": "weibin <bin.wei@steriguard.cn>",
   "license": "MIT",
@@ -70,7 +70,7 @@
   },
   "build": {
     "appId": "com.weibin.spectrai",
-    "productName": "SpectrAI",
+    "productName": "PrismOps",
     "directories": {
       "output": "release"
     },
@@ -118,7 +118,7 @@
       "perMachine": false,
       "allowToChangeInstallationDirectory": true,
       "allowElevation": true,
-      "shortcutName": "SpectrAI",
+      "shortcutName": "PrismOps",
       "differentialPackage": true
     },
     "npmRebuild": false,

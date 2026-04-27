@@ -174,7 +174,7 @@ const GeneralSettings: React.FC<GeneralSettingsProps> = ({ onClose }) => {
               </div>
               <div>
                 <div className="text-sm text-text-primary group-hover:text-text-primary transition-colors">开机时自动启动</div>
-                <div className="text-xs text-text-muted mt-0.5 leading-relaxed">开启后，系统登录时将自动启动 SpectrAI。</div>
+                <div className="text-xs text-text-muted mt-0.5 leading-relaxed">开启后，系统登录时将自动启动 PrismOps。</div>
               </div>
             </label>
           </div>

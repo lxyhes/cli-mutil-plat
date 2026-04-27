@@ -891,8 +891,8 @@ export const USAGE = {
 // ---- 应用信息 ----
 
 export const APP_INFO = {
-  NAME: 'SpectrAI',
-  DESCRIPTION: '多 AI 会话编排平台',
+  NAME: 'PrismOps',
+  DESCRIPTION: '多 Agent 编排工作台',
   AUTHOR: 'weibin',
   REPO_URL: 'https://github.com/webin/spectrai',
   LICENSE: 'MIT',

@@ -26,12 +26,12 @@ function formatTimestamp(date = new Date()) {
 function isOutputDirLocked(outputDir) {
   if (process.platform !== 'win32') return false
 
-  const tasklistResult = spawnSync('tasklist', ['/FI', 'IMAGENAME eq SpectrAI.exe', '/NH'], {
+  const tasklistResult = spawnSync('tasklist', ['/FI', 'IMAGENAME eq PrismOps.exe', '/NH'], {
     encoding: 'utf8',
     shell: false,
   })
   if (tasklistResult.stdout && tasklistResult.stdout.toLowerCase().includes('spectrai.exe')) {
-    console.warn('[dist] Detected SpectrAI.exe is running, output dir may be locked')
+    console.warn('[dist] Detected PrismOps.exe is running, output dir may be locked')
     return true
   }
 

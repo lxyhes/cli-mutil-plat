@@ -68,7 +68,7 @@ export class TrayManager {
     }
 
     this.tray = new Tray(icon)
-    this.tray.setToolTip('SpectrAI - Claude Code 会话管理')
+    this.tray.setToolTip('PrismOps - AI 会话工作台')
 
     // 创建上下文菜单
     this.updateContextMenu()
@@ -218,8 +218,8 @@ export class TrayManager {
     // 更新托盘提示文本
     this.updateTooltip(
       this.badgeCount > 0
-        ? `SpectrAI - ${this.badgeCount} 个待处理通知`
-        : 'SpectrAI - Claude Code 会话管理'
+        ? `PrismOps - ${this.badgeCount} 个待处理通知`
+        : 'PrismOps - AI 会话工作台'
     )
   }
 

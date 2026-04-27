@@ -26,8 +26,8 @@ const QuickStartGuide: React.FC<{
   const steps: Step[] = [
     {
       id: 'welcome',
-      title: '欢迎使用 SpectrAI',
-      description: 'SpectrAI 是一个强大的 AI 辅助开发工具，帮助您更高效地进行开发工作。',
+      title: '欢迎使用 PrismOps',
+      description: 'PrismOps 是一个多 Agent 编排工作台，帮助您更高效地推进开发任务。',
       icon: <Bot className="w-8 h-8 text-accent-blue" />,
       image: 'https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=modern%20AI%20assistant%20interface%20with%20chat%20interface&image_size=landscape_16_9',
       tips: [
@@ -140,7 +140,7 @@ const QuickStartGuide: React.FC<{
     {
       id: 'finish',
       title: '开始使用',
-      description: '您已经了解了 SpectrAI 的基本功能，现在开始您的 AI 辅助开发之旅吧！',
+      description: '您已经了解了 PrismOps 的基本功能，现在开始您的 AI 辅助开发之旅吧！',
       icon: <Check className="w-8 h-8 text-accent-green" />,
       image: 'https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=welcome%20screen%20with%20start%20button%20and%20positive%20message&image_size=landscape_16_9',
       tips: [

@@ -58,7 +58,7 @@ function shouldRebuildNativeModules() {
 function ensureElectronNativeModules() {
   if (!shouldRebuildNativeModules()) return
 
-  console.log('[dev] Rebuilding native modules for Electron. Close any running SpectrAI window if this fails with EPERM.')
+  console.log('[dev] Rebuilding native modules for Electron. Close any running PrismOps window if this fails with EPERM.')
   const result = spawnSync(
     process.execPath,
     [electronRebuildCli, '-f', '-w', 'node-pty', 'better-sqlite3'],

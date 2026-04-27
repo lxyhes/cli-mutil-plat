@@ -1549,7 +1549,7 @@ function SkillImportDialog({ onClose, onImported }: { onClose: () => void; onImp
           )}
 
           <div className="text-xs text-text-muted">
-            支持格式：标准 SpectrAI Skill JSON（含 name、type、promptTemplate 等字段）
+            支持格式：标准 PrismOps Skill JSON（含 name、type、promptTemplate 等字段）
           </div>
         </div>
         <div className="flex justify-end gap-2 px-5 py-4 border-t border-border">
