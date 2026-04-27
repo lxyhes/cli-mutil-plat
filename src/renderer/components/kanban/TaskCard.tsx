@@ -8,7 +8,7 @@ import React, { useState, useMemo } from 'react'
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import {
-  Play, Eye, Pencil, Trash2, Copy, Flag, ArrowRight, GitBranch,
+  Play, Eye, Pencil, Trash2, Copy, Flag, ArrowRight, GitBranch, Users, Loader2,
 } from 'lucide-react'
 import Markdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
@@ -16,6 +16,7 @@ import type { TaskCard as TaskCardType, Session } from '../../../shared/types'
 import { useUIStore } from '../../stores/uiStore'
 import { useTaskStore } from '../../stores/taskStore'
 import { useSessionStore } from '../../stores/sessionStore'
+import { useTeamStore } from '../../stores/teamStore'
 import { PRIORITY_COLORS, KANBAN_COLUMNS } from '../../../shared/constants'
 import { useContextMenu } from '../../hooks/useContextMenu'
 import ContextMenu from '../common/ContextMenu'
@@ -32,6 +33,11 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, sessions = [] }) => {
   const { selectedTaskId, setSelectedTaskId } = useUIStore()
   const { updateTask, deleteTask, copyTask, startSessionForTask } = useTaskStore()
   const { selectSession } = useSessionStore()
+  const {
+    createTeam,
+    createTask: createTeamTask,
+    setActiveTeam,
+  } = useTeamStore()
 
   // 右键菜单
   const { menuState, showMenu, hideMenu } = useContextMenu()
@@ -39,6 +45,7 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, sessions = [] }) => {
   // 弹窗状态
   const [editDialogOpen, setEditDialogOpen] = useState(false)
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false)
+  const [dispatchingTeam, setDispatchingTeam] = useState(false)
 
   // 菜单或弹窗打开时禁用拖拽
   const isDragDisabled = menuState.visible || editDialogOpen || confirmDeleteOpen
@@ -96,6 +103,68 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, sessions = [] }) => {
     await copyTask(task.id)
   }
 
+  const getTaskWorkDir = async (): Promise<string> => {
+    if (task.worktreePath) return task.worktreePath
+    if (task.gitRepoPath) return task.gitRepoPath
+
+    const sessionWorkDir = activeSession?.config?.workingDirectory || sessions[0]?.config?.workingDirectory
+    if (sessionWorkDir) return sessionWorkDir
+
+    return window.spectrAI.app.getCwd()
+  }
+
+  const handleDispatchToTeam = async (e?: React.MouseEvent) => {
+    e?.stopPropagation()
+    if (dispatchingTeam) return
+
+    setDispatchingTeam(true)
+    try {
+      const workDir = await getTaskWorkDir()
+      const tags = Array.isArray(task.tags) ? task.tags : []
+      const providerId = activeSession?.providerId || 'codex'
+      const team = await createTeam({
+        name: `执行任务：${task.title.slice(0, 32)}`,
+        objective: [
+          `完成看板任务：${task.title}`,
+          task.description ? `任务描述：\n${task.description}` : '',
+          tags.length > 0 ? `来源标签：${tags.join(', ')}` : '',
+        ].filter(Boolean).join('\n\n'),
+        workDir,
+        templateId: 'dev-team',
+        providerId,
+        worktreeIsolation: !!task.worktreeEnabled,
+      })
+
+      if (!team) return
+
+      await createTeamTask(team.id, {
+        title: task.title,
+        description: [
+          task.description || '',
+          `来源看板任务：${task.id}`,
+          tags.length > 0 ? `来源标签：${tags.join(', ')}` : '',
+        ].filter(Boolean).join('\n\n'),
+        status: 'pending',
+        priority: task.priority,
+        dependencies: [],
+      })
+
+      await updateTask(task.id, {
+        status: task.status === 'todo' ? 'in_progress' : task.status,
+        tags: Array.from(new Set([...tags, 'team-dispatched', `team:${team.id}`])),
+      })
+
+      setActiveTeam(team.id)
+      useUIStore.getState().setActivePanelLeft('team')
+      useUIStore.getState().setPaneContent('primary', 'team')
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err)
+      alert(`派发到 Agent Team 失败：${message}`)
+    } finally {
+      setDispatchingTeam(false)
+    }
+  }
+
   // 构建右键菜单项
   const contextMenuItems: MenuItem[] = useMemo(() => {
     const items: MenuItem[] = [
@@ -137,6 +206,13 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, sessions = [] }) => {
         onClick: () => handleSessionAction(),
       },
       {
+        key: 'team',
+        label: dispatchingTeam ? '团队创建中...' : '派发到 Agent Team',
+        icon: <Users size={14} />,
+        disabled: task.status === 'done' || dispatchingTeam,
+        onClick: () => handleDispatchToTeam(),
+      },
+      {
         key: 'copy',
         label: '复制任务',
         icon: <Copy size={14} />,
@@ -152,7 +228,7 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, sessions = [] }) => {
       },
     ]
     return items
-  }, [task.status, task.priority, task.id, hasActiveSession])
+  }, [task.status, task.priority, task.id, hasActiveSession, dispatchingTeam])
 
   return (
     <>
@@ -185,19 +261,29 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, sessions = [] }) => {
           </h3>
           {/* 启动/聚焦会话按钮 - hover 才显示（有活跃会话时始终显示） */}
           {task.status !== 'done' && (
-            <button
-              onClick={handleSessionAction}
-              title={hasActiveSession ? '聚焦会话' : '启动会话'}
-              className={`
-                flex-shrink-0 p-1 rounded transition-all duration-150
-                ${hasActiveSession
-                  ? 'text-accent-green hover:bg-green-500/20'
-                  : 'text-text-muted opacity-0 group-hover:opacity-100 hover:text-text-primary hover:bg-bg-hover'
-                }
-              `}
-            >
-              {hasActiveSession ? <Eye size={14} /> : <Play size={14} />}
-            </button>
+            <>
+              <button
+                onClick={handleDispatchToTeam}
+                title="派发到 Agent Team"
+                disabled={dispatchingTeam}
+                className="flex-shrink-0 p-1 rounded text-text-muted opacity-0 group-hover:opacity-100 hover:text-accent-purple hover:bg-accent-purple/10 transition-all duration-150 disabled:opacity-50"
+              >
+                {dispatchingTeam ? <Loader2 size={14} className="animate-spin" /> : <Users size={14} />}
+              </button>
+              <button
+                onClick={handleSessionAction}
+                title={hasActiveSession ? '聚焦会话' : '启动会话'}
+                className={`
+                  flex-shrink-0 p-1 rounded transition-all duration-150
+                  ${hasActiveSession
+                    ? 'text-accent-green hover:bg-green-500/20'
+                    : 'text-text-muted opacity-0 group-hover:opacity-100 hover:text-text-primary hover:bg-bg-hover'
+                  }
+                `}
+              >
+                {hasActiveSession ? <Eye size={14} /> : <Play size={14} />}
+              </button>
+            </>
           )}
         </div>
 

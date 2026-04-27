@@ -5,9 +5,12 @@ import { useState, useEffect } from 'react'
 import {
   Brain, Play, Pause, Trash2, Plus, Loader2, Check, Zap,
   ChevronDown, ChevronRight, AlertCircle, CheckCircle2, XCircle,
-  SkipForward, ChevronUp, ChevronLeft
+  SkipForward, ChevronUp, ChevronLeft, Users
 } from 'lucide-react'
 import { usePlannerStore, type PlanSession, type PlanTask, type PlanStep, type Priority } from '../../stores/plannerStore'
+import { useTeamStore } from '../../stores/teamStore'
+import { useSessionStore } from '../../stores/sessionStore'
+import { useUIStore } from '../../stores/uiStore'
 
 const PRIORITY_COLORS: Record<Priority, string> = {
   low: 'text-accent-blue',
@@ -63,6 +66,12 @@ export default function PlannerSettings() {
     initListeners,
     cleanup,
   } = usePlannerStore()
+  const {
+    createTeam,
+    createTask: createTeamTask,
+    setActiveTeam,
+  } = useTeamStore()
+  const { sessions, selectedSessionId } = useSessionStore()
 
   const [activeTab, setActiveTab] = useState<'plans' | 'detail'>('plans')
   const [showCreateForm, setShowCreateForm] = useState(false)
@@ -71,6 +80,7 @@ export default function PlannerSettings() {
   const [newGoal, setNewGoal] = useState('')
   const [saving, setSaving] = useState(false)
   const [syncingKanban, setSyncingKanban] = useState(false)
+  const [dispatchingTeam, setDispatchingTeam] = useState(false)
   const [expandedTask, setExpandedTask] = useState<string | null>(null)
 
   useEffect(() => {
@@ -128,6 +138,73 @@ export default function PlannerSettings() {
       }
     } finally {
       setSyncingKanban(false)
+    }
+  }
+
+  const getPlanSession = () => {
+    if (!activePlan) return null
+    return (
+      sessions.find(session => session.id === activePlan.sessionId) ||
+      sessions.find(session => session.id === selectedSessionId) ||
+      sessions[0] ||
+      null
+    )
+  }
+
+  const handleDispatchPlanToTeam = async () => {
+    if (!activePlan || dispatchingTeam || activeTasks.length === 0) return
+
+    setDispatchingTeam(true)
+    try {
+      const sourceSession = getPlanSession()
+      const workDir = sourceSession?.config?.workingDirectory || await window.spectrAI.app.getCwd()
+      const providerId = sourceSession?.providerId || 'codex'
+      const team = await createTeam({
+        name: `执行规划：${activePlan.goal.slice(0, 32)}`,
+        objective: [
+          `完成自主规划目标：${activePlan.goal}`,
+          `来源规划：${activePlan.id}`,
+          activePlan.goalId ? `来源目标：${activePlan.goalId}` : '',
+        ].filter(Boolean).join('\n\n'),
+        workDir,
+        templateId: 'dev-team',
+        providerId,
+        worktreeIsolation: false,
+      })
+
+      if (!team) return
+
+      const latestSteps = (await Promise.all(
+        activeTasks.map(async planTask => ((window as any).spectrAI.planner.getSteps(planTask.id)))
+      )).flat() as PlanStep[]
+
+      for (const planTask of activeTasks) {
+        const taskSteps = latestSteps
+          .filter(step => step.planTaskId === planTask.id)
+          .sort((a, b) => a.orderIndex - b.orderIndex)
+          .map(step => `- ${step.description}`)
+
+        await createTeamTask(team.id, {
+          title: planTask.title,
+          description: [
+            planTask.description || '',
+            taskSteps.length > 0 ? `执行步骤：\n${taskSteps.join('\n')}` : '',
+            `来源规划任务：${planTask.id}`,
+          ].filter(Boolean).join('\n\n'),
+          status: 'pending',
+          priority: planTask.priority,
+          dependencies: [],
+        })
+      }
+
+      setActiveTeam(team.id)
+      useUIStore.getState().setActivePanelLeft('team')
+      useUIStore.getState().setPaneContent('primary', 'team')
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err)
+      alert(`派发到 Agent Team 失败：${message}`)
+    } finally {
+      setDispatchingTeam(false)
     }
   }
 
@@ -368,6 +445,14 @@ export default function PlannerSettings() {
               >
                 {syncingKanban ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Zap className="w-3.5 h-3.5" />}
                 同步到看板
+              </button>
+              <button
+                onClick={handleDispatchPlanToTeam}
+                disabled={dispatchingTeam || activeTasks.length === 0}
+                className="px-3 py-1.5 bg-accent-purple text-white rounded-lg text-xs font-medium hover:bg-accent-purple/80 btn-transition flex items-center gap-1.5 disabled:opacity-50"
+              >
+                {dispatchingTeam ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Users className="w-3.5 h-3.5" />}
+                派发团队
               </button>
               {activePlan.status === 'pending' && (
                 <button
