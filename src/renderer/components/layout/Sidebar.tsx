@@ -5,7 +5,7 @@
  */
 
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { Plus, Terminal, X, FolderOpen, RotateCcw, Play, Square, Search, Star, ChevronDown, ChevronUp, Settings2, Cpu, Pencil, Sparkles, Layers, Trash2 } from 'lucide-react'
+import { Plus, Terminal, X, FolderOpen, RotateCcw, Play, Square, Search, Star, ChevronDown, ChevronUp, Settings2, Cpu, Pencil, Sparkles, Layers, Trash2, type LucideIcon } from 'lucide-react'
 import { useUIStore } from '../../stores/uiStore'
 import { useSessionStore } from '../../stores/sessionStore'
 import { useGitStore } from '../../stores/gitStore'
@@ -47,6 +47,64 @@ import {
 import { TimeGroupCard, DirGroupCard } from './sidebar/SessionGroupCards'
 import { SessionPickerModal } from './sidebar/SessionPickerModal'
 import { GroupByToggle } from './sidebar/GroupByToggle'
+
+type SessionStartTemplate = {
+  id: 'blank' | 'review' | 'fix' | 'feature' | 'team'
+  title: string
+  description: string
+  prompt: string
+  supervisorMode: boolean
+  icon: LucideIcon
+  accentClass: string
+}
+
+const SESSION_START_TEMPLATES: SessionStartTemplate[] = [
+  {
+    id: 'blank',
+    title: '空白会话',
+    description: '先打开会话，稍后再输入任务',
+    prompt: '',
+    supervisorMode: false,
+    icon: Terminal,
+    accentClass: 'text-accent-blue bg-accent-blue/10 border-accent-blue/30',
+  },
+  {
+    id: 'review',
+    title: '审视项目',
+    description: '快速了解结构、风险和下一步',
+    prompt: '请先审视当前项目：梳理项目结构、核心模块、运行方式和最明显的风险点。先不要改代码，最后给出按优先级排序的下一步建议。',
+    supervisorMode: false,
+    icon: Search,
+    accentClass: 'text-accent-purple bg-accent-purple/10 border-accent-purple/30',
+  },
+  {
+    id: 'fix',
+    title: '修复问题',
+    description: '定位报错、补齐验证、收敛改动',
+    prompt: '请帮我定位并修复当前最明显的问题。先复现或确认问题位置，再做最小必要修改，最后运行相关 typecheck/test/build 验证并说明结果。',
+    supervisorMode: false,
+    icon: Sparkles,
+    accentClass: 'text-accent-yellow bg-accent-yellow/10 border-accent-yellow/30',
+  },
+  {
+    id: 'feature',
+    title: '实现功能',
+    description: '按现有架构落地一个新能力',
+    prompt: '请按现有项目架构实现我接下来描述的功能。开始前先确认相关模块和约束，改动保持聚焦，完成后运行必要验证。',
+    supervisorMode: false,
+    icon: Play,
+    accentClass: 'text-accent-green bg-accent-green/10 border-accent-green/30',
+  },
+  {
+    id: 'team',
+    title: '团队模式',
+    description: '适合多模块、可拆分的大任务',
+    prompt: '请以 Supervisor 模式处理这个任务：先拆解目标，识别可以并行推进的子任务，再协调执行、汇总结果并做最终验证。',
+    supervisorMode: true,
+    icon: Layers,
+    accentClass: 'text-accent-blue bg-accent-blue/10 border-accent-blue/30',
+  },
+]
 // ─────────────────────────────────────────────────────────
 // 会话列表内容
 // ─────────────────────────────────────────────────────────
@@ -172,6 +230,7 @@ export function SessionsContent() {
   const [sessionName, setSessionName] = useState('')
   const [sessionCwd, setSessionCwd] = useState('')
   const [sessionPrompt, setSessionPrompt] = useState('')
+  const [selectedTemplateId, setSelectedTemplateId] = useState<SessionStartTemplate['id']>('blank')
   const [supervisorMode, setSupervisorMode] = useState(false)
   const [autoAccept, setAutoAccept] = useState(true)
   const [createSessionError, setCreateSessionError] = useState<string | null>(null)
@@ -252,10 +311,18 @@ export function SessionsContent() {
     return true
   }
 
+  const handleSelectTemplate = (template: SessionStartTemplate) => {
+    setSelectedTemplateId(template.id)
+    setSessionName(`${template.title} ${new Date().toLocaleTimeString()}`)
+    setSessionPrompt(template.prompt)
+    setSupervisorMode(template.supervisorMode)
+  }
+
   const openNewSessionDialog = async (prefillDir?: string) => {
     setCreateSessionError(null)
     setSessionName(`会话 ${new Date().toLocaleTimeString()}`)
     setSessionPrompt('')
+    setSelectedTemplateId('blank')
     setSelectedProviderId('')
     setSupervisorMode(false)
     setSessionMode('directory')
@@ -675,14 +742,53 @@ export function SessionsContent() {
       {/* ── 新建会话对话框 ── */}
       {showNewSessionDialog && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-          <div className="bg-bg-secondary rounded-lg shadow-2xl w-full max-w-md border border-border">
+          <div className="bg-bg-secondary rounded-lg shadow-2xl w-full max-w-2xl border border-border max-h-[88vh] flex flex-col">
             <div className="flex items-center justify-between p-4 border-b border-border">
               <h2 className="text-lg font-semibold text-text-primary">新建会话</h2>
               <button onClick={() => { if (!isCreatingSession) setShowNewSessionDialog(false) }} className="text-text-muted hover:text-text-primary btn-transition">
                 <X className="w-5 h-5" />
               </button>
             </div>
-            <div className="p-4 space-y-4">
+            <div className="p-4 space-y-4 overflow-y-auto">
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="block text-sm font-medium text-text-secondary">先选目标</label>
+                  <span className="text-[11px] text-text-muted">会自动填好指令和模式</span>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {SESSION_START_TEMPLATES.map(template => {
+                    const Icon = template.icon
+                    const active = selectedTemplateId === template.id
+                    return (
+                      <button
+                        key={template.id}
+                        type="button"
+                        onClick={() => handleSelectTemplate(template)}
+                        className={`group flex items-start gap-3 rounded-lg border p-3 text-left btn-transition ${
+                          active
+                            ? 'border-accent-blue/60 bg-accent-blue/10 shadow-sm'
+                            : 'border-border bg-bg-primary hover:border-accent-blue/40 hover:bg-bg-hover'
+                        }`}
+                      >
+                        <span className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-md border ${template.accentClass}`}>
+                          <Icon className="h-4 w-4" />
+                        </span>
+                        <span className="min-w-0">
+                          <span className="flex items-center gap-2">
+                            <span className="text-sm font-medium text-text-primary">{template.title}</span>
+                            {template.supervisorMode && (
+                              <span className="rounded border border-accent-green/30 bg-accent-green/10 px-1.5 py-0.5 text-[10px] text-accent-green">
+                                Supervisor
+                              </span>
+                            )}
+                          </span>
+                          <span className="mt-1 block text-xs leading-5 text-text-muted">{template.description}</span>
+                        </span>
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
               <div>
                 <label className="block text-sm font-medium text-text-secondary mb-1">会话名称</label>
                 <input
