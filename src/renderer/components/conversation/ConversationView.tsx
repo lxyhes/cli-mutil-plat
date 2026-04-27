@@ -126,6 +126,7 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
   const [ctxMenu, setCtxMenu] = useState({ visible: false, x: 0, y: 0 })
   const [queuedMessages, setQueuedMessages] = useState<QueuedMessage[]>([])
   const [queueHintText, setQueueHintText] = useState('')
+  const [showScrollBottom, setShowScrollBottom] = useState(false)
   // 记录是否已完成首次滚到底部（每次组件挂载重置）
   const hasScrolledInitially = useRef(false)
 
@@ -194,6 +195,11 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
   const planApprovalMeta = pendingPlanApproval
     ? (lastActivity?.metadata as { toolInput?: Record<string, unknown> } | undefined)
     : null
+  const messageCount = messages.length
+  const lastMessage = messages[messageCount - 1]
+  const lastMessageId = lastMessage?.id
+  const lastMessageRole = lastMessage?.role
+  const lastMessageContentLength = lastMessage?.content?.length ?? 0
 
   // 挂载时同步滚到底部（paint 前执行，无 flash）
   useLayoutEffect(() => {
@@ -208,19 +214,36 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
   useEffect(() => {
     const el = scrollRef.current
     if (!el) return
-    const lastMsg = messages[messages.length - 1]
 
-    if (!hasScrolledInitially.current && messages.length > 0) {
+    if (!hasScrolledInitially.current && messageCount > 0) {
       hasScrolledInitially.current = true
       el.scrollTop = el.scrollHeight
+      setShowScrollBottom(prev => prev ? false : prev)
       return
     }
 
     const isNearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 150
-    if (lastMsg?.role === 'user' || isNearBottom) {
+    if (lastMessageRole === 'user' || isNearBottom) {
       el.scrollTop = el.scrollHeight
+      setShowScrollBottom(prev => prev ? false : prev)
+    } else if (messageCount > 0) {
+      setShowScrollBottom(prev => prev ? prev : true)
     }
-  }, [messages])
+  }, [messageCount, lastMessageId, lastMessageRole, lastMessageContentLength])
+
+  const scrollToBottom = useCallback((behavior: ScrollBehavior = 'smooth') => {
+    const el = scrollRef.current
+    if (!el) return
+    el.scrollTo({ top: el.scrollHeight, behavior })
+    setShowScrollBottom(false)
+  }, [])
+
+  const handleConversationScroll = useCallback(() => {
+    const el = scrollRef.current
+    if (!el) return
+    const isNearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 180
+    setShowScrollBottom(prev => prev === !isNearBottom ? prev : !isNearBottom)
+  }, [])
 
   // 切换标签页时滚动到底部
   useEffect(() => {
@@ -416,7 +439,8 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
         {/* 消息列表 */}
         <div
           ref={scrollRef}
-          className="flex-1 overflow-y-auto px-5 py-4 smooth-scroll scroll-optimized md:px-8 lg:px-10"
+          className="flex-1 overflow-y-auto px-5 py-4 pb-8 smooth-scroll scroll-optimized md:px-8 lg:px-10"
+          onScroll={handleConversationScroll}
           onContextMenu={(e) => {
             e.preventDefault()
             setCtxMenu({ visible: true, x: e.clientX, y: e.clientY })
@@ -435,7 +459,7 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
           )}
           <div className="mx-auto max-w-[1080px]">
         {messages.length === 0 ? (
-          <div className="flex items-center justify-center h-full text-text-muted text-sm">
+          <div className="flex min-h-[420px] items-center justify-center text-text-muted text-sm">
             {isLoading ? (
               <div className="flex items-center gap-2">
                 <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
@@ -445,25 +469,29 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
                 <span>加载对话历史...</span>
               </div>
             ) : isSessionEnded ? '会话已结束，点击下方恢复继续对话' : (
-              /* 会话元信息卡片 - 渐变边框 */
-              <div className="max-w-md w-full rounded-xl p-[1px] bg-gradient-to-br from-accent-blue/30 via-transparent to-accent-purple/30">
-              <div className="bg-bg-secondary border border-border rounded-xl p-5 space-y-4">
-                {/* 顶部：Provider 徽章 + 会话 ID */}
-                <div className="flex items-center justify-between">
-                  <span
-                    className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium text-white"
-                    style={{ backgroundColor: getProviderColor(providerId) }}
-                  >
-                    {providerId ?? '未知'}
-                  </span>
-                  <span className="text-xs font-mono text-text-muted select-all">
-                    #{sessionId.slice(0, 8)}
-                  </span>
+              <div className="w-full max-w-[640px] rounded-2xl border border-border/40 bg-bg-secondary/35 p-6 shadow-sm">
+                <div className="mb-5 flex items-start justify-between gap-4">
+                  <div>
+                    <div className="mb-2 flex items-center gap-2">
+                      <span
+                        className="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium text-white"
+                        style={{ backgroundColor: getProviderColor(providerId) }}
+                      >
+                        {providerId ?? '未知'}
+                      </span>
+                      <span className="font-mono text-xs text-text-muted select-all">
+                        #{sessionId.slice(0, 8)}
+                      </span>
+                    </div>
+                    <div className="text-lg font-semibold text-text-primary">准备开始</div>
+                    <p className="mt-1 text-xs leading-relaxed text-text-muted">
+                      从下方输入消息，或点击常用提示词快速进入工作流。
+                    </p>
+                  </div>
                 </div>
 
-                {/* 工作目录 */}
                 {workingDirectory && (
-                  <div className="flex items-start gap-2">
+                  <div className="mb-5 flex items-start gap-2 rounded-xl border border-border/35 bg-bg-primary/35 px-3 py-2.5">
                     <FolderOpen className="w-4 h-4 mt-0.5 flex-shrink-0 text-text-muted" />
                     <span className="break-all font-mono text-xs text-text-secondary leading-relaxed">
                       {workingDirectory}
@@ -471,26 +499,21 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
                   </div>
                 )}
 
-                {/* 快捷键提示 */}
-                <div className="border-t border-border pt-3 grid grid-cols-2 gap-x-4 gap-y-2">
+                <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
                   {[
                     { key: 'Enter',         desc: '发送消息' },
                     { key: '/',             desc: '查看可用命令' },
                     { key: '@',             desc: '引用项目文件' },
-                    { key: 'Shift+Enter',   desc: '换行' },
-                    { key: toPlatformShortcutLabel('Ctrl+V'),        desc: '粘贴图片/文件' },
-                    { key: toPlatformShortcutLabel('Ctrl+F'),        desc: '搜索本会话' },
                     { key: toPlatformShortcutLabel('Ctrl+Shift+F'),  desc: '跨会话搜索' },
                   ].map(({ key, desc }) => (
-                    <div key={key} className="flex items-center gap-2 text-xs text-text-muted">
-                      <kbd className="px-1.5 py-0.5 bg-bg-primary border border-border rounded text-[11px] font-mono whitespace-nowrap flex-shrink-0">
+                    <div key={key} className="rounded-xl border border-border/30 bg-bg-primary/25 px-3 py-2 text-xs text-text-muted">
+                      <kbd className="mb-1 inline-flex rounded border border-border/45 bg-bg-primary px-1.5 py-0.5 font-mono text-[11px] text-text-secondary">
                         {key}
                       </kbd>
-                      <span>{desc}</span>
+                      <div>{desc}</div>
                     </div>
                   ))}
                 </div>
-              </div>
               </div>
             )}
           </div>
@@ -540,22 +563,38 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
 
         {/* 流式响应指示器 - 带实时计时器 + 渐变扫光动画 */}
         {isStreaming && (
-          <div className="flex justify-start mb-3 animate-fade-in">
-            <div className="bg-bg-secondary rounded-lg px-3 py-2 text-sm text-text-muted flex items-center gap-2 relative overflow-hidden shadow-sm hover:shadow-md transition-all duration-300">
+          <div className="mb-4 flex justify-start animate-fade-in">
+            <div className="relative max-w-[min(620px,78%)] overflow-hidden rounded-2xl border border-border/35 bg-bg-secondary/35 px-4 py-3 text-sm text-text-muted shadow-sm transition-all duration-300 hover:border-border/70">
               <div className="absolute inset-0 bg-gradient-to-r from-transparent via-accent-blue/5 to-transparent animate-pulse" />
-              <span className="inline-block w-3 h-3 border border-text-muted/50 border-t-accent-blue rounded-full animate-spin flex-shrink-0" />
-              <span>AI 正在思考...</span>
-              {thinkingSeconds > 0 && (
-                <span className="text-[11px] font-mono text-text-muted/60">
-                  {formatThinkingTime(thinkingSeconds)}
-                </span>
+              <div className="relative flex items-center gap-2">
+                <span className="inline-block h-3 w-3 flex-shrink-0 animate-spin rounded-full border border-text-muted/50 border-t-accent-blue" />
+                <span className="font-medium text-text-secondary">AI 正在处理</span>
+                {thinkingSeconds > 0 && (
+                  <span className="font-mono text-[11px] text-text-muted/60">
+                    {formatThinkingTime(thinkingSeconds)}
+                  </span>
+                )}
+              </div>
+              {!!liveProgressText && (
+                <div className="relative mt-2 max-w-full truncate text-[11px] text-text-muted/80" title={liveProgressText}>
+                  {liveProgressText}
+                </div>
               )}
             </div>
-            {!!liveProgressText && (
-              <div className="mt-1 ml-5 text-[11px] text-text-muted/80 max-w-[80%] truncate animate-fade-in" title={liveProgressText}>
-                {liveProgressText}
-              </div>
-            )}
+          </div>
+        )}
+
+        {showScrollBottom && (
+          <div className="sticky bottom-3 z-20 flex justify-center pointer-events-none">
+            <button
+              type="button"
+              onClick={() => scrollToBottom()}
+              className="pointer-events-auto inline-flex items-center gap-1.5 rounded-full border border-border/60 bg-bg-secondary/95 px-3 py-1.5 text-xs text-text-secondary shadow-lg backdrop-blur-sm transition-all hover:border-accent-blue/40 hover:text-accent-blue"
+              title="滚动到底部"
+            >
+              <ArrowDown size={13} />
+              <span>回到底部</span>
+            </button>
           </div>
         )}
 
