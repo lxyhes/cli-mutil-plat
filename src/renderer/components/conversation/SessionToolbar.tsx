@@ -1000,7 +1000,7 @@ const SessionToolbar: React.FC<SessionToolbarProps> = ({ sessionId, onSkillClick
               : 'border-accent-red/35 bg-accent-red/10 text-accent-red'
           }`}>
             <div className="font-medium">
-              {shipPlanNotice.type === 'success' ? '交付计划已生成' : '交付计划生成失败'}
+              {shipPlanNotice.type === 'success' ? '操作已完成' : '操作失败'}
             </div>
             <div className="mt-1 leading-5 text-text-muted">{shipPlanNotice.message}</div>
           </div>
