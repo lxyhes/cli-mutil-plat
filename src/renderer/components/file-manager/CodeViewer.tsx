@@ -6,14 +6,15 @@
  * @author weibin
  */
 
-import React, { useCallback, useEffect, useState, useMemo } from 'react'
+import React, { useCallback, useEffect, useState, useMemo, useRef } from 'react'
 import Editor, { useMonaco } from '@monaco-editor/react'
 import Markdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { useFileTabStore } from '../../stores/fileTabStore'
 import { useUIStore } from '../../stores/uiStore'
+import { useSessionStore } from '../../stores/sessionStore'
 import { THEMES } from '../../../shared/constants'
-import { Eye, Pencil } from 'lucide-react'
+import { Bug, Eye, FlaskConical, Pencil, ShieldCheck, Sparkles } from 'lucide-react'
 import type { Components } from 'react-markdown'
 
 interface CodeViewerProps {
@@ -22,6 +23,26 @@ interface CodeViewerProps {
 }
 
 /** Markdown 预览的自定义组件 */
+type CodeActionMode = 'review' | 'optimize' | 'explain' | 'test' | 'fix'
+
+const CODE_ACTIONS: Array<{
+  mode: CodeActionMode
+  label: string
+  icon: React.ElementType
+  color: string
+}> = [
+  { mode: 'explain', label: '解释', icon: Eye, color: 'text-accent-blue' },
+  { mode: 'fix', label: '修复', icon: Bug, color: 'text-accent-red' },
+  { mode: 'optimize', label: '优化', icon: Sparkles, color: 'text-accent-yellow' },
+  { mode: 'test', label: '测试', icon: FlaskConical, color: 'text-accent-green' },
+  { mode: 'review', label: '审查', icon: ShieldCheck, color: 'text-accent-purple' },
+]
+
+function limitCodeContext(value: string, max = 24000): string {
+  if (value.length <= max) return value
+  return `${value.slice(0, max)}\n\n/* ...context truncated... */`
+}
+
 const mdComponents: Components = {
   h1: ({ children, ...rest }) => (
     <h1 id={(children as string)?.toLowerCase().replace(/\s+/g, '-').replace(/[^\w-]/g, '')} {...rest}>
@@ -238,8 +259,14 @@ export default function CodeViewer({ tabId }: CodeViewerProps) {
   const tab = tabs.find(t => t.id === tabId)
   const monaco = useMonaco()
   const currentTheme = useUIStore(s => s.theme)
+  const selectedSessionId = useSessionStore(s => s.selectedSessionId)
+  const currentSessionId = useSessionStore(s => s.currentSessionId)
+  const sendMessage = useSessionStore(s => s.sendMessage)
   const isMd = tab?.language === 'markdown'
   const [isPreview, setIsPreview] = useState(false)
+  const [actionLoading, setActionLoading] = useState<CodeActionMode | null>(null)
+  const [actionNotice, setActionNotice] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
+  const editorRef = useRef<any>(null)
 
   // 每次 Monaco 实例就绪或应用主题变化时，重新注册并应用 Monaco 主题
   useEffect(() => {
@@ -295,6 +322,91 @@ export default function CodeViewer({ tabId }: CodeViewerProps) {
     }
   }, [tabId, saveTab])
 
+  const activeSessionId = selectedSessionId || currentSessionId
+
+  const handleEditorMount = useCallback((editor: any) => {
+    editorRef.current = editor
+  }, [])
+
+  const getCodeContextSelection = useCallback(() => {
+    if (!tab) return null
+    const editor = editorRef.current
+    const model = editor?.getModel?.()
+    const selection = editor?.getSelection?.()
+
+    if (model && selection && typeof selection.isEmpty === 'function' && !selection.isEmpty()) {
+      const startLine = selection.startLineNumber
+      const endLine = selection.endLineNumber
+      const contextStart = Math.max(1, startLine - 8)
+      const contextEnd = Math.min(model.getLineCount(), endLine + 8)
+      return {
+        selectedCode: limitCodeContext(model.getValueInRange(selection)),
+        lineRange: { start: startLine, end: endLine },
+        surroundingContext: limitCodeContext(model.getValueInRange({
+          startLineNumber: contextStart,
+          startColumn: 1,
+          endLineNumber: contextEnd,
+          endColumn: model.getLineMaxColumn(contextEnd),
+        }), 32000),
+      }
+    }
+
+    const lineCount = model?.getLineCount?.() || tab.content.split('\n').length
+    return {
+      selectedCode: limitCodeContext(tab.content),
+      lineRange: { start: 1, end: lineCount },
+      surroundingContext: '',
+    }
+  }, [tab])
+
+  const handleCodeAction = useCallback(async (mode: CodeActionMode) => {
+    if (!tab || actionLoading) return
+    if (!activeSessionId) {
+      setActionNotice({ type: 'error', message: '请先选择一个会话，再发送代码动作。' })
+      return
+    }
+    const context = getCodeContextSelection()
+    if (!context?.selectedCode.trim()) {
+      setActionNotice({ type: 'error', message: '当前文件没有可发送的代码内容。' })
+      return
+    }
+
+    setActionLoading(mode)
+    setActionNotice(null)
+    try {
+      const result = await window.spectrAI.codeContext.inject({
+        sessionId: activeSessionId,
+        mode,
+        filePath: tab.path,
+        selectedCode: context.selectedCode,
+        lineRange: context.lineRange,
+        surroundingContext: context.surroundingContext,
+        language: tab.language,
+      })
+      if (!result?.success) {
+        setActionNotice({ type: 'error', message: result?.error || '代码动作生成失败。' })
+        return
+      }
+      const prompt = result.response?.prompt
+      if (!prompt) {
+        setActionNotice({ type: 'error', message: '代码动作没有生成可发送的提示词。' })
+        return
+      }
+      await sendMessage(activeSessionId, prompt)
+      setActionNotice({ type: 'success', message: `已发送“${CODE_ACTIONS.find(action => action.mode === mode)?.label || mode}”到当前会话。` })
+    } catch (error: any) {
+      setActionNotice({ type: 'error', message: error?.message || '代码动作发送失败。' })
+    } finally {
+      setActionLoading(null)
+    }
+  }, [activeSessionId, actionLoading, getCodeContextSelection, sendMessage, tab])
+
+  useEffect(() => {
+    if (!actionNotice) return
+    const timer = window.setTimeout(() => setActionNotice(null), 3500)
+    return () => window.clearTimeout(timer)
+  }, [actionNotice])
+
   // Markdown 切换预览：Ctrl/Cmd + Shift + P
   useEffect(() => {
     if (!isMd) return
@@ -332,7 +444,7 @@ export default function CodeViewer({ tabId }: CodeViewerProps) {
   return (
     <div className="h-full flex flex-col" onKeyDown={handleKeyDown}>
       {/* 工具栏：Markdown 文件显示预览切换按钮 + AI 上下文注入 */}
-      <div className="flex items-center gap-1 px-2 py-1 border-b border-border bg-bg-primary">
+      <div className="flex items-center gap-2 px-2 py-1 border-b border-border bg-bg-primary overflow-x-auto">
         {isMd && (
           <button
             onClick={() => setIsPreview(v => !v)}
@@ -346,6 +458,52 @@ export default function CodeViewer({ tabId }: CodeViewerProps) {
             {isPreview ? <Pencil className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
             {isPreview ? '编辑' : '预览'}
           </button>
+        )}
+
+        <div className="flex items-center gap-1 min-w-0">
+          <span className="text-[10px] text-text-muted shrink-0">AI 动作</span>
+          {CODE_ACTIONS.map(action => {
+            const Icon = action.icon
+            const loading = actionLoading === action.mode
+            const disabled = isPreview || !!actionLoading || !activeSessionId
+
+            return (
+              <button
+                key={action.mode}
+                type="button"
+                onClick={() => handleCodeAction(action.mode)}
+                disabled={disabled}
+                title={
+                  !activeSessionId
+                    ? '请先选择一个会话'
+                    : isPreview
+                      ? '预览模式下不可发送代码动作'
+                      : `将当前选中代码发送到会话：${action.label}`
+                }
+                className={`inline-flex h-7 items-center gap-1.5 rounded-md border px-2 text-xs transition-colors ${
+                  disabled
+                    ? 'cursor-not-allowed border-border/60 text-text-muted/50 bg-bg-secondary/40'
+                    : 'border-border bg-bg-secondary text-text-secondary hover:border-accent-blue/40 hover:bg-bg-hover hover:text-text-primary'
+                }`}
+              >
+                <Icon className={`w-3.5 h-3.5 ${loading ? 'animate-pulse text-accent-blue' : action.color}`} />
+                <span className="whitespace-nowrap">{loading ? '发送中' : action.label}</span>
+              </button>
+            )
+          })}
+        </div>
+
+        {actionNotice && (
+          <div
+            className={`ml-auto max-w-[40%] truncate rounded-md border px-2 py-1 text-[11px] ${
+              actionNotice.type === 'success'
+                ? 'border-accent-green/30 bg-accent-green/10 text-accent-green'
+                : 'border-accent-red/30 bg-accent-red/10 text-accent-red'
+            }`}
+            title={actionNotice.message}
+          >
+            {actionNotice.message}
+          </div>
         )}
       </div>
 
@@ -374,6 +532,7 @@ export default function CodeViewer({ tabId }: CodeViewerProps) {
               language={tab.language}
               value={tab.content}
               onChange={handleChange}
+              onMount={handleEditorMount}
               theme="spectrai-dynamic"
               options={{
                 fontSize: 13,
