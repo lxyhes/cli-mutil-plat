@@ -336,6 +336,70 @@ function buildShipRepairTask(run: ShipRunResult, workingDirectory: string, sessi
     },
   }
 }
+
+function buildDebugLoopPrompt(input: {
+  run: ShipRunResult
+  workingDirectory: string
+  repairTaskCreated: boolean
+  repairTaskError?: string
+}): string {
+  const failedResults = getFailedShipResults(input.run)
+  const resultLines = input.run.results?.length
+    ? input.run.results.map(result => {
+      const duration = result.durationMs !== undefined ? `, ${Math.round(result.durationMs / 1000)}s` : ''
+      return `- ${result.status}: ${result.label || result.id || '检查命令'}${duration} -> ${result.command || '未知命令'}`
+    }).join('\n')
+    : '- 暂无验证结果'
+
+  const failureBlocks = failedResults.length
+    ? failedResults.map(result => [
+      `### ${result.label || result.id || '检查命令'}`,
+      `命令：${result.command || '未知命令'}`,
+      result.exitCode !== undefined && result.exitCode !== null ? `退出码：${result.exitCode}` : '',
+      result.errorMessage ? `错误：${result.errorMessage}` : '',
+      result.outputTail ? '输出摘要：' : '',
+      result.outputTail ? '```text' : '',
+      truncateShipText(result.outputTail, 2200),
+      result.outputTail ? '```' : '',
+    ].filter(Boolean).join('\n')).join('\n\n')
+    : '- 暂无失败项'
+
+  const failedCommands = failedResults.length
+    ? failedResults.map(result => `  - ${result.command || result.label || result.id || '未知命令'}`).join('\n')
+    : '  - 无失败命令'
+
+  const repairStatus = input.repairTaskCreated
+    ? '已创建修复任务'
+    : input.repairTaskError
+      ? `修复任务创建失败：${input.repairTaskError}`
+      : '无需创建修复任务'
+
+  return [
+    'Debug Mode 自动验证已完成，请继续按“失败 -> 修复 -> 复验 -> 沉淀”的闭环处理。',
+    '',
+    '## 当前结论',
+    `- 项目路径：${input.workingDirectory}`,
+    `- 验证摘要：${input.run.summary || '无摘要'}`,
+    `- 修复任务：${repairStatus}`,
+    '',
+    '## 验证结果',
+    resultLines,
+    '',
+    '## 失败详情',
+    failureBlocks,
+    '',
+    '## 下一步执行',
+    failedResults.length > 0
+      ? [
+        '- 先定位失败根因，只做最小必要修复。',
+        '- 优先重跑失败命令：',
+        failedCommands,
+        '- 失败命令通过后，再运行完整 QA/SHIP 检查。',
+        '- 最后把根因、修复内容、验证结果和剩余风险写入工作上下文。',
+      ].join('\n')
+      : '- 验证已通过，整理交付说明并把最终结论写入工作上下文。',
+  ].join('\n')
+}
 // ---- 主组件 ----
 
 const SessionToolbar: React.FC<SessionToolbarProps> = ({ sessionId, onSkillClick, onSkillExecute, onCodeGraphAnswer }) => {
@@ -350,6 +414,7 @@ const SessionToolbar: React.FC<SessionToolbarProps> = ({ sessionId, onSkillClick
   const [shipRunLoading, setShipRunLoading] = useState(false)
   const [shipSummaryLoading, setShipSummaryLoading] = useState(false)
   const [debugLoading, setDebugLoading] = useState(false)
+  const [debugLoopLoading, setDebugLoopLoading] = useState(false)
   const [shipPlanNotice, setShipPlanNotice] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
   /** Skill 搜索框内容 */
   const [skillFilter, setSkillFilter] = useState('')
@@ -655,7 +720,7 @@ const SessionToolbar: React.FC<SessionToolbarProps> = ({ sessionId, onSkillClick
   }, [codeGraphQuestion, workingDirectory, codeGraphLoading, onCodeGraphAnswer])
 
   const handleCreateDebugPrompt = useCallback(async () => {
-    if (!workingDirectory || debugLoading) return
+    if (!workingDirectory || debugLoading || debugLoopLoading) return
     setDebugLoading(true)
     setShipPlanNotice({
       type: 'success',
@@ -702,10 +767,102 @@ const SessionToolbar: React.FC<SessionToolbarProps> = ({ sessionId, onSkillClick
     } finally {
       setDebugLoading(false)
     }
-  }, [workingDirectory, debugLoading, sessionId, onCodeGraphAnswer])
+  }, [workingDirectory, debugLoading, debugLoopLoading, sessionId, onCodeGraphAnswer])
+
+  const handleRunDebugLoop = useCallback(async () => {
+    if (!workingDirectory || debugLoading || debugLoopLoading || shipPlanLoading || shipRunLoading || shipSummaryLoading) return
+    setDebugLoopLoading(true)
+    setShipPlanNotice({
+      type: 'success',
+      message: 'Debug Mode 正在运行验证闭环，失败时会创建修复任务并沉淀到工作上下文...',
+    })
+
+    try {
+      const result = await window.spectrAI.ship.runPlan(workingDirectory, {
+        includeOptional: false,
+        stopOnFailure: true,
+      })
+      if (!result?.success) {
+        setShipPlanNotice({
+          type: 'error',
+          message: result?.error?.userMessage || result?.error?.message || result?.error || 'Debug Mode 自动验证失败',
+        })
+        return
+      }
+
+      const run = (result.data || result) as ShipRunResult
+      const failedResults = getFailedShipResults(run)
+      let repairTaskCreated = false
+      let repairTaskError = ''
+
+      if (!run.passed && failedResults.length > 0) {
+        try {
+          await createTask(buildShipRepairTask(run, workingDirectory, sessionId))
+          repairTaskCreated = true
+        } catch (taskError: any) {
+          repairTaskError = taskError?.message || '修复任务创建失败'
+        }
+
+        try {
+          await window.spectrAI.workingContext.addProblem(
+            sessionId,
+            `Debug Mode 验证失败：${run.summary || '请查看失败命令和输出摘要'}`,
+          )
+          await window.spectrAI.workingContext.addTodo(
+            sessionId,
+            `修复并复验失败命令：${failedResults.map(item => item.command || item.label || item.id).filter(Boolean).join('；')}`,
+          )
+          await window.spectrAI.workingContext.createSnapshot(sessionId, 'debug-loop-failed')
+        } catch (contextError) {
+          console.warn('[SessionToolbar] Failed to persist debug loop failure context', contextError)
+        }
+      } else {
+        try {
+          await window.spectrAI.workingContext.addDecision(
+            sessionId,
+            `Debug Mode 验证通过：${run.summary || '未发现失败项'}`,
+          )
+          await window.spectrAI.workingContext.createSnapshot(sessionId, 'debug-loop-passed')
+        } catch (contextError) {
+          console.warn('[SessionToolbar] Failed to persist debug loop success context', contextError)
+        }
+      }
+
+      onCodeGraphAnswer?.({
+        summary: run.summary || 'Debug Mode 自动验证完成',
+        suggestedPrompt: buildDebugLoopPrompt({
+          run,
+          workingDirectory,
+          repairTaskCreated,
+          repairTaskError,
+        }),
+      })
+      setShipPlanNotice({
+        type: run.passed ? 'success' : 'error',
+        message: `${run.summary || 'Debug Mode 自动验证完成'}${repairTaskCreated ? '，已创建修复任务' : ''}${repairTaskError ? `，${repairTaskError}` : ''}`,
+      })
+    } catch (error: any) {
+      setShipPlanNotice({
+        type: 'error',
+        message: error?.message || 'Debug Mode 自动验证失败',
+      })
+    } finally {
+      setDebugLoopLoading(false)
+    }
+  }, [
+    workingDirectory,
+    debugLoading,
+    debugLoopLoading,
+    shipPlanLoading,
+    shipRunLoading,
+    shipSummaryLoading,
+    createTask,
+    sessionId,
+    onCodeGraphAnswer,
+  ])
 
   const handleCreateShipPlan = useCallback(async () => {
-    if (!workingDirectory || shipPlanLoading || shipRunLoading || shipSummaryLoading) return
+    if (!workingDirectory || debugLoopLoading || shipPlanLoading || shipRunLoading || shipSummaryLoading) return
     setShipPlanLoading(true)
     setShipPlanNotice(null)
     try {
@@ -738,10 +895,10 @@ const SessionToolbar: React.FC<SessionToolbarProps> = ({ sessionId, onSkillClick
     } finally {
       setShipPlanLoading(false)
     }
-  }, [workingDirectory, shipPlanLoading, shipRunLoading, shipSummaryLoading, onCodeGraphAnswer])
+  }, [workingDirectory, debugLoopLoading, shipPlanLoading, shipRunLoading, shipSummaryLoading, onCodeGraphAnswer])
 
   const handleRunShipPlan = useCallback(async () => {
-    if (!workingDirectory || shipPlanLoading || shipRunLoading || shipSummaryLoading) return
+    if (!workingDirectory || debugLoopLoading || shipPlanLoading || shipRunLoading || shipSummaryLoading) return
     setShipRunLoading(true)
     setShipPlanNotice({
       type: 'success',
@@ -788,10 +945,10 @@ const SessionToolbar: React.FC<SessionToolbarProps> = ({ sessionId, onSkillClick
     } finally {
       setShipRunLoading(false)
     }
-  }, [workingDirectory, shipPlanLoading, shipRunLoading, shipSummaryLoading, onCodeGraphAnswer, createTask, sessionId])
+  }, [workingDirectory, debugLoopLoading, shipPlanLoading, shipRunLoading, shipSummaryLoading, onCodeGraphAnswer, createTask, sessionId])
 
   const handleGenerateShipSummary = useCallback(async () => {
-    if (!workingDirectory || shipPlanLoading || shipRunLoading || shipSummaryLoading) return
+    if (!workingDirectory || debugLoopLoading || shipPlanLoading || shipRunLoading || shipSummaryLoading) return
     setShipSummaryLoading(true)
     setShipPlanNotice(null)
     try {
@@ -823,7 +980,7 @@ const SessionToolbar: React.FC<SessionToolbarProps> = ({ sessionId, onSkillClick
     } finally {
       setShipSummaryLoading(false)
     }
-  }, [workingDirectory, shipPlanLoading, shipRunLoading, shipSummaryLoading, onCodeGraphAnswer])
+  }, [workingDirectory, debugLoopLoading, shipPlanLoading, shipRunLoading, shipSummaryLoading, onCodeGraphAnswer])
 
   const handleOpenGraphReference = useCallback((reference: CodeGraphReference) => {
     void openFileInTab(resolveProjectFilePath(codeGraphAnswer?.projectPath || workingDirectory, reference.filePath))
@@ -1097,12 +1254,22 @@ const SessionToolbar: React.FC<SessionToolbarProps> = ({ sessionId, onSkillClick
         <button
           type="button"
           onClick={handleCreateDebugPrompt}
-          disabled={!workingDirectory || debugLoading}
+          disabled={!workingDirectory || debugLoading || debugLoopLoading}
           className="inline-flex items-center gap-1 rounded-md border border-accent-red/20 bg-accent-red/10 px-2 py-1 text-xs text-accent-red transition-colors hover:bg-accent-red/15 disabled:cursor-not-allowed disabled:opacity-45"
           title={workingDirectory ? '收集日志、活动、文件改动和验证计划，生成 Debug Mode 诊断提示' : '当前会话没有工作目录'}
         >
           <Bug size={12} />
           <span>{debugLoading ? '诊断中...' : '调试诊断'}</span>
+        </button>
+        <button
+          type="button"
+          onClick={handleRunDebugLoop}
+          disabled={!workingDirectory || debugLoading || debugLoopLoading || shipPlanLoading || shipRunLoading || shipSummaryLoading}
+          className="ml-1 inline-flex items-center gap-1 rounded-md border border-accent-yellow/20 bg-accent-yellow/10 px-2 py-1 text-xs text-accent-yellow transition-colors hover:bg-accent-yellow/15 disabled:cursor-not-allowed disabled:opacity-45"
+          title={workingDirectory ? '运行验证闭环：失败时创建修复任务、写入工作上下文并插入复验提示' : '当前会话没有工作目录'}
+        >
+          <GitBranch size={12} />
+          <span>{debugLoopLoading ? '验证中...' : '自动验证'}</span>
         </button>
       </div>
 
@@ -1110,7 +1277,7 @@ const SessionToolbar: React.FC<SessionToolbarProps> = ({ sessionId, onSkillClick
         <button
           type="button"
           onClick={handleCreateShipPlan}
-          disabled={!workingDirectory || shipPlanLoading || shipRunLoading || shipSummaryLoading}
+          disabled={!workingDirectory || debugLoopLoading || shipPlanLoading || shipRunLoading || shipSummaryLoading}
           className="inline-flex items-center gap-1 rounded-md border border-accent-green/20 bg-accent-green/10 px-2 py-1 text-xs text-accent-green transition-colors hover:bg-accent-green/15 disabled:cursor-not-allowed disabled:opacity-45"
           title={workingDirectory ? '根据当前改动生成交付前验证计划' : '当前会话没有工作目录'}
         >
@@ -1120,7 +1287,7 @@ const SessionToolbar: React.FC<SessionToolbarProps> = ({ sessionId, onSkillClick
         <button
           type="button"
           onClick={handleRunShipPlan}
-          disabled={!workingDirectory || shipPlanLoading || shipRunLoading || shipSummaryLoading}
+          disabled={!workingDirectory || debugLoopLoading || shipPlanLoading || shipRunLoading || shipSummaryLoading}
           className="ml-1 inline-flex items-center gap-1 rounded-md border border-accent-cyan/20 bg-accent-cyan/10 px-2 py-1 text-xs text-accent-cyan transition-colors hover:bg-accent-cyan/15 disabled:cursor-not-allowed disabled:opacity-45"
           title={workingDirectory ? '自动执行交付检查并收集结果' : '当前会话没有工作目录'}
         >
@@ -1131,7 +1298,7 @@ const SessionToolbar: React.FC<SessionToolbarProps> = ({ sessionId, onSkillClick
         <button
           type="button"
           onClick={handleGenerateShipSummary}
-          disabled={!workingDirectory || shipPlanLoading || shipRunLoading || shipSummaryLoading}
+          disabled={!workingDirectory || debugLoopLoading || shipPlanLoading || shipRunLoading || shipSummaryLoading}
           className="ml-1 inline-flex items-center gap-1 rounded-md border border-accent-yellow/20 bg-accent-yellow/10 px-2 py-1 text-xs text-accent-yellow transition-colors hover:bg-accent-yellow/15 disabled:cursor-not-allowed disabled:opacity-45"
           title={workingDirectory ? '\u6839\u636e git \u53d8\u66f4\u751f\u6210\u4ea4\u4ed8\u8bf4\u660e\u3001\u9a8c\u8bc1\u547d\u4ee4\u548c\u5efa\u8bae\u63d0\u4ea4\u4fe1\u606f' : '\u5f53\u524d\u4f1a\u8bdd\u6ca1\u6709\u5de5\u4f5c\u76ee\u5f55'}
         >
