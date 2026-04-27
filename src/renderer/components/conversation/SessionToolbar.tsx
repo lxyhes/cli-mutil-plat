@@ -403,10 +403,10 @@ const SessionToolbar: React.FC<SessionToolbarProps> = ({ sessionId, onSkillClick
   }, [onSkillClick, onSkillExecute])
 
   return (
-    <div className="px-4 pt-1.5 pb-0 flex items-center gap-1.5 bg-bg-primary">
+    <div className="mx-auto mb-1 flex w-[calc(100%-2rem)] max-w-[1080px] items-center gap-1.5 px-1 py-0.5">
 
       {/* ---- 会话模式 + 模型信息 ---- */}
-      <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-md text-xs bg-bg-secondary border border-border text-text-muted select-none shadow-sm hover:shadow-md transition-all duration-300">
+      <div className="flex items-center gap-1.5 px-2 py-1 rounded-md text-xs bg-bg-secondary/45 border border-transparent text-text-muted select-none">
         <span className={`inline-block w-1.5 h-1.5 rounded-full ${isSupervisor ? 'bg-accent-green' : 'bg-accent-blue'}`} />
         {isSupervisor ? (
           <Users size={11} className="text-accent-green flex-shrink-0" />
@@ -424,8 +424,8 @@ const SessionToolbar: React.FC<SessionToolbarProps> = ({ sessionId, onSkillClick
           ref={modelBtnRef}
           onClick={() => setModelPopoverOpen(o => !o)}
           disabled={modelSwitching}
-          className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs
-            bg-bg-secondary border text-text-muted
+          className={`inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs
+            bg-bg-secondary/45 border border-transparent text-text-muted
             hover:text-text-secondary hover:bg-bg-hover
             transition-colors cursor-pointer select-none disabled:opacity-60 disabled:cursor-wait
             ${modelPopoverOpen ? 'border-accent-blue/40 text-text-secondary' : 'border-border'}`}
@@ -444,7 +444,7 @@ const SessionToolbar: React.FC<SessionToolbarProps> = ({ sessionId, onSkillClick
         {modelPopoverOpen && (
           <div
             ref={modelPopoverRef}
-            className="absolute bottom-full left-0 mb-1.5 w-44 bg-bg-secondary border border-border rounded-lg shadow-lg py-1.5 z-50"
+            className="absolute bottom-full left-0 mb-1.5 w-48 bg-bg-secondary border border-border rounded-lg shadow-lg py-1.5 z-50"
           >
             <div className="px-2 pb-1 border-b border-border/70">
               {REASONING_OPTIONS.map(option => {
@@ -513,8 +513,8 @@ const SessionToolbar: React.FC<SessionToolbarProps> = ({ sessionId, onSkillClick
           <button
             ref={skillBtnRef}
             onClick={() => setSkillPopoverOpen(o => !o)}
-            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs
-              bg-bg-secondary border text-text-muted
+            className={`inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs
+              bg-bg-secondary/45 border border-transparent text-text-muted
               hover:text-text-secondary hover:bg-bg-hover
               transition-colors cursor-pointer select-none
               ${skillPopoverOpen ? 'border-accent-blue/40 text-text-secondary' : 'border-border'}`}
@@ -644,8 +644,8 @@ const SessionToolbar: React.FC<SessionToolbarProps> = ({ sessionId, onSkillClick
           <button
             ref={mcpBtnRef}
             onClick={() => setMcpPopoverOpen(o => !o)}
-            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs
-              bg-bg-secondary border text-text-muted
+            className={`inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs
+              bg-bg-secondary/45 border border-transparent text-text-muted
               hover:text-text-secondary hover:bg-bg-hover
               transition-colors cursor-pointer select-none
               ${mcpPopoverOpen ? 'border-accent-blue/40 text-text-secondary' : 'border-border'}`}
@@ -720,8 +720,8 @@ const SessionToolbar: React.FC<SessionToolbarProps> = ({ sessionId, onSkillClick
         <button
           ref={toolboxBtnRef}
           onClick={() => setToolboxPopoverOpen(o => !o)}
-          className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs
-            bg-bg-secondary border text-text-muted
+          className={`inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs
+            bg-bg-secondary/45 border border-transparent text-text-muted
             hover:text-text-secondary hover:bg-bg-hover
             transition-colors cursor-pointer select-none
             ${toolboxPopoverOpen ? 'border-accent-blue/40 text-text-secondary' : 'border-border'}`}

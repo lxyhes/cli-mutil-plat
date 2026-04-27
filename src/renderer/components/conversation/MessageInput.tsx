@@ -983,7 +983,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
 
   return (
     <div
-      className="px-4 pb-3 pt-2 bg-bg-primary relative"
+      className="px-4 pb-3 pt-1 bg-bg-primary relative"
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
@@ -1124,8 +1124,8 @@ const MessageInput: React.FC<MessageInputProps> = ({
         </div>
       )}
 
-      <div className={`flex flex-col p-2 bg-bg-input border rounded-xl transition-colors shadow-sm
-        ${dragOver ? 'border-accent-blue' : 'border-border'} focus-within:border-accent-blue/50 md:p-3`}>
+      <div className={`mx-auto flex max-w-[1080px] flex-col p-2 bg-bg-secondary/45 border rounded-xl transition-colors shadow-sm
+        ${dragOver ? 'border-accent-blue' : 'border-border/55'} focus-within:border-accent-blue/45 md:p-3`}>
 
         {/* 附件区域：图片预览 + 文件引用卡片（有附件时显示） */}
         {hasAttachments && (
@@ -1237,7 +1237,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
             placeholder={isDisabled ? '等待 AI 响应...' : placeholder}
             disabled={isDisabled}
             rows={1}
-            className="flex-1 bg-transparent text-text-primary text-sm font-mono
+            className="flex-1 bg-transparent text-text-primary text-sm
               px-2 py-1.5 resize-none overflow-y-auto leading-5 min-h-[2rem]
               focus:outline-none focus-visible:outline-none
               disabled:opacity-50 disabled:cursor-not-allowed
@@ -1267,8 +1267,8 @@ const MessageInput: React.FC<MessageInputProps> = ({
           <button
             onClick={handleSend}
             disabled={isDisabled || (!text.trim() && !hasAttachments)}
-            className="px-3 py-1.5 bg-accent-blue text-white text-xs font-medium
-              rounded-lg hover:bg-accent-blue/80 hover:scale-105 active:scale-95
+            className="px-3 py-1.5 bg-accent-blue/80 text-white text-xs font-medium
+              rounded-lg hover:bg-accent-blue active:scale-95
               disabled:opacity-30 disabled:cursor-not-allowed
               transition-all duration-200 whitespace-nowrap flex-shrink-0"
           >

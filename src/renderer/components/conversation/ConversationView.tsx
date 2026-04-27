@@ -408,7 +408,7 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
         {/* 消息列表 */}
         <div
           ref={scrollRef}
-          className="flex-1 overflow-y-auto px-4 py-3 smooth-scroll scroll-optimized md:px-6 md:py-4"
+          className="flex-1 overflow-y-auto px-5 py-4 smooth-scroll scroll-optimized md:px-8 lg:px-10"
           onContextMenu={(e) => {
             e.preventDefault()
             setCtxMenu({ visible: true, x: e.clientX, y: e.clientY })
@@ -425,6 +425,7 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
               <span>知识库</span>
             </button>
           )}
+          <div className="mx-auto max-w-[1080px]">
         {messages.length === 0 ? (
           <div className="flex items-center justify-center h-full text-text-muted text-sm">
             {isLoading ? (
@@ -617,6 +618,8 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
         )}
 
         {/* 右键菜单（Portal 渲染，挂在 body 上） */}
+          </div>
+
         <ContextMenu
           visible={ctxMenu.visible}
           x={ctxMenu.x}

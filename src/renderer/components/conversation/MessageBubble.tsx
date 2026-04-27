@@ -265,7 +265,7 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({ message, isStreaming }) =
   return (
     <>
       <div
-        className={`flex ${isUser ? 'justify-end' : 'justify-start'} mb-3`}
+        className={`flex ${isUser ? 'justify-end' : 'justify-start'} mb-5`}
         onContextMenu={(e) => {
           e.preventDefault()
           e.stopPropagation() // 阻止冒泡到 ConversationView 背景
@@ -273,14 +273,14 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({ message, isStreaming }) =
         }}
       >
         <div
-          className={`max-w-[80%] rounded-lg px-3 py-2 text-sm relative 
+          className={`relative text-sm
             ${isUser
-              ? 'bg-accent-blue/15 border-l-2 border-accent-blue/50 text-text-primary shadow-sm hover:shadow-md'
-              : 'bg-bg-secondary text-text-primary shadow-sm hover:shadow-md'
-            } transition-all duration-300 ease-in-out animate-fade-in hover:translate-y-[-2px] hover:scale-[1.01]`}
+              ? 'max-w-[min(560px,64%)] rounded-xl px-3.5 py-2.5 bg-bg-secondary border border-border/50 text-text-primary shadow-sm'
+              : 'max-w-[min(860px,82%)] px-1 py-0 text-text-primary'
+            } animate-fade-in`}
         >
           {/* AI 消息左侧竖线标识 */}
-          {!isUser && <div className="absolute left-0 top-2 bottom-2 w-0.5 rounded-full bg-accent-purple/30" />}
+          {!isUser && <div className="absolute -left-3 top-1.5 bottom-1.5 w-px rounded-full bg-border/60" />}
 
           {/* 思考内容（折叠显示） */}
           {thinkingText && <ThinkingBlock text={thinkingText} />}

@@ -71,7 +71,7 @@ export default function AppLayout() {
         <div className="flex-1 overflow-hidden relative">
             <Allotment>
               {!sidebarCollapsed && (
-                <Allotment.Pane preferredSize={280} minSize={200} maxSize={400} className="sidebar-collapsed-1200">
+                <Allotment.Pane preferredSize={292} minSize={220} maxSize={360} className="sidebar-collapsed-1200">
                   <Sidebar />
                 </Allotment.Pane>
               )}
@@ -107,7 +107,7 @@ export default function AppLayout() {
               </Allotment.Pane>
 
               {!detailPanelCollapsed && (
-                <Allotment.Pane preferredSize={300} minSize={200} maxSize={500} className="detail-panel-1200">
+                <Allotment.Pane preferredSize={270} minSize={220} maxSize={420} className="detail-panel-1200">
                   <DetailPanel />
                 </Allotment.Pane>
               )}
