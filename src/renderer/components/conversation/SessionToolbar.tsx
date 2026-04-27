@@ -78,6 +78,14 @@ interface ShipRunResult {
   results?: ShipCommandRunResult[]
 }
 
+interface ShipChangeSummary {
+  summary?: string
+  markdown?: string
+  suggestedPrompt?: string
+  changedFiles?: unknown[]
+  suggestedCommands?: string[]
+}
+
 interface ShipCommandRunResult {
   id?: string
   label?: string
@@ -258,6 +266,7 @@ const SessionToolbar: React.FC<SessionToolbarProps> = ({ sessionId, onSkillClick
   const [codeGraphAnswer, setCodeGraphAnswer] = useState<CodeGraphAnswer | null>(null)
   const [shipPlanLoading, setShipPlanLoading] = useState(false)
   const [shipRunLoading, setShipRunLoading] = useState(false)
+  const [shipSummaryLoading, setShipSummaryLoading] = useState(false)
   const [shipPlanNotice, setShipPlanNotice] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
   /** Skill 搜索框内容 */
   const [skillFilter, setSkillFilter] = useState('')
@@ -563,7 +572,7 @@ const SessionToolbar: React.FC<SessionToolbarProps> = ({ sessionId, onSkillClick
   }, [codeGraphQuestion, workingDirectory, codeGraphLoading, onCodeGraphAnswer])
 
   const handleCreateShipPlan = useCallback(async () => {
-    if (!workingDirectory || shipPlanLoading || shipRunLoading) return
+    if (!workingDirectory || shipPlanLoading || shipRunLoading || shipSummaryLoading) return
     setShipPlanLoading(true)
     setShipPlanNotice(null)
     try {
@@ -596,10 +605,10 @@ const SessionToolbar: React.FC<SessionToolbarProps> = ({ sessionId, onSkillClick
     } finally {
       setShipPlanLoading(false)
     }
-  }, [workingDirectory, shipPlanLoading, shipRunLoading, onCodeGraphAnswer])
+  }, [workingDirectory, shipPlanLoading, shipRunLoading, shipSummaryLoading, onCodeGraphAnswer])
 
   const handleRunShipPlan = useCallback(async () => {
-    if (!workingDirectory || shipPlanLoading || shipRunLoading) return
+    if (!workingDirectory || shipPlanLoading || shipRunLoading || shipSummaryLoading) return
     setShipRunLoading(true)
     setShipPlanNotice({
       type: 'success',
@@ -646,7 +655,42 @@ const SessionToolbar: React.FC<SessionToolbarProps> = ({ sessionId, onSkillClick
     } finally {
       setShipRunLoading(false)
     }
-  }, [workingDirectory, shipPlanLoading, shipRunLoading, onCodeGraphAnswer, createTask, sessionId])
+  }, [workingDirectory, shipPlanLoading, shipRunLoading, shipSummaryLoading, onCodeGraphAnswer, createTask, sessionId])
+
+  const handleGenerateShipSummary = useCallback(async () => {
+    if (!workingDirectory || shipPlanLoading || shipRunLoading || shipSummaryLoading) return
+    setShipSummaryLoading(true)
+    setShipPlanNotice(null)
+    try {
+      const result = await window.spectrAI.ship.generateChangeSummary(workingDirectory)
+      if (!result?.success) {
+        setShipPlanNotice({
+          type: 'error',
+          message: result?.error?.userMessage || result?.error?.message || result?.error || '\u53d8\u66f4\u8bf4\u660e\u751f\u6210\u5931\u8d25',
+        })
+        return
+      }
+      const summary = (result.data || result) as ShipChangeSummary
+      const prompt = summary.suggestedPrompt || summary.markdown
+      if (prompt) {
+        onCodeGraphAnswer?.({
+          summary: summary.summary,
+          suggestedPrompt: prompt,
+        })
+      }
+      setShipPlanNotice({
+        type: 'success',
+        message: `\u5df2\u63d2\u5165\u53d8\u66f4\u8bf4\u660e\uff1a${summary.changedFiles?.length ?? 0} \u4e2a\u53d8\u66f4\u6587\u4ef6\uff0c${summary.suggestedCommands?.length ?? 0} \u6761\u5efa\u8bae\u547d\u4ee4`,
+      })
+    } catch (error: any) {
+      setShipPlanNotice({
+        type: 'error',
+        message: error?.message || '\u53d8\u66f4\u8bf4\u660e\u751f\u6210\u5931\u8d25',
+      })
+    } finally {
+      setShipSummaryLoading(false)
+    }
+  }, [workingDirectory, shipPlanLoading, shipRunLoading, shipSummaryLoading, onCodeGraphAnswer])
 
   const handleOpenGraphReference = useCallback((reference: CodeGraphReference) => {
     void openFileInTab(resolveProjectFilePath(codeGraphAnswer?.projectPath || workingDirectory, reference.filePath))
@@ -920,7 +964,7 @@ const SessionToolbar: React.FC<SessionToolbarProps> = ({ sessionId, onSkillClick
         <button
           type="button"
           onClick={handleCreateShipPlan}
-          disabled={!workingDirectory || shipPlanLoading || shipRunLoading}
+          disabled={!workingDirectory || shipPlanLoading || shipRunLoading || shipSummaryLoading}
           className="inline-flex items-center gap-1 rounded-md border border-accent-green/20 bg-accent-green/10 px-2 py-1 text-xs text-accent-green transition-colors hover:bg-accent-green/15 disabled:cursor-not-allowed disabled:opacity-45"
           title={workingDirectory ? '根据当前改动生成交付前验证计划' : '当前会话没有工作目录'}
         >
@@ -930,12 +974,23 @@ const SessionToolbar: React.FC<SessionToolbarProps> = ({ sessionId, onSkillClick
         <button
           type="button"
           onClick={handleRunShipPlan}
-          disabled={!workingDirectory || shipPlanLoading || shipRunLoading}
+          disabled={!workingDirectory || shipPlanLoading || shipRunLoading || shipSummaryLoading}
           className="ml-1 inline-flex items-center gap-1 rounded-md border border-accent-cyan/20 bg-accent-cyan/10 px-2 py-1 text-xs text-accent-cyan transition-colors hover:bg-accent-cyan/15 disabled:cursor-not-allowed disabled:opacity-45"
           title={workingDirectory ? '自动执行交付检查并收集结果' : '当前会话没有工作目录'}
         >
           <Activity size={12} />
           <span>{shipRunLoading ? '运行中...' : '运行检查'}</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={handleGenerateShipSummary}
+          disabled={!workingDirectory || shipPlanLoading || shipRunLoading || shipSummaryLoading}
+          className="ml-1 inline-flex items-center gap-1 rounded-md border border-accent-yellow/20 bg-accent-yellow/10 px-2 py-1 text-xs text-accent-yellow transition-colors hover:bg-accent-yellow/15 disabled:cursor-not-allowed disabled:opacity-45"
+          title={workingDirectory ? '\u6839\u636e git \u53d8\u66f4\u751f\u6210\u4ea4\u4ed8\u8bf4\u660e\u3001\u9a8c\u8bc1\u547d\u4ee4\u548c\u5efa\u8bae\u63d0\u4ea4\u4fe1\u606f' : '\u5f53\u524d\u4f1a\u8bdd\u6ca1\u6709\u5de5\u4f5c\u76ee\u5f55'}
+        >
+          <FileText size={12} />
+          <span>{shipSummaryLoading ? '\u6574\u7406\u4e2d...' : '\u53d8\u66f4\u8bf4\u660e'}</span>
         </button>
 
         {shipPlanNotice && (

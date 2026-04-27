@@ -60,6 +60,7 @@ export const IPC = {
 
   SHIP_CREATE_PLAN: 'ship:create-plan',
   SHIP_RUN_PLAN: 'ship:run-plan',
+  SHIP_CHANGE_SUMMARY: 'ship:change-summary',
 
   SEARCH_LOGS: 'search:logs',
   USAGE_GET_SUMMARY: 'usage:get-summary',

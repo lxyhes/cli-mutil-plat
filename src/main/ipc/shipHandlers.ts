@@ -24,4 +24,12 @@ export function registerShipHandlers(): void {
       return createErrorResponse(err, { operation: 'ship.run-plan', projectPath })
     }
   })
+
+  ipcMain.handle(IPC.SHIP_CHANGE_SUMMARY, async (_event, projectPath: string) => {
+    try {
+      return createSuccessResponse(shipCheckService.generateChangeSummary(projectPath))
+    } catch (err) {
+      return createErrorResponse(err, { operation: 'ship.change-summary', projectPath })
+    }
+  })
 }

@@ -277,6 +277,7 @@ if (!ctxBr) {
   ship: {
     createPlan: (projectPath: string) => ipcRenderer.invoke(IPC.SHIP_CREATE_PLAN, projectPath),
     runPlan: (projectPath: string, options?: any) => ipcRenderer.invoke(IPC.SHIP_RUN_PLAN, projectPath, options),
+    generateChangeSummary: (projectPath: string) => ipcRenderer.invoke(IPC.SHIP_CHANGE_SUMMARY, projectPath),
   },
 
 

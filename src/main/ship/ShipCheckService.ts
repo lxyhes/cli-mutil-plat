@@ -61,6 +61,36 @@ export interface ShipRunResult {
   suggestedPrompt: string
 }
 
+export interface ShipChangedFile {
+  path: string
+  status: string
+  stagedStatus: string
+  worktreeStatus: string
+  previousPath?: string
+}
+
+export interface ShipFileStat {
+  path: string
+  insertions: number | null
+  deletions: number | null
+  binary: boolean
+}
+
+export interface ShipChangeSummary {
+  projectPath: string
+  generatedAt: string
+  branch?: string
+  changedFiles: ShipChangedFile[]
+  fileStats: ShipFileStat[]
+  diffStat: string
+  warnings: string[]
+  summary: string
+  markdown: string
+  suggestedPrompt: string
+  suggestedCommitMessage: string
+  suggestedCommands: string[]
+}
+
 const execFileAsync = promisify(execFile)
 const SOURCE_EXTENSIONS = new Set(['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs', '.mts', '.cts'])
 const TEST_FILE_RE = /(?:^|[\\/])(?:__tests__[\\/].+|.+\.(?:test|spec))\.(?:ts|tsx|js|jsx|mjs|cjs|mts|cts)$/
@@ -151,6 +181,55 @@ export class ShipCheckService {
     }
   }
 
+  generateChangeSummary(projectPath: string): ShipChangeSummary {
+    const plan = this.createPlan(projectPath)
+    const packageJson = this.readPackageJson(plan.projectPath)
+    const changedFiles = this.getChangedFileEntries(plan.projectPath)
+    const fileStats = this.getFileStats(plan.projectPath)
+    const diffStat = this.getGitOutput(plan.projectPath, ['diff', '--stat', 'HEAD', '--']).trim()
+    const branch = this.getGitOutput(plan.projectPath, ['rev-parse', '--abbrev-ref', 'HEAD']).trim() || undefined
+    const warnings = [...plan.warnings]
+
+    if (changedFiles.length === 0) {
+      warnings.push('No git changes were detected, so the change summary may be incomplete.')
+    }
+    if (changedFiles.some(file => file.status === 'untracked')) {
+      warnings.push('Untracked files are listed, but git diff statistics do not include their content.')
+    }
+
+    const suggestedCommitMessage = this.buildSuggestedCommitMessage(changedFiles)
+    const suggestedCommands = this.buildSuggestedShipCommands(plan, packageJson, suggestedCommitMessage)
+    const summary = this.buildChangeSummaryText(changedFiles, warnings)
+    const generatedAt = new Date().toISOString()
+    const markdown = this.buildChangeSummaryMarkdown({
+      plan,
+      generatedAt,
+      branch,
+      changedFiles,
+      fileStats,
+      diffStat,
+      warnings,
+      summary,
+      suggestedCommitMessage,
+      suggestedCommands,
+    })
+
+    return {
+      projectPath: plan.projectPath,
+      generatedAt,
+      branch,
+      changedFiles,
+      fileStats,
+      diffStat,
+      warnings,
+      summary,
+      markdown,
+      suggestedPrompt: markdown,
+      suggestedCommitMessage,
+      suggestedCommands,
+    }
+  }
+
   private readPackageJson(root: string): any | null {
     const packageJsonPath = path.join(root, 'package.json')
     if (!fs.existsSync(packageJsonPath)) return null
@@ -190,6 +269,78 @@ export class ShipCheckService {
     } catch {
       return []
     }
+  }
+
+  private getChangedFileEntries(root: string): ShipChangedFile[] {
+    const output = this.getGitOutput(root, ['status', '--porcelain=v1', '-z', '--untracked-files=all'])
+    if (!output) return []
+
+    const records = output.split('\0').filter(Boolean)
+    const files: ShipChangedFile[] = []
+    for (let index = 0; index < records.length; index += 1) {
+      const record = records[index]
+      const status = record.slice(0, 2)
+      const file = record.slice(3).replace(/\\/g, '/')
+      const previousPath = status.includes('R') || status.includes('C') ? file : undefined
+      const nextPath = previousPath && records[index + 1]
+        ? records[index + 1].replace(/\\/g, '/')
+        : undefined
+
+      files.push({
+        path: nextPath || file,
+        status: this.describeGitStatus(status),
+        stagedStatus: status[0] || ' ',
+        worktreeStatus: status[1] || ' ',
+        previousPath,
+      })
+
+      if (nextPath) index += 1
+    }
+
+    return files.sort((a, b) => a.path.localeCompare(b.path))
+  }
+
+  private getFileStats(root: string): ShipFileStat[] {
+    const output = this.getGitOutput(root, ['diff', '--numstat', 'HEAD', '--'])
+    if (!output) return []
+
+    return output.split(/\r?\n/)
+      .map(line => line.trim())
+      .filter(Boolean)
+      .map(line => {
+        const [insertions, deletions, ...fileParts] = line.split('\t')
+        const file = fileParts.join('\t').replace(/\\/g, '/')
+        const binary = insertions === '-' || deletions === '-'
+        return {
+          path: file,
+          insertions: binary ? null : Number(insertions),
+          deletions: binary ? null : Number(deletions),
+          binary,
+        }
+      })
+  }
+
+  private getGitOutput(root: string, args: string[]): string {
+    try {
+      return execFileSync('git', args, {
+        cwd: root,
+        encoding: 'utf8',
+        stdio: ['ignore', 'pipe', 'ignore'],
+      })
+    } catch {
+      return ''
+    }
+  }
+
+  private describeGitStatus(status: string): string {
+    if (status === '??') return 'untracked'
+    if (status.includes('R')) return 'renamed'
+    if (status.includes('C')) return 'copied'
+    if (status.includes('A')) return 'added'
+    if (status.includes('D')) return 'deleted'
+    if (status.includes('M')) return 'modified'
+    if (status.includes('U')) return 'conflicted'
+    return 'changed'
   }
 
   private findRelatedTests(root: string, changedFiles: string[]): string[] {
@@ -422,6 +573,160 @@ export class ShipCheckService {
       '',
       hasFailure ? '如果有失败项，请先定位根因并做最小修复，然后只重跑失败命令；不要跳过失败项。' : '',
     ].filter(line => line !== '').join('\n')
+  }
+
+  private buildChangeSummaryText(changedFiles: ShipChangedFile[], warnings: string[]): string {
+    const counts = changedFiles.reduce<Record<string, number>>((acc, file) => {
+      acc[file.status] = (acc[file.status] || 0) + 1
+      return acc
+    }, {})
+    const countText = Object.entries(counts)
+      .map(([status, count]) => `${count} ${status}`)
+      .join(', ')
+    return `Detected ${changedFiles.length} changed file(s)${countText ? `: ${countText}` : ''}. ${warnings.length} warning(s).`
+  }
+
+  private buildSuggestedShipCommands(plan: ShipPlan, packageJson: any | null, suggestedCommitMessage: string): string[] {
+    const commands = new Set<string>()
+    commands.add('git diff --check')
+    for (const command of plan.commands) {
+      if (command.required) commands.add(command.command)
+    }
+
+    const scripts = packageJson?.scripts || {}
+    const packageScript = ['package', 'dist', 'make'].find(script => scripts[script])
+    if (packageScript) {
+      commands.add(this.scriptCommand(plan.packageManager, packageScript))
+    }
+
+    commands.add('git status --short')
+    commands.add(`${this.buildGitAddCommand(plan.changedFiles)} && git commit -m ${this.quoteArg(suggestedCommitMessage)}`)
+    return Array.from(commands)
+  }
+
+  private buildGitAddCommand(changedFiles: string[]): string {
+    if (changedFiles.length === 0 || changedFiles.length > 15) return 'git add .'
+    return `git add -- ${changedFiles.map(file => this.quoteArg(file)).join(' ')}`
+  }
+
+  private buildSuggestedCommitMessage(changedFiles: ShipChangedFile[]): string {
+    if (changedFiles.length === 0) return 'chore: update project files'
+    const paths = changedFiles.map(file => file.path)
+    const onlyDocs = paths.every(file => file.endsWith('.md') || file.startsWith('docs/'))
+    const hasTests = paths.some(file => TEST_FILE_RE.test(file))
+    const scope = this.detectCommitScope(paths)
+    const type = onlyDocs ? 'docs' : hasTests && paths.every(file => TEST_FILE_RE.test(file)) ? 'test' : 'feat'
+    const subject = onlyDocs
+      ? 'update documentation'
+      : scope === 'renderer'
+        ? 'update UI workflow'
+        : scope === 'main'
+          ? 'update main process behavior'
+          : scope === 'ship'
+            ? 'update delivery workflow'
+            : 'update project workflow'
+
+    return `${type}${scope ? `(${scope})` : ''}: ${subject}`
+  }
+
+  private detectCommitScope(paths: string[]): string {
+    if (paths.some(file => file.includes('/ship/') || file.includes('\\ship\\') || file.includes('shipHandlers'))) return 'ship'
+    if (paths.every(file => file.startsWith('src/renderer/'))) return 'renderer'
+    if (paths.every(file => file.startsWith('src/main/'))) return 'main'
+    if (paths.every(file => file.startsWith('src/preload/'))) return 'preload'
+    if (paths.every(file => file.startsWith('src/shared/'))) return 'shared'
+    if (paths.every(file => file.startsWith('docs/') || file.endsWith('.md'))) return 'docs'
+    return ''
+  }
+
+  private buildChangeSummaryMarkdown(input: {
+    plan: ShipPlan
+    generatedAt: string
+    branch?: string
+    changedFiles: ShipChangedFile[]
+    fileStats: ShipFileStat[]
+    diffStat: string
+    warnings: string[]
+    summary: string
+    suggestedCommitMessage: string
+    suggestedCommands: string[]
+  }): string {
+    const statByFile = new Map(input.fileStats.map(stat => [stat.path, stat]))
+    const fileRows = input.changedFiles.length > 0
+      ? input.changedFiles.map(file => {
+        const stat = statByFile.get(file.path)
+        const added = stat?.binary ? 'binary' : stat?.insertions ?? '-'
+        const deleted = stat?.binary ? 'binary' : stat?.deletions ?? '-'
+        const renamed = file.previousPath ? ` (from ${file.previousPath})` : ''
+        return `| ${file.status} | \`${file.path}${renamed}\` | ${added} | ${deleted} |`
+      }).join('\n')
+      : '| none | - | - | - |'
+    const validationCommands = input.suggestedCommands.length > 0
+      ? input.suggestedCommands.map(command => `- \`${command}\``).join('\n')
+      : '- No commands suggested.'
+    const warningLines = input.warnings.length > 0
+      ? input.warnings.map(warning => `- ${warning}`).join('\n')
+      : '- No known warnings.'
+    const diffStatBlock = input.diffStat
+      ? ['```text', input.diffStat, '```'].join('\n')
+      : '_No git diff stat available._'
+
+    return [
+      '# Change Summary',
+      '',
+      `Generated: ${input.generatedAt}`,
+      `Project: ${input.plan.projectPath}`,
+      input.branch ? `Branch: ${input.branch}` : '',
+      '',
+      '## Overview',
+      `- ${input.summary}`,
+      `- Suggested commit: \`${input.suggestedCommitMessage}\``,
+      '',
+      '## Changed Files',
+      '| Status | File | + | - |',
+      '| --- | --- | ---: | ---: |',
+      fileRows,
+      '',
+      '## Diff Stat',
+      diffStatBlock,
+      '',
+      '## Validation And Ship Commands',
+      validationCommands,
+      '',
+      '## Release Notes Draft',
+      this.buildReleaseNoteBullets(input.changedFiles),
+      '',
+      '## Risks And Follow-Up',
+      warningLines,
+      '',
+      '## Optional Next Steps',
+      '- Run the validation commands above before committing.',
+      `- Commit with: \`git commit -m ${this.quoteArg(input.suggestedCommitMessage)}\``,
+      '- If this repo has a package/dist/make script, run it only after validation passes.',
+    ].filter(line => line !== '').join('\n')
+  }
+
+  private buildReleaseNoteBullets(changedFiles: ShipChangedFile[]): string {
+    if (changedFiles.length === 0) return '- No visible changes detected yet.'
+    const groups = new Map<string, number>()
+    for (const file of changedFiles) {
+      const area = this.describeChangeArea(file.path)
+      groups.set(area, (groups.get(area) || 0) + 1)
+    }
+    return Array.from(groups.entries())
+      .map(([area, count]) => `- ${area}: updated ${count} file(s).`)
+      .join('\n')
+  }
+
+  private describeChangeArea(filePath: string): string {
+    if (filePath.startsWith('src/main/')) return 'Main process'
+    if (filePath.startsWith('src/renderer/')) return 'Renderer UI'
+    if (filePath.startsWith('src/preload/')) return 'Preload bridge'
+    if (filePath.startsWith('src/shared/')) return 'Shared contracts'
+    if (filePath.startsWith('docs/') || filePath.endsWith('.md')) return 'Documentation'
+    if (TEST_FILE_RE.test(filePath)) return 'Tests'
+    if (filePath === 'package.json' || filePath.includes('lock')) return 'Dependencies and scripts'
+    return 'Project files'
   }
 
   private buildWarnings(packageJson: any | null, changedFiles: string[], relatedTestFiles: string[], commands: ShipCommand[]): string[] {

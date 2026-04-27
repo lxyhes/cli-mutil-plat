@@ -53,4 +53,21 @@ describe('ShipCheckService', () => {
     expect(result.results[1].status).toBe('skipped')
     expect(result.suggestedPrompt).toContain('失败详情')
   })
+
+  it('generates a delivery change summary with validation and commit guidance', () => {
+    const root = createFixture({
+      test: 'node -e "console.log(\'ship-ok\')"',
+      build: 'node -e "console.log(\'build-ok\')"',
+    })
+    const service = new ShipCheckService()
+
+    const result = service.generateChangeSummary(root)
+
+    expect(result.markdown).toContain('# Change Summary')
+    expect(result.markdown).toContain('## Validation And Ship Commands')
+    expect(result.suggestedCommands).toContain('git diff --check')
+    expect(result.suggestedCommands).toContain('npm run test')
+    expect(result.suggestedCommands).toContain('npm run build')
+    expect(result.suggestedCommitMessage).toContain(':')
+  })
 })
