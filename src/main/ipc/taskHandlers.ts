@@ -259,15 +259,25 @@ export function registerTaskHandlers(deps: IpcDependencies): void {
 
       const sessionId = uuidv4()
       const provider: AIProvider = database.getProvider(config?.providerId || 'claude-code') || BUILTIN_CLAUDE_PROVIDER
+      const initialPrompt = config?.initialPrompt
+        ?? (task.metadata?.source === 'qa-ship'
+          ? [
+            '请处理下面这个 QA/SHIP 修复任务。',
+            '',
+            `# ${task.title || '修复任务'}`,
+            '',
+            task.description || '',
+          ].join('\n')
+          : undefined)
       const sessionConfig: SessionConfig = {
         id: sessionId,
         name: task.title || 'Task Session',
         taskId,
         autoAccept: config?.autoAccept,
         claudeArgs: config?.claudeArgs,
-        initialPrompt: config?.initialPrompt,
         providerId: provider.id,
         ...config,
+        initialPrompt,
         workingDirectory: workDir,
       }
       if (activeWorktreePath) {

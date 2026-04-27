@@ -20,7 +20,9 @@ import { useSkillStore } from '../../stores/skillStore'
 import { useMcpStore } from '../../stores/mcpStore'
 import { useUIStore } from '../../stores/uiStore'
 import { useFileManagerStore } from '../../stores/fileManagerStore'
+import { useTaskStore } from '../../stores/taskStore'
 import type { ToolboxFeatureId } from '../../stores/uiStore'
+import type { TaskCard } from '../../../shared/types'
 
 // ---- 类型 ----
 
@@ -69,8 +71,25 @@ interface ShipRunResult {
   passed?: boolean
   summary?: string
   suggestedPrompt?: string
-  results?: Array<{ status: string }>
+  plan?: {
+    projectPath?: string
+    changedFiles?: string[]
+  }
+  results?: ShipCommandRunResult[]
 }
+
+interface ShipCommandRunResult {
+  id?: string
+  label?: string
+  command?: string
+  status: string
+  exitCode?: number | null
+  durationMs?: number
+  outputTail?: string
+  errorMessage?: string
+}
+
+type ShipRepairTaskDraft = Partial<TaskCard> & { metadata?: Record<string, unknown> }
 
 interface SessionToolbarProps {
   sessionId: string
@@ -157,6 +176,76 @@ function resolveProjectFilePath(projectPath: string | undefined, filePath: strin
   const separator = projectPath.includes('\\') ? '\\' : '/'
   return `${projectPath.replace(/[\\/]+$/, '')}${separator}${filePath.replace(/[\\/]+/g, separator)}`
 }
+
+function getFailedShipResults(run: ShipRunResult): ShipCommandRunResult[] {
+  return (run.results || []).filter(result => result.status === 'failed' || result.status === 'timed-out')
+}
+
+function truncateShipText(text: string | undefined, max = 1600): string {
+  if (!text) return ''
+  return text.length > max ? `${text.slice(0, max)}\n...已截断...` : text
+}
+
+function buildShipRepairTask(run: ShipRunResult, workingDirectory: string, sessionId: string): ShipRepairTaskDraft {
+  const failedResults = getFailedShipResults(run)
+  const failedNames = failedResults
+    .map(result => result.label || result.id || '检查命令')
+    .slice(0, 3)
+    .join('、')
+  const failureDetails = failedResults.map(result => [
+    `### ${result.label || result.id || '检查命令'}`,
+    `命令：${result.command || '未知命令'}`,
+    result.exitCode !== undefined && result.exitCode !== null ? `退出码：${result.exitCode}` : '',
+    result.errorMessage ? `错误：${result.errorMessage}` : '',
+    result.outputTail ? '输出摘要：' : '',
+    result.outputTail ? '```text' : '',
+    truncateShipText(result.outputTail),
+    result.outputTail ? '```' : '',
+  ].filter(Boolean).join('\n')).join('\n\n')
+
+  const projectPath = run.plan?.projectPath || workingDirectory
+  const changedFiles = run.plan?.changedFiles?.length
+    ? run.plan.changedFiles.map(file => `- ${file}`).join('\n')
+    : '- 未识别到改动文件或无需列出'
+
+  return {
+    title: `修复 QA/SHIP 失败：${failedNames || '交付检查'}`,
+    description: [
+      'QA/SHIP 自动检查失败。请根据下面的失败命令和输出摘要定位根因，做最小修复后重跑失败命令。',
+      '',
+      `项目路径：${projectPath}`,
+      `检查摘要：${run.summary || '无摘要'}`,
+      '',
+      '## 失败命令',
+      failureDetails || '- 暂无失败详情',
+      '',
+      '## 改动文件',
+      changedFiles,
+      '',
+      '## 验收条件',
+      '- 修复根因，不绕过失败检查。',
+      '- 先只重跑失败命令，确认通过。',
+      '- 最后再次运行 QA/SHIP 交付检查。',
+    ].join('\n'),
+    status: 'todo',
+    priority: 'high',
+    tags: ['qa-ship', 'repair', 'auto-generated'],
+    gitRepoPath: projectPath,
+    metadata: {
+      source: 'qa-ship',
+      sessionId,
+      projectPath,
+      summary: run.summary,
+      failedCommands: failedResults.map(result => ({
+        id: result.id,
+        label: result.label,
+        command: result.command,
+        status: result.status,
+        exitCode: result.exitCode,
+      })),
+    },
+  }
+}
 // ---- 主组件 ----
 
 const SessionToolbar: React.FC<SessionToolbarProps> = ({ sessionId, onSkillClick, onSkillExecute, onCodeGraphAnswer }) => {
@@ -208,6 +297,7 @@ const SessionToolbar: React.FC<SessionToolbarProps> = ({ sessionId, onSkillClick
   const allMcpServers = useMcpStore(s => s.servers)
   const fetchMcps = useMcpStore(s => s.fetchAll)
   const openFileInTab = useFileManagerStore(s => s.openFileInTab)
+  const createTask = useTaskStore(s => s.createTask)
 
   // 首次挂载时确保数据已加载
   useEffect(() => {
@@ -534,9 +624,19 @@ const SessionToolbar: React.FC<SessionToolbarProps> = ({ sessionId, onSkillClick
           suggestedPrompt: run.suggestedPrompt,
         })
       }
+      let repairTaskCreated = false
+      let repairTaskError = ''
+      if (!run.passed && getFailedShipResults(run).length > 0) {
+        try {
+          await createTask(buildShipRepairTask(run, workingDirectory, sessionId))
+          repairTaskCreated = true
+        } catch (taskError: any) {
+          repairTaskError = taskError?.message || '修复任务创建失败'
+        }
+      }
       setShipPlanNotice({
         type: run.passed ? 'success' : 'error',
-        message: run.summary || '交付检查已完成',
+        message: `${run.summary || '交付检查已完成'}${repairTaskCreated ? '，已创建修复任务' : ''}${repairTaskError ? `，${repairTaskError}` : ''}`,
       })
     } catch (error: any) {
       setShipPlanNotice({
@@ -546,7 +646,7 @@ const SessionToolbar: React.FC<SessionToolbarProps> = ({ sessionId, onSkillClick
     } finally {
       setShipRunLoading(false)
     }
-  }, [workingDirectory, shipPlanLoading, shipRunLoading, onCodeGraphAnswer])
+  }, [workingDirectory, shipPlanLoading, shipRunLoading, onCodeGraphAnswer, createTask, sessionId])
 
   const handleOpenGraphReference = useCallback((reference: CodeGraphReference) => {
     void openFileInTab(resolveProjectFilePath(codeGraphAnswer?.projectPath || workingDirectory, reference.filePath))
