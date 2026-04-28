@@ -82,6 +82,7 @@ interface OpsBriefSnapshot {
   nextActions: string[]
   risks: string[]
   evidence: string[]
+  evidenceTimeline: EvidenceTimelineEntry[]
   readinessGates: DeliveryReadinessGate[]
   deliveryMetrics: DeliveryMetric[]
   deliveryMetricScore: number
@@ -126,6 +127,15 @@ interface DeliveryMetric {
   value: string
   detail: string
   status: 'passed' | 'warning' | 'blocked'
+}
+
+interface EvidenceTimelineEntry {
+  id: string
+  type: 'mission' | 'tool' | 'validation' | 'change' | 'risk' | 'handoff'
+  label: string
+  detail: string
+  timestamp?: string
+  tone: 'good' | 'warn' | 'bad' | 'neutral'
 }
 
 interface ShipCommandRunResult {
@@ -744,6 +754,33 @@ function getDeliveryMetricLabel(status: DeliveryMetric['status']): string {
   }[status]
 }
 
+function getEvidenceTimelineClass(tone: EvidenceTimelineEntry['tone']): string {
+  return {
+    good: 'border-accent-green/20 bg-accent-green/5 text-accent-green',
+    warn: 'border-accent-yellow/25 bg-accent-yellow/10 text-accent-yellow',
+    bad: 'border-accent-red/25 bg-accent-red/10 text-accent-red',
+    neutral: 'border-border-subtle bg-bg-primary/70 text-text-secondary',
+  }[tone]
+}
+
+function getEvidenceTimelineLabel(type: EvidenceTimelineEntry['type']): string {
+  return {
+    mission: '目标',
+    tool: '工具',
+    validation: '验证',
+    change: '改动',
+    risk: '风险',
+    handoff: '交付',
+  }[type]
+}
+
+function formatTimelineTimestamp(timestamp?: string): string {
+  if (!timestamp) return ''
+  const date = new Date(timestamp)
+  if (Number.isNaN(date.getTime())) return ''
+  return date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
+}
+
 function formatElapsedMinutes(minutes: number): string {
   if (minutes < 1) return '<1m'
   if (minutes < 60) return `${minutes}m`
@@ -774,6 +811,9 @@ function buildTrustAuditPrompt(snapshot: OpsBriefSnapshot): string {
     .join('\n')
   const metrics = snapshot.deliveryMetrics
     .map(metric => `- ${metric.label}：${getDeliveryMetricLabel(metric.status)}；${metric.value}；${metric.detail}`)
+    .join('\n')
+  const timeline = snapshot.evidenceTimeline
+    .map(entry => `- ${entry.timestamp || '未知时间'}：${getEvidenceTimelineLabel(entry.type)}；${entry.label}；${entry.detail}`)
     .join('\n')
   const files = snapshot.lastFiles.length > 0
     ? snapshot.lastFiles.map(file => `- ${file}`).join('\n')
@@ -808,6 +848,9 @@ function buildTrustAuditPrompt(snapshot: OpsBriefSnapshot): string {
     `- 策略预设：${getTrustPolicyOptionLabel(snapshot.trustPolicyPresetId)}`,
     `- Provider/模型治理：${snapshot.providerId || '未知'} / ${snapshot.modelId || '默认/未上报'}`,
     `- Agent 状态：${snapshot.activeAgentCount} 执行中 / ${snapshot.agentCount} 总数，${snapshot.agentConflictCount} 个协作风险信号`,
+    '',
+    '## 证据时间线',
+    timeline || '- 暂无证据时间线',
     '',
     '## 项目知识与交付门禁',
     `- 项目知识：${snapshot.projectPath ? '已绑定项目目录，可沉淀共享记忆' : '未绑定项目目录，知识沉淀受限'}`,
@@ -848,6 +891,10 @@ function buildTrustReportMarkdown(snapshot: OpsBriefSnapshot): string {
   const metrics = snapshot.deliveryMetrics.map(metric =>
     `${metric.label}: ${getDeliveryMetricLabel(metric.status)} - ${metric.value} - ${metric.detail}`,
   )
+  const timeline = snapshot.evidenceTimeline.map(entry => {
+    const time = entry.timestamp ? `${entry.timestamp} - ` : ''
+    return `${time}${getEvidenceTimelineLabel(entry.type)} - ${entry.label}: ${entry.detail}`
+  })
   const agents = snapshot.agents.map(agent => [
     `- ${agent.name || agent.agentId}: ${getAgentStatusLabel(agent.status)}`,
     agent.workDir ? `  - 工作目录: ${agent.workDir}` : '',
@@ -860,6 +907,8 @@ function buildTrustReportMarkdown(snapshot: OpsBriefSnapshot): string {
     `# PrismOps 可信交付报告 - ${snapshot.projectName}`,
     '',
     `生成时间: ${generatedAt}`,
+    `报告 Schema: prismops.trust-report.v1`,
+    `生成来源: conversation-task-cockpit`,
     '',
     '## 交付结论',
     '',
@@ -898,6 +947,10 @@ function buildTrustReportMarkdown(snapshot: OpsBriefSnapshot): string {
     '## 核心指标',
     '',
     formatMarkdownList(metrics, '暂无核心指标'),
+    '',
+    '## 证据时间线',
+    '',
+    formatMarkdownList(timeline, '暂无证据时间线'),
     '',
     '## 交付门禁',
     '',
@@ -938,6 +991,10 @@ function buildDeliveryPackMarkdown(snapshot: OpsBriefSnapshot, summary?: any): s
   const metrics = snapshot.deliveryMetrics.map(metric =>
     `${metric.label}: ${getDeliveryMetricLabel(metric.status)} - ${metric.value} - ${metric.detail}`,
   )
+  const timeline = snapshot.evidenceTimeline.map(entry => {
+    const time = entry.timestamp ? `${entry.timestamp} - ` : ''
+    return `${time}${getEvidenceTimelineLabel(entry.type)} - ${entry.label}: ${entry.detail}`
+  })
   const validationEvidence = snapshot.evidence.filter(item => item.includes('验证') || item.includes('命令') || item.includes('工具'))
   const warnings = Array.isArray(summary?.warnings) ? summary.warnings : []
 
@@ -945,6 +1002,8 @@ function buildDeliveryPackMarkdown(snapshot: OpsBriefSnapshot, summary?: any): s
     `# PrismOps 交付包 - ${snapshot.projectName}`,
     '',
     `生成时间: ${generatedAt}`,
+    `报告 Schema: prismops.delivery-pack.v1`,
+    `生成来源: conversation-task-cockpit`,
     '',
     '## 交付结论',
     '',
@@ -982,6 +1041,10 @@ function buildDeliveryPackMarkdown(snapshot: OpsBriefSnapshot, summary?: any): s
     '## 核心指标',
     '',
     formatMarkdownList(metrics, '暂无核心指标'),
+    '',
+    '## 证据时间线',
+    '',
+    formatMarkdownList(timeline, '暂无证据时间线'),
     '',
     '## 交付门禁',
     '',
@@ -1373,6 +1436,7 @@ const OpsBrief = React.memo(function OpsBrief({
   }[snapshot.missionHealthTone]
   const hasRisk = snapshot.risks.some(risk => !risk.includes('暂无明显'))
   const openGateCount = snapshot.readinessGates.filter(gate => gate.status !== 'passed').length
+  const visibleEvidenceTimeline = snapshot.evidenceTimeline.slice(-6).reverse()
   const HealthIcon = snapshot.missionHealthTone === 'bad'
     ? AlertTriangle
     : snapshot.missionHealthTone === 'good'
@@ -1666,6 +1730,47 @@ const OpsBrief = React.memo(function OpsBrief({
                     )
                   })}
                 </div>
+              </div>
+
+              <div className="mt-3 rounded-lg border border-border-subtle bg-bg-primary/45 p-3">
+                <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <FileText size={14} className="text-accent-blue" />
+                    <span className="text-xs font-semibold text-text-secondary">证据时间线</span>
+                    <span className="rounded-md bg-bg-primary px-1.5 py-0.5 text-[10px] font-medium text-text-muted">
+                      {snapshot.evidenceTimeline.length} 条
+                    </span>
+                  </div>
+                </div>
+                {visibleEvidenceTimeline.length > 0 ? (
+                  <div className="grid gap-1.5 md:grid-cols-2">
+                    {visibleEvidenceTimeline.map(item => {
+                      const time = formatTimelineTimestamp(item.timestamp)
+                      return (
+                        <div key={item.id} className={`min-w-0 rounded-md border px-2 py-1.5 ${getEvidenceTimelineClass(item.tone)}`}>
+                          <div className="flex min-w-0 items-center justify-between gap-2">
+                            <div className="flex min-w-0 items-center gap-1.5">
+                              <span className="shrink-0 rounded bg-bg-primary/70 px-1.5 py-0.5 text-[10px] font-medium">
+                                {getEvidenceTimelineLabel(item.type)}
+                              </span>
+                              <span className="truncate text-[11px] font-semibold text-text-primary" title={item.label}>
+                                {item.label}
+                              </span>
+                            </div>
+                            {time && <span className="shrink-0 text-[10px] text-text-muted">{time}</span>}
+                          </div>
+                          <div className="mt-0.5 truncate text-[10px] leading-4 text-text-secondary" title={item.detail}>
+                            {item.detail}
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                ) : (
+                  <div className="rounded-md border border-dashed border-border-subtle bg-bg-primary/70 px-3 py-2 text-[11px] leading-5 text-text-muted">
+                    暂无可展示的证据事件。继续执行工具、验证或文件改动后会自动生成。
+                  </div>
+                )}
               </div>
 
               <div className="mt-3 rounded-lg border border-border-subtle bg-bg-primary/45 p-3">
@@ -2333,10 +2438,12 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
     const toolUseMessages: ConversationMessage[] = []
     const commands: string[] = []
     const validationCommands: string[] = []
+    const timelineEntries: EvidenceTimelineEntry[] = []
 
     for (const message of messages) {
       const timestampMs = Date.parse(message.timestamp)
       const hasTimestamp = Number.isFinite(timestampMs)
+      const timestamp = hasTimestamp ? new Date(timestampMs).toISOString() : message.timestamp
 
       if ((message.role === 'user' || message.role === 'assistant')) {
         messageCount += 1
@@ -2349,6 +2456,14 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
 
       if (message.role === 'user' && message.content && !message.content.startsWith('\u25B6 /')) {
         userGoal = message.content
+        timelineEntries.push({
+          id: `${message.id}-mission`,
+          type: 'mission',
+          label: 'Mission 更新',
+          detail: compactText(message.content, 96),
+          timestamp,
+          tone: 'neutral',
+        })
       }
 
       if (message.fileChange) {
@@ -2362,6 +2477,14 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
         if (hasTimestamp) {
           lastFileChangeAtMs = Math.max(lastFileChangeAtMs, timestampMs)
         }
+        timelineEntries.push({
+          id: `${message.id}-change`,
+          type: 'change',
+          label: `${message.fileChange.changeType} ${getShortFileName(filePath)}`,
+          detail: `文件改动 +${message.fileChange.additions || 0} / -${message.fileChange.deletions || 0}`,
+          timestamp,
+          tone: 'warn',
+        })
       }
 
       if (message.role === 'tool_use') {
@@ -2374,10 +2497,44 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
             if (hasTimestamp) {
               lastValidationAtMs = Math.max(lastValidationAtMs, timestampMs)
             }
+            timelineEntries.push({
+              id: `${message.id}-validation`,
+              type: 'validation',
+              label: '验证命令',
+              detail: compactText(command, 96),
+              timestamp,
+              tone: 'good',
+            })
+          } else {
+            timelineEntries.push({
+              id: `${message.id}-tool`,
+              type: 'tool',
+              label: message.toolName || '工具调用',
+              detail: compactText(command, 96),
+              timestamp,
+              tone: 'neutral',
+            })
           }
+        } else {
+          timelineEntries.push({
+            id: `${message.id}-tool`,
+            type: 'tool',
+            label: message.toolName || '工具调用',
+            detail: compactText(message.content || '工具调用', 96),
+            timestamp,
+            tone: 'neutral',
+          })
         }
       } else if (message.role === 'tool_result' && message.isError) {
         failedToolCount += 1
+        timelineEntries.push({
+          id: `${message.id}-risk`,
+          type: 'risk',
+          label: '工具异常',
+          detail: compactText(message.toolResult || message.content || '工具结果异常', 96),
+          timestamp,
+          tone: 'bad',
+        })
       }
     }
 
@@ -2392,6 +2549,16 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
       deliveryPackGeneratedAtMs > 0 &&
       lastFileChangeAtMs > deliveryPackGeneratedAtMs
     const deliveryPackCurrent = deliveryPackGenerated && !deliveryPackStale
+    if (deliveryPackGeneratedAtMs > 0) {
+      timelineEntries.push({
+        id: `delivery-pack-${deliveryPackGeneratedAtMs}`,
+        type: 'handoff',
+        label: deliveryPackStale ? '交付包已过期' : '交付包已生成',
+        detail: deliveryPackStale ? '交付包生成后又发生文件改动，需要更新。' : '已导出 Markdown 交付包。',
+        timestamp: new Date(deliveryPackGeneratedAtMs).toISOString(),
+        tone: deliveryPackStale ? 'warn' : 'good',
+      })
+    }
     const hasWaitingAction = pendingPermission || pendingAskQuestion || pendingQuestion || pendingPlanApproval
     const phaseLabel = pendingPermission || pendingAskQuestion || pendingQuestion || pendingPlanApproval || status === 'error'
       ? '需要处理'
@@ -2671,6 +2838,9 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
       },
     ]
     const deliveryMetricScore = Math.round((deliveryMetrics.filter(metric => metric.status === 'passed').length / deliveryMetrics.length) * 100)
+    const evidenceTimeline = timelineEntries
+      .sort((a, b) => new Date(a.timestamp || '').getTime() - new Date(b.timestamp || '').getTime())
+      .slice(-18)
 
     return {
       projectName: getProjectName(workingDirectory, session?.name || session?.config?.name),
@@ -2708,6 +2878,7 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
       nextActions,
       risks,
       evidence,
+      evidenceTimeline,
       readinessGates,
       deliveryMetrics,
       deliveryMetricScore,

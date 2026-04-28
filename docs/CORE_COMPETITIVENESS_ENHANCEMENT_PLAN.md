@@ -314,9 +314,9 @@ Completed:
 - Added stale validation detection when file changes happen after the latest validation command.
 - Surfaced stale validation in risks, next actions, delivery readiness, delivery gates, success metrics, and dashboard metric records.
 - Marked delivery packs as stale when newer file changes happen after the pack was generated.
+- Added an initial evidence timeline model in the conversation cockpit, covering mission updates, tools, validation commands, file changes, tool failures, and delivery-pack events.
+- Added evidence timeline excerpts and schema metadata to trust report and delivery pack Markdown exports.
 
 Remaining:
 
-- Add an evidence timeline model and initial cockpit UI.
-- Add delivery pack metadata with schema version and source.
 - Add Dashboard empty and stale-state copy.
