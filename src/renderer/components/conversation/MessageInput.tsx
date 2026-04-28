@@ -1124,7 +1124,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
         </div>
       )}
 
-      <div className={`mx-auto flex max-w-[1080px] flex-col rounded-lg border bg-bg-input p-2 shadow-[0_10px_28px_var(--color-shadow-sm)] transition-colors
+      <div className={`message-composer mx-auto flex max-w-[1040px] flex-col rounded-lg border bg-bg-input p-2 shadow-[0_10px_28px_var(--color-shadow-sm)] transition-colors
         ${dragOver ? 'border-accent-blue' : 'border-border-subtle'} focus-within:border-accent-blue/50 md:p-2.5`}>
 
         {/* 附件区域：图片预览 + 文件引用卡片（有附件时显示） */}
@@ -1212,7 +1212,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
         )}
 
         {/* textarea + 工具按钮行 */}
-        <div className="flex items-end gap-1">
+        <div className="flex items-end gap-1.5">
           {/* 跨会话引用按钮（有回调时才显示） */}
           {onOpenSessionSearch && (
             <button
@@ -1220,8 +1220,8 @@ const MessageInput: React.FC<MessageInputProps> = ({
               onClick={onOpenSessionSearch}
               disabled={isDisabled}
               title={`搜索并引用其他会话内容 (${toPlatformShortcutLabel('Ctrl+Shift+F')})`}
-              className="p-1.5 rounded-lg text-text-muted hover:text-accent-blue hover:bg-accent-blue/10
-                disabled:opacity-30 disabled:cursor-not-allowed transition-all flex-shrink-0 hover:scale-105"
+              className="icon-action-button text-text-muted hover:text-accent-blue hover:bg-accent-blue/10
+                disabled:opacity-30 disabled:cursor-not-allowed flex-shrink-0"
             >
               <MessagesSquare size={14} />
             </button>
@@ -1241,7 +1241,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
               px-2 py-1.5 resize-none overflow-y-auto leading-5 min-h-[2rem]
               focus:outline-none focus-visible:outline-none
               disabled:opacity-50 disabled:cursor-not-allowed
-              placeholder:text-text-muted transition-all duration-200"
+              placeholder:text-text-placeholder transition-all duration-200"
           />
 
           {/* ★ 语音输入按钮 */}
@@ -1250,7 +1250,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
             onClick={toggleVoiceInput}
             disabled={isDisabled}
             title={isRecording ? '点击停止语音输入' : '点击开始语音输入'}
-            className={`p-1.5 rounded-lg transition-all flex-shrink-0 relative hover:scale-105
+            className={`icon-action-button flex-shrink-0 relative
               ${isRecording
                 ? 'bg-accent-red/20 text-accent-red animate-pulse hover:bg-accent-red/30'
                 : 'text-text-muted hover:text-accent-blue hover:bg-accent-blue/10'
@@ -1267,7 +1267,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
           <button
             onClick={handleSend}
             disabled={isDisabled || (!text.trim() && !hasAttachments)}
-            className="inline-flex h-8 items-center justify-center gap-1.5 rounded-lg bg-accent-blue/80 px-3 text-xs font-medium text-white
+            className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md bg-accent-blue px-3 text-xs font-medium text-white shadow-sm
               hover:bg-accent-blue active:scale-95
               disabled:opacity-30 disabled:cursor-not-allowed
               transition-all duration-200 whitespace-nowrap flex-shrink-0"

@@ -76,6 +76,15 @@ interface OpsBriefSnapshot {
   nextActions: string[]
   risks: string[]
   evidence: string[]
+  readinessGates: DeliveryReadinessGate[]
+}
+
+interface DeliveryReadinessGate {
+  id: string
+  label: string
+  detail: string
+  status: 'passed' | 'warning' | 'blocked'
+  prompt: string
 }
 
 interface CommonPrompt {
@@ -285,6 +294,75 @@ function formatThinkingTime(seconds: number): string {
   return `${m}m ${s}s`
 }
 
+function buildDeliveryPackPrompt(snapshot: OpsBriefSnapshot): string {
+  const changedFiles = snapshot.lastFiles.length > 0
+    ? snapshot.lastFiles.map(file => `- ${file}`).join('\n')
+    : '- 暂未识别到文件改动'
+  const risks = snapshot.risks.map(risk => `- ${risk}`).join('\n')
+  const evidence = snapshot.evidence.map(item => `- ${item}`).join('\n')
+  const nextActions = snapshot.nextActions.map(action => `- ${action}`).join('\n')
+
+  return [
+    '请为当前 Mission 生成一份可交付工作包，并在必要时继续补齐缺口。',
+    '',
+    '## 当前状态',
+    `- 项目：${snapshot.projectName}`,
+    `- 阶段：${snapshot.phaseLabel}`,
+    `- 交付状态：${snapshot.deliveryReadiness}`,
+    `- 健康分：${snapshot.missionHealthScore}`,
+    `- 改动规模：${snapshot.changedFileCount} 个文件，+${snapshot.additions} / -${snapshot.deletions}`,
+    `- 工具调用：${snapshot.toolCount} 次，异常 ${snapshot.failedToolCount} 次`,
+    `- 验证命令：${snapshot.validationCount} 条`,
+    snapshot.lastCommand ? `- 最近命令：${snapshot.lastCommand}` : '',
+    '',
+    '## 目标',
+    snapshot.goal,
+    '',
+    '## 最近改动文件',
+    changedFiles,
+    '',
+    '## 风险雷达',
+    risks,
+    '',
+    '## 证据链',
+    evidence,
+    '',
+    '## 建议下一步',
+    nextActions,
+    '',
+    '## 输出要求',
+    '- 先判断当前是否可以交付；如果不能，列出最小补齐动作并执行。',
+    '- 如果涉及代码改动，运行必要的 typecheck/test/build 或说明为什么无法运行。',
+    '- 最后输出：变更摘要、验证结果、剩余风险、建议提交说明、用户下一步。',
+  ].filter(Boolean).join('\n')
+}
+
+function buildGatePrompt(gate: DeliveryReadinessGate, snapshot: OpsBriefSnapshot): string {
+  return [
+    `请处理交付门禁：「${gate.label}」。`,
+    '',
+    `门禁状态：${gate.status === 'passed' ? '已通过' : gate.status === 'blocked' ? '阻塞' : '需补齐'}`,
+    `门禁说明：${gate.detail}`,
+    '',
+    '## 当前 Mission',
+    `- 项目：${snapshot.projectName}`,
+    `- 目标：${snapshot.goal}`,
+    `- 交付状态：${snapshot.deliveryReadiness}`,
+    `- 最近命令：${snapshot.lastCommand || '暂无'}`,
+    '',
+    '## 处理要求',
+    gate.prompt,
+    '',
+    '完成后请输出：处理动作、验证结果、剩余风险，以及是否可以进入下一交付门禁。',
+  ].join('\n')
+}
+
+function unwrapIpcData<T = any>(result: any): T | undefined {
+  if (!result) return undefined
+  if (result.success === false) return undefined
+  return (result.data || result) as T
+}
+
 interface ConversationViewProps {
   sessionId: string
 }
@@ -293,7 +371,10 @@ interface OpsBriefProps {
   snapshot: OpsBriefSnapshot
   onInsertPrompt: (text: string) => void
   onOpenKnowledge: () => void
+  onRunShipPlan: () => void
+  onGenerateShipSummary: () => void
   canOpenKnowledge: boolean
+  shipActionLoading: 'run' | 'summary' | null
   expanded: boolean
   onToggleExpanded: () => void
 }
@@ -412,7 +493,17 @@ const MissionLaunchpad = React.memo(function MissionLaunchpad({ providerId, sess
   )
 })
 
-const OpsBrief = React.memo(function OpsBrief({ snapshot, onInsertPrompt, onOpenKnowledge, canOpenKnowledge, expanded, onToggleExpanded }: OpsBriefProps) {
+const OpsBrief = React.memo(function OpsBrief({
+  snapshot,
+  onInsertPrompt,
+  onOpenKnowledge,
+  onRunShipPlan,
+  onGenerateShipSummary,
+  canOpenKnowledge,
+  shipActionLoading,
+  expanded,
+  onToggleExpanded,
+}: OpsBriefProps) {
   const statusClass = {
     neutral: 'bg-bg-tertiary text-text-secondary',
     active: 'bg-accent-blue/10 text-accent-blue',
@@ -438,6 +529,7 @@ const OpsBrief = React.memo(function OpsBrief({ snapshot, onInsertPrompt, onOpen
     neutral: 'bg-accent-blue',
   }[snapshot.missionHealthTone]
   const hasRisk = snapshot.risks.some(risk => !risk.includes('暂无明显'))
+  const openGateCount = snapshot.readinessGates.filter(gate => gate.status !== 'passed').length
   const HealthIcon = snapshot.missionHealthTone === 'bad'
     ? AlertTriangle
     : snapshot.missionHealthTone === 'good'
@@ -527,7 +619,7 @@ const OpsBrief = React.memo(function OpsBrief({ snapshot, onInsertPrompt, onOpen
               </button>
               <button
                 type="button"
-                onClick={() => onInsertPrompt('为当前 Mission 生成交付包：变更摘要、验证结果、风险点、下一步建议和提交说明。')}
+                onClick={() => onInsertPrompt(buildDeliveryPackPrompt(snapshot))}
                 className={`h-8 items-center gap-1 rounded-md bg-accent-green/10 px-2 text-xs font-medium text-accent-green transition-colors hover:bg-accent-green/15 ${expanded ? 'inline-flex' : 'hidden'}`}
               >
                 <ShieldCheck size={13} />
@@ -605,6 +697,9 @@ const OpsBrief = React.memo(function OpsBrief({ snapshot, onInsertPrompt, onOpen
               <span className={hasRisk ? 'text-accent-yellow' : 'text-accent-green'}>
                 {hasRisk ? snapshot.risks[0] : '暂无明显阻塞'}
               </span>
+              <span className={openGateCount > 0 ? 'text-accent-yellow' : 'text-accent-green'}>
+                {openGateCount > 0 ? `${openGateCount} 个门禁待处理` : '交付门禁通过'}
+              </span>
             </div>
           )}
 
@@ -635,6 +730,66 @@ const OpsBrief = React.memo(function OpsBrief({ snapshot, onInsertPrompt, onOpen
                     {snapshot.lastCommand}
                   </span>
                 )}
+              </div>
+
+              <div className="mt-3 rounded-lg border border-border-subtle bg-bg-primary/45 p-3">
+                <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <ShieldCheck size={14} className={openGateCount > 0 ? 'text-accent-yellow' : 'text-accent-green'} />
+                    <span className="text-xs font-semibold text-text-secondary">交付门禁</span>
+                    <span className={`rounded-md px-1.5 py-0.5 text-[10px] font-medium ${openGateCount > 0 ? 'bg-accent-yellow/10 text-accent-yellow' : 'bg-accent-green/10 text-accent-green'}`}>
+                      {openGateCount > 0 ? `${openGateCount} 项待处理` : '全部通过'}
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => onInsertPrompt(buildDeliveryPackPrompt(snapshot))}
+                    className="rounded-md px-2 py-1 text-[11px] font-medium text-accent-green transition-colors hover:bg-accent-green/10"
+                  >
+                    生成交付包
+                  </button>
+                </div>
+                <div className="grid gap-2 md:grid-cols-2">
+                  {snapshot.readinessGates.map(gate => {
+                    const gateClass = gate.status === 'passed'
+                      ? 'border-accent-green/20 bg-accent-green/5 text-accent-green'
+                      : gate.status === 'blocked'
+                        ? 'border-accent-red/25 bg-accent-red/10 text-accent-red'
+                        : 'border-accent-yellow/25 bg-accent-yellow/10 text-accent-yellow'
+                    const GateIcon = gate.status === 'passed'
+                      ? CheckCircle2
+                      : gate.status === 'blocked'
+                        ? AlertTriangle
+                        : Activity
+                    return (
+                      <div key={gate.id} className={`min-w-0 rounded-md border p-2 ${gateClass}`}>
+                        <div className="flex min-w-0 items-start gap-2">
+                          <GateIcon size={13} className="mt-0.5 shrink-0" />
+                          <div className="min-w-0 flex-1">
+                            <div className="flex min-w-0 items-center justify-between gap-2">
+                              <span className="truncate text-xs font-semibold text-text-primary">{gate.label}</span>
+                              <span className="shrink-0 text-[10px] font-medium">
+                                {gate.status === 'passed' ? '通过' : gate.status === 'blocked' ? '阻塞' : '待补齐'}
+                              </span>
+                            </div>
+                            <div className="mt-1 line-clamp-2 text-[11px] leading-4 text-text-secondary">
+                              {gate.detail}
+                            </div>
+                            {gate.status !== 'passed' && (
+                              <button
+                                type="button"
+                                onClick={() => onInsertPrompt(buildGatePrompt(gate, snapshot))}
+                                className="mt-2 rounded-md bg-bg-primary/70 px-2 py-0.5 text-[11px] font-medium text-text-secondary transition-colors hover:bg-bg-hover hover:text-accent-blue"
+                              >
+                                处理
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
               </div>
 
               <div className="mt-3 grid gap-4 text-xs md:grid-cols-3">
@@ -1132,6 +1287,62 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
                 ? '继续收敛方案'
                 : '先完成项目扫描'
 
+    const readinessGates: DeliveryReadinessGate[] = [
+      {
+        id: 'scope',
+        label: '目标清晰',
+        detail: userGoal || session?.config?.initialPrompt || session?.name
+          ? '已识别当前 Mission 的目标或会话上下文。'
+          : '还没有明确目标，建议先让 AI 复述任务边界和验收标准。',
+        status: userGoal || session?.config?.initialPrompt || session?.name ? 'passed' : 'warning',
+        prompt: '请先复述当前任务目标、范围、约束和验收标准。如果信息不足，请列出需要用户补充的问题。',
+      },
+      {
+        id: 'changes',
+        label: '改动可追踪',
+        detail: uniqueFiles.length > 0
+          ? `已记录 ${uniqueFiles.length} 个改动文件。`
+          : toolUseMessages.length > 0
+            ? '已有工具活动，但暂未识别到文件改动。'
+            : '还没有工具活动或文件改动记录。',
+        status: uniqueFiles.length > 0 || toolUseMessages.length === 0 ? 'passed' : 'warning',
+        prompt: '请检查当前会话是否产生文件改动，并总结改动范围；如果没有改动，请说明当前仍处于分析阶段。',
+      },
+      {
+        id: 'validation',
+        label: '验证证据',
+        detail: validationCommands.length > 0
+          ? `已看到 ${validationCommands.length} 条验证命令。`
+          : uniqueFiles.length > 0
+            ? '已有代码改动，但还没有看到 test/typecheck/build/lint 等验证命令。'
+            : '还没有需要验证的代码改动。',
+        status: validationCommands.length > 0 || uniqueFiles.length === 0 ? 'passed' : 'warning',
+        prompt: '请为当前改动运行最小必要验证，优先选择 typecheck、相关测试或 build；如果无法运行，请说明原因和替代验证方式。',
+      },
+      {
+        id: 'failures',
+        label: '异常清零',
+        detail: failedToolCount > 0
+          ? `发现 ${failedToolCount} 个异常工具结果，需要先定位或解释。`
+          : '暂未发现失败的工具结果。',
+        status: failedToolCount > 0 ? 'blocked' : 'passed',
+        prompt: '请复盘失败的工具调用，定位原因，必要时做最小修复并重跑失败命令；如果失败不影响交付，请解释依据。',
+      },
+      {
+        id: 'handoff',
+        label: '交付说明',
+        detail: validationCommands.length > 0 && uniqueFiles.length > 0 && failedToolCount === 0
+          ? '已具备生成交付包的基础证据。'
+          : '交付说明需要包含变更、验证、风险和下一步，当前证据仍需补齐。',
+        status: validationCommands.length > 0 && uniqueFiles.length > 0 && failedToolCount === 0
+          ? 'passed'
+          : hasWaitingAction || failedToolCount > 0
+            ? 'blocked'
+            : 'warning',
+        prompt: '请生成交付说明：变更摘要、验证结果、剩余风险、建议提交说明和用户下一步。若证据不足，请先补齐最小缺口。',
+      },
+    ]
+
     const hasMissionRisk = risks.some(risk => !risk.includes('暂无明显'))
     const primarySignal = compactText(hasMissionRisk ? risks[0] : nextActions[0], 54)
 
@@ -1168,6 +1379,7 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
       nextActions,
       risks,
       evidence,
+      readinessGates,
     }
   }, [
     messages,
@@ -1288,13 +1500,13 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
   ]
 
   return (
-    <div className="relative flex flex-row flex-1 min-h-0 overflow-hidden bg-bg-primary">
+    <div className="conversation-shell relative flex flex-row flex-1 min-h-0 overflow-hidden">
       {/* 左侧：消息区域 */}
       <div className="flex flex-col flex-1 min-h-0 relative">
         {/* 消息列表 */}
         <div
           ref={scrollRef}
-          className="flex-1 overflow-y-auto px-5 py-4 pb-8 smooth-scroll scroll-optimized md:px-8 lg:px-10"
+          className="conversation-canvas flex-1 overflow-y-auto px-4 py-4 pb-8 smooth-scroll scroll-optimized md:px-7 lg:px-10"
           onScroll={handleConversationScroll}
           onContextMenu={(e) => {
             e.preventDefault()
@@ -1306,13 +1518,13 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
             <button
               onClick={() => setKnowledgePanelOpen(true)}
               title="打开项目知识库"
-              className="absolute top-3 right-4 z-10 flex items-center gap-1.5 rounded-lg border border-border-subtle bg-bg-elevated px-2.5 py-1.5 text-xs text-text-secondary shadow-sm transition-colors hover:border-accent-purple/40 hover:bg-bg-hover hover:text-accent-purple"
+              className="absolute top-3 right-4 z-10 flex items-center gap-1.5 rounded-md border border-border-subtle bg-bg-elevated/95 px-2.5 py-1.5 text-xs text-text-secondary shadow-sm transition-colors hover:border-accent-purple/40 hover:bg-bg-hover hover:text-accent-purple"
             >
               <BookMarked className="w-3.5 h-3.5 transition-all duration-300 hover:rotate-12" />
               <span>知识库</span>
             </button>
           )}
-          <div className="mx-auto max-w-[1080px]">
+          <div className="mx-auto max-w-[1040px]">
         {messages.length > 0 && (
           <OpsBrief
             snapshot={opsBrief}
@@ -1504,7 +1716,7 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
 
       {/* 输入区域 */}
       {!isSessionEnded && (
-        <div className="relative border-t border-border-subtle bg-bg-primary px-4 pt-1.5 pb-2.5 shadow-sm">
+        <div className="input-dock relative border-t border-border-subtle px-3 pt-1.5 pb-2.5 shadow-sm md:px-4">
           {/* Skill 快捷按钮 + MCP 状态 */}
           <SessionToolbar
             sessionId={sessionId}

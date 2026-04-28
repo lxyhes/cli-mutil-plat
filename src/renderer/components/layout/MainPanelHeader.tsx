@@ -51,9 +51,9 @@ export default function MainPanelHeader() {
   }
 
   return (
-    <div className="flex h-10 flex-shrink-0 items-center justify-between border-b border-border-subtle bg-bg-primary/95 px-3">
+    <div className="workspace-toolbar flex h-11 flex-shrink-0 items-center justify-between border-b border-border-subtle px-3">
       {/* 左侧：分类 Tab */}
-      <div className="inline-flex items-center gap-0.5 rounded-lg border border-border-subtle bg-bg-tertiary p-0.5">
+      <div className="inline-flex items-center gap-0.5 rounded-md border border-border-subtle bg-bg-secondary/80 p-0.5">
         <button
           onClick={handleSessionsClick}
           className={`flex h-7 items-center gap-1.5 rounded-md px-2.5 text-xs font-medium transition-colors ${getTabClass('sessions')}`}

@@ -265,7 +265,7 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({ message, isStreaming }) =
   return (
     <>
       <div
-        className={`flex ${isUser ? 'mb-4 justify-end' : 'mb-6 justify-start'}`}
+        className={`flex ${isUser ? 'mb-3 justify-end' : 'mb-5 justify-start'}`}
         onContextMenu={(e) => {
           e.preventDefault()
           e.stopPropagation() // 阻止冒泡到 ConversationView 背景
@@ -275,15 +275,15 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({ message, isStreaming }) =
         <div
           className={`group/message relative text-sm transition-all duration-200
             ${isUser
-              ? 'max-w-[min(640px,86%)] rounded-lg border border-accent-blue/25 bg-accent-blue/10 px-4 py-2.5 text-text-primary shadow-[0_8px_22px_var(--color-shadow-sm)] md:max-w-[min(640px,70%)]'
-              : 'max-w-[min(980px,96%)] py-1.5 pl-4 pr-1 text-text-primary md:max-w-[min(980px,92%)] md:pl-6 md:pr-3'
+              ? 'message-user-bubble max-w-[min(640px,86%)] rounded-lg border border-accent-blue/20 px-4 py-2.5 text-text-primary md:max-w-[min(640px,70%)]'
+              : 'message-assistant-block max-w-[min(920px,96%)] py-1.5 pl-4 pr-1 text-text-primary md:max-w-[min(920px,92%)] md:pl-5 md:pr-3'
             } animate-fade-in`}
         >
           {!isUser && (
             <>
-              <span className="absolute bottom-0 left-0 top-0 w-px bg-border-subtle" aria-hidden="true" />
-              <div className="mb-2.5 flex items-center gap-2 border-b border-border-subtle pb-2 text-[11px] font-medium text-text-muted">
-                <span>已回复</span>
+              <span className="absolute bottom-0 left-0 top-0 w-px bg-border-subtle/80" aria-hidden="true" />
+              <div className="mb-1.5 flex items-center gap-2 text-[11px] font-medium text-text-muted/80">
+                <span className="inline-flex h-4 items-center rounded bg-bg-tertiary px-1.5 text-[10px] uppercase tracking-wide">AI</span>
                 {timestamp && (
                   <>
                     <span className="h-1 w-1 rounded-full bg-text-muted/40" aria-hidden="true" />
