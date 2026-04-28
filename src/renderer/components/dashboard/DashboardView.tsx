@@ -16,8 +16,11 @@ import {
   DELIVERY_METRICS_EVENT,
   formatMetricDuration,
   formatMetricPercent,
+  getDeliveryMetricActionItems,
   loadDeliveryMetricSnapshots,
+  queueDeliveryMetricAction,
   summarizeDeliveryMetrics,
+  type DeliveryMetricActionItem,
   type DeliveryMetricSnapshotRecord,
 } from '../../utils/deliveryMetrics'
 
@@ -96,6 +99,11 @@ export default function DashboardView() {
     s.status !== 'completed' && s.status !== 'terminated' && s.status !== 'interrupted'
   )
   const successSummary = useMemo(() => summarizeDeliveryMetrics(deliveryRecords), [deliveryRecords])
+  const actionItems = useMemo(() => getDeliveryMetricActionItems(deliveryRecords, 5), [deliveryRecords])
+  const openActionItem = (item: DeliveryMetricActionItem) => {
+    queueDeliveryMetricAction(item)
+    selectSession(item.sessionId)
+  }
 
   // 聚合最近活动事件（跨会话）
   useEffect(() => {
@@ -219,6 +227,7 @@ export default function DashboardView() {
             tone={successSummary.blockedCount > 0 ? 'bad' : successSummary.sessionCount > 0 ? 'good' : 'neutral'}
           />
         </div>
+        <ActionQueue items={actionItems} onOpenAction={openActionItem} />
       </section>
 
       <div className="grid grid-cols-3 gap-4">
@@ -312,6 +321,18 @@ const SUCCESS_METRIC_TONE_CLASS: Record<SuccessMetricTone, string> = {
   neutral: 'border-border-subtle bg-bg-elevated text-text-secondary',
 }
 
+const ACTION_PRIORITY_CLASS: Record<DeliveryMetricActionItem['priority'], string> = {
+  high: 'border-accent-red/25 bg-accent-red/10 text-accent-red',
+  medium: 'border-accent-yellow/25 bg-accent-yellow/10 text-accent-yellow',
+  low: 'border-accent-blue/20 bg-accent-blue/10 text-accent-blue',
+}
+
+const ACTION_PRIORITY_LABEL: Record<DeliveryMetricActionItem['priority'], string> = {
+  high: '优先',
+  medium: '补齐',
+  low: '优化',
+}
+
 function SuccessMetricCard({ icon: Icon, label, value, detail, tone }: {
   icon: typeof Monitor
   label: string
@@ -328,6 +349,66 @@ function SuccessMetricCard({ icon: Icon, label, value, detail, tone }: {
       <div className="mt-1 text-xl font-bold leading-none text-text-primary">{value}</div>
       <div className="mt-1 truncate text-[10px] text-text-muted" title={detail}>
         {detail}
+      </div>
+    </div>
+  )
+}
+
+function ActionQueue({ items, onOpenAction }: {
+  items: DeliveryMetricActionItem[]
+  onOpenAction: (item: DeliveryMetricActionItem) => void
+}) {
+  if (items.length === 0) {
+    return (
+      <div className="rounded-lg border border-accent-green/20 bg-accent-green/5 px-3 py-2 text-xs text-text-secondary">
+        当前没有明显改进项，继续保持交付包、验证证据和项目记忆闭环。
+      </div>
+    )
+  }
+
+  return (
+    <div className="rounded-lg border border-border-subtle bg-bg-elevated/70 p-2">
+      <div className="mb-1.5 flex items-center justify-between gap-2 px-1">
+        <div className="flex items-center gap-1.5 text-xs font-semibold text-text-secondary">
+          <AlertCircle className="h-3.5 w-3.5 text-accent-yellow" />
+          改进队列
+        </div>
+        <span className="text-[10px] text-text-muted">按风险和分数排序</span>
+      </div>
+      <div className="grid gap-1.5 lg:grid-cols-2">
+        {items.map(item => (
+          <button
+            key={item.sessionId}
+            type="button"
+            onClick={() => onOpenAction(item)}
+            className="min-w-0 rounded-md border border-border-subtle bg-bg-primary/70 px-2.5 py-2 text-left transition-colors hover:border-accent-blue/35 hover:bg-bg-hover"
+          >
+            <div className="flex min-w-0 items-center justify-between gap-2">
+              <div className="min-w-0">
+                <div className="truncate text-xs font-semibold text-text-primary" title={item.projectName}>
+                  {item.projectName}
+                </div>
+                <div className="mt-0.5 truncate text-[10px] text-text-muted" title={item.detail}>
+                  {item.detail}
+                </div>
+              </div>
+              <div className="flex shrink-0 items-center gap-1">
+                <span className={`rounded-md px-1.5 py-0.5 text-[10px] font-medium ${ACTION_PRIORITY_CLASS[item.priority]}`}>
+                  {ACTION_PRIORITY_LABEL[item.priority]}
+                </span>
+                <span className="rounded-md bg-bg-secondary px-1.5 py-0.5 text-[10px] font-semibold text-text-secondary">
+                  {item.score}
+                </span>
+              </div>
+            </div>
+            <div className="mt-1 flex min-w-0 items-center gap-2 text-[11px]">
+              <span className="shrink-0 font-medium text-text-secondary">{item.reason}</span>
+              <span className="truncate text-text-muted" title={item.suggestedAction}>
+                {item.suggestedAction}
+              </span>
+            </div>
+          </button>
+        ))}
       </div>
     </div>
   )

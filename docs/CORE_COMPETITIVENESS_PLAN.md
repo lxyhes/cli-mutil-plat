@@ -131,7 +131,7 @@ Status: completed for the first usable slice. The task cockpit now includes an O
 - Number of reusable project memories created
 - Reduction in "what changed?" and "is this safe?" follow-up questions
 
-Status: wired into the product dashboard. The conversation cockpit now records session-level delivery metrics locally, and the global dashboard summarizes delivery-pack rate, validation coverage, average verified handoff time, reusable project memories, safety state, and an average competitiveness score across recent sessions.
+Status: wired into the product dashboard. The conversation cockpit now records session-level delivery metrics locally, and the global dashboard summarizes delivery-pack rate, validation coverage, average verified handoff time, reusable project memories, safety state, and an average competitiveness score across recent sessions. The dashboard also includes an action queue that ranks sessions needing validation, delivery-pack generation, project-memory extraction, or safety cleanup, with one-click navigation back to the session and an auto-inserted remediation prompt.
 
 ## Near-Term Implementation Notes
 
@@ -139,3 +139,7 @@ Status: wired into the product dashboard. The conversation cockpit now records s
 - Promote existing QA/SHIP and Debug Loop rather than creating parallel concepts.
 - Make the cockpit the primary interface for delivery quality.
 - Avoid adding new panels until the core workflow is visibly useful inside the conversation.
+
+## Next Enhancement Plan
+
+See [CORE_COMPETITIVENESS_ENHANCEMENT_PLAN.md](./CORE_COMPETITIVENESS_ENHANCEMENT_PLAN.md) for the post-first-slice enhancement plan covering reliability hardening, evidence timelines, project memory flywheel, multi-agent governance, team trust, UX compression, and the recommended next sprint.

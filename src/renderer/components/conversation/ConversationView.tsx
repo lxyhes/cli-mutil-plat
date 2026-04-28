@@ -30,7 +30,7 @@ import PlanApprovalPanel from './PlanApprovalPanel'
 import CrossSessionSearch from './CrossSessionSearch'
 import SessionKnowledgePanel from './SessionKnowledgePanel'
 import { isPrimaryModifierPressed } from '../../utils/shortcut'
-import { recordDeliveryMetricSnapshot } from '../../utils/deliveryMetrics'
+import { DELIVERY_ACTION_EVENT, consumePendingDeliveryMetricAction, recordDeliveryMetricSnapshot } from '../../utils/deliveryMetrics'
 
 
 // ---- Provider 颜色映射 ----
@@ -2027,6 +2027,22 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
   useEffect(() => {
     setDeliveryPackGenerated(false)
     setKnowledgeExtractionCount(0)
+  }, [sessionId])
+
+  useEffect(() => {
+    const consumeQueuedAction = () => {
+      const action = consumePendingDeliveryMetricAction(sessionId)
+      if (!action) return
+      setExternalInsert(action.prompt)
+      setQueueHintText(`已带入改进队列建议：${action.reason}`)
+      setQueueHintAction(null)
+    }
+
+    consumeQueuedAction()
+    window.addEventListener(DELIVERY_ACTION_EVENT, consumeQueuedAction)
+    return () => {
+      window.removeEventListener(DELIVERY_ACTION_EVENT, consumeQueuedAction)
+    }
   }, [sessionId])
 
   useEffect(() => {
