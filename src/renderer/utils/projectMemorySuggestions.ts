@@ -1,4 +1,5 @@
 import type { KnowledgeCategory, KnowledgePriority } from '../../shared/types'
+import type { CreateUnifiedKnowledgeParams } from '../../shared/knowledgeCenterTypes'
 
 export type ProjectMemorySuggestionType =
   | 'decision'
@@ -40,6 +41,26 @@ export interface ProjectMemorySuggestion {
   confidence: number
   priority: KnowledgePriority
   tags: string[]
+}
+
+export type ProjectMemorySuggestionReviewStatus = 'accepted' | 'rejected' | 'edited'
+
+export interface ProjectMemorySuggestionReview {
+  suggestionId: string
+  status: ProjectMemorySuggestionReviewStatus
+  reviewedAt: string
+  promotedKnowledgeId?: string
+  title?: string
+  content?: string
+}
+
+export interface ProjectMemorySuggestionPromotionOptions {
+  projectPath: string
+  sessionId?: string
+  title?: string
+  content?: string
+  status?: Extract<ProjectMemorySuggestionReviewStatus, 'accepted' | 'edited'>
+  reviewedAt?: string
 }
 
 interface PlaybookLike {
@@ -232,6 +253,40 @@ export function formatProjectMemorySuggestionsForMarkdown(suggestions: ProjectMe
     `  - 来源: ${item.sourceReference}`,
     `  - 内容: ${compact(item.content, 180)}`,
   ].join('\n')).join('\n')
+}
+
+export function buildProjectMemorySuggestionKnowledgeParams(
+  suggestion: ProjectMemorySuggestion,
+  options: ProjectMemorySuggestionPromotionOptions,
+): CreateUnifiedKnowledgeParams {
+  const title = (options.title || suggestion.title).trim()
+  const content = (options.content || suggestion.content).trim()
+  const reviewedAt = options.reviewedAt || new Date().toISOString()
+  const reviewStatus = options.status || 'accepted'
+
+  return {
+    type: 'project-knowledge',
+    scope: 'project',
+    lifecycle: 'persistent',
+    projectPath: options.projectPath,
+    sessionId: options.sessionId,
+    category: suggestion.knowledgeCategory,
+    title,
+    content,
+    tags: [...new Set([...suggestion.tags, 'reviewed-memory', reviewStatus])],
+    priority: suggestion.priority,
+    autoInject: suggestion.priority === 'high',
+    source: 'ai-generated',
+    metadata: {
+      source: 'project-memory-suggestion',
+      suggestionId: suggestion.id,
+      suggestionType: suggestion.type,
+      sourceReference: suggestion.sourceReference,
+      confidence: suggestion.confidence,
+      reviewStatus,
+      reviewedAt,
+    },
+  }
 }
 
 export function buildProjectMemorySuggestionPrompt(input: ProjectMemorySuggestionInput): string {

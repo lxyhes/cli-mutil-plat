@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  buildProjectMemorySuggestionKnowledgeParams,
   buildProjectMemorySuggestionPrompt,
   buildProjectMemorySuggestions,
   filterProjectMemoryForPlaybook,
@@ -71,6 +72,39 @@ describe('project memory suggestions', () => {
     expect(prompt).toContain('请审核')
     expect(prompt).toContain('拒绝')
     expect(prompt).toContain('需要人工确认')
+  })
+
+  it('promotes a reviewed suggestion into project knowledge params with audit metadata', () => {
+    const [suggestion] = buildProjectMemorySuggestions(input())
+
+    const params = buildProjectMemorySuggestionKnowledgeParams(suggestion, {
+      projectPath: 'E:/repo',
+      sessionId: 'session-1',
+      title: 'Edited validation command',
+      content: 'Run npm run typecheck before handoff.',
+      status: 'edited',
+      reviewedAt: '2026-04-28T10:30:00.000Z',
+    })
+
+    expect(params).toMatchObject({
+      type: 'project-knowledge',
+      scope: 'project',
+      lifecycle: 'persistent',
+      projectPath: 'E:/repo',
+      sessionId: 'session-1',
+      category: suggestion.knowledgeCategory,
+      title: 'Edited validation command',
+      content: 'Run npm run typecheck before handoff.',
+      source: 'ai-generated',
+      metadata: {
+        source: 'project-memory-suggestion',
+        suggestionId: suggestion.id,
+        reviewStatus: 'edited',
+        reviewedAt: '2026-04-28T10:30:00.000Z',
+      },
+    })
+    expect(params.tags).toContain('reviewed-memory')
+    expect(params.tags).toContain('edited')
   })
 
   it('filters long memory prompts toward the selected playbook', () => {

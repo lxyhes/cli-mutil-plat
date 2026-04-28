@@ -19,6 +19,7 @@ import { useSessionStore } from '../../stores/sessionStore'
 import { useUIStore } from '../../stores/uiStore'
 import { useTaskStore } from '../../stores/taskStore'
 import { useFileManagerStore } from '../../stores/fileManagerStore'
+import { useKnowledgeCenterStore } from '../../stores/knowledgeCenterStore'
 import type { TaskCard } from '../../../shared/types'
 import MessageBubble from './MessageBubble'
 import MessageInput from './MessageInput'
@@ -39,11 +40,13 @@ import {
   type PendingDeliveryMetricAction,
 } from '../../utils/deliveryMetrics'
 import {
+  buildProjectMemorySuggestionKnowledgeParams,
   buildProjectMemorySuggestionPrompt,
   buildProjectMemorySuggestions,
   filterProjectMemoryForPlaybook,
   formatProjectMemorySuggestionsForMarkdown,
   type ProjectMemorySuggestion,
+  type ProjectMemorySuggestionReview,
 } from '../../utils/projectMemorySuggestions'
 
 
@@ -220,6 +223,7 @@ interface MissionLaunchpadProps {
 
 const COMMON_PROMPTS_STORAGE_KEY = 'prismops-common-prompts'
 const TRUST_POLICY_STORAGE_KEY = 'prismops-trust-policy-presets'
+const MEMORY_SUGGESTION_REVIEW_STORAGE_KEY = 'prismops-memory-suggestion-reviews'
 
 const TRUST_POLICY_PRESETS: Record<Exclude<TrustPolicyPresetId, 'auto'>, TrustPolicyPreset> = {
   explore: {
@@ -420,6 +424,48 @@ function loadTrustPolicyOverrides(): Record<string, TrustPolicyPresetId> {
 function saveTrustPolicyOverrides(overrides: Record<string, TrustPolicyPresetId>): void {
   try {
     localStorage.setItem(TRUST_POLICY_STORAGE_KEY, JSON.stringify(overrides))
+  } catch {
+    // ignore
+  }
+}
+
+function getMemorySuggestionReviewStorageKey(sessionId: string): string {
+  return `${MEMORY_SUGGESTION_REVIEW_STORAGE_KEY}:${sessionId}`
+}
+
+function normalizeMemorySuggestionReviews(value: unknown): ProjectMemorySuggestionReviewMap {
+  if (!value || typeof value !== 'object') return {}
+  return Object.entries(value as Record<string, Partial<ProjectMemorySuggestionReview>>).reduce<ProjectMemorySuggestionReviewMap>((acc, [key, item]) => {
+    if (!item || typeof item !== 'object') return acc
+    const status = item.status
+    if (status !== 'accepted' && status !== 'rejected' && status !== 'edited') return acc
+    const suggestionId = String(item.suggestionId || key)
+    if (!suggestionId) return acc
+    acc[suggestionId] = {
+      suggestionId,
+      status,
+      reviewedAt: String(item.reviewedAt || new Date().toISOString()),
+      promotedKnowledgeId: item.promotedKnowledgeId ? String(item.promotedKnowledgeId) : undefined,
+      title: item.title ? String(item.title) : undefined,
+      content: item.content ? String(item.content) : undefined,
+    }
+    return acc
+  }, {})
+}
+
+function loadMemorySuggestionReviews(sessionId: string): ProjectMemorySuggestionReviewMap {
+  try {
+    const raw = localStorage.getItem(getMemorySuggestionReviewStorageKey(sessionId))
+    if (!raw) return {}
+    return normalizeMemorySuggestionReviews(JSON.parse(raw))
+  } catch {
+    return {}
+  }
+}
+
+function saveMemorySuggestionReviews(sessionId: string, reviews: ProjectMemorySuggestionReviewMap): void {
+  try {
+    localStorage.setItem(getMemorySuggestionReviewStorageKey(sessionId), JSON.stringify(reviews))
   } catch {
     // ignore
   }
@@ -775,6 +821,26 @@ function getDeliveryMetricLabel(status: DeliveryMetric['status']): string {
     warning: '待补齐',
     blocked: '阻塞',
   }[status]
+}
+
+function getMemorySuggestionReviewLabel(review?: ProjectMemorySuggestionReview, editing = false): string {
+  if (editing) return '编辑中'
+  if (!review) return '待审核'
+  return {
+    accepted: '已沉淀',
+    rejected: '已拒绝',
+    edited: '已编辑沉淀',
+  }[review.status]
+}
+
+function getMemorySuggestionReviewClass(review?: ProjectMemorySuggestionReview, editing = false): string {
+  if (editing) return 'bg-accent-blue/10 text-accent-blue'
+  if (!review) return 'bg-bg-tertiary text-text-muted'
+  return {
+    accepted: 'bg-accent-green/10 text-accent-green',
+    rejected: 'bg-accent-red/10 text-accent-red',
+    edited: 'bg-accent-purple/10 text-accent-purple',
+  }[review.status]
 }
 
 function getEvidenceTimelineClass(tone: EvidenceTimelineEntry['tone']): string {
@@ -1298,12 +1364,25 @@ interface ConversationViewProps {
   sessionId: string
 }
 
+interface ProjectMemorySuggestionDraft {
+  title: string
+  content: string
+}
+
+type ProjectMemorySuggestionReviewMap = Record<string, ProjectMemorySuggestionReview>
+type ProjectMemorySuggestionDraftMap = Record<string, ProjectMemorySuggestionDraft>
+
 interface OpsBriefProps {
   snapshot: OpsBriefSnapshot
   onInsertPrompt: (text: string) => void
   onInsertPlaybook: (template: TeamPlaybookTemplate) => void
   onExportTrustReport: (snapshot: OpsBriefSnapshot) => void
   onExtractProjectKnowledge: (snapshot: OpsBriefSnapshot) => void
+  onPromoteMemorySuggestion: (suggestion: ProjectMemorySuggestion, snapshot: OpsBriefSnapshot) => void
+  onRejectMemorySuggestion: (suggestion: ProjectMemorySuggestion) => void
+  onStartEditMemorySuggestion: (suggestion: ProjectMemorySuggestion) => void
+  onCancelEditMemorySuggestion: () => void
+  onChangeMemorySuggestionDraft: (suggestionId: string, draft: ProjectMemorySuggestionDraft) => void
   onChangeTrustPolicyPreset: (presetId: TrustPolicyPresetId) => void
   onOpenKnowledge: () => void
   onRunShipPlan: () => void
@@ -1312,6 +1391,10 @@ interface OpsBriefProps {
   shipActionLoading: 'run' | 'summary' | null
   playbookActionLoading: string | null
   trustKnowledgeLoading: boolean
+  memorySuggestionReviews: ProjectMemorySuggestionReviewMap
+  memorySuggestionDrafts: ProjectMemorySuggestionDraftMap
+  memorySuggestionEditingId: string | null
+  memorySuggestionSavingId: string | null
   expanded: boolean
   onToggleExpanded: () => void
 }
@@ -1461,6 +1544,11 @@ const OpsBrief = React.memo(function OpsBrief({
   onInsertPlaybook,
   onExportTrustReport,
   onExtractProjectKnowledge,
+  onPromoteMemorySuggestion,
+  onRejectMemorySuggestion,
+  onStartEditMemorySuggestion,
+  onCancelEditMemorySuggestion,
+  onChangeMemorySuggestionDraft,
   onChangeTrustPolicyPreset,
   onOpenKnowledge,
   onRunShipPlan,
@@ -1469,6 +1557,10 @@ const OpsBrief = React.memo(function OpsBrief({
   shipActionLoading,
   playbookActionLoading,
   trustKnowledgeLoading,
+  memorySuggestionReviews,
+  memorySuggestionDrafts,
+  memorySuggestionEditingId,
+  memorySuggestionSavingId,
   expanded,
   onToggleExpanded,
 }: OpsBriefProps) {
@@ -1499,6 +1591,16 @@ const OpsBrief = React.memo(function OpsBrief({
   const hasRisk = snapshot.risks.some(risk => !risk.includes('暂无明显'))
   const openGateCount = snapshot.readinessGates.filter(gate => gate.status !== 'passed').length
   const visibleEvidenceTimeline = snapshot.evidenceTimeline.slice(-6).reverse()
+  const memoryReviewStats = snapshot.projectMemorySuggestions.reduce(
+    (acc, suggestion) => {
+      const status = memorySuggestionReviews[suggestion.id]?.status
+      if (status === 'accepted') acc.accepted += 1
+      if (status === 'rejected') acc.rejected += 1
+      if (status === 'edited') acc.edited += 1
+      return acc
+    },
+    { accepted: 0, rejected: 0, edited: 0 },
+  )
   const HealthIcon = snapshot.missionHealthTone === 'bad'
     ? AlertTriangle
     : snapshot.missionHealthTone === 'good'
@@ -2098,6 +2200,122 @@ const OpsBrief = React.memo(function OpsBrief({
                     </div>
                   ))}
                 </div>
+                {expanded && snapshot.projectMemorySuggestions.length > 0 && (
+                  <div className="mt-3 border-t border-border-subtle/70 pt-2.5">
+                    <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <BookMarked size={13} className="text-accent-purple" />
+                        <span className="text-xs font-semibold text-text-secondary">建议记忆审核</span>
+                        <span className="rounded-md bg-bg-tertiary px-1.5 py-0.5 text-[10px] font-medium text-text-muted">
+                          {snapshot.projectMemorySuggestions.length} 条
+                        </span>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-1.5 text-[10px] font-medium">
+                        <span className="rounded-md bg-accent-green/10 px-1.5 py-0.5 text-accent-green">
+                          已沉淀 {memoryReviewStats.accepted + memoryReviewStats.edited}
+                        </span>
+                        <span className="rounded-md bg-accent-red/10 px-1.5 py-0.5 text-accent-red">
+                          已拒绝 {memoryReviewStats.rejected}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="grid gap-2 lg:grid-cols-2">
+                      {snapshot.projectMemorySuggestions.map(suggestion => {
+                        const review = memorySuggestionReviews[suggestion.id]
+                        const draft = memorySuggestionDrafts[suggestion.id] || { title: suggestion.title, content: suggestion.content }
+                        const isEditing = memorySuggestionEditingId === suggestion.id
+                        const isSaving = memorySuggestionSavingId === suggestion.id
+                        const isFinal = !!review
+                        return (
+                          <div key={suggestion.id} className="min-w-0 rounded-md border border-border-subtle/70 bg-bg-primary/30 p-2">
+                            <div className="flex min-w-0 items-start justify-between gap-2">
+                              <div className="min-w-0">
+                                {isEditing ? (
+                                  <input
+                                    value={draft.title}
+                                    onChange={event => onChangeMemorySuggestionDraft(suggestion.id, { ...draft, title: event.target.value })}
+                                    className="w-full rounded-md bg-bg-primary/70 px-2 py-1 text-xs font-semibold text-text-primary outline-none focus:ring-1 focus:ring-accent-blue/45"
+                                  />
+                                ) : (
+                                  <div className="truncate text-xs font-semibold text-text-primary" title={suggestion.title}>{suggestion.title}</div>
+                                )}
+                                <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[10px] text-text-muted">
+                                  <span className="rounded bg-bg-primary px-1.5 py-0.5">{suggestion.knowledgeCategory}</span>
+                                  <span>{Math.round(suggestion.confidence * 100)}%</span>
+                                  <span className="truncate" title={suggestion.sourceReference}>{suggestion.sourceReference}</span>
+                                </div>
+                              </div>
+                              <span className={`shrink-0 rounded-md px-1.5 py-0.5 text-[10px] font-medium ${getMemorySuggestionReviewClass(review, isEditing)}`}>
+                                {getMemorySuggestionReviewLabel(review, isEditing)}
+                              </span>
+                            </div>
+                            {isEditing ? (
+                              <textarea
+                                value={draft.content}
+                                onChange={event => onChangeMemorySuggestionDraft(suggestion.id, { ...draft, content: event.target.value })}
+                                rows={3}
+                                className="mt-2 w-full resize-none rounded-md bg-bg-primary/70 px-2 py-1.5 text-[11px] leading-4 text-text-primary outline-none focus:ring-1 focus:ring-accent-blue/45"
+                              />
+                            ) : (
+                              <div className="mt-2 line-clamp-3 text-[11px] leading-4 text-text-secondary" title={suggestion.content}>
+                                {suggestion.content}
+                              </div>
+                            )}
+                            <div className="mt-2 flex flex-wrap items-center justify-end gap-1">
+                              {isEditing ? (
+                                <>
+                                  <button
+                                    type="button"
+                                    onClick={() => onPromoteMemorySuggestion(suggestion, snapshot)}
+                                    disabled={!canOpenKnowledge || isSaving || !draft.title.trim() || !draft.content.trim()}
+                                    className="rounded-md px-2 py-1 text-[11px] font-medium text-accent-green transition-colors hover:bg-accent-green/10 disabled:cursor-not-allowed disabled:opacity-50"
+                                  >
+                                    {isSaving ? '保存中' : '保存为知识'}
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={onCancelEditMemorySuggestion}
+                                    disabled={isSaving}
+                                    className="rounded-md px-2 py-1 text-[11px] font-medium text-text-muted transition-colors hover:bg-bg-hover disabled:cursor-not-allowed disabled:opacity-50"
+                                  >
+                                    取消
+                                  </button>
+                                </>
+                              ) : (
+                                <>
+                                  <button
+                                    type="button"
+                                    onClick={() => onPromoteMemorySuggestion(suggestion, snapshot)}
+                                    disabled={!canOpenKnowledge || isSaving || isFinal}
+                                    className="rounded-md px-2 py-1 text-[11px] font-medium text-accent-green transition-colors hover:bg-accent-green/10 disabled:cursor-not-allowed disabled:opacity-50"
+                                  >
+                                    {isSaving ? '沉淀中' : '接受'}
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => onStartEditMemorySuggestion(suggestion)}
+                                    disabled={isSaving || isFinal}
+                                    className="rounded-md px-2 py-1 text-[11px] font-medium text-accent-purple transition-colors hover:bg-accent-purple/10 disabled:cursor-not-allowed disabled:opacity-50"
+                                  >
+                                    编辑
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => onRejectMemorySuggestion(suggestion)}
+                                    disabled={isSaving || isFinal}
+                                    className="rounded-md px-2 py-1 text-[11px] font-medium text-accent-red transition-colors hover:bg-accent-red/10 disabled:cursor-not-allowed disabled:opacity-50"
+                                  >
+                                    拒绝
+                                  </button>
+                                </>
+                              )}
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div className="mt-3 grid gap-4 text-xs md:grid-cols-3">
@@ -2433,6 +2651,10 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
   const [shipActionLoading, setShipActionLoading] = useState<'run' | 'summary' | null>(null)
   const [playbookActionLoading, setPlaybookActionLoading] = useState<string | null>(null)
   const [trustKnowledgeLoading, setTrustKnowledgeLoading] = useState(false)
+  const [memorySuggestionReviews, setMemorySuggestionReviews] = useState<ProjectMemorySuggestionReviewMap>(() => loadMemorySuggestionReviews(sessionId))
+  const [memorySuggestionDrafts, setMemorySuggestionDrafts] = useState<ProjectMemorySuggestionDraftMap>({})
+  const [memorySuggestionEditingId, setMemorySuggestionEditingId] = useState<string | null>(null)
+  const [memorySuggestionSavingId, setMemorySuggestionSavingId] = useState<string | null>(null)
   const [deliveryPackGenerated, setDeliveryPackGenerated] = useState(false)
   const [deliveryPackGeneratedAtMs, setDeliveryPackGeneratedAtMs] = useState(0)
   const [knowledgeExtractionCount, setKnowledgeExtractionCount] = useState(0)
@@ -2462,6 +2684,10 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
     setDeliveryPackGenerated(false)
     setDeliveryPackGeneratedAtMs(0)
     setKnowledgeExtractionCount(0)
+    setMemorySuggestionReviews(loadMemorySuggestionReviews(sessionId))
+    setMemorySuggestionDrafts({})
+    setMemorySuggestionEditingId(null)
+    setMemorySuggestionSavingId(null)
   }, [sessionId])
 
   useEffect(() => {
@@ -2535,6 +2761,7 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
   const createTask = useTaskStore(state => state.createTask)
   const setViewMode = useUIStore(state => state.setViewMode)
   const setPaneContent = useUIStore(state => state.setPaneContent)
+  const createKnowledgeEntry = useKnowledgeCenterStore(state => state.createEntry)
 
   useEffect(() => {
     void fetchAgents(sessionId)
@@ -3596,6 +3823,126 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
     }
   }, [sessionId])
 
+  const handleChangeMemorySuggestionDraft = useCallback((suggestionId: string, draft: ProjectMemorySuggestionDraft) => {
+    setMemorySuggestionDrafts(prev => ({
+      ...prev,
+      [suggestionId]: draft,
+    }))
+  }, [])
+
+  const handleStartEditMemorySuggestion = useCallback((suggestion: ProjectMemorySuggestion) => {
+    setMemorySuggestionDrafts(prev => ({
+      ...prev,
+      [suggestion.id]: prev[suggestion.id] || {
+        title: suggestion.title,
+        content: suggestion.content,
+      },
+    }))
+    setMemorySuggestionEditingId(suggestion.id)
+  }, [])
+
+  const handleCancelEditMemorySuggestion = useCallback(() => {
+    setMemorySuggestionEditingId(null)
+  }, [])
+
+  const handleRejectMemorySuggestion = useCallback((suggestion: ProjectMemorySuggestion) => {
+    const reviewedAt = new Date().toISOString()
+    setMemorySuggestionReviews(prev => {
+      const review: ProjectMemorySuggestionReview = {
+        suggestionId: suggestion.id,
+        status: 'rejected',
+        reviewedAt,
+        title: suggestion.title,
+        content: suggestion.content,
+      }
+      const next = {
+        ...prev,
+        [suggestion.id]: review,
+      }
+      saveMemorySuggestionReviews(sessionId, next)
+      return next
+    })
+    setMemorySuggestionEditingId(current => current === suggestion.id ? null : current)
+    setQueueHintText(`已拒绝建议记忆：${suggestion.title}`)
+    setQueueHintAction(null)
+    void window.spectrAI.workingContext.addDecision(
+      sessionId,
+      `已拒绝建议记忆：${suggestion.title}；来源：${suggestion.sourceReference}`,
+    ).catch(error => {
+      console.warn('[ConversationView] Failed to persist rejected memory suggestion context', error)
+    })
+  }, [sessionId])
+
+  const handlePromoteMemorySuggestion = useCallback(async (suggestion: ProjectMemorySuggestion, snapshot: OpsBriefSnapshot) => {
+    if (!snapshot.projectPath) {
+      setQueueHintText('当前会话没有绑定项目目录，无法保存建议记忆')
+      setQueueHintAction(null)
+      return
+    }
+
+    const draft = memorySuggestionDrafts[suggestion.id]
+    const title = (draft?.title || suggestion.title).trim()
+    const content = (draft?.content || suggestion.content).trim()
+    if (!title || !content) {
+      setQueueHintText('建议记忆需要标题和内容后才能保存')
+      setQueueHintAction(null)
+      return
+    }
+
+    const edited = Boolean(draft && (draft.title.trim() !== suggestion.title || draft.content.trim() !== suggestion.content))
+    const status = edited ? 'edited' : 'accepted'
+    const reviewedAt = new Date().toISOString()
+
+    setMemorySuggestionSavingId(suggestion.id)
+    setQueueHintText('正在将建议记忆保存到项目知识...')
+    setQueueHintAction(null)
+    try {
+      const entry = await createKnowledgeEntry(buildProjectMemorySuggestionKnowledgeParams(suggestion, {
+        projectPath: snapshot.projectPath,
+        sessionId,
+        title,
+        content,
+        status,
+        reviewedAt,
+      }))
+
+      if (!entry) {
+        setQueueHintText('建议记忆保存失败，请打开知识中心检查后重试')
+        return
+      }
+
+      setMemorySuggestionReviews(prev => {
+        const review: ProjectMemorySuggestionReview = {
+          suggestionId: suggestion.id,
+          status,
+          reviewedAt,
+          promotedKnowledgeId: entry.id,
+          title,
+          content,
+        }
+        const next = {
+          ...prev,
+          [suggestion.id]: review,
+        }
+        saveMemorySuggestionReviews(sessionId, next)
+        return next
+      })
+      setMemorySuggestionEditingId(current => current === suggestion.id ? null : current)
+      setKnowledgeExtractionCount(prev => prev + 1)
+      setQueueHintText(`${status === 'edited' ? '已编辑并沉淀' : '已沉淀'}建议记忆：${title}`)
+      void window.spectrAI.workingContext.addDecision(
+        sessionId,
+        `${status === 'edited' ? '已编辑并沉淀' : '已沉淀'}建议记忆到项目知识：${title}；来源：${suggestion.sourceReference}`,
+      ).catch(error => {
+        console.warn('[ConversationView] Failed to persist promoted memory suggestion context', error)
+      })
+    } catch (error: any) {
+      setQueueHintText(error?.message || '建议记忆保存失败')
+    } finally {
+      setMemorySuggestionSavingId(null)
+    }
+  }, [createKnowledgeEntry, memorySuggestionDrafts, sessionId])
+
   const handleChangeTrustPolicyPreset = useCallback((presetId: TrustPolicyPresetId) => {
     const normalized = normalizeTrustPolicyPresetId(presetId)
     const scopeKey = getTrustPolicyScopeKey(workingDirectory, sessionId)
@@ -3774,6 +4121,11 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
             onInsertPlaybook={handleInsertTeamPlaybook}
             onExportTrustReport={handleExportTrustReport}
             onExtractProjectKnowledge={handleExtractProjectKnowledge}
+            onPromoteMemorySuggestion={handlePromoteMemorySuggestion}
+            onRejectMemorySuggestion={handleRejectMemorySuggestion}
+            onStartEditMemorySuggestion={handleStartEditMemorySuggestion}
+            onCancelEditMemorySuggestion={handleCancelEditMemorySuggestion}
+            onChangeMemorySuggestionDraft={handleChangeMemorySuggestionDraft}
             onChangeTrustPolicyPreset={handleChangeTrustPolicyPreset}
             onOpenKnowledge={() => setKnowledgePanelOpen(true)}
             onRunShipPlan={handleRunShipPlan}
@@ -3782,6 +4134,10 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
             shipActionLoading={shipActionLoading}
             playbookActionLoading={playbookActionLoading}
             trustKnowledgeLoading={trustKnowledgeLoading}
+            memorySuggestionReviews={memorySuggestionReviews}
+            memorySuggestionDrafts={memorySuggestionDrafts}
+            memorySuggestionEditingId={memorySuggestionEditingId}
+            memorySuggestionSavingId={memorySuggestionSavingId}
             expanded={opsBriefExpanded}
             onToggleExpanded={() => setOpsBriefExpanded(expanded => !expanded)}
           />

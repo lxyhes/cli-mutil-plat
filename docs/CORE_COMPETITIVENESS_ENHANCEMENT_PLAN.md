@@ -327,7 +327,7 @@ Remaining:
 
 ### Project Memory Flywheel
 
-Status: first suggestion slice completed.
+Status: reviewed promotion slice completed.
 
 Completed:
 
@@ -336,9 +336,11 @@ Completed:
 - Added project memory suggestions to delivery pack prompts, trust audit prompts, trust reports, and delivery pack Markdown exports.
 - Added a cockpit "建议记忆" action so users can review and reject suggestions before promoting them.
 - Filtered team playbook memory injection toward the selected playbook instead of passing all available memory.
+- Added reviewed one-click promotion from memory suggestion to project knowledge entry.
+- Added inline edit-before-save and reject flows in the expanded cockpit.
+- Added accepted, rejected, and edited review tracking with source, confidence, and review metadata on promoted knowledge entries.
 
 Remaining:
 
-- Add reviewed one-click promotion from suggestion to project knowledge entry.
 - Add stale-memory review when new evidence contradicts existing project memory.
-- Track which suggested memories were accepted, rejected, or edited.
+- Add memory relevance telemetry for playbook injection and accepted/rejected suggestions.
