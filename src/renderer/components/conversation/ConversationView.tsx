@@ -8,7 +8,7 @@
  */
 
 import React, { useEffect, useLayoutEffect, useRef, useMemo, useState, useCallback } from 'react'
-import { AlertTriangle, CheckCircle2, ChevronDown, FolderOpen, Plus, RotateCcw, Settings2, Trash2, Copy, ArrowUp, ArrowDown, Download, X, BookMarked, Target, GitPullRequest, Wrench, ShieldCheck, FileText, Activity } from 'lucide-react'
+import { AlertTriangle, CheckCircle2, ChevronDown, FolderOpen, Plus, RotateCcw, Settings2, Trash2, Copy, ArrowUp, ArrowDown, Download, X, BookMarked, Target, GitPullRequest, Wrench, ShieldCheck, FileText, Activity, Users } from 'lucide-react'
 import type { ReactNode } from 'react'
 import type { ConversationMessage, UserQuestionMeta, AskUserQuestionMeta } from '../../../shared/types'
 import ContextMenu from '../common/ContextMenu'
@@ -79,6 +79,19 @@ interface OpsBriefSnapshot {
   risks: string[]
   evidence: string[]
   readinessGates: DeliveryReadinessGate[]
+  agents: OpsBriefAgent[]
+  agentCount: number
+  activeAgentCount: number
+  blockedAgentCount: number
+}
+
+interface OpsBriefAgent {
+  agentId: string
+  name: string
+  status: 'pending' | 'running' | 'completed' | 'failed' | 'cancelled'
+  childSessionId?: string
+  workDir?: string
+  prompt?: string
 }
 
 interface DeliveryReadinessGate {
@@ -380,6 +393,63 @@ function buildGatePrompt(gate: DeliveryReadinessGate, snapshot: OpsBriefSnapshot
     '',
     '完成后请输出：处理动作、验证结果、剩余风险，以及是否可以进入下一交付门禁。',
   ].join('\n')
+}
+
+function getAgentStatusLabel(status: OpsBriefAgent['status']): string {
+  return {
+    pending: '待启动',
+    running: '执行中',
+    completed: '已完成',
+    failed: '失败',
+    cancelled: '已取消',
+  }[status]
+}
+
+function buildSupervisorDispatchPrompt(snapshot: OpsBriefSnapshot): string {
+  const agents = snapshot.agents.length > 0
+    ? snapshot.agents.map(agent => [
+      `- ${agent.name || agent.agentId}（${getAgentStatusLabel(agent.status)}）`,
+      agent.workDir ? `  - 工作目录：${agent.workDir}` : '',
+      agent.childSessionId ? `  - 子会话：${agent.childSessionId}` : '',
+      agent.prompt ? `  - 当前任务：${compactText(agent.prompt, 120)}` : '',
+    ].filter(Boolean).join('\n')).join('\n')
+    : '- 当前还没有可见子 Agent，请先按工作流拆分职责，再决定是否需要创建 Agent。'
+  const gates = snapshot.readinessGates
+    .map(gate => `- ${gate.label}：${gate.status === 'passed' ? '通过' : gate.status === 'blocked' ? '阻塞' : '待补齐'}；${gate.detail}`)
+    .join('\n')
+  const files = snapshot.lastFiles.length > 0
+    ? snapshot.lastFiles.map(file => `- ${file}`).join('\n')
+    : '- 暂未识别到文件改动'
+
+  return [
+    '请以 Supervisor 的方式梳理当前多 Agent 工作板，并给出下一轮可执行分派。',
+    '',
+    '## Mission',
+    `- 项目：${snapshot.projectName}`,
+    `- 目标：${snapshot.goal}`,
+    `- 阶段：${snapshot.phaseLabel}`,
+    `- 交付状态：${snapshot.deliveryReadiness}`,
+    `- 健康分：${snapshot.missionHealthScore}`,
+    '',
+    '## 当前 Agent',
+    agents,
+    '',
+    '## 交付门禁',
+    gates,
+    '',
+    '## 最近改动',
+    files,
+    '',
+    '## 风险与证据',
+    snapshot.risks.map(risk => `- 风险：${risk}`).join('\n'),
+    snapshot.evidence.map(item => `- 证据：${item}`).join('\n'),
+    '',
+    '## 分派要求',
+    '- 把剩余工作拆成 1-4 个互不重叠的工作流，并说明每个工作流的 owner、文件边界、输入、输出和验收条件。',
+    '- 如果已有 Agent 正在运行，优先识别冲突、重复所有权、阻塞点和需要等待的依赖。',
+    '- 每个工作流都要包含最小验证方式；如果不需要代码改动，也要说明交付证据。',
+    '- 最后输出：推荐分派、并行/串行顺序、风险处理、合并与交付检查清单。',
+  ].filter(Boolean).join('\n')
 }
 
 function unwrapIpcData<T = any>(result: any): T | undefined {
@@ -723,6 +793,14 @@ const OpsBrief = React.memo(function OpsBrief({
               </button>
               <button
                 type="button"
+                onClick={() => onInsertPrompt(buildSupervisorDispatchPrompt(snapshot))}
+                className={`h-8 items-center gap-1 rounded-md bg-accent-purple/10 px-2 text-xs font-medium text-accent-purple transition-colors hover:bg-accent-purple/15 ${expanded ? 'inline-flex' : 'hidden'}`}
+              >
+                <Users size={13} />
+                分派
+              </button>
+              <button
+                type="button"
                 onClick={onOpenKnowledge}
                 disabled={!canOpenKnowledge}
                 className={`h-8 items-center gap-1 rounded-md bg-bg-tertiary px-2 text-xs font-medium text-text-secondary transition-colors hover:bg-bg-hover disabled:cursor-not-allowed disabled:opacity-45 ${expanded ? 'inline-flex' : 'hidden'}`}
@@ -825,6 +903,54 @@ const OpsBrief = React.memo(function OpsBrief({
                   <span className="min-w-0 truncate font-mono text-[11px] text-text-muted" title={snapshot.lastCommand}>
                     {snapshot.lastCommand}
                   </span>
+                )}
+              </div>
+
+              <div className="mt-3 rounded-lg border border-border-subtle bg-bg-primary/45 p-3">
+                <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <Users size={14} className={snapshot.activeAgentCount > 0 ? 'text-accent-purple' : 'text-text-muted'} />
+                    <span className="text-xs font-semibold text-text-secondary">协作看板</span>
+                    <span className={`rounded-md px-1.5 py-0.5 text-[10px] font-medium ${snapshot.blockedAgentCount > 0 ? 'bg-accent-red/10 text-accent-red' : snapshot.activeAgentCount > 0 ? 'bg-accent-purple/10 text-accent-purple' : 'bg-bg-tertiary text-text-muted'}`}>
+                      {snapshot.agentCount > 0 ? `${snapshot.activeAgentCount} 执行中 / ${snapshot.agentCount} 总数` : '未启用'}
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => onInsertPrompt(buildSupervisorDispatchPrompt(snapshot))}
+                    className="rounded-md px-2 py-1 text-[11px] font-medium text-accent-purple transition-colors hover:bg-accent-purple/10"
+                  >
+                    生成分派
+                  </button>
+                </div>
+                {snapshot.agents.length > 0 ? (
+                  <div className="grid gap-2 md:grid-cols-2">
+                    {snapshot.agents.slice(0, 4).map(agent => (
+                      <div key={agent.agentId} className="min-w-0 rounded-md border border-border-subtle bg-bg-primary/70 p-2">
+                        <div className="flex min-w-0 items-center justify-between gap-2">
+                          <span className="truncate text-xs font-semibold text-text-primary" title={agent.name || agent.agentId}>
+                            {agent.name || agent.agentId}
+                          </span>
+                          <span className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium ${
+                            agent.status === 'running' || agent.status === 'pending'
+                              ? 'bg-accent-purple/10 text-accent-purple'
+                              : agent.status === 'completed'
+                                ? 'bg-accent-green/10 text-accent-green'
+                                : 'bg-accent-red/10 text-accent-red'
+                          }`}>
+                            {getAgentStatusLabel(agent.status)}
+                          </span>
+                        </div>
+                        <div className="mt-1 truncate font-mono text-[11px] text-text-muted" title={agent.workDir || agent.childSessionId || agent.agentId}>
+                          {agent.workDir || agent.childSessionId || agent.agentId}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="rounded-md border border-dashed border-border-subtle bg-bg-primary/70 px-3 py-2 text-[11px] leading-5 text-text-muted">
+                    当前会话还没有可见子 Agent。可以先生成分派提示，把剩余工作拆成明确 owner、文件边界和验收条件，再决定是否并行执行。
+                  </div>
                 )}
               </div>
 
@@ -1043,9 +1169,15 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
   const selectSession = useSessionStore(state => state.selectSession)
   const selectedSessionId = useSessionStore(state => state.selectedSessionId)
   const session = useSessionStore(state => state.sessions.find(s => s.id === sessionId))
+  const sessionAgents = useSessionStore(state => state.agents[sessionId] || [])
+  const fetchAgents = useSessionStore(state => state.fetchAgents)
   const createTask = useTaskStore(state => state.createTask)
   const setViewMode = useUIStore(state => state.setViewMode)
   const setPaneContent = useUIStore(state => state.setPaneContent)
+
+  useEffect(() => {
+    void fetchAgents(sessionId)
+  }, [fetchAgents, sessionId])
 
   // 是否有未响应的权限请求
   const lastActivity = useSessionStore(state => state.lastActivities[sessionId])
@@ -1459,6 +1591,16 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
 
     const hasMissionRisk = risks.some(risk => !risk.includes('暂无明显'))
     const primarySignal = compactText(hasMissionRisk ? risks[0] : nextActions[0], 54)
+    const agents: OpsBriefAgent[] = sessionAgents.map(agent => ({
+      agentId: agent.agentId,
+      name: agent.name,
+      status: agent.status,
+      childSessionId: agent.childSessionId,
+      workDir: agent.workDir,
+      prompt: agent.prompt,
+    }))
+    const activeAgentCount = agents.filter(agent => agent.status === 'pending' || agent.status === 'running').length
+    const blockedAgentCount = agents.filter(agent => agent.status === 'failed' || agent.status === 'cancelled').length
 
     return {
       projectName: getProjectName(workingDirectory, session?.name || session?.config?.name),
@@ -1494,9 +1636,14 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
       risks,
       evidence,
       readinessGates,
+      agents,
+      agentCount: agents.length,
+      activeAgentCount,
+      blockedAgentCount,
     }
   }, [
     messages,
+    sessionAgents,
     workingDirectory,
     session?.name,
     session?.config?.name,

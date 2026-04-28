@@ -95,6 +95,8 @@ Scope:
 - Add supervisor prompts for rebalance, unblock, validate, and merge summary.
 - Highlight conflicts or duplicate ownership before agents overlap.
 
+Status: started. The conversation task cockpit now surfaces a compact collaboration board for child agents, including active/total/blocked counts and recent agent status. It also adds a Supervisor dispatch prompt that converts the current mission, delivery gates, changed files, risks, evidence, and visible agent state into an actionable ownership and validation plan.
+
 ### Phase 4: Team Templates
 
 Goal: Turn repeated engineering work into reusable playbooks.
