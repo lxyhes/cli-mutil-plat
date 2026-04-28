@@ -13,6 +13,11 @@ const KNOWN_MOJIBAKE_REPLACEMENTS: Array<[RegExp, string]> = [
   [/\u935a\u5db6\u7d94\u6d93\u5d85\u5158\u6d93\u8679\u2536/g, '名称不能为空'],
   [/SDK V2 SessionManager \u93c8[\uE000-\uF8FF]?\u5d85\u6fee\u5b2a\u5be4/g, 'SDK V2 SessionManager 未初始化'],
   [/\u59af[\uE000-\uF8FF]?\u701b ID \u6d93\u5d85\u5158\u6d93\u8679\u2536/g, '模型 ID 不能为空'],
+  [/浼氳瘽/g, '会话'],
+  [/杩滅▼閮ㄧ讲/g, '远程部署'],
+  [/鑷姩鐢熸垚/g, '自动生成'],
+  [/閰嶇疆/g, '配置'],
+  [/缁ф壙/g, '继承'],
 ]
 
 export function repairKnownMojibake(input: string): string {

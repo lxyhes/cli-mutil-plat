@@ -36,6 +36,7 @@ import { sendToRenderer, aiRenamingLocks, performAiRename } from './shared'
 import { createErrorResponse, createSuccessResponse, ErrorCode, SpectrAIError } from '../../shared/errors'
 // 鈽?杈撳叆楠岃瘉涓棿浠?
 import { withValidation } from '../utils/inputValidation'
+import { toAsciiLogText } from '../utils/logText'
 
 const RESUME_PROMPT_TOKEN_BUDGET = 7000
 const RESUME_SUMMARY_TOKEN_BUDGET = 2400
@@ -48,15 +49,6 @@ function normalizeText(text: string): string {
     .replace(/\r/g, '')
     .replace(/\n{3,}/g, '\n\n')
     .trim()
-}
-
-function toAsciiLogText(value: unknown): string {
-  return String(value ?? '').replace(/[^\x20-\x7E]/g, (char) => {
-    const codePoint = char.codePointAt(0) ?? 0
-    return codePoint <= 0xffff
-      ? `\\u${codePoint.toString(16).padStart(4, '0')}`
-      : `\\u{${codePoint.toString(16)}}`
-  })
 }
 
 function estimateTokensApprox(text: string): number {

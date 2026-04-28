@@ -239,6 +239,7 @@ interface CodexSession {
    * 鐢ㄦ瀛楁鍦ㄤ富杩涚▼渚хН绱紝item/completed 鏃朵綔涓哄厹搴曞唴瀹广€?
    */
   agentMessageBuffer: string
+  abortRequested?: boolean
 }
 
 const CODEX_MODEL_FALLBACKS = [
@@ -268,6 +269,28 @@ const CODEX_ENV_ALLOWLIST = new Set([
   'CODEX_AUTH_TOKEN',
   'CODEX_MANAGED_BY_NPM',
 ])
+
+function killProcessTree(proc: ChildProcess): void {
+  if (proc.exitCode !== null || proc.killed) return
+  try {
+    if (process.platform === 'win32' && proc.pid) {
+      execFileSync('taskkill', ['/pid', String(proc.pid), '/t', '/f'], {
+        timeout: 5000,
+        windowsHide: true,
+        stdio: 'ignore',
+      })
+      return
+    }
+  } catch {
+    // Fall through to the regular process kill below.
+  }
+
+  try {
+    proc.kill()
+  } catch {
+    // ignore
+  }
+}
 
 function buildCodexChildEnv(envOverrides?: Record<string, string>, nodeVersion?: string): NodeJS.ProcessEnv {
   const cleanEnv: NodeJS.ProcessEnv = { ...process.env }
@@ -541,11 +564,13 @@ export class CodexAppServerAdapter extends BaseProviderAdapter {
 
     // 鐩戝惉 NDJSON 琛?
     rl.on('line', (line) => {
+      if (this.sessions.get(sessionId)?.process !== proc) return
       this.handleLine(sessionId, line)
     })
 
     // 娑堣垂 stderr锛堥槻姝㈢閬撶紦鍐插尯闃诲锛涘皢鍏抽敭閿欒淇℃伅鎺ㄩ€佸埌瀵硅瘽瑙嗗浘鏂逛究鎺掓煡锛?
     proc.stderr?.on('data', (data) => {
+      if (this.sessions.get(sessionId)?.process !== proc) return
       const text: string = data.toString()
       if (!text.trim()) return
       if (isCodexModelRefreshTimeout(text)) {
@@ -561,6 +586,7 @@ export class CodexAppServerAdapter extends BaseProviderAdapter {
     // 杩涚▼閫€鍑烘椂锛岃嫢寮傚父閫€鍑猴紙code !== 0锛夛紝灏嗛敊璇俊鎭帹閫佸埌瀵硅瘽瑙嗗浘
     // 鏈?stderr 鍐呭鍒欏睍绀猴紝鍚﹀垯缁欏嚭閫氱敤鎻愮ず锛岀‘淇濈敤鎴蜂笉浼氱湅鍒扮┖鐧?
     proc.once('exit', (code) => {
+      if (this.sessions.get(sessionId)?.process !== proc || session.abortRequested) return
       if (code !== 0) {
         const errSnippet = session.stderrBuffer.trim().slice(0, 800)
         const content = errSnippet
@@ -580,7 +606,15 @@ export class CodexAppServerAdapter extends BaseProviderAdapter {
 
     // 杩涚▼閫€鍑?
     proc.on('exit', (code) => {
+      if (this.sessions.get(sessionId)?.process !== proc) return
       this.stopHeartbeat(sessionId)
+      if (session.abortRequested) {
+        for (const [, pending] of session.pendingRequests) {
+          pending.reject(new Error('Codex turn aborted by user'))
+        }
+        session.pendingRequests.clear()
+        return
+      }
       for (const [, pending] of session.pendingRequests) {
         const errSnippet = session.stderrBuffer.trim()
         pending.reject(new Error(
@@ -601,6 +635,7 @@ export class CodexAppServerAdapter extends BaseProviderAdapter {
     })
 
     proc.on('error', (err: NodeJS.ErrnoException) => {
+      if (this.sessions.get(sessionId)?.process !== proc || session.abortRequested) return
       console.error(`[CodexAdapter] Process error for ${sessionId}:`, err)
       session.adapter.status = 'error'
       this.emit('status-change', sessionId, 'error')
@@ -798,19 +833,48 @@ export class CodexAppServerAdapter extends BaseProviderAdapter {
     const session = this.sessions.get(sessionId)
     if (!session) return
 
-    // 鈿狅笍 Codex app-server 鐨?JsonRpcMessage 鏋氫妇鍙湁 Request锛堝甫 id锛夊拰 Response 涓ょ鍙樹綋锛?
-    // 涓嶆帴鍙椾笉甯?id 鐨?Notification锛坣otify 璋冪敤浼氬鑷?serde untagged enum 鍙嶅簭鍒楀寲澶辫触锛夈€?
-    // 鐩墠鏃犲彲鐢ㄧ殑鍙栨秷 RPC锛屽彧鍋?UI 鐘舵€佸己鍒跺垏鎹紝璁╂寜閽秷澶便€佽緭鍏ユ鎭㈠鍙敤銆?
-    // Codex 搴曞眰浼氱户缁窇瀹屽綋鍓嶈疆娆★紝turn/completed 浜嬩欢鍒拌揪鏃剁姸鎬佹洿鏂版槸骞傜瓑鐨勶紝涓嶅奖鍝嶆纭€с€?
     const ts = new Date().toISOString()
-    session.adapter.status = 'waiting_input'
-    this.emit('status-change', sessionId, 'waiting_input')
+    const previousMessages = [...session.adapter.messages]
+    const previousUsage = { ...session.adapter.totalUsage }
+    const restartConfig: AdapterSessionConfig = {
+      ...session.config,
+      initialPrompt: undefined,
+      initialPromptVisibility: 'hidden',
+    }
+
+    session.abortRequested = true
+    session.adapter.status = 'starting'
+    session.agentMessageBuffer = ''
+    session.activeToolUseIds.clear()
+    session.pendingApprovalItemId = undefined
+    session.pendingApprovalRequest = undefined
+    this.stopHeartbeat(sessionId)
+    for (const [, pending] of session.pendingRequests) {
+      pending.reject(new Error('Codex turn aborted by user'))
+    }
+    session.pendingRequests.clear()
+    this.emit('status-change', sessionId, 'starting')
+
+    try {
+      session.readline.close()
+    } catch {
+      // ignore
+    }
+    killProcessTree(session.process)
+
     this.emitEvent(sessionId, {
       type: 'turn_complete',
       sessionId,
       timestamp: ts,
       data: { usage: session.adapter.totalUsage },
     })
+
+    await this.startSession(sessionId, restartConfig)
+    const restarted = this.sessions.get(sessionId)
+    if (restarted) {
+      restarted.adapter.messages = previousMessages
+      restarted.adapter.totalUsage = previousUsage
+    }
   }
 
   async terminateSession(sessionId: string): Promise<void> {

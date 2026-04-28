@@ -8,6 +8,7 @@ import * as fs from 'fs'
 import * as os from 'os'
 import { execSync } from 'child_process'
 import type { DatabaseManager } from '../storage/Database'
+import { toAsciiLogText } from '../utils/logText'
 
 /** MCP 配置目录（Claude Code 用） */
 const MCP_CONFIG_DIR = path.join(os.homedir(), '.claudeops', 'mcp')
@@ -17,15 +18,6 @@ const CODEX_TEMP_BASE_DIR = path.join(os.tmpdir(), 'spectrai-codex')
 
 /** OpenCode 临时配置文件目录基础路径 */
 const OPENCODE_TEMP_BASE_DIR = path.join(os.tmpdir(), 'spectrai-opencode')
-
-function toAsciiLogText(value: unknown): string {
-  return String(value ?? '').replace(/[^\x20-\x7E]/g, (char) => {
-    const codePoint = char.codePointAt(0) ?? 0
-    return codePoint <= 0xffff
-      ? `\\u${codePoint.toString(16).padStart(4, '0')}`
-      : `\\u{${codePoint.toString(16)}}`
-  })
-}
 
 /**
  * 获取 AgentMCPServer 的脚本路径
