@@ -2149,10 +2149,30 @@ function extractCompletionHeadline(messages: ConversationMessage[]): string {
 }
 
 function buildCompletionSummary(messages: ConversationMessage[], projectPath?: string): CompletionSummary | null {
-  const lastUserIndex = messages.reduce((latest, message, index) => (
-    message.role === 'user' && !message.content?.startsWith('\u25B6 /') ? index : latest
+  const lastFileChangeIndex = messages.reduce((latest, message, index) => (
+    message.fileChange ? index : latest
   ), -1)
-  const turnMessages = messages.slice(Math.max(0, lastUserIndex))
+  if (lastFileChangeIndex < 0) return null
+
+  let turnStartIndex = 0
+  for (let index = lastFileChangeIndex; index >= 0; index -= 1) {
+    const message = messages[index]
+    if (message.role === 'user' && !message.content?.startsWith('\u25B6 /')) {
+      turnStartIndex = index
+      break
+    }
+  }
+
+  let turnEndIndex = messages.length
+  for (let index = lastFileChangeIndex + 1; index < messages.length; index += 1) {
+    const message = messages[index]
+    if (message.role === 'user' && !message.content?.startsWith('\u25B6 /')) {
+      turnEndIndex = index
+      break
+    }
+  }
+
+  const turnMessages = messages.slice(turnStartIndex, turnEndIndex)
   const fileMap = new Map<string, CompletionFileChange>()
   let startAt = Number.POSITIVE_INFINITY
   let endAt = 0
