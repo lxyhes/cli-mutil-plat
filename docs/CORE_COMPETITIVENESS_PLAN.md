@@ -131,6 +131,8 @@ Status: completed for the first usable slice. The task cockpit now includes an O
 - Number of reusable project memories created
 - Reduction in "what changed?" and "is this safe?" follow-up questions
 
+Status: wired into the product dashboard. The conversation cockpit now records session-level delivery metrics locally, and the global dashboard summarizes delivery-pack rate, validation coverage, average verified handoff time, reusable project memories, safety state, and an average competitiveness score across recent sessions.
+
 ## Near-Term Implementation Notes
 
 - Prefer prompt-level workflows first; they are faster and provider-neutral.

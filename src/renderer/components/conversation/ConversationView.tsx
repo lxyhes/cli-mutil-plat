@@ -30,6 +30,7 @@ import PlanApprovalPanel from './PlanApprovalPanel'
 import CrossSessionSearch from './CrossSessionSearch'
 import SessionKnowledgePanel from './SessionKnowledgePanel'
 import { isPrimaryModifierPressed } from '../../utils/shortcut'
+import { recordDeliveryMetricSnapshot } from '../../utils/deliveryMetrics'
 
 
 // ---- Provider 颜色映射 ----
@@ -84,6 +85,9 @@ interface OpsBriefSnapshot {
   readinessGates: DeliveryReadinessGate[]
   deliveryMetrics: DeliveryMetric[]
   deliveryMetricScore: number
+  deliveryPackGenerated: boolean
+  verifiedHandoffMinutes?: number
+  projectMemoryCount: number
   agents: OpsBriefAgent[]
   agentCount: number
   activeAgentCount: number
@@ -2645,6 +2649,9 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
       readinessGates,
       deliveryMetrics,
       deliveryMetricScore,
+      deliveryPackGenerated,
+      verifiedHandoffMinutes: hasDeliveryEvidence ? elapsedMinutes : undefined,
+      projectMemoryCount: knowledgeExtractionCount,
       agents,
       agentCount: agents.length,
       activeAgentCount,
@@ -2676,6 +2683,45 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
     liveProgressText,
     deliveryPackGenerated,
     knowledgeExtractionCount,
+  ])
+
+  useEffect(() => {
+    if (opsBrief.messageCount === 0 && opsBrief.toolCount === 0) return
+    const safetyMetric = opsBrief.deliveryMetrics.find(metric => metric.id === 'safety')
+    recordDeliveryMetricSnapshot({
+      sessionId,
+      projectName: opsBrief.projectName,
+      projectPath: opsBrief.projectPath,
+      updatedAt: new Date().toISOString(),
+      score: opsBrief.deliveryMetricScore,
+      deliveryPackGenerated: opsBrief.deliveryPackGenerated,
+      changedFileCount: opsBrief.changedFileCount,
+      validationCount: opsBrief.validationCount,
+      verifiedHandoffMinutes: opsBrief.verifiedHandoffMinutes,
+      projectMemoryCount: opsBrief.projectMemoryCount,
+      safetyStatus: safetyMetric?.status || 'warning',
+      statusLabel: opsBrief.statusLabel,
+      phaseLabel: opsBrief.phaseLabel,
+      deliveryReadiness: opsBrief.deliveryReadiness,
+      messageCount: opsBrief.messageCount,
+      toolCount: opsBrief.toolCount,
+    })
+  }, [
+    sessionId,
+    opsBrief.projectName,
+    opsBrief.projectPath,
+    opsBrief.deliveryMetricScore,
+    opsBrief.deliveryPackGenerated,
+    opsBrief.changedFileCount,
+    opsBrief.validationCount,
+    opsBrief.verifiedHandoffMinutes,
+    opsBrief.projectMemoryCount,
+    opsBrief.statusLabel,
+    opsBrief.phaseLabel,
+    opsBrief.deliveryReadiness,
+    opsBrief.messageCount,
+    opsBrief.toolCount,
+    opsBrief.deliveryMetrics,
   ])
 
   // Prompt 型 Skill 静默执行：展开模板后静默发送，用户只看到 ▶ /skillname 徽章

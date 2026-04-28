@@ -3,7 +3,7 @@
  * @author weibin
  */
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import {
   Activity, Zap, Clock, Monitor, CheckCircle, AlertCircle,
   PlayCircle, PauseCircle, Terminal
@@ -12,6 +12,14 @@ import { useSessionStore } from '../../stores/sessionStore'
 import { STATUS_COLORS, STATUS_LABELS } from '../../../shared/constants'
 import type { Session, SessionStatus, ActivityEvent } from '../../../shared/types'
 import UsageDashboard from '../usage/UsageDashboard'
+import {
+  DELIVERY_METRICS_EVENT,
+  formatMetricDuration,
+  formatMetricPercent,
+  loadDeliveryMetricSnapshots,
+  summarizeDeliveryMetrics,
+  type DeliveryMetricSnapshotRecord,
+} from '../../utils/deliveryMetrics'
 
 function formatDuration(startedAt: string): string {
   const seconds = Math.floor((Date.now() - new Date(startedAt).getTime()) / 1000)
@@ -76,6 +84,7 @@ function SessionCard({ session, onClick }: { session: Session; onClick: () => vo
 export default function DashboardView() {
   const { sessions, selectSession, activities } = useSessionStore()
   const [recentEvents, setRecentEvents] = useState<(ActivityEvent & { sessionName: string })[]>([])
+  const [deliveryRecords, setDeliveryRecords] = useState<DeliveryMetricSnapshotRecord[]>(() => loadDeliveryMetricSnapshots())
   const [, setTick] = useState(0)
 
   // 分类
@@ -86,6 +95,7 @@ export default function DashboardView() {
   const activeSessions = sessions.filter(s =>
     s.status !== 'completed' && s.status !== 'terminated' && s.status !== 'interrupted'
   )
+  const successSummary = useMemo(() => summarizeDeliveryMetrics(deliveryRecords), [deliveryRecords])
 
   // 聚合最近活动事件（跨会话）
   useEffect(() => {
@@ -106,6 +116,17 @@ export default function DashboardView() {
   useEffect(() => {
     const timer = setInterval(() => setTick(t => t + 1), 1000)
     return () => clearInterval(timer)
+  }, [])
+
+  useEffect(() => {
+    const refreshMetrics = () => setDeliveryRecords(loadDeliveryMetricSnapshots())
+    refreshMetrics()
+    window.addEventListener(DELIVERY_METRICS_EVENT, refreshMetrics)
+    window.addEventListener('storage', refreshMetrics)
+    return () => {
+      window.removeEventListener(DELIVERY_METRICS_EVENT, refreshMetrics)
+      window.removeEventListener('storage', refreshMetrics)
+    }
   }, [])
 
   return (
@@ -143,6 +164,62 @@ export default function DashboardView() {
           color="#8B949E"
         />
       </div>
+
+      <section className="space-y-2">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h3 className="text-sm font-medium text-text-secondary flex items-center gap-1.5">
+            <CheckCircle className="w-4 h-4 text-accent-green" />
+            核心竞争力指标
+          </h3>
+          <span className="text-[11px] text-text-muted">
+            {successSummary.sessionCount > 0 ? `${successSummary.sessionCount} 个会话样本` : '等待会话产生指标'}
+          </span>
+        </div>
+        <div className="grid grid-cols-2 gap-2 md:grid-cols-3 xl:grid-cols-6">
+          <SuccessMetricCard
+            icon={Activity}
+            label="综合得分"
+            value={successSummary.sessionCount > 0 ? String(successSummary.averageScore) : '--'}
+            detail={`安全会话 ${formatMetricPercent(successSummary.safeSessionRate)}`}
+            tone={successSummary.averageScore >= 80 ? 'good' : successSummary.averageScore >= 60 ? 'warn' : successSummary.sessionCount > 0 ? 'bad' : 'neutral'}
+          />
+          <SuccessMetricCard
+            icon={CheckCircle}
+            label="交付包率"
+            value={formatMetricPercent(successSummary.deliveryPackRate)}
+            detail="已导出交付包的会话占比"
+            tone={successSummary.deliveryPackRate >= 70 ? 'good' : successSummary.deliveryPackRate > 0 ? 'warn' : 'neutral'}
+          />
+          <SuccessMetricCard
+            icon={Terminal}
+            label="验证覆盖"
+            value={formatMetricPercent(successSummary.validationCoverageRate)}
+            detail="代码改动会话中的验证占比"
+            tone={successSummary.validationCoverageRate >= 80 ? 'good' : successSummary.validationCoverageRate > 0 ? 'warn' : 'neutral'}
+          />
+          <SuccessMetricCard
+            icon={Clock}
+            label="平均交付"
+            value={formatMetricDuration(successSummary.averageHandoffMinutes)}
+            detail="从任务开始到可交付证据"
+            tone={successSummary.averageHandoffMinutes !== undefined ? 'good' : 'neutral'}
+          />
+          <SuccessMetricCard
+            icon={Monitor}
+            label="项目记忆"
+            value={String(successSummary.projectMemoryCount)}
+            detail="已沉淀的复用知识条目"
+            tone={successSummary.projectMemoryCount > 0 ? 'good' : 'neutral'}
+          />
+          <SuccessMetricCard
+            icon={AlertCircle}
+            label="阻塞会话"
+            value={String(successSummary.blockedCount)}
+            detail="存在异常工具或错误状态"
+            tone={successSummary.blockedCount > 0 ? 'bad' : successSummary.sessionCount > 0 ? 'good' : 'neutral'}
+          />
+        </div>
+      </section>
 
       <div className="grid grid-cols-3 gap-4">
         {/* 左侧：活跃会话卡片 */}
@@ -222,6 +299,36 @@ function StatCard({ icon: Icon, label, value, color }: {
       <Icon className="w-5 h-5 mx-auto mb-1" style={{ color }} />
       <div className="text-xl font-bold text-text-primary">{value}</div>
       <div className="text-[10px] text-text-muted">{label}</div>
+    </div>
+  )
+}
+
+type SuccessMetricTone = 'good' | 'warn' | 'bad' | 'neutral'
+
+const SUCCESS_METRIC_TONE_CLASS: Record<SuccessMetricTone, string> = {
+  good: 'border-accent-green/20 bg-accent-green/5 text-accent-green',
+  warn: 'border-accent-yellow/25 bg-accent-yellow/10 text-accent-yellow',
+  bad: 'border-accent-red/25 bg-accent-red/10 text-accent-red',
+  neutral: 'border-border-subtle bg-bg-elevated text-text-secondary',
+}
+
+function SuccessMetricCard({ icon: Icon, label, value, detail, tone }: {
+  icon: typeof Monitor
+  label: string
+  value: string
+  detail: string
+  tone: SuccessMetricTone
+}) {
+  return (
+    <div className={`min-w-0 rounded-lg border p-3 ${SUCCESS_METRIC_TONE_CLASS[tone]}`}>
+      <div className="flex min-w-0 items-center gap-1.5">
+        <Icon className="h-3.5 w-3.5 shrink-0" />
+        <span className="truncate text-[11px] font-medium text-text-secondary">{label}</span>
+      </div>
+      <div className="mt-1 text-xl font-bold leading-none text-text-primary">{value}</div>
+      <div className="mt-1 truncate text-[10px] text-text-muted" title={detail}>
+        {detail}
+      </div>
     </div>
   )
 }
