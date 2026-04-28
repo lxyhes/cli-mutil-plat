@@ -192,8 +192,8 @@ function FileRefCard({
 
   return (
     <div
-      className="group flex items-center gap-1.5 rounded-lg border border-border-subtle px-2.5 py-1.5
-        bg-bg-elevated transition-colors hover:border-accent-blue/40
+      className="group flex items-center gap-1.5 rounded-lg px-2.5 py-1.5
+        bg-bg-elevated/80 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.03)] transition-colors hover:bg-bg-hover
         max-w-[220px] flex-shrink-0"
       title={fileRef.filePath}
     >
@@ -993,7 +993,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
         <div
           ref={menuRef}
           className="absolute bottom-full left-4 right-4 mb-1
-            rounded-lg border border-border-subtle bg-bg-elevated shadow-lg
+            rounded-lg bg-bg-elevated/95 shadow-[0_18px_40px_rgba(0,0,0,0.28),0_0_0_1px_rgba(255,255,255,0.035)]
             max-h-52 overflow-y-auto z-50"
           style={{ scrollbarWidth: 'thin' }}
         >
@@ -1025,12 +1025,12 @@ const MessageInput: React.FC<MessageInputProps> = ({
         <div
           ref={modelMenuRef}
           className="absolute bottom-full left-4 right-4 mb-1
-            rounded-lg border border-border-subtle bg-bg-elevated shadow-lg
+            rounded-lg bg-bg-elevated/95 shadow-[0_18px_40px_rgba(0,0,0,0.28),0_0_0_1px_rgba(255,255,255,0.035)]
             max-h-64 overflow-y-auto z-50"
           style={{ scrollbarWidth: 'thin' }}
         >
           {/* 标题 */}
-          <div className="border-b border-border-subtle px-3 py-2">
+          <div className="px-3 py-2 shadow-[0_1px_0_rgba(255,255,255,0.035)]">
             <span className="text-xs font-medium text-text-muted uppercase tracking-wide">
               可用模型
             </span>
@@ -1074,12 +1074,12 @@ const MessageInput: React.FC<MessageInputProps> = ({
         <div
           ref={atMenuRef}
           className="absolute bottom-full left-4 right-4 mb-1
-            rounded-lg border border-border-subtle bg-bg-elevated shadow-lg
+            rounded-lg bg-bg-elevated/95 shadow-[0_18px_40px_rgba(0,0,0,0.28),0_0_0_1px_rgba(255,255,255,0.035)]
             max-h-52 overflow-y-auto z-50"
           style={{ scrollbarWidth: 'thin' }}
         >
           {/* 标题行 */}
-          <div className="sticky top-0 flex items-center justify-between border-b border-border-subtle bg-bg-elevated px-3 py-1.5">
+          <div className="sticky top-0 flex items-center justify-between bg-bg-elevated/95 px-3 py-1.5 shadow-[0_1px_0_rgba(255,255,255,0.035)]">
             <div className="flex items-center gap-1.5 text-xs text-text-muted">
               <AtSign size={12} />
               <span>引用文件{atQuery ? `："${atQuery}"` : ''}</span>
@@ -1124,12 +1124,12 @@ const MessageInput: React.FC<MessageInputProps> = ({
         </div>
       )}
 
-      <div className={`message-composer mx-auto flex max-w-[1040px] flex-col rounded-lg border bg-bg-input p-2 shadow-[0_10px_28px_var(--color-shadow-sm)] transition-colors
-        ${dragOver ? 'border-accent-blue' : 'border-border-subtle'} focus-within:border-accent-blue/50 md:p-2.5`}>
+      <div className={`message-composer mx-auto flex max-w-[1040px] flex-col rounded-lg bg-bg-input p-2 transition-colors
+        ${dragOver ? 'shadow-[0_0_0_1px_var(--color-accent-blue),0_10px_28px_var(--color-shadow-sm)]' : 'shadow-[0_10px_28px_var(--color-shadow-sm)]'} focus-within:shadow-[0_0_0_1px_rgba(88,166,255,0.45),0_10px_28px_var(--color-shadow-sm)] md:p-2.5`}>
 
         {/* 附件区域：图片预览 + 文件引用卡片（有附件时显示） */}
         {hasAttachments && (
-          <div className="mb-1 border-b border-border-subtle px-2 pb-1 pt-2">
+          <div className="mb-1 px-2 pb-1 pt-2 shadow-[0_1px_0_rgba(255,255,255,0.035)]">
             <div className="flex flex-wrap gap-2 pb-1">
 
               {/* 图片缩略图 */}
@@ -1139,7 +1139,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
                     type="button"
                     title={att.name}
                     onClick={() => setPreviewAttachment(att)}
-                    className="h-20 w-20 overflow-hidden rounded-lg border border-border-subtle bg-bg-tertiary btn-transition hover:border-accent-blue/40"
+                    className="h-20 w-20 overflow-hidden rounded-lg bg-bg-tertiary shadow-[inset_0_0_0_1px_rgba(255,255,255,0.035)] btn-transition hover:shadow-[inset_0_0_0_1px_rgba(88,166,255,0.45)]"
                   >
                     <img
                       src={att.previewUrl}
@@ -1160,9 +1160,9 @@ const MessageInput: React.FC<MessageInputProps> = ({
                       setAttachments(prev => prev.filter(a => a.id !== att.id))
                     }}
                     className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full
-                      bg-bg-primary border border-border-subtle
+                      bg-bg-primary shadow-[0_0_0_1px_rgba(255,255,255,0.08)]
                       flex items-center justify-center
-                      text-text-secondary hover:text-accent-red hover:border-accent-red
+                      text-text-secondary hover:text-accent-red hover:shadow-[0_0_0_1px_rgba(248,81,73,0.55)]
                       opacity-0 group-hover:opacity-100 transition-all
                       text-xs leading-none"
                   >×</button>
@@ -1304,7 +1304,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
             <img
               src={previewAttachment.previewUrl}
               alt={previewAttachment.name}
-              className="max-w-full max-h-[82vh] object-contain rounded border border-border-subtle bg-black/20"
+              className="max-w-full max-h-[82vh] object-contain rounded bg-black/20 shadow-[0_0_0_1px_rgba(255,255,255,0.06)]"
             />
             <div className="w-full text-[11px] text-white/85 text-center break-all">
               {previewAttachment.name}

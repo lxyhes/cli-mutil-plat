@@ -249,7 +249,7 @@ export default function TimelinePanel() {
     <div className="flex flex-col h-full overflow-y-auto p-2.5">
       {/* 当前会话信息条 */}
       {selectedSession && (
-        <div className="mb-2.5 p-2.5 rounded-lg bg-bg-primary/75 border border-border/60">
+        <div className="mb-2.5 p-2.5 rounded-lg bg-bg-primary/55 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.025)]">
           <div className="flex items-center justify-between mb-1">
             <span className="text-xs font-medium text-text-primary truncate">
               {selectedSession.name || selectedSession.config.name}
@@ -287,11 +287,11 @@ export default function TimelinePanel() {
           value={searchQuery}
           onChange={e => setSearchQuery(e.target.value)}
           placeholder="搜索事件..."
-          className="w-full pl-7 pr-3 py-1.5 text-xs bg-bg-primary border border-border/60 rounded text-text-primary placeholder:text-text-muted focus:outline-none focus:ring-1 focus:ring-accent-blue/50"
+          className="w-full pl-7 pr-3 py-1.5 text-xs bg-bg-primary/65 rounded text-text-primary placeholder:text-text-muted focus:outline-none focus:ring-1 focus:ring-accent-blue/45"
         />
       </div>
 
-      <div className="mb-2 grid grid-cols-2 gap-1 rounded-lg border border-border/50 bg-bg-primary/50 p-1">
+      <div className="mb-2 grid grid-cols-2 gap-1 rounded-lg bg-bg-primary/45 p-1">
         {([
           ['key', '关键'],
           ['all', '全部'],
@@ -312,7 +312,7 @@ export default function TimelinePanel() {
       </div>
 
       {timelineMode === 'key' && hiddenDetailCount > 0 && (
-        <div className="mb-2 rounded-lg border border-border/35 bg-bg-primary/35 px-2 py-1.5 text-[11px] text-text-muted">
+        <div className="mb-2 rounded-lg bg-bg-primary/32 px-2 py-1.5 text-[11px] text-text-muted">
           已收起 {hiddenDetailCount} 条细节事件，切到「全部」可查看回复、工具调用和命令输出。
         </div>
       )}
@@ -329,7 +329,7 @@ export default function TimelinePanel() {
                 key={type}
                 onClick={() => toggleFilter(type)}
                 className={`text-[10px] px-1.5 py-0.5 rounded font-medium btn-transition ${
-                  isActive ? 'ring-1 ring-offset-1 ring-offset-bg-secondary' : 'opacity-60 hover:opacity-100'
+                  isActive ? 'shadow-[0_0_0_1px_currentColor]' : 'opacity-60 hover:opacity-100'
                 }`}
                 style={{
                   backgroundColor: config.color + (isActive ? '30' : '15'),

@@ -279,10 +279,10 @@ const MISSION_TEMPLATES: MissionTemplate[] = [
 ]
 
 const MISSION_TONE_CLASS: Record<MissionTemplate['tone'], string> = {
-  blue: 'border-accent-blue/25 bg-accent-blue/5 text-accent-blue hover:border-accent-blue/45 hover:bg-accent-blue/10',
-  green: 'border-accent-green/25 bg-accent-green/5 text-accent-green hover:border-accent-green/45 hover:bg-accent-green/10',
-  yellow: 'border-accent-yellow/25 bg-accent-yellow/5 text-accent-yellow hover:border-accent-yellow/45 hover:bg-accent-yellow/10',
-  purple: 'border-accent-purple/25 bg-accent-purple/5 text-accent-purple hover:border-accent-purple/45 hover:bg-accent-purple/10',
+  blue: 'bg-accent-blue/5 text-accent-blue hover:bg-accent-blue/10',
+  green: 'bg-accent-green/5 text-accent-green hover:bg-accent-green/10',
+  yellow: 'bg-accent-yellow/5 text-accent-yellow hover:bg-accent-yellow/10',
+  purple: 'bg-accent-purple/5 text-accent-purple hover:bg-accent-purple/10',
 }
 
 const MISSION_STEP_TONE_CLASS = [
@@ -732,18 +732,18 @@ function getTrustPolicyPreset(snapshot: OpsBriefSnapshot): TrustPolicyPreset {
 
 function getTrustSignalClass(tone: TrustSignalTone): string {
   return {
-    good: 'border-accent-green/20 bg-accent-green/5 text-accent-green',
-    warn: 'border-accent-yellow/25 bg-accent-yellow/10 text-accent-yellow',
-    bad: 'border-accent-red/25 bg-accent-red/10 text-accent-red',
-    neutral: 'border-border-subtle bg-bg-primary/70 text-text-secondary',
+    good: 'border-transparent bg-accent-green/5 text-accent-green',
+    warn: 'border-transparent bg-accent-yellow/10 text-accent-yellow',
+    bad: 'border-transparent bg-accent-red/10 text-accent-red',
+    neutral: 'border-transparent bg-bg-primary/55 text-text-secondary',
   }[tone]
 }
 
 function getDeliveryMetricClass(status: DeliveryMetric['status']): string {
   return {
-    passed: 'border-accent-green/20 bg-accent-green/5 text-accent-green',
-    warning: 'border-accent-yellow/25 bg-accent-yellow/10 text-accent-yellow',
-    blocked: 'border-accent-red/25 bg-accent-red/10 text-accent-red',
+    passed: 'border-transparent bg-accent-green/5 text-accent-green',
+    warning: 'border-transparent bg-accent-yellow/10 text-accent-yellow',
+    blocked: 'border-transparent bg-accent-red/10 text-accent-red',
   }[status]
 }
 
@@ -757,10 +757,10 @@ function getDeliveryMetricLabel(status: DeliveryMetric['status']): string {
 
 function getEvidenceTimelineClass(tone: EvidenceTimelineEntry['tone']): string {
   return {
-    good: 'border-accent-green/20 bg-accent-green/5 text-accent-green',
-    warn: 'border-accent-yellow/25 bg-accent-yellow/10 text-accent-yellow',
-    bad: 'border-accent-red/25 bg-accent-red/10 text-accent-red',
-    neutral: 'border-border-subtle bg-bg-primary/70 text-text-secondary',
+    good: 'border-transparent bg-accent-green/5 text-accent-green',
+    warn: 'border-transparent bg-accent-yellow/10 text-accent-yellow',
+    bad: 'border-transparent bg-accent-red/10 text-accent-red',
+    neutral: 'border-transparent bg-bg-primary/55 text-text-secondary',
   }[tone]
 }
 
@@ -1311,7 +1311,7 @@ const MissionLaunchpad = React.memo(function MissionLaunchpad({ providerId, sess
 
   return (
     <div className="mx-auto flex min-h-[420px] max-w-[920px] flex-col justify-center py-8 text-sm">
-      <section className="border-b border-border-subtle pb-4">
+      <section className="pb-4 shadow-[0_1px_0_rgba(255,255,255,0.035)]">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="min-w-0">
             <div className="mb-2 inline-flex items-center gap-1.5 rounded-md bg-accent-blue/10 px-2 py-1 text-xs font-semibold text-accent-blue">
@@ -1332,7 +1332,7 @@ const MissionLaunchpad = React.memo(function MissionLaunchpad({ providerId, sess
             >
               {providerId ?? '未知'}
             </span>
-            <span className="rounded-md border border-border-subtle bg-bg-elevated px-2 py-1 font-mono text-xs text-text-muted">
+            <span className="rounded-md bg-bg-elevated/80 px-2 py-1 font-mono text-xs text-text-muted shadow-[inset_0_0_0_1px_rgba(255,255,255,0.03)]">
               #{sessionId.slice(0, 8)}
             </span>
           </div>
@@ -1340,7 +1340,7 @@ const MissionLaunchpad = React.memo(function MissionLaunchpad({ providerId, sess
       </section>
 
       <div className="mt-5 grid gap-4 lg:grid-cols-[0.9fr_1.35fr]">
-        <section className="rounded-lg border border-border-subtle bg-bg-elevated p-4 shadow-sm">
+        <section className="rounded-lg bg-bg-elevated/75 p-4 shadow-sm">
           <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-text-primary">
             <FolderOpen size={15} className="text-accent-blue" />
             当前上下文
@@ -1359,7 +1359,7 @@ const MissionLaunchpad = React.memo(function MissionLaunchpad({ providerId, sess
               </div>
             </div>
           </div>
-          <div className="mt-4 border-t border-border-subtle pt-3">
+          <div className="mt-4 pt-3 shadow-[0_-1px_0_rgba(255,255,255,0.035)]">
             <div className="mb-2 flex items-center gap-1.5 text-xs font-semibold text-text-secondary">
               <BookMarked size={13} className="text-accent-purple" />
               项目记忆
@@ -1381,7 +1381,7 @@ const MissionLaunchpad = React.memo(function MissionLaunchpad({ providerId, sess
               type="button"
               onClick={() => onInsertPrompt(template.prompt)}
               disabled={!canSend}
-              className={`min-h-[116px] rounded-lg border p-3 text-left shadow-sm transition-colors disabled:cursor-not-allowed disabled:opacity-45 ${MISSION_TONE_CLASS[template.tone]}`}
+              className={`min-h-[116px] rounded-lg p-3 text-left shadow-sm transition-colors disabled:cursor-not-allowed disabled:opacity-45 ${MISSION_TONE_CLASS[template.tone]}`}
               title={template.prompt}
             >
               <div className="flex items-start justify-between gap-3">
@@ -1402,7 +1402,7 @@ const MissionLaunchpad = React.memo(function MissionLaunchpad({ providerId, sess
         </section>
       </div>
 
-      <section className="mt-5 grid gap-2 border-y border-border-subtle py-3 sm:grid-cols-4">
+      <section className="mt-5 grid gap-2 rounded-md bg-bg-elevated/40 px-2 py-3 sm:grid-cols-4">
         {MISSION_DELIVERY_STEPS.map((step, index) => (
           <div key={step.label} className="flex min-w-0 items-center gap-2">
             <span className={`inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-bg-elevated text-xs font-semibold ${MISSION_STEP_TONE_CLASS[index]}`}>
@@ -1527,7 +1527,7 @@ const OpsBrief = React.memo(function OpsBrief({
   }>
 
   return (
-    <section className="mb-3 overflow-hidden rounded-lg border border-border-subtle bg-bg-elevated shadow-sm">
+    <section className="ops-brief mb-3 overflow-hidden rounded-lg bg-bg-elevated/72 shadow-[0_0_0_1px_rgba(255,255,255,0.03),0_12px_26px_rgba(0,0,0,0.16)]">
       <div className="flex min-w-0">
         <div className={`w-1.5 shrink-0 ${accentRailClass}`} />
         <div className={`min-w-0 flex-1 ${expanded ? 'px-3 py-2.5' : 'px-3 py-2'}`}>
@@ -1674,7 +1674,7 @@ const OpsBrief = React.memo(function OpsBrief({
           )}
 
           {!expanded && (
-            <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-border-subtle pt-2 text-[11px] text-text-muted">
+            <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 pt-2 text-[11px] text-text-muted shadow-[0_-1px_0_rgba(255,255,255,0.035)]">
               <span className="inline-flex items-center gap-1">
                 <GitPullRequest size={12} className="text-accent-green" />
                 {snapshot.changedFileCount} 文件
@@ -1698,7 +1698,7 @@ const OpsBrief = React.memo(function OpsBrief({
 
           {expanded && (
             <div className="mt-3 max-h-[44vh] overflow-y-auto pr-1 [scrollbar-width:thin]">
-              <div className="grid gap-x-4 gap-y-2 border-y border-border-subtle py-2 sm:grid-cols-2 lg:grid-cols-[auto_auto_auto_auto_1fr]">
+              <div className="grid gap-x-4 gap-y-2 rounded-md bg-bg-primary/24 px-2 py-2 sm:grid-cols-2 lg:grid-cols-[auto_auto_auto_auto_1fr]">
                 <div className="flex items-center gap-1.5 text-xs text-text-secondary">
                   <GitPullRequest size={14} className="text-accent-green" />
                   <span>{snapshot.changedFileCount} 文件</span>
@@ -1725,7 +1725,7 @@ const OpsBrief = React.memo(function OpsBrief({
                 )}
               </div>
 
-              <div className="mt-3 rounded-lg border border-border-subtle bg-bg-primary/45 p-3">
+              <div className="mt-3 rounded-md bg-bg-primary/28 p-3">
                 <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
                   <div className="flex items-center gap-2">
                     <BookMarked size={14} className="text-accent-blue" />
@@ -1747,7 +1747,7 @@ const OpsBrief = React.memo(function OpsBrief({
                         type="button"
                         onClick={() => onInsertPlaybook(template)}
                         disabled={playbookActionLoading !== null}
-                        className="min-w-0 rounded-md border border-border-subtle bg-bg-primary/70 px-2 py-2 text-left transition-colors hover:border-accent-blue/30 hover:bg-bg-hover disabled:cursor-wait disabled:opacity-60"
+                        className="min-w-0 rounded-md bg-bg-primary/58 px-2 py-2 text-left transition-colors hover:bg-bg-hover disabled:cursor-wait disabled:opacity-60"
                         title={template.description}
                       >
                         <div className="truncate text-[11px] font-semibold text-text-primary">{isLoading ? '读取记忆中...' : template.label}</div>
@@ -1758,7 +1758,7 @@ const OpsBrief = React.memo(function OpsBrief({
                 </div>
               </div>
 
-              <div className="mt-3 rounded-lg border border-border-subtle bg-bg-primary/45 p-3">
+              <div className="mt-3 rounded-md bg-bg-primary/28 p-3">
                 <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
                   <div className="flex items-center gap-2">
                     <FileText size={14} className="text-accent-blue" />
@@ -1793,13 +1793,13 @@ const OpsBrief = React.memo(function OpsBrief({
                     })}
                   </div>
                 ) : (
-                  <div className="rounded-md border border-dashed border-border-subtle bg-bg-primary/70 px-3 py-2 text-[11px] leading-5 text-text-muted">
+                  <div className="rounded-md bg-bg-primary/45 px-3 py-2 text-[11px] leading-5 text-text-muted">
                     暂无可展示的证据事件。继续执行工具、验证或文件改动后会自动生成。
                   </div>
                 )}
               </div>
 
-              <div className="mt-3 rounded-lg border border-border-subtle bg-bg-primary/45 p-3">
+              <div className="mt-3 rounded-md bg-bg-primary/28 p-3">
                 <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
                   <div className="flex items-center gap-2">
                     <Users size={14} className={snapshot.agentConflictCount > 0 ? 'text-accent-yellow' : snapshot.activeAgentCount > 0 ? 'text-accent-purple' : 'text-text-muted'} />
@@ -1839,7 +1839,7 @@ const OpsBrief = React.memo(function OpsBrief({
                   ))}
                 </div>
                 {snapshot.agentCoordinationRisks.length > 0 && (
-                  <div className="mb-2 space-y-1 rounded-md border border-accent-yellow/20 bg-accent-yellow/5 px-3 py-2">
+                  <div className="mb-2 space-y-1 rounded-md bg-accent-yellow/5 px-3 py-2">
                     {snapshot.agentCoordinationRisks.slice(0, 3).map(risk => (
                       <div key={risk} className="flex min-w-0 items-start gap-2 text-[11px] leading-5 text-text-secondary">
                         <AlertTriangle size={12} className="mt-1 shrink-0 text-accent-yellow" />
@@ -1851,7 +1851,7 @@ const OpsBrief = React.memo(function OpsBrief({
                 {snapshot.agents.length > 0 ? (
                   <div className="grid gap-2 md:grid-cols-2">
                     {snapshot.agents.slice(0, 4).map(agent => (
-                      <div key={agent.agentId} className="min-w-0 rounded-md border border-border-subtle bg-bg-primary/70 p-2">
+                      <div key={agent.agentId} className="min-w-0 rounded-md bg-bg-primary/55 p-2">
                         <div className="flex min-w-0 items-center justify-between gap-2">
                           <span className="truncate text-xs font-semibold text-text-primary" title={agent.name || agent.agentId}>
                             {agent.name || agent.agentId}
@@ -1870,7 +1870,7 @@ const OpsBrief = React.memo(function OpsBrief({
                           {agent.workDir || agent.childSessionId || agent.agentId}
                         </div>
                         {(agent.lastFiles.length > 0 || agent.lastCommand || agent.risk) && (
-                          <div className="mt-2 space-y-1 border-t border-border-subtle pt-2">
+                          <div className="mt-2 space-y-1 pt-2 shadow-[0_-1px_0_rgba(255,255,255,0.035)]">
                             {agent.lastFiles.length > 0 && (
                               <div className="flex min-w-0 flex-wrap gap-1">
                                 {agent.lastFiles.map(file => (
@@ -1897,13 +1897,13 @@ const OpsBrief = React.memo(function OpsBrief({
                     ))}
                   </div>
                 ) : (
-                  <div className="rounded-md border border-dashed border-border-subtle bg-bg-primary/70 px-3 py-2 text-[11px] leading-5 text-text-muted">
+                  <div className="rounded-md bg-bg-primary/45 px-3 py-2 text-[11px] leading-5 text-text-muted">
                     当前会话还没有可见子 Agent。可以先生成分派提示，把剩余工作拆成明确 owner、文件边界和验收条件，再决定是否并行执行。
                   </div>
                 )}
               </div>
 
-              <div className="mt-3 rounded-lg border border-border-subtle bg-bg-primary/45 p-3">
+              <div className="mt-3 rounded-md bg-bg-primary/28 p-3">
                 <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
                   <div className="flex items-center gap-2">
                     <ShieldCheck size={14} className={openGateCount > 0 ? 'text-accent-yellow' : 'text-accent-green'} />
@@ -1924,10 +1924,10 @@ const OpsBrief = React.memo(function OpsBrief({
                 <div className="grid gap-2 md:grid-cols-2">
                   {snapshot.readinessGates.map(gate => {
                     const gateClass = gate.status === 'passed'
-                      ? 'border-accent-green/20 bg-accent-green/5 text-accent-green'
+                      ? 'border-transparent bg-accent-green/5 text-accent-green'
                       : gate.status === 'blocked'
-                        ? 'border-accent-red/25 bg-accent-red/10 text-accent-red'
-                        : 'border-accent-yellow/25 bg-accent-yellow/10 text-accent-yellow'
+                        ? 'border-transparent bg-accent-red/10 text-accent-red'
+                        : 'border-transparent bg-accent-yellow/10 text-accent-yellow'
                     const GateIcon = gate.status === 'passed'
                       ? CheckCircle2
                       : gate.status === 'blocked'
@@ -1976,7 +1976,7 @@ const OpsBrief = React.memo(function OpsBrief({
                 </div>
               </div>
 
-              <div className="mt-3 rounded-lg border border-border-subtle bg-bg-primary/45 p-3">
+              <div className="mt-3 rounded-md bg-bg-primary/28 p-3">
                 <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
                   <div className="flex items-center gap-2">
                     <ShieldCheck size={14} className={policyPreset.tone === 'good' ? 'text-accent-green' : policyPreset.tone === 'warn' ? 'text-accent-yellow' : 'text-text-muted'} />
@@ -1992,7 +1992,7 @@ const OpsBrief = React.memo(function OpsBrief({
                     <select
                       value={snapshot.trustPolicyPresetId}
                       onChange={event => onChangeTrustPolicyPreset(normalizeTrustPolicyPresetId(event.target.value))}
-                      className="h-7 rounded-md border border-border-subtle bg-bg-primary px-2 text-[11px] font-medium text-text-secondary outline-none transition-colors hover:border-accent-blue/30 focus:border-accent-blue/50"
+                      className="h-7 rounded-md bg-bg-primary/65 px-2 text-[11px] font-medium text-text-secondary outline-none transition-colors hover:bg-bg-hover focus:ring-1 focus:ring-accent-blue/45"
                       title="权限策略预设"
                     >
                       {TRUST_POLICY_OPTIONS.map(option => (
@@ -2077,7 +2077,7 @@ const OpsBrief = React.memo(function OpsBrief({
                   </div>
                 </div>
 
-                <div className="min-w-0 md:border-l md:border-border-subtle md:pl-4">
+                <div className="min-w-0 md:pl-4">
                   <div className="mb-2 flex items-center gap-1.5">
                     <span className="font-semibold text-text-secondary">风险雷达</span>
                     {hasRisk && <span className="rounded bg-accent-yellow/10 px-1.5 py-0.5 text-[10px] font-medium text-accent-yellow">需关注</span>}
@@ -2092,7 +2092,7 @@ const OpsBrief = React.memo(function OpsBrief({
                   </div>
                 </div>
 
-                <div className="min-w-0 md:border-l md:border-border-subtle md:pl-4">
+                <div className="min-w-0 md:pl-4">
                   <div className="mb-2 font-semibold text-text-secondary">证据链</div>
                   <div className="space-y-1.5">
                     {snapshot.evidence.map(item => (
@@ -3600,7 +3600,7 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
             <button
               onClick={() => setKnowledgePanelOpen(true)}
               title="打开项目知识库"
-              className="absolute top-3 right-4 z-10 flex items-center gap-1.5 rounded-md border border-border-subtle bg-bg-elevated/95 px-2.5 py-1.5 text-xs text-text-secondary shadow-sm transition-colors hover:border-accent-purple/40 hover:bg-bg-hover hover:text-accent-purple"
+              className="absolute top-3 right-4 z-10 flex items-center gap-1.5 rounded-md bg-bg-elevated/90 px-2.5 py-1.5 text-xs text-text-secondary shadow-sm transition-colors hover:bg-bg-hover hover:text-accent-purple"
             >
               <BookMarked className="w-3.5 h-3.5 transition-all duration-300 hover:rotate-12" />
               <span>知识库</span>
@@ -3640,9 +3640,9 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
                   const timeLabel = new Date(curTime).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
                   elements.push(
                     <div key={`divider-${group.message.id}`} className="flex items-center gap-3 my-4">
-                      <div className="flex-1 border-t border-border-subtle" />
+                      <div className="h-px flex-1 bg-gradient-to-r from-transparent via-border-subtle/70 to-border-subtle/25" />
                       <span className="text-[10px] text-text-muted">{timeLabel}</span>
-                      <div className="flex-1 border-t border-border-subtle" />
+                      <div className="h-px flex-1 bg-gradient-to-r from-border-subtle/25 via-border-subtle/70 to-transparent" />
                     </div>
                   )
                 }
@@ -3705,7 +3705,7 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
         {isStreaming && (
           <div className="mb-6 flex justify-start animate-fade-in">
             <div className="relative max-w-[min(980px,92%)] py-2 pl-6 pr-3 text-sm text-text-muted">
-              <span className="absolute bottom-0 left-0 top-0 w-px bg-border-subtle" aria-hidden="true" />
+              <span className="absolute bottom-0 left-0 top-0 w-px bg-accent-blue/25" aria-hidden="true" />
               <div className="flex items-center gap-2">
                 <span className="inline-block h-3 w-3 flex-shrink-0 animate-spin rounded-full border border-text-muted/40 border-t-accent-blue" />
                 <span className="font-medium text-text-muted">正在思考</span>
@@ -3729,7 +3729,7 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
             <button
               type="button"
               onClick={() => scrollToBottom()}
-              className="pointer-events-auto inline-flex items-center gap-1.5 rounded-full border border-border-subtle bg-bg-elevated px-3 py-1.5 text-xs text-text-secondary shadow-sm transition-colors hover:border-accent-blue/40 hover:text-accent-blue"
+              className="pointer-events-auto inline-flex items-center gap-1.5 rounded-full bg-bg-elevated px-3 py-1.5 text-xs text-text-secondary shadow-sm transition-colors hover:text-accent-blue"
               title="滚动到底部"
             >
               <ArrowDown size={13} />
@@ -3795,7 +3795,7 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
           <div className="sticky bottom-0 flex justify-center py-2 bg-gradient-to-t from-bg-primary via-bg-primary/95 to-transparent z-10">
             <button
               onClick={abortSession}
-              className="flex items-center gap-1.5 rounded-full border border-border-subtle bg-bg-elevated px-3 py-1.5 text-xs text-text-secondary shadow-sm transition-all hover:border-accent-red/50 hover:bg-accent-red/10 hover:text-accent-red"
+              className="flex items-center gap-1.5 rounded-full bg-bg-elevated px-3 py-1.5 text-xs text-text-secondary shadow-sm transition-all hover:bg-accent-red/10 hover:text-accent-red"
               title="停止 AI 思考（软中断，会话保持可用）"
             >
               <span className="inline-block w-2 h-2 rounded-sm bg-current opacity-80" />
@@ -3818,7 +3818,7 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
 
       {/* 输入区域 */}
       {!isSessionEnded && (
-        <div className="input-dock relative border-t border-border-subtle px-3 pt-1.5 pb-2.5 shadow-sm md:px-4">
+        <div className="input-dock relative px-3 pt-1.5 pb-2.5 shadow-sm md:px-4">
           {/* Skill 快捷按钮 + MCP 状态 */}
           <SessionToolbar
             sessionId={sessionId}
@@ -3847,7 +3847,7 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
           />
 
           {promptPickerOpen && !promptManagerOpen && (
-            <div className="mx-auto mb-2 flex w-full max-w-[1080px] items-center gap-1.5 overflow-x-auto rounded-lg border border-border-subtle bg-bg-elevated px-2.5 py-2 shadow-sm [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            <div className="mx-auto mb-2 flex w-full max-w-[1080px] items-center gap-1.5 overflow-x-auto rounded-lg bg-bg-elevated/75 px-2.5 py-2 shadow-sm [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
               <span className="flex-shrink-0 text-[11px] font-medium text-text-muted">常用提示词</span>
               {commonPrompts.map(prompt => (
                 <button
@@ -3870,7 +3870,7 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
                   setPromptPickerOpen(false)
                   setPromptManagerOpen(true)
                 }}
-                className="ml-auto flex h-6 flex-shrink-0 items-center gap-1 rounded-md border border-border-subtle px-2 py-0.5 text-[11px] text-text-muted transition-colors hover:border-accent-blue/35 hover:text-accent-blue"
+                className="ml-auto flex h-6 flex-shrink-0 items-center gap-1 rounded-md px-2 py-0.5 text-[11px] text-text-muted transition-colors hover:bg-bg-hover hover:text-accent-blue"
                 title="管理常用提示词"
               >
                 <Settings2 size={12} />
@@ -3880,13 +3880,13 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
           )}
 
           {promptManagerOpen && (
-            <div className="mx-auto mb-2 w-full max-w-[1080px] rounded-lg border border-border-subtle bg-bg-elevated p-3 shadow-sm">
+            <div className="mx-auto mb-2 w-full max-w-[1080px] rounded-lg bg-bg-elevated/75 p-3 shadow-sm">
               <div className="mb-2 flex items-center justify-between gap-2">
                 <span className="text-xs font-medium text-text-secondary">管理常用提示词</span>
                 <button
                   type="button"
                   onClick={resetCommonPrompts}
-                  className="inline-flex items-center gap-1 rounded-md border border-border-subtle px-2 py-1 text-[11px] text-text-muted transition-colors hover:border-accent-blue/35 hover:text-accent-blue"
+                  className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] text-text-muted transition-colors hover:bg-bg-hover hover:text-accent-blue"
                 >
                   <RotateCcw size={11} />
                   恢复默认
@@ -3897,7 +3897,7 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
                   value={promptDraft.label}
                   onChange={event => setPromptDraft(draft => ({ ...draft, label: event.target.value }))}
                   placeholder="名称，例如：写测试"
-                  className="rounded-lg border border-border-subtle bg-bg-primary px-2.5 py-1.5 text-xs text-text-primary placeholder:text-text-muted focus:border-accent-blue/50 focus:outline-none"
+                  className="rounded-lg bg-bg-primary/70 px-2.5 py-1.5 text-xs text-text-primary placeholder:text-text-muted focus:outline-none focus:ring-1 focus:ring-accent-blue/45"
                 />
                 <input
                   value={promptDraft.text}
@@ -3906,7 +3906,7 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
                     if (event.key === 'Enter') addCommonPrompt()
                   }}
                   placeholder="提示词内容"
-                  className="rounded-lg border border-border-subtle bg-bg-primary px-2.5 py-1.5 text-xs text-text-primary placeholder:text-text-muted focus:border-accent-blue/50 focus:outline-none"
+                  className="rounded-lg bg-bg-primary/70 px-2.5 py-1.5 text-xs text-text-primary placeholder:text-text-muted focus:outline-none focus:ring-1 focus:ring-accent-blue/45"
                 />
                 <button
                   type="button"
@@ -3978,7 +3978,7 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
 
           {queueHintText && queuedMessages.length === 0 && (
             <div className="px-4 pb-1">
-              <div className="flex items-center justify-between gap-2 rounded-md border border-border-subtle bg-bg-elevated px-2.5 py-1.5 text-xs text-text-secondary">
+              <div className="flex items-center justify-between gap-2 rounded-md bg-bg-elevated/75 px-2.5 py-1.5 text-xs text-text-secondary">
                 <span className="min-w-0 flex-1 truncate">{queueHintText}</span>
                 {queueHintAction === 'kanban' && (
                   <button
@@ -4036,8 +4036,8 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
 
       {/* 已结束会话：恢复继续按钮 */}
       {isSessionEnded && (
-        <div className="border-t border-border-subtle bg-bg-primary px-4 py-3 animate-fade-in">
-          <div className="mx-auto flex max-w-[1080px] items-center justify-between gap-3 rounded-lg border border-border-subtle bg-bg-elevated px-3 py-2.5">
+        <div className="bg-bg-primary px-4 py-3 animate-fade-in shadow-[0_-1px_0_rgba(255,255,255,0.03)]">
+          <div className="mx-auto flex max-w-[1080px] items-center justify-between gap-3 rounded-lg bg-bg-elevated/75 px-3 py-2.5">
             <div className="flex min-w-0 items-center gap-2">
               {status === 'error' ? (
                 <AlertTriangle className="h-4 w-4 flex-shrink-0 text-accent-red" />
@@ -4095,7 +4095,7 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
             onClick={() => setKnowledgePanelOpen(false)}
             className="h-full flex-1 cursor-default bg-bg-primary/20"
           />
-          <div className="h-full w-[min(440px,100%)] min-w-0 border-l border-border-subtle bg-bg-primary shadow-sm sm:min-w-[340px]">
+          <div className="h-full w-[min(440px,100%)] min-w-0 bg-bg-primary shadow-[-1px_0_0_rgba(255,255,255,0.035)] sm:min-w-[340px]">
             <SessionKnowledgePanel
               sessionId={sessionId}
               projectPath={workingDirectory}

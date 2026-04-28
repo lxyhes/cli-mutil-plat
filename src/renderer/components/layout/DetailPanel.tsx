@@ -35,7 +35,7 @@ export default function DetailPanel() {
   }
 
   return (
-    <div className="flex flex-col h-full bg-bg-secondary/95 border-l border-border/70">
+    <div className="flex flex-col h-full bg-bg-secondary/95 shadow-[-1px_0_0_rgba(255,255,255,0.035)]">
       {/* 内容区（由面板位置系统控制） */}
       <div className="flex-1 overflow-hidden">
         {renderContent()}
