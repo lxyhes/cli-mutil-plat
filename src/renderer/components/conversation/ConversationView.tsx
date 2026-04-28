@@ -18,6 +18,7 @@ import type { QueuedMessage } from '../../hooks/useConversation'
 import { useSessionStore } from '../../stores/sessionStore'
 import { useUIStore } from '../../stores/uiStore'
 import { useTaskStore } from '../../stores/taskStore'
+import { useFileManagerStore } from '../../stores/fileManagerStore'
 import type { TaskCard } from '../../../shared/types'
 import MessageBubble from './MessageBubble'
 import MessageInput from './MessageInput'
@@ -1279,6 +1280,31 @@ interface OpsBriefProps {
   onToggleExpanded: () => void
 }
 
+interface CompletionFileChange {
+  filePath: string
+  displayPath: string
+  fileName: string
+  changeType: 'edit' | 'create' | 'write' | 'delete'
+  additions: number
+  deletions: number
+}
+
+interface CompletionSummary {
+  elapsedLabel: string
+  headline: string
+  files: CompletionFileChange[]
+  totalAdditions: number
+  totalDeletions: number
+}
+
+interface CompletionHandoffProps {
+  summary: CompletionSummary
+  sessionId: string
+  sessionName: string
+  workingDirectory?: string
+  onInsertPrompt: (text: string) => void
+}
+
 const MissionLaunchpad = React.memo(function MissionLaunchpad({ providerId, sessionId, workingDirectory, canSend, onInsertPrompt }: MissionLaunchpadProps) {
   const projectName = getProjectName(workingDirectory)
   const providerColor = getProviderColor(providerId)
@@ -2086,6 +2112,241 @@ const OpsBrief = React.memo(function OpsBrief({
   )
 })
 
+function normalizeFsPath(value: string): string {
+  return value.replace(/\\/g, '/').replace(/\/+$/, '')
+}
+
+function getDisplayPath(filePath: string, projectPath?: string): string {
+  const normalizedFile = normalizeFsPath(filePath)
+  const normalizedProject = projectPath ? normalizeFsPath(projectPath) : ''
+  if (normalizedProject && normalizedFile.toLowerCase().startsWith(`${normalizedProject.toLowerCase()}/`)) {
+    return normalizedFile.slice(normalizedProject.length + 1)
+  }
+  return normalizedFile
+}
+
+function getReviewTargetPath(filePath: string, repoPath?: string): string {
+  const displayPath = getDisplayPath(filePath, repoPath)
+  return displayPath.replace(/\//g, '\\')
+}
+
+function formatCompletionElapsed(ms: number): string {
+  const totalSeconds = Math.max(1, Math.floor(ms / 1000))
+  if (totalSeconds < 60) return `${totalSeconds}s`
+  const minutes = Math.floor(totalSeconds / 60)
+  const seconds = totalSeconds % 60
+  return `${minutes}m ${seconds}s`
+}
+
+function extractCompletionHeadline(messages: ConversationMessage[]): string {
+  const lastAssistant = [...messages].reverse().find(message => message.role === 'assistant' && message.content?.trim())
+  const text = (lastAssistant?.content || '')
+    .split('\n')
+    .map(line => line.replace(/^#+\s*/, '').replace(/^[-*]\s*/, '').trim())
+    .find(Boolean)
+  if (!text) return 'AI 已完成本轮处理，下面是本次改动交付信息。'
+  return compactText(text, 120)
+}
+
+function buildCompletionSummary(messages: ConversationMessage[], projectPath?: string): CompletionSummary | null {
+  const lastUserIndex = messages.reduce((latest, message, index) => (
+    message.role === 'user' && !message.content?.startsWith('\u25B6 /') ? index : latest
+  ), -1)
+  const turnMessages = messages.slice(Math.max(0, lastUserIndex))
+  const fileMap = new Map<string, CompletionFileChange>()
+  let startAt = Number.POSITIVE_INFINITY
+  let endAt = 0
+
+  for (const message of turnMessages) {
+    const timestamp = Date.parse(message.timestamp)
+    if (Number.isFinite(timestamp)) {
+      startAt = Math.min(startAt, timestamp)
+      endAt = Math.max(endAt, timestamp)
+    }
+
+    const change = message.fileChange
+    if (!change?.filePath) continue
+
+    const existing = fileMap.get(change.filePath)
+    const fileName = getShortFileName(change.filePath)
+    if (existing) {
+      existing.changeType = change.changeType
+      existing.additions += change.additions || 0
+      existing.deletions += change.deletions || 0
+    } else {
+      fileMap.set(change.filePath, {
+        filePath: change.filePath,
+        displayPath: getDisplayPath(change.filePath, projectPath),
+        fileName,
+        changeType: change.changeType,
+        additions: change.additions || 0,
+        deletions: change.deletions || 0,
+      })
+    }
+  }
+
+  const files = Array.from(fileMap.values())
+  if (files.length === 0) return null
+  const elapsedMs = Number.isFinite(startAt) && endAt > startAt ? endAt - startAt : 1000
+  return {
+    elapsedLabel: formatCompletionElapsed(elapsedMs),
+    headline: extractCompletionHeadline(turnMessages),
+    files,
+    totalAdditions: files.reduce((sum, file) => sum + file.additions, 0),
+    totalDeletions: files.reduce((sum, file) => sum + file.deletions, 0),
+  }
+}
+
+const CHANGE_TYPE_LABEL: Record<CompletionFileChange['changeType'], string> = {
+  edit: '编辑',
+  create: '创建',
+  write: '写入',
+  delete: '删除',
+}
+
+const CompletionHandoff = React.memo(function CompletionHandoff({
+  summary,
+  sessionId,
+  sessionName,
+  workingDirectory,
+  onInsertPrompt,
+}: CompletionHandoffProps) {
+  const openFileInTab = useFileManagerStore(state => state.openFileInTab)
+  const [expanded, setExpanded] = useState(true)
+  const [reviewState, setReviewState] = useState<'idle' | 'running' | 'done' | 'error'>('idle')
+  const primaryFile = summary.files[0]
+
+  const handleCopyPaths = async () => {
+    await navigator.clipboard.writeText(summary.files.map(file => file.displayPath).join('\n'))
+  }
+
+  const handleUndoPrompt = () => {
+    onInsertPrompt([
+      '请撤销刚才这一轮 AI 对文件做出的改动，并在撤销后说明恢复了哪些文件：',
+      ...summary.files.map(file => `- ${file.displayPath}`),
+    ].join('\n'))
+  }
+
+  const handleReview = async () => {
+    if (!workingDirectory || reviewState === 'running') return
+    setReviewState('running')
+    try {
+      const repoRoot = await window.spectrAI?.git?.getRepoRoot?.(workingDirectory)
+      const repoPath = repoRoot || workingDirectory
+      const targetFiles = summary.files.map(file => getReviewTargetPath(file.filePath, repoPath))
+      const result = await window.spectrAI?.codeReview?.start?.({
+        sessionId,
+        sessionName,
+        repoPath,
+        targetFiles,
+      })
+      setReviewState(result?.success ? 'done' : 'error')
+    } catch {
+      setReviewState('error')
+    }
+  }
+
+  return (
+    <section className="mb-5 ml-3 mr-2 max-w-[min(1040px,96%)] rounded-lg border border-border-subtle bg-bg-elevated/55 md:ml-8 md:mr-12 md:max-w-[min(1040px,92%)]">
+      <button
+        type="button"
+        onClick={() => setExpanded(value => !value)}
+        className="flex w-full items-center gap-2 border-b border-border-subtle/70 px-3 py-2 text-left text-xs text-text-muted transition-colors hover:bg-bg-hover/40"
+      >
+        <CheckCircle2 size={14} className="text-accent-green" />
+        <span className="font-medium text-text-secondary">已处理 {summary.elapsedLabel}</span>
+        <ChevronDown size={13} className={`transition-transform ${expanded ? '' : '-rotate-90'}`} />
+        <span className="ml-auto font-mono text-[11px]">
+          {summary.files.length} 个文件已更改
+          <span className="ml-2 text-accent-green">+{summary.totalAdditions}</span>
+          <span className="ml-1 text-accent-red">-{summary.totalDeletions}</span>
+        </span>
+      </button>
+
+      {expanded && (
+        <div className="px-3 py-3">
+          <p className="mb-3 text-sm leading-6 text-text-secondary">{summary.headline}</p>
+
+          {primaryFile && (
+            <div className="mb-3 flex items-center gap-3 rounded-lg border border-border-subtle bg-bg-primary/45 px-3 py-2">
+              <FileText size={17} className="flex-shrink-0 text-text-muted" />
+              <div className="min-w-0 flex-1">
+                <div className="truncate text-xs font-semibold text-text-primary">{primaryFile.fileName}</div>
+                <div className="truncate text-[11px] text-text-muted">{primaryFile.displayPath}</div>
+              </div>
+              <button
+                type="button"
+                onClick={() => openFileInTab(primaryFile.filePath)}
+                className="inline-flex h-7 items-center gap-1 rounded-md border border-border-subtle px-2 text-[11px] text-text-secondary transition-colors hover:border-accent-blue/40 hover:text-accent-blue"
+              >
+                <FolderOpen size={12} />
+                打开
+              </button>
+            </div>
+          )}
+
+          <div className="overflow-hidden rounded-lg border border-border-subtle bg-bg-primary/35">
+            <div className="flex items-center justify-between gap-2 border-b border-border-subtle px-3 py-2 text-xs text-text-secondary">
+              <span>{summary.files.length} 个文件已更改</span>
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={handleUndoPrompt}
+                  className="inline-flex h-6 items-center gap-1 rounded-md px-2 text-[11px] text-text-muted transition-colors hover:bg-bg-hover hover:text-accent-yellow"
+                >
+                  <RotateCcw size={12} />
+                  撤销
+                </button>
+                <button
+                  type="button"
+                  onClick={handleReview}
+                  disabled={!workingDirectory || reviewState === 'running'}
+                  className="inline-flex h-6 items-center gap-1 rounded-md px-2 text-[11px] text-text-muted transition-colors hover:bg-bg-hover hover:text-accent-purple disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <ShieldCheck size={12} />
+                  {reviewState === 'running' ? '审核中' : reviewState === 'done' ? '已发起' : '审核'}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleCopyPaths}
+                  className="inline-flex h-6 items-center justify-center rounded-md px-1.5 text-text-muted transition-colors hover:bg-bg-hover hover:text-accent-blue"
+                  title="复制文件路径"
+                >
+                  <Copy size={12} />
+                </button>
+              </div>
+            </div>
+
+            <div className="divide-y divide-border-subtle/80">
+              {summary.files.map(file => (
+                <button
+                  key={file.filePath}
+                  type="button"
+                  onClick={() => openFileInTab(file.filePath)}
+                  className="grid w-full grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-3 px-3 py-2 text-left text-xs transition-colors hover:bg-bg-hover/45"
+                >
+                  <span className="min-w-0 truncate font-mono text-text-secondary">{file.displayPath}</span>
+                  <span className="rounded bg-bg-tertiary px-1.5 py-0.5 text-[10px] text-text-muted">
+                    {CHANGE_TYPE_LABEL[file.changeType]}
+                  </span>
+                  <span className="flex min-w-[64px] justify-end gap-1.5 font-mono text-[11px]">
+                    <span className="text-accent-green">+{file.additions}</span>
+                    <span className="text-accent-red">-{file.deletions}</span>
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {reviewState === 'error' && (
+            <div className="mt-2 text-[11px] text-accent-red">代码审核发起失败，请确认当前目录是 Git 仓库后重试。</div>
+          )}
+        </div>
+      )}
+    </section>
+  )
+})
+
 const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
   const scrollRef = useRef<HTMLDivElement>(null)
   const { messages, isStreaming, isLoading, sendMessage, respondPermission, respondQuestion, approvePlan, abortSession } = useConversation(sessionId)
@@ -2423,6 +2684,10 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
 
   // 将消息分组
   const messageGroups = useMemo(() => groupMessages(messages), [messages])
+  const completionSummary = useMemo(
+    () => buildCompletionSummary(messages, workingDirectory),
+    [messages, workingDirectory],
+  )
 
   const opsBrief = useMemo<OpsBriefSnapshot>(() => {
     let userGoal = ''
@@ -3384,6 +3649,16 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
                 : `tg-${group.messages[0]?.id || idx}`
             return <React.Fragment key={fragmentKey}>{elements}</React.Fragment>
           })
+        )}
+
+        {completionSummary && !isStreaming && (
+          <CompletionHandoff
+            summary={completionSummary}
+            sessionId={sessionId}
+            sessionName={session?.name || session?.config?.name || '当前会话'}
+            workingDirectory={workingDirectory}
+            onInsertPrompt={setPendingInsert}
+          />
         )}
 
         {messages.length > 0 && (
