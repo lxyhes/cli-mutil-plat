@@ -323,4 +323,22 @@ Completed:
 
 Remaining:
 
-- Continue with Phase C project memory flywheel: categorized memory extraction, source references, and delivery-pack memory suggestions.
+- Continue with Phase C project memory flywheel: reviewed memory promotion, stale-memory review, and memory relevance telemetry.
+
+### Project Memory Flywheel
+
+Status: first suggestion slice completed.
+
+Completed:
+
+- Added categorized project memory suggestions for decisions, commands, risks, architecture scope, and validation paths.
+- Added source references, confidence, priority, tags, and target knowledge category to memory suggestions.
+- Added project memory suggestions to delivery pack prompts, trust audit prompts, trust reports, and delivery pack Markdown exports.
+- Added a cockpit "建议记忆" action so users can review and reject suggestions before promoting them.
+- Filtered team playbook memory injection toward the selected playbook instead of passing all available memory.
+
+Remaining:
+
+- Add reviewed one-click promotion from suggestion to project knowledge entry.
+- Add stale-memory review when new evidence contradicts existing project memory.
+- Track which suggested memories were accepted, rejected, or edited.

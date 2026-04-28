@@ -922,7 +922,7 @@ function buildTrustReportMarkdown(snapshot: OpsBriefSnapshot): string {
     const time = entry.timestamp ? `${entry.timestamp} - ` : ''
     return `${time}${getEvidenceTimelineLabel(entry.type)} - ${entry.label}: ${entry.detail}`
   })
-  const memorySuggestions = formatProjectMemorySuggestionsForMarkdown(snapshot.projectMemorySuggestions).split('\n')
+  const memorySuggestions = formatProjectMemorySuggestionsForMarkdown(snapshot.projectMemorySuggestions)
   const agents = snapshot.agents.map(agent => [
     `- ${agent.name || agent.agentId}: ${getAgentStatusLabel(agent.status)}`,
     agent.workDir ? `  - 工作目录: ${agent.workDir}` : '',
@@ -986,7 +986,7 @@ function buildTrustReportMarkdown(snapshot: OpsBriefSnapshot): string {
     '',
     '## 项目记忆建议',
     '',
-    formatMarkdownList(memorySuggestions, '暂无项目记忆建议'),
+    memorySuggestions,
     '',
     '## 最近文件',
     '',
@@ -1028,6 +1028,7 @@ function buildDeliveryPackMarkdown(snapshot: OpsBriefSnapshot, summary?: any): s
     return `${time}${getEvidenceTimelineLabel(entry.type)} - ${entry.label}: ${entry.detail}`
   })
   const validationEvidence = snapshot.evidence.filter(item => item.includes('验证') || item.includes('命令') || item.includes('工具'))
+  const memorySuggestions = formatProjectMemorySuggestionsForMarkdown(snapshot.projectMemorySuggestions)
   const warnings = Array.isArray(summary?.warnings) ? summary.warnings : []
 
   return [
@@ -1077,6 +1078,10 @@ function buildDeliveryPackMarkdown(snapshot: OpsBriefSnapshot, summary?: any): s
     '## 证据时间线',
     '',
     formatMarkdownList(timeline, '暂无证据时间线'),
+    '',
+    '## 项目记忆建议',
+    '',
+    memorySuggestions,
     '',
     '## 交付门禁',
     '',
@@ -2045,6 +2050,15 @@ const OpsBrief = React.memo(function OpsBrief({
                     >
                       <BookMarked size={12} />
                       {trustKnowledgeLoading ? '沉淀中' : '沉淀知识'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onInsertPrompt(buildProjectMemorySuggestionPrompt(snapshot))}
+                      disabled={!canOpenKnowledge || snapshot.projectMemorySuggestions.length === 0}
+                      className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium text-accent-purple transition-colors hover:bg-accent-purple/10 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      <BookMarked size={12} />
+                      建议记忆
                     </button>
                     <button
                       type="button"
@@ -3164,14 +3178,32 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
     const evidenceTimeline = timelineEntries
       .sort((a, b) => new Date(a.timestamp || '').getTime() - new Date(b.timestamp || '').getTime())
       .slice(-18)
+    const projectName = getProjectName(workingDirectory, session?.name || session?.config?.name)
+    const goal = compactText(userGoal || session?.config?.initialPrompt || session?.name || session?.config?.name || '还没有明确目标，先发送一条任务描述开始推进。', 120)
+    const lastFiles = uniqueFiles.slice(-3).map(getShortFileName)
+    const lastCommand = compactText(commands[commands.length - 1] || validationCommands[validationCommands.length - 1] || '', 92)
+    const projectMemorySuggestions = buildProjectMemorySuggestions({
+      projectName,
+      projectPath: workingDirectory,
+      goal,
+      phaseLabel,
+      deliveryReadiness,
+      lastCommand,
+      risks,
+      evidence,
+      evidenceTimeline,
+      lastFiles,
+      validationCount: validationCommands.length,
+      changedFileCount: uniqueFiles.length,
+    })
 
     return {
-      projectName: getProjectName(workingDirectory, session?.name || session?.config?.name),
+      projectName,
       projectPath: workingDirectory,
       providerId: providerId || session?.config?.providerId,
       modelId: session?.config?.modelOverride || sessionInitData?.model,
       trustPolicyPresetId: normalizeTrustPolicyPresetId(trustPolicyOverrides[getTrustPolicyScopeKey(workingDirectory, sessionId)]),
-      goal: compactText(userGoal || session?.config?.initialPrompt || session?.name || session?.config?.name || '还没有明确目标，先发送一条任务描述开始推进。', 120),
+      goal,
       statusLabel: pendingPermission
         ? '等待确认'
         : pendingAskQuestion || pendingQuestion
@@ -3194,14 +3226,15 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
       failedToolCount,
       validationCount: validationCommands.length,
       messageCount,
-      lastFiles: uniqueFiles.slice(-3).map(getShortFileName),
-      lastCommand: compactText(commands[commands.length - 1] || validationCommands[validationCommands.length - 1] || '', 92),
+      lastFiles,
+      lastCommand,
       phaseLabel,
       liveProgressText,
       nextActions,
       risks,
       evidence,
       evidenceTimeline,
+      projectMemorySuggestions,
       readinessGates,
       deliveryMetrics,
       deliveryMetricScore,
@@ -3479,22 +3512,35 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
     setQueueHintText(`正在读取项目记忆并生成「${template.label}」模板...`)
     setQueueHintAction(null)
     try {
-      let memoryPrompt = ''
+      const memoryParts: string[] = []
       try {
         const result = await window.spectrAI.workingContext.getPrompt(sessionId)
-        memoryPrompt = extractWorkingContextPrompt(result)
+        const workingMemoryPrompt = extractWorkingContextPrompt(result)
+        if (workingMemoryPrompt) memoryParts.push(workingMemoryPrompt)
       } catch (contextError) {
         console.warn('[ConversationView] Failed to load working context prompt for team playbook', contextError)
       }
+      if (workingDirectory) {
+        try {
+          const result = await (window as any).spectrAI?.projectKnowledge?.getPrompt(workingDirectory)
+          const projectMemoryPrompt = typeof result?.prompt === 'string' ? result.prompt.trim() : ''
+          if (projectMemoryPrompt) memoryParts.push(projectMemoryPrompt)
+        } catch (contextError) {
+          console.warn('[ConversationView] Failed to load project knowledge prompt for team playbook', contextError)
+        }
+      }
+      const suggestionMemory = formatProjectMemorySuggestionsForMarkdown(opsBrief.projectMemorySuggestions, '')
+      if (opsBrief.projectMemorySuggestions.length > 0) memoryParts.push(`## 当前会话建议记忆\n${suggestionMemory}`)
+      const memoryPrompt = filterProjectMemoryForPlaybook(memoryParts.join('\n\n'), template)
       setPendingInsert(buildTeamPlaybookPrompt(template, opsBrief, memoryPrompt))
       setQueueHintText(memoryPrompt
-        ? `已带入项目记忆，生成「${template.label}」团队模板`
+        ? `已筛选相关项目记忆，生成「${template.label}」团队模板`
         : `已生成「${template.label}」团队模板；当前没有可用项目记忆`)
       setQueueHintAction(null)
     } finally {
       setPlaybookActionLoading(null)
     }
-  }, [opsBrief, playbookActionLoading, sessionId])
+  }, [opsBrief, playbookActionLoading, sessionId, workingDirectory])
 
   const handleExportTrustReport = useCallback((snapshot: OpsBriefSnapshot) => {
     const markdown = buildTrustReportMarkdown(snapshot)
@@ -3532,7 +3578,9 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
       }
       setQueueHintText(count > 0
         ? `已沉淀 ${count} 条项目知识：${extracted.slice(0, 3).join('、') || '可在知识库查看'}`
-        : '当前会话暂未提取到新的项目知识')
+        : snapshot.projectMemorySuggestions.length > 0
+          ? `当前会话暂未自动提取到新知识；可先审核 ${snapshot.projectMemorySuggestions.length} 条建议记忆`
+          : '当前会话暂未提取到新的项目知识')
       void window.spectrAI.workingContext.addDecision(
         sessionId,
         count > 0
