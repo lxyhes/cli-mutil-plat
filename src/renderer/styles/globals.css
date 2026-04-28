@@ -452,11 +452,47 @@
   }
 
   /* 焦点样式 */
-  button:focus-visible,
-  input:focus-visible,
-  textarea:focus-visible {
-    outline: 2px solid var(--color-accent-blue);
+  :where(
+    button,
+    [type='button'],
+    [type='submit'],
+    [type='reset'],
+    a,
+    input,
+    textarea,
+    select,
+    summary,
+    [role='button'],
+    [role='tab'],
+    [role='menuitem'],
+    [tabindex]:not([tabindex='-1'])
+  ):focus {
+    outline: none;
+  }
+
+  :where(
+    button,
+    [type='button'],
+    [type='submit'],
+    [type='reset'],
+    a,
+    input,
+    textarea,
+    select,
+    summary,
+    [role='button'],
+    [role='tab'],
+    [role='menuitem'],
+    [tabindex]:not([tabindex='-1'])
+  ):focus-visible {
+    outline: 2px solid color-mix(in srgb, var(--color-accent-blue) 72%, transparent);
     outline-offset: 2px;
+  }
+
+  :where(input, textarea, select):focus-visible {
+    border-color: color-mix(in srgb, var(--color-accent-blue) 68%, var(--color-border));
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-accent-blue) 16%, transparent);
+    outline: none;
   }
 
   /* 禁用输入框自动填充的默认样式 */
@@ -1121,13 +1157,18 @@
   
   /* 键盘导航优化 */
   .keyboard-navigable {
-    outline: 2px solid transparent;
-    transition: outline 0.2s ease;
+    outline: none;
+    transition: outline-color 0.2s ease, box-shadow 0.2s ease;
   }
 
   .keyboard-navigable:focus {
-    outline: 2px solid var(--color-accent-blue);
+    outline: none;
+  }
+
+  .keyboard-navigable:focus-visible {
+    outline: 2px solid color-mix(in srgb, var(--color-accent-blue) 72%, transparent);
     outline-offset: 2px;
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-accent-blue) 14%, transparent);
   }
 
   /* 高对比度模式支持 */
@@ -1175,11 +1216,18 @@
 
   /* 焦点可见性 */
   .focus-visible-only:focus {
-    outline: 2px solid var(--color-accent-blue);
+    box-shadow: none;
+    outline: none;
+  }
+
+  .focus-visible-only:focus-visible {
+    outline: 2px solid color-mix(in srgb, var(--color-accent-blue) 72%, transparent);
     outline-offset: 2px;
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-accent-blue) 14%, transparent);
   }
 
   .focus-visible-only:focus:not(:focus-visible) {
+    box-shadow: none;
     outline: none;
   }
 
@@ -1208,7 +1256,11 @@
     position: relative;
   }
 
-  .keyboard-nav-indicator:focus::after {
+  .keyboard-nav-indicator:focus {
+    outline: none;
+  }
+
+  .keyboard-nav-indicator:focus-visible::after {
     content: '';
     position: absolute;
     top: -2px;
