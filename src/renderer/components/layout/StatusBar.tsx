@@ -70,7 +70,7 @@ export default function StatusBar({ className = '' }: StatusBarProps) {
   }
 
   return (
-    <div className={`flex h-7 items-center justify-between border-t border-border-subtle bg-bg-primary/95 px-3 text-xs text-text-secondary ${className}`}>
+    <div className={`flex h-7 items-center justify-between bg-bg-primary/95 px-3 text-xs text-text-secondary shadow-[0_-1px_0_rgba(255,255,255,0.025)] ${className}`}>
       {/* 左侧：活跃会话数 */}
       <div className="flex min-w-0 items-center gap-3">
         <div className="flex items-center gap-2">
@@ -93,7 +93,7 @@ export default function StatusBar({ className = '' }: StatusBarProps) {
       {/* 中间：视图模式切换 + 布局切换 */}
       <div className="flex shrink-0 items-center gap-1.5">
       {/* 视图模式按钮组 */}
-      <div className="inline-flex items-center gap-0.5 rounded-lg border border-border-subtle bg-bg-tertiary p-0.5">
+      <div className="inline-flex items-center gap-0.5 rounded-lg bg-bg-tertiary/70 p-0.5">
         <button
           onClick={() => handleViewModeChange('grid')}
           className={`flex h-5 w-5 items-center justify-center rounded-md transition-colors ${

@@ -550,10 +550,10 @@ export function SessionsContent() {
   ])
 
   return (
-    <div className="flex flex-col h-full bg-bg-secondary border-r border-border">
+    <div className="flex flex-col h-full bg-bg-secondary/95 shadow-[1px_0_0_rgba(255,255,255,0.035)]">
 
       {/* ── 顶部标题栏（可拖拽） ── */}
-      <div className="flex items-center justify-between p-4 border-b border-border" style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}>
+      <div className="flex items-center justify-between p-4" style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}>
         <div className="flex items-center gap-2">
           <BrandLogo size={24} />
           <h1 className="text-lg font-semibold text-text-primary">PrismOps</h1>
@@ -642,7 +642,7 @@ export function SessionsContent() {
       </div>
 
       {/* ── 底部快速操作 ── */}
-      <div className="border-t border-border px-3 py-3">
+      <div className="px-3 py-3 shadow-[0_-1px_0_rgba(255,255,255,0.035)]">
         <button
           onClick={() => openNewSessionDialog()}
           className="flex w-full items-center justify-center gap-2 rounded-lg border border-accent-blue/25 bg-accent-blue/10 px-3 py-2 text-sm font-medium text-accent-blue transition-colors hover:border-accent-blue/40 hover:bg-accent-blue/15"

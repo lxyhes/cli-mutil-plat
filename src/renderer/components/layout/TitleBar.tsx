@@ -20,7 +20,7 @@ interface TitleBarProps {
 export default function TitleBar({ className = '' }: TitleBarProps) {
   return (
     <div
-      className={`flex items-center h-9 bg-bg-secondary border-b border-border flex-shrink-0 select-none ${className}`}
+      className={`flex items-center h-9 bg-bg-primary/95 flex-shrink-0 select-none shadow-[0_1px_0_rgba(255,255,255,0.03)] ${className}`}
       style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}
     >
       {/* macOS：左侧预留 Traffic Light 空间（close/minimize/fullscreen，约 72px） */}

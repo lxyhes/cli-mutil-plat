@@ -2267,11 +2267,11 @@ const CompletionHandoff = React.memo(function CompletionHandoff({
   }
 
   return (
-    <section className="mb-5 ml-3 mr-2 max-w-[min(1040px,96%)] rounded-lg border border-border-subtle bg-bg-elevated/55 md:ml-8 md:mr-12 md:max-w-[min(1040px,92%)]">
+    <section className="completion-handoff mb-5 ml-3 mr-2 max-w-[min(1040px,96%)] overflow-hidden rounded-lg md:ml-8 md:mr-12 md:max-w-[min(1040px,92%)]">
       <button
         type="button"
         onClick={() => setExpanded(value => !value)}
-        className="flex w-full items-center gap-2 border-b border-border-subtle/70 px-3 py-2 text-left text-xs text-text-muted transition-colors hover:bg-bg-hover/40"
+        className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs text-text-muted transition-colors hover:bg-bg-hover/35"
       >
         <CheckCircle2 size={14} className="text-accent-green" />
         <span className="font-medium text-text-secondary">已处理 {summary.elapsedLabel}</span>
@@ -2288,7 +2288,7 @@ const CompletionHandoff = React.memo(function CompletionHandoff({
           <p className="mb-3 text-sm leading-6 text-text-secondary">{summary.headline}</p>
 
           {primaryFile && (
-            <div className="mb-3 flex items-center gap-3 rounded-lg border border-border-subtle bg-bg-primary/45 px-3 py-2">
+            <div className="mb-3 flex items-center gap-3 rounded-md bg-bg-primary/35 px-3 py-2">
               <FileText size={17} className="flex-shrink-0 text-text-muted" />
               <div className="min-w-0 flex-1">
                 <div className="truncate text-xs font-semibold text-text-primary">{primaryFile.fileName}</div>
@@ -2297,7 +2297,7 @@ const CompletionHandoff = React.memo(function CompletionHandoff({
               <button
                 type="button"
                 onClick={() => openFileInTab(primaryFile.filePath)}
-                className="inline-flex h-7 items-center gap-1 rounded-md border border-border-subtle px-2 text-[11px] text-text-secondary transition-colors hover:border-accent-blue/40 hover:text-accent-blue"
+                className="inline-flex h-7 items-center gap-1 rounded-md bg-bg-tertiary/65 px-2 text-[11px] text-text-secondary transition-colors hover:bg-bg-hover hover:text-accent-blue"
               >
                 <FolderOpen size={12} />
                 打开
@@ -2305,8 +2305,8 @@ const CompletionHandoff = React.memo(function CompletionHandoff({
             </div>
           )}
 
-          <div className="overflow-hidden rounded-lg border border-border-subtle bg-bg-primary/35">
-            <div className="flex items-center justify-between gap-2 border-b border-border-subtle px-3 py-2 text-xs text-text-secondary">
+          <div className="overflow-hidden rounded-md bg-bg-primary/28">
+            <div className="flex items-center justify-between gap-2 px-3 py-2 text-xs text-text-secondary shadow-[0_1px_0_rgba(255,255,255,0.035)]">
               <span>{summary.files.length} 个文件已更改</span>
               <div className="flex items-center gap-1.5">
                 <button
@@ -2337,7 +2337,7 @@ const CompletionHandoff = React.memo(function CompletionHandoff({
               </div>
             </div>
 
-            <div className="divide-y divide-border-subtle/80">
+            <div className="divide-y divide-white/[0.035]">
               {summary.files.map(file => (
                 <button
                   key={file.filePath}

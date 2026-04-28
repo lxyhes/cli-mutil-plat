@@ -50,7 +50,7 @@ const TerminalPanel: React.FC<TerminalPanelProps> = ({ sessionId, onMaximize, on
 
   return (
     <div
-      className="flex flex-col h-full bg-bg-primary rounded-lg border border-border overflow-hidden shadow-lg relative"
+      className="flex flex-col h-full bg-bg-primary rounded-lg overflow-hidden shadow-[0_0_0_1px_rgba(255,255,255,0.035),0_18px_38px_rgba(0,0,0,0.24)] relative"
       onClick={() => selectSession(sessionId)}
     >
       {/* 终端头部 */}

@@ -72,16 +72,16 @@ export const SessionItem = React.memo(function SessionItem({
     <div
       onClick={() => onSelect(session.id)}
       onContextMenu={(e) => onContextMenu(e, session.id, session.status)}
-      className={`relative overflow-hidden rounded-md border border-l-2 px-2.5 py-1.5 cursor-pointer btn-transition ${
+      className={`relative overflow-hidden rounded-md px-2.5 py-1.5 cursor-pointer btn-transition ${
         isSelected
-          ? 'bg-accent-blue/10 border-accent-blue/30 border-l-accent-blue'
+          ? 'bg-accent-blue/15 shadow-[inset_2px_0_0_var(--color-accent-blue)]'
           : isStuck
-            ? 'bg-accent-yellow/5 border-accent-yellow/25 hover:border-accent-yellow/45 border-l-accent-yellow/60'
+            ? 'bg-accent-yellow/10 shadow-[inset_2px_0_0_rgba(210,153,34,0.65)] hover:bg-accent-yellow/15'
             : needsAttention
-              ? 'bg-accent-yellow/5 border-accent-yellow/20 hover:border-accent-yellow/40 border-l-accent-yellow/50'
+              ? 'bg-accent-yellow/10 shadow-[inset_2px_0_0_rgba(210,153,34,0.55)] hover:bg-accent-yellow/15'
               : session.isPinned
-                ? 'bg-accent-yellow/5 border-transparent hover:bg-bg-hover border-l-accent-yellow/50'
-                : 'bg-transparent border-transparent border-l-transparent hover:bg-bg-hover hover:border-l-accent-blue/25'
+                ? 'bg-accent-yellow/5 shadow-[inset_2px_0_0_rgba(210,153,34,0.45)] hover:bg-bg-hover'
+                : 'bg-transparent hover:bg-bg-hover/85'
       }`}
     >
       <div className="flex items-start gap-2">

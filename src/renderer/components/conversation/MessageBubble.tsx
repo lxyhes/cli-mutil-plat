@@ -281,9 +281,8 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({ message, isStreaming }) =
         >
           {!isUser && (
             <>
-              <span className="absolute bottom-0 left-0 top-0 w-px bg-border-subtle/80" aria-hidden="true" />
-              <div className="mb-1.5 flex items-center gap-2 text-[11px] font-medium text-text-muted/80">
-                <span className="inline-flex h-4 items-center rounded bg-bg-tertiary px-1.5 text-[10px] uppercase tracking-wide">AI</span>
+              <div className="mb-1.5 flex items-center gap-2 text-[11px] font-medium text-text-muted/70">
+                <span className="inline-flex h-4 items-center rounded bg-bg-tertiary/70 px-1.5 text-[10px] uppercase tracking-wide">AI</span>
                 {timestamp && (
                   <>
                     <span className="h-1 w-1 rounded-full bg-text-muted/40" aria-hidden="true" />

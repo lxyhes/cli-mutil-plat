@@ -241,13 +241,13 @@ const TerminalTabs: React.FC = () => {
   return (
     <div className="flex flex-col h-full">
       {/* Tab 栏 - 左右箭头 + 滚动容器 */}
-      <div className="flex items-center bg-bg-secondary border-b border-border relative min-h-[36px]">
+      <div className="flex items-center bg-bg-secondary/85 relative min-h-[36px] shadow-[0_1px_0_rgba(255,255,255,0.035)]">
 
         {/* 左滚动按钮 */}
         {canScrollLeft && (
           <button
             onClick={handleScrollLeft}
-            className="flex-shrink-0 h-full px-1.5 flex items-center justify-center text-text-muted hover:text-text-primary hover:bg-bg-hover btn-transition z-10 border-r border-border/40"
+            className="flex-shrink-0 h-full px-1.5 flex items-center justify-center text-text-muted hover:text-text-primary hover:bg-bg-hover btn-transition z-10"
             title="向左滚动"
           >
             <ChevronLeft size={14} />
@@ -286,14 +286,14 @@ const TerminalTabs: React.FC = () => {
                     isTemporary: false,
                   })
                 }}
-                className={`group flex items-center cursor-pointer btn-transition border-b-2 flex-shrink-0 ${
+                className={`group flex items-center cursor-pointer btn-transition flex-shrink-0 ${
                   isTabsOverflowing
                     ? 'gap-1 px-2 py-2 min-w-[90px] max-w-[140px]'
                     : 'gap-1.5 px-2.5 py-2 min-w-[100px] max-w-[180px]'
                 } ${
                   isActive
-                    ? 'bg-bg-primary border-accent-blue text-text-primary'
-                    : 'border-transparent text-text-secondary hover:text-text-primary hover:bg-bg-hover'
+                    ? 'bg-bg-primary/70 text-text-primary shadow-[inset_0_-2px_0_var(--color-accent-blue)]'
+                    : 'text-text-secondary hover:text-text-primary hover:bg-bg-hover/70'
                 }`}
                 title={`${sessionName} - ${statusLabel}`}
               >
@@ -345,14 +345,14 @@ const TerminalTabs: React.FC = () => {
                   isTemporary: true,
                 })
               }}
-              className={`group flex items-center cursor-pointer btn-transition border-b-2 flex-shrink-0 ${
+              className={`group flex items-center cursor-pointer btn-transition flex-shrink-0 ${
                 isTabsOverflowing
                   ? 'gap-1 px-2 py-2 min-w-[90px] max-w-[160px]'
                   : 'gap-1.5 px-2.5 py-2 min-w-[100px] max-w-[200px]'
               } ${
                 temporarySession.id === currentTabId
-                  ? 'bg-bg-primary border-text-muted text-text-primary'
-                  : 'border-transparent text-text-muted hover:text-text-primary hover:bg-bg-hover'
+                  ? 'bg-bg-primary/70 text-text-primary shadow-[inset_0_-2px_0_var(--color-text-muted)]'
+                  : 'text-text-muted hover:text-text-primary hover:bg-bg-hover/70'
               }`}
               title="临时查看（已完成会话）- 同时只能打开一个"
             >
@@ -390,7 +390,7 @@ const TerminalTabs: React.FC = () => {
         {canScrollRight && (
           <button
             onClick={handleScrollRight}
-            className="flex-shrink-0 h-full px-1.5 flex items-center justify-center text-text-muted hover:text-text-primary hover:bg-bg-hover btn-transition z-10 border-l border-border/40"
+            className="flex-shrink-0 h-full px-1.5 flex items-center justify-center text-text-muted hover:text-text-primary hover:bg-bg-hover btn-transition z-10"
             title="向右滚动"
           >
             <ChevronRight size={14} />
@@ -408,7 +408,7 @@ const TerminalTabs: React.FC = () => {
 
       {/* 终端内容区 - 所有会话始终挂载，仅通过 display 切换可见性 */}
       {/* 避免 key 切换导致 xterm 实例反复销毁重建，引发滚动失效 */}
-      <div className="flex-1 min-h-0 p-4 relative">
+      <div className="flex-1 min-h-0 p-3 relative">
         {displaySessions.map((session) => {
           // Bug1修复：临时标签页的 TerminalPanel 需要传入 onAfterClose，
           // 让 TerminalHeader 右上角关闭按钮能正确清除 temporaryTabId
@@ -425,7 +425,7 @@ const TerminalTabs: React.FC = () => {
           return (
             <div
               key={session.id}
-              className="absolute inset-0 p-4"
+              className="absolute inset-0 p-3"
               style={{ display: session.id === currentTabId ? 'block' : 'none' }}
             >
               <TerminalPanel sessionId={session.id} onAfterClose={handleTempPanelClose} />

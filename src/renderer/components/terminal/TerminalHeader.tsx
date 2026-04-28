@@ -157,8 +157,8 @@ const TerminalHeader: React.FC<TerminalHeaderProps> = ({ sessionId, onMaximize, 
 
   return (
     <div
-      className={`h-10 bg-bg-secondary border-b px-3 flex items-center justify-between ${
-        isStuck ? 'border-orange-500/50' : needsAttention ? 'border-yellow-600/50' : 'border-border'
+      className={`h-10 bg-bg-secondary/80 px-3 flex items-center justify-between shadow-[0_1px_0_rgba(255,255,255,0.035)] ${
+        isStuck ? 'shadow-[inset_0_-1px_0_rgba(249,115,22,0.5)]' : needsAttention ? 'shadow-[inset_0_-1px_0_rgba(210,153,34,0.45)]' : ''
       }`}
       onContextMenu={(e) => {
         e.preventDefault()

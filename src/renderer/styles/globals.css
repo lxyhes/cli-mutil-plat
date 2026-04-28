@@ -672,11 +672,11 @@
 
   /* Allotment 分隔线样式 */
   .allotment-separator {
-    background-color: var(--color-border) !important;
+    background-color: color-mix(in srgb, var(--color-bg-hover) 42%, transparent) !important;
   }
 
   .allotment-separator:hover {
-    background-color: var(--color-accent-blue) !important;
+    background-color: color-mix(in srgb, var(--color-accent-blue) 42%, transparent) !important;
   }
 
   /* 自定义滚动条样式类 */
@@ -880,8 +880,8 @@
     justify-content: center;
     width: 16px;
     height: 48px;
-    background-color: var(--color-bg-tertiary);
-    border: 1px solid var(--color-border);
+    background-color: color-mix(in srgb, var(--color-bg-tertiary) 78%, transparent);
+    border: 0;
     color: var(--color-text-muted);
     cursor: pointer;
     opacity: 0;
@@ -2011,7 +2011,7 @@
   background:
     linear-gradient(
       180deg,
-      color-mix(in srgb, var(--color-bg-primary) 94%, var(--color-bg-secondary)),
+      color-mix(in srgb, var(--color-bg-primary) 97%, var(--color-bg-secondary)),
       var(--color-bg-primary) 34%
     );
 }
@@ -2023,6 +2023,7 @@
       color-mix(in srgb, var(--color-bg-primary) 82%, transparent),
       color-mix(in srgb, var(--color-bg-primary) 96%, var(--color-bg-secondary))
     );
+  box-shadow: 0 -1px 0 color-mix(in srgb, var(--color-text-primary) 3%, transparent);
 }
 
 .session-toolbar-surface,
@@ -2048,6 +2049,18 @@
 
 .message-assistant-block {
   color: color-mix(in srgb, var(--color-text-primary) 96%, transparent);
+}
+
+.completion-handoff {
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--color-bg-elevated) 84%, var(--color-bg-primary)),
+      color-mix(in srgb, var(--color-bg-secondary) 56%, var(--color-bg-primary))
+    );
+  box-shadow:
+    inset 3px 0 0 color-mix(in srgb, var(--color-accent-green) 72%, transparent),
+    0 10px 28px color-mix(in srgb, var(--color-shadow-sm) 52%, transparent);
 }
 
 .icon-action-button {
