@@ -4,6 +4,7 @@ export const DELIVERY_ACTION_EVENT = 'prismops-delivery-action-queued'
 const STORAGE_KEY = 'prismops-delivery-metrics-v1'
 const ACTION_STORAGE_KEY = 'prismops-delivery-actions-v1'
 const MAX_RECORDS = 120
+const STALE_METRIC_HOURS = 24
 
 export interface DeliveryMetricSnapshotRecord {
   sessionId: string
@@ -34,6 +35,14 @@ export interface DeliveryMetricSummary {
   averageHandoffMinutes?: number
   projectMemoryCount: number
   blockedCount: number
+}
+
+export interface DeliveryMetricFreshness {
+  state: 'empty' | 'fresh' | 'stale'
+  meaningfulCount: number
+  staleCount: number
+  latestUpdatedAt?: string
+  ageHours?: number
 }
 
 export interface DeliveryMetricActionItem {
@@ -99,8 +108,54 @@ function ratio(numerator: number, denominator: number): number {
   return denominator > 0 ? Math.round((numerator / denominator) * 100) : 0
 }
 
+function isMeaningfulMetricRecord(record: DeliveryMetricSnapshotRecord): boolean {
+  return record.messageCount > 0 || record.toolCount > 0
+}
+
+export function getDeliveryMetricFreshness(
+  records: DeliveryMetricSnapshotRecord[],
+  nowMs = Date.now(),
+  staleHours = STALE_METRIC_HOURS,
+): DeliveryMetricFreshness {
+  const meaningful = records.filter(isMeaningfulMetricRecord)
+  if (meaningful.length === 0) {
+    return {
+      state: 'empty',
+      meaningfulCount: 0,
+      staleCount: 0,
+    }
+  }
+
+  const staleCutoffMs = nowMs - staleHours * 60 * 60 * 1000
+  let staleCount = 0
+  let latest: { record: DeliveryMetricSnapshotRecord; timeMs: number } | undefined
+
+  for (const record of meaningful) {
+    const timeMs = new Date(record.updatedAt).getTime()
+    if (!Number.isFinite(timeMs)) {
+      staleCount += 1
+      continue
+    }
+
+    if (timeMs < staleCutoffMs) staleCount += 1
+    if (!latest || timeMs > latest.timeMs) latest = { record, timeMs }
+  }
+
+  const ageHours = latest
+    ? Math.max(0, Math.round((nowMs - latest.timeMs) / (60 * 60 * 1000)))
+    : undefined
+
+  return {
+    state: staleCount === meaningful.length ? 'stale' : 'fresh',
+    meaningfulCount: meaningful.length,
+    staleCount,
+    latestUpdatedAt: latest?.record.updatedAt,
+    ageHours,
+  }
+}
+
 export function summarizeDeliveryMetrics(records: DeliveryMetricSnapshotRecord[]): DeliveryMetricSummary {
-  const meaningful = records.filter(record => record.messageCount > 0 || record.toolCount > 0)
+  const meaningful = records.filter(isMeaningfulMetricRecord)
   const codeChanging = meaningful.filter(record => record.changedFileCount > 0)
   const verifiedHandoffs = meaningful
     .map(record => record.verifiedHandoffMinutes)
@@ -187,7 +242,7 @@ export function getDeliveryMetricActionItems(records: DeliveryMetricSnapshotReco
   }
 
   return records
-    .filter(record => record.messageCount > 0 || record.toolCount > 0)
+    .filter(isMeaningfulMetricRecord)
     .map(buildActionItem)
     .filter((item): item is DeliveryMetricActionItem => Boolean(item))
     .sort((a, b) => {
@@ -272,4 +327,12 @@ export function formatMetricDuration(minutes?: number): string {
   const hours = Math.floor(minutes / 60)
   const rest = minutes % 60
   return rest > 0 ? `${hours}h ${rest}m` : `${hours}h`
+}
+
+export function formatMetricAge(hours?: number): string {
+  if (typeof hours !== 'number') return '未知'
+  if (hours < 1) return '<1h'
+  if (hours < 24) return `${hours}h`
+  const days = Math.round(hours / 24)
+  return `${days}d`
 }

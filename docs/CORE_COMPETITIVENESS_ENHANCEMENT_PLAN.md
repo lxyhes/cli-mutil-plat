@@ -306,7 +306,7 @@ Definition of done:
 
 ### Reliability And Evidence Sprint
 
-Status: in progress.
+Status: first reliability slice completed.
 
 Completed:
 
@@ -316,7 +316,10 @@ Completed:
 - Marked delivery packs as stale when newer file changes happen after the pack was generated.
 - Added an initial evidence timeline model in the conversation cockpit, covering mission updates, tools, validation commands, file changes, tool failures, and delivery-pack events.
 - Added evidence timeline excerpts and schema metadata to trust report and delivery pack Markdown exports.
+- Added Dashboard empty, stale, and mixed-freshness states for delivery metrics.
 
 Remaining:
 
-- Add Dashboard empty and stale-state copy.
+- Move metric persistence behind a project-level storage adapter.
+- Add lifecycle tracking for queued remediation actions beyond pending/consumed.
+- Add visual QA screenshots for cockpit and Dashboard states.

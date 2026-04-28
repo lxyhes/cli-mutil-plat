@@ -14,13 +14,16 @@ import type { Session, SessionStatus, ActivityEvent } from '../../../shared/type
 import UsageDashboard from '../usage/UsageDashboard'
 import {
   DELIVERY_METRICS_EVENT,
+  formatMetricAge,
   formatMetricDuration,
   formatMetricPercent,
   getDeliveryMetricActionItems,
+  getDeliveryMetricFreshness,
   loadDeliveryMetricSnapshots,
   queueDeliveryMetricAction,
   summarizeDeliveryMetrics,
   type DeliveryMetricActionItem,
+  type DeliveryMetricFreshness,
   type DeliveryMetricSnapshotRecord,
 } from '../../utils/deliveryMetrics'
 
@@ -88,7 +91,7 @@ export default function DashboardView() {
   const { sessions, selectSession, activities } = useSessionStore()
   const [recentEvents, setRecentEvents] = useState<(ActivityEvent & { sessionName: string })[]>([])
   const [deliveryRecords, setDeliveryRecords] = useState<DeliveryMetricSnapshotRecord[]>(() => loadDeliveryMetricSnapshots())
-  const [, setTick] = useState(0)
+  const [clockTick, setTick] = useState(0)
 
   // 分类
   const runningSessions = sessions.filter(s => s.status === 'running')
@@ -99,6 +102,7 @@ export default function DashboardView() {
     s.status !== 'completed' && s.status !== 'terminated' && s.status !== 'interrupted'
   )
   const successSummary = useMemo(() => summarizeDeliveryMetrics(deliveryRecords), [deliveryRecords])
+  const metricFreshness = useMemo(() => getDeliveryMetricFreshness(deliveryRecords), [deliveryRecords, clockTick])
   const actionItems = useMemo(() => getDeliveryMetricActionItems(deliveryRecords, 5), [deliveryRecords])
   const openActionItem = (item: DeliveryMetricActionItem) => {
     queueDeliveryMetricAction(item)
@@ -183,6 +187,7 @@ export default function DashboardView() {
             {successSummary.sessionCount > 0 ? `${successSummary.sessionCount} 个会话样本` : '等待会话产生指标'}
           </span>
         </div>
+        <MetricsStateNotice freshness={metricFreshness} />
         <div className="grid grid-cols-2 gap-2 md:grid-cols-3 xl:grid-cols-6">
           <SuccessMetricCard
             icon={Activity}
@@ -227,7 +232,7 @@ export default function DashboardView() {
             tone={successSummary.blockedCount > 0 ? 'bad' : successSummary.sessionCount > 0 ? 'good' : 'neutral'}
           />
         </div>
-        <ActionQueue items={actionItems} onOpenAction={openActionItem} />
+        <ActionQueue items={actionItems} freshness={metricFreshness} onOpenAction={openActionItem} />
       </section>
 
       <div className="grid grid-cols-3 gap-4">
@@ -354,11 +359,42 @@ function SuccessMetricCard({ icon: Icon, label, value, detail, tone }: {
   )
 }
 
-function ActionQueue({ items, onOpenAction }: {
+function MetricsStateNotice({ freshness }: { freshness: DeliveryMetricFreshness }) {
+  if (freshness.state === 'empty') {
+    return (
+      <div className="rounded-lg border border-border-subtle bg-bg-elevated/70 px-3 py-2 text-xs text-text-secondary">
+        还没有可用交付指标。打开会话并产生工具、验证或交付包后，这里会开始统计。
+      </div>
+    )
+  }
+
+  if (freshness.state === 'stale') {
+    return (
+      <div className="rounded-lg border border-accent-yellow/25 bg-accent-yellow/10 px-3 py-2 text-xs text-text-secondary">
+        指标已超过 {formatMetricAge(freshness.ageHours)} 未刷新。回到活跃会话或生成交付包后会自动更新。
+      </div>
+    )
+  }
+
+  if (freshness.staleCount > 0) {
+    return (
+      <div className="rounded-lg border border-accent-blue/20 bg-accent-blue/10 px-3 py-2 text-xs text-text-secondary">
+        最近指标已更新，另有 {freshness.staleCount} 个旧样本仅用于趋势参考。
+      </div>
+    )
+  }
+
+  return null
+}
+
+function ActionQueue({ items, freshness, onOpenAction }: {
   items: DeliveryMetricActionItem[]
+  freshness: DeliveryMetricFreshness
   onOpenAction: (item: DeliveryMetricActionItem) => void
 }) {
   if (items.length === 0) {
+    if (freshness.state !== 'fresh') return null
+
     return (
       <div className="rounded-lg border border-accent-green/20 bg-accent-green/5 px-3 py-2 text-xs text-text-secondary">
         当前没有明显改进项，继续保持交付包、验证证据和项目记忆闭环。

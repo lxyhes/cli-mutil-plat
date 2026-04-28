@@ -2,7 +2,9 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   buildDeliveryMetricActionPrompt,
   consumePendingDeliveryMetricAction,
+  formatMetricAge,
   getDeliveryMetricActionItems,
+  getDeliveryMetricFreshness,
   queueDeliveryMetricAction,
   summarizeDeliveryMetrics,
   type DeliveryMetricActionItem,
@@ -105,6 +107,48 @@ describe('delivery metrics summary', () => {
       projectMemoryCount: 1,
       blockedCount: 1,
     })
+  })
+})
+
+describe('delivery metric freshness', () => {
+  const nowMs = new Date('2026-04-28T12:00:00.000Z').getTime()
+
+  it('returns an empty state when there are no meaningful metric records', () => {
+    const freshness = getDeliveryMetricFreshness([
+      metric({ messageCount: 0, toolCount: 0, updatedAt: '2026-04-28T11:00:00.000Z' }),
+    ], nowMs)
+
+    expect(freshness).toEqual({
+      state: 'empty',
+      meaningfulCount: 0,
+      staleCount: 0,
+    })
+  })
+
+  it('marks all-old meaningful records as stale', () => {
+    const freshness = getDeliveryMetricFreshness([
+      metric({ sessionId: 'old-a', updatedAt: '2026-04-27T08:00:00.000Z' }),
+      metric({ sessionId: 'old-b', updatedAt: '2026-04-26T12:00:00.000Z' }),
+    ], nowMs)
+
+    expect(freshness.state).toBe('stale')
+    expect(freshness.meaningfulCount).toBe(2)
+    expect(freshness.staleCount).toBe(2)
+    expect(freshness.latestUpdatedAt).toBe('2026-04-27T08:00:00.000Z')
+    expect(freshness.ageHours).toBe(28)
+  })
+
+  it('keeps the state fresh when the latest sample is recent and reports stale samples', () => {
+    const freshness = getDeliveryMetricFreshness([
+      metric({ sessionId: 'recent', updatedAt: '2026-04-28T10:00:00.000Z' }),
+      metric({ sessionId: 'old', updatedAt: '2026-04-26T12:00:00.000Z' }),
+    ], nowMs)
+
+    expect(freshness.state).toBe('fresh')
+    expect(freshness.meaningfulCount).toBe(2)
+    expect(freshness.staleCount).toBe(1)
+    expect(freshness.latestUpdatedAt).toBe('2026-04-28T10:00:00.000Z')
+    expect(formatMetricAge(freshness.ageHours)).toBe('2h')
   })
 })
 
