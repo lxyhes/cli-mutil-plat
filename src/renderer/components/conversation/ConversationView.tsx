@@ -86,6 +86,7 @@ interface OpsBriefSnapshot {
   deliveryMetrics: DeliveryMetric[]
   deliveryMetricScore: number
   deliveryPackGenerated: boolean
+  validationStale: boolean
   verifiedHandoffMinutes?: number
   projectMemoryCount: number
   agents: OpsBriefAgent[]
@@ -2002,6 +2003,7 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
   const [playbookActionLoading, setPlaybookActionLoading] = useState<string | null>(null)
   const [trustKnowledgeLoading, setTrustKnowledgeLoading] = useState(false)
   const [deliveryPackGenerated, setDeliveryPackGenerated] = useState(false)
+  const [deliveryPackGeneratedAtMs, setDeliveryPackGeneratedAtMs] = useState(0)
   const [knowledgeExtractionCount, setKnowledgeExtractionCount] = useState(0)
   const [showScrollBottom, setShowScrollBottom] = useState(false)
   const [commonPrompts, setCommonPrompts] = useState<CommonPrompt[]>(() => loadCommonPrompts())
@@ -2026,6 +2028,7 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
 
   useEffect(() => {
     setDeliveryPackGenerated(false)
+    setDeliveryPackGeneratedAtMs(0)
     setKnowledgeExtractionCount(0)
   }, [sessionId])
 
@@ -2323,6 +2326,8 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
     let failedToolCount = 0
     let messageCount = 0
     let firstMessageAtMs = 0
+    let lastFileChangeAtMs = 0
+    let lastValidationAtMs = 0
     const uniqueFiles: string[] = []
     const seenFiles = new Set<string>()
     const toolUseMessages: ConversationMessage[] = []
@@ -2330,11 +2335,13 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
     const validationCommands: string[] = []
 
     for (const message of messages) {
+      const timestampMs = Date.parse(message.timestamp)
+      const hasTimestamp = Number.isFinite(timestampMs)
+
       if ((message.role === 'user' || message.role === 'assistant')) {
         messageCount += 1
         if (!firstMessageAtMs) {
-          const timestampMs = Date.parse(message.timestamp)
-          if (Number.isFinite(timestampMs)) {
+          if (hasTimestamp) {
             firstMessageAtMs = timestampMs
           }
         }
@@ -2352,6 +2359,9 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
         }
         additions += message.fileChange.additions || 0
         deletions += message.fileChange.deletions || 0
+        if (hasTimestamp) {
+          lastFileChangeAtMs = Math.max(lastFileChangeAtMs, timestampMs)
+        }
       }
 
       if (message.role === 'tool_use') {
@@ -2361,6 +2371,9 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
           commands.push(command)
           if (isValidationCommand(command)) {
             validationCommands.push(command)
+            if (hasTimestamp) {
+              lastValidationAtMs = Math.max(lastValidationAtMs, timestampMs)
+            }
           }
         }
       } else if (message.role === 'tool_result' && message.isError) {
@@ -2368,13 +2381,24 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
       }
     }
 
+    const validationStale = uniqueFiles.length > 0 &&
+      validationCommands.length > 0 &&
+      lastFileChangeAtMs > 0 &&
+      lastValidationAtMs > 0 &&
+      lastFileChangeAtMs > lastValidationAtMs
+    const hasFreshValidationEvidence = validationCommands.length > 0 && !validationStale
+    const deliveryPackStale = deliveryPackGenerated &&
+      lastFileChangeAtMs > 0 &&
+      deliveryPackGeneratedAtMs > 0 &&
+      lastFileChangeAtMs > deliveryPackGeneratedAtMs
+    const deliveryPackCurrent = deliveryPackGenerated && !deliveryPackStale
     const hasWaitingAction = pendingPermission || pendingAskQuestion || pendingQuestion || pendingPlanApproval
     const phaseLabel = pendingPermission || pendingAskQuestion || pendingQuestion || pendingPlanApproval || status === 'error'
       ? '需要处理'
-      : validationCommands.length > 0 && uniqueFiles.length > 0 && failedToolCount === 0
+      : hasFreshValidationEvidence && uniqueFiles.length > 0 && failedToolCount === 0
         ? '待交付'
-        : validationCommands.length > 0
-          ? '验证中'
+      : validationCommands.length > 0
+          ? validationStale ? '待复验' : '验证中'
           : uniqueFiles.length > 0
             ? '实现中'
             : toolUseMessages.length > 0
@@ -2395,6 +2419,8 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
       status === 'error' ? '会话处于错误状态' : '',
       failedToolCount > 0 ? `${failedToolCount} 个工具调用异常` : '',
       uniqueFiles.length > 0 && validationCommands.length === 0 ? '已有改动，尚未看到验证命令' : '',
+      validationStale ? '最新改动发生在最近验证之后，验证已过期' : '',
+      deliveryPackStale ? '最新改动发生在交付包生成之后，交付包需要更新' : '',
       !workingDirectory ? '未绑定项目目录' : '',
     ].filter(Boolean)
     if (risks.length === 0) risks.push('暂无明显阻塞')
@@ -2404,6 +2430,8 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
       if (status === 'error') return ['定位会话错误并恢复上下文', '确认错误是否影响当前交付']
       if (failedToolCount > 0) return ['复盘失败工具输出', '必要时换一条验证路径']
       if (uniqueFiles.length > 0 && validationCommands.length === 0) return ['运行类型检查、构建或关键测试', '确认改动范围是否符合预期']
+      if (validationStale) return ['最新改动发生在验证之后，重新运行最小必要验证', '复验通过后再更新交付包']
+      if (deliveryPackStale) return ['最新改动发生在交付包之后，重新生成交付包', '确认交付说明覆盖最新变更']
       if (validationCommands.length > 0 && uniqueFiles.length > 0) return ['整理交付摘要和风险点', '生成提交说明或更新项目记忆']
       if (toolUseMessages.length > 0) return ['继续收敛根因和方案', '把发现沉淀成明确改动']
       return ['先让 AI 审视项目结构', '明确目标、约束和验收标准']
@@ -2432,12 +2460,14 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
     if (status === 'error') missionHealthScore -= 24
     if (!workingDirectory) missionHealthScore -= 8
     if (uniqueFiles.length > 0 && validationCommands.length === 0) missionHealthScore -= 10
+    if (validationStale) missionHealthScore -= 12
+    if (deliveryPackStale) missionHealthScore -= 8
     missionHealthScore = Math.max(5, Math.min(100, Math.round(missionHealthScore)))
 
     const missionHealthTone: OpsBriefSnapshot['missionHealthTone'] =
       status === 'error' || failedToolCount > 0 || missionHealthScore < 42
         ? 'bad'
-        : hasWaitingAction || (uniqueFiles.length > 0 && validationCommands.length === 0) || missionHealthScore < 74
+        : hasWaitingAction || validationStale || deliveryPackStale || (uniqueFiles.length > 0 && validationCommands.length === 0) || missionHealthScore < 74
           ? 'warn'
           : validationCommands.length > 0 && failedToolCount === 0
             ? 'good'
@@ -2459,7 +2489,11 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
           ? '先修复异常工具'
           : uniqueFiles.length > 0 && validationCommands.length === 0
             ? '已有改动，建议验证'
-            : validationCommands.length > 0 && uniqueFiles.length > 0
+            : validationStale
+              ? '验证已过期，建议复验'
+              : deliveryPackStale
+                ? '交付包已过期，建议更新'
+                : hasFreshValidationEvidence && uniqueFiles.length > 0
               ? '可整理交付包'
               : toolUseMessages.length > 0
                 ? '继续收敛方案'
@@ -2489,13 +2523,17 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
       {
         id: 'validation',
         label: '验证证据',
-        detail: validationCommands.length > 0
-          ? `已看到 ${validationCommands.length} 条验证命令。`
-          : uniqueFiles.length > 0
-            ? '已有代码改动，但还没有看到 test/typecheck/build/lint 等验证命令。'
-            : '还没有需要验证的代码改动。',
-        status: validationCommands.length > 0 || uniqueFiles.length === 0 ? 'passed' : 'warning',
-        prompt: '请为当前改动运行最小必要验证，优先选择 typecheck、相关测试或 build；如果无法运行，请说明原因和替代验证方式。',
+        detail: validationStale
+          ? '最新文件改动发生在最近验证命令之后，需要重新运行最小必要验证。'
+          : validationCommands.length > 0
+            ? `已看到 ${validationCommands.length} 条验证命令。`
+            : uniqueFiles.length > 0
+              ? '已有代码改动，但还没有看到 test/typecheck/build/lint 等验证命令。'
+              : '还没有需要验证的代码改动。',
+        status: validationStale ? 'warning' : validationCommands.length > 0 || uniqueFiles.length === 0 ? 'passed' : 'warning',
+        prompt: validationStale
+          ? '最新改动发生在最近验证之后。请重新运行最小必要验证，优先选择 typecheck、相关测试或 build；完成后说明验证是否覆盖最新改动。'
+          : '请为当前改动运行最小必要验证，优先选择 typecheck、相关测试或 build；如果无法运行，请说明原因和替代验证方式。',
       },
       {
         id: 'failures',
@@ -2509,15 +2547,19 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
       {
         id: 'handoff',
         label: '交付说明',
-        detail: validationCommands.length > 0 && uniqueFiles.length > 0 && failedToolCount === 0
+        detail: deliveryPackStale
+          ? '最新改动发生在交付包生成之后，需要更新交付说明。'
+          : hasFreshValidationEvidence && uniqueFiles.length > 0 && failedToolCount === 0
           ? '已具备生成交付包的基础证据。'
           : '交付说明需要包含变更、验证、风险和下一步，当前证据仍需补齐。',
-        status: validationCommands.length > 0 && uniqueFiles.length > 0 && failedToolCount === 0
+        status: hasFreshValidationEvidence && uniqueFiles.length > 0 && failedToolCount === 0 && !deliveryPackStale
           ? 'passed'
-          : hasWaitingAction || failedToolCount > 0
+          : hasWaitingAction || failedToolCount > 0 || validationStale
             ? 'blocked'
             : 'warning',
-        prompt: '请生成交付说明：变更摘要、验证结果、剩余风险、建议提交说明和用户下一步。若证据不足，请先补齐最小缺口。',
+        prompt: validationStale
+          ? '请先重新运行最小必要验证，再生成交付说明。交付说明需要包含最新变更、验证结果、剩余风险、建议提交说明和用户下一步。'
+          : '请生成交付说明：变更摘要、验证结果、剩余风险、建议提交说明和用户下一步。若证据不足，请先补齐最小缺口。',
       },
     ]
 
@@ -2565,7 +2607,7 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
 
     const hasCodeChanges = uniqueFiles.length > 0
     const hasValidationEvidence = validationCommands.length > 0
-    const hasDeliveryEvidence = deliveryPackGenerated || (hasCodeChanges && hasValidationEvidence && failedToolCount === 0)
+    const hasDeliveryEvidence = deliveryPackCurrent || (hasCodeChanges && hasFreshValidationEvidence && failedToolCount === 0)
     const elapsedMinutes = firstMessageAtMs > 0
       ? Math.max(0, Math.round((Date.now() - firstMessageAtMs) / 60000))
       : 0
@@ -2573,24 +2615,28 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
       {
         id: 'delivery-pack',
         label: '交付包',
-        value: deliveryPackGenerated ? '已导出' : hasDeliveryEvidence ? '可生成' : '待补齐',
-        detail: deliveryPackGenerated
+        value: deliveryPackCurrent ? '已导出' : deliveryPackStale ? '已过期' : hasDeliveryEvidence ? '可生成' : '待补齐',
+        detail: deliveryPackCurrent
           ? '本会话已生成 Markdown 交付包'
-          : hasDeliveryEvidence
-            ? '已有改动与验证，可生成交付包'
-            : '需要改动、验证和风险说明',
-        status: deliveryPackGenerated || hasDeliveryEvidence ? 'passed' : hasCodeChanges ? 'warning' : 'blocked',
+          : deliveryPackStale
+            ? '最新改动晚于交付包，需要重新生成'
+            : hasDeliveryEvidence
+              ? '已有改动与验证，可生成交付包'
+              : '需要改动、验证和风险说明',
+        status: deliveryPackCurrent || hasDeliveryEvidence ? 'passed' : hasCodeChanges || deliveryPackStale ? 'warning' : 'blocked',
       },
       {
         id: 'validation-coverage',
         label: '验证覆盖',
-        value: hasCodeChanges ? (hasValidationEvidence ? `${validationCommands.length} 条` : '缺少') : '无需',
+        value: hasCodeChanges ? (validationStale ? '已过期' : hasValidationEvidence ? `${validationCommands.length} 条` : '缺少') : '无需',
         detail: hasCodeChanges
-          ? hasValidationEvidence
+          ? validationStale
+            ? '最新改动发生在验证之后，需要复验'
+            : hasValidationEvidence
             ? '代码改动已有验证证据'
             : '代码改动后应补齐测试、构建或类型检查'
           : '当前未识别到代码改动',
-        status: hasCodeChanges && !hasValidationEvidence ? 'warning' : 'passed',
+        status: hasCodeChanges && (!hasValidationEvidence || validationStale) ? 'warning' : 'passed',
       },
       {
         id: 'handoff-time',
@@ -2665,7 +2711,8 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
       readinessGates,
       deliveryMetrics,
       deliveryMetricScore,
-      deliveryPackGenerated,
+      deliveryPackGenerated: deliveryPackCurrent,
+      validationStale,
       verifiedHandoffMinutes: hasDeliveryEvidence ? elapsedMinutes : undefined,
       projectMemoryCount: knowledgeExtractionCount,
       agents,
@@ -2698,6 +2745,7 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
     isStreaming,
     liveProgressText,
     deliveryPackGenerated,
+    deliveryPackGeneratedAtMs,
     knowledgeExtractionCount,
   ])
 
@@ -2713,6 +2761,7 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
       deliveryPackGenerated: opsBrief.deliveryPackGenerated,
       changedFileCount: opsBrief.changedFileCount,
       validationCount: opsBrief.validationCount,
+      validationStale: opsBrief.validationStale,
       verifiedHandoffMinutes: opsBrief.verifiedHandoffMinutes,
       projectMemoryCount: opsBrief.projectMemoryCount,
       safetyStatus: safetyMetric?.status || 'warning',
@@ -2730,6 +2779,7 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
     opsBrief.deliveryPackGenerated,
     opsBrief.changedFileCount,
     opsBrief.validationCount,
+    opsBrief.validationStale,
     opsBrief.verifiedHandoffMinutes,
     opsBrief.projectMemoryCount,
     opsBrief.statusLabel,
@@ -2918,6 +2968,7 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
         console.warn('[ConversationView] Failed to persist delivery pack context', contextError)
       }
       setDeliveryPackGenerated(true)
+      setDeliveryPackGeneratedAtMs(Date.now())
       setExternalInsert(prompt)
       setQueueHintText('交付包已导出为 Markdown，交付说明已插入输入框并沉淀到工作上下文')
       setQueueHintAction(null)

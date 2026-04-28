@@ -14,6 +14,7 @@ export interface DeliveryMetricSnapshotRecord {
   deliveryPackGenerated: boolean
   changedFileCount: number
   validationCount: number
+  validationStale?: boolean
   verifiedHandoffMinutes?: number
   projectMemoryCount: number
   safetyStatus: 'passed' | 'warning' | 'blocked'
@@ -137,6 +138,9 @@ function buildActionItem(record: DeliveryMetricSnapshotRecord): DeliveryMetricAc
   if (record.changedFileCount > 0 && record.validationCount === 0) {
     reasons.push('缺少验证')
     actions.push('运行 typecheck、build 或相关测试')
+  } else if (record.validationStale) {
+    reasons.push('验证已过期')
+    actions.push('对最新改动重新运行验证')
   }
 
   if (!record.deliveryPackGenerated && (record.changedFileCount > 0 || record.validationCount > 0)) {

@@ -301,3 +301,22 @@ Definition of done:
 - `npm run build` passes.
 - Relevant metric and action queue tests pass.
 - The user can open Dashboard, identify the highest-priority gap, jump to the session, insert a remediation prompt, and generate a delivery pack after closing the gap.
+
+## Implementation Progress
+
+### Reliability And Evidence Sprint
+
+Status: in progress.
+
+Completed:
+
+- Added unit coverage for delivery metric summaries, action queue ranking, remediation prompt generation, and pending action consumption.
+- Added stale validation detection when file changes happen after the latest validation command.
+- Surfaced stale validation in risks, next actions, delivery readiness, delivery gates, success metrics, and dashboard metric records.
+- Marked delivery packs as stale when newer file changes happen after the pack was generated.
+
+Remaining:
+
+- Add an evidence timeline model and initial cockpit UI.
+- Add delivery pack metadata with schema version and source.
+- Add Dashboard empty and stale-state copy.
