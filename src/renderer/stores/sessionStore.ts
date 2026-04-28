@@ -12,7 +12,7 @@ import type {
   ActivityEvent,
   ConversationMessage
 } from '../../shared/types'
-import { sanitizeDisplayText } from '../utils/textSanitizer'
+import { repairKnownMojibake, sanitizeDisplayText } from '../utils/textSanitizer'
 import { safeAPI } from '../utils/api'
 import { voiceStore } from './voiceStore'
 
@@ -117,6 +117,15 @@ function cleanKnownMojibake(text: string): string {
   return text
     .replace(/鎵句笉鍒板師浼氳瘽璁板綍/g, '找不到原会话记录')
     .replace(/SDK V2 SessionManager 鏈垵濮嬪寲/g, 'SDK V2 SessionManager 未初始化')
+}
+
+function normalizeConversationMessage(msg: ConversationMessage): ConversationMessage {
+  return {
+    ...msg,
+    content: repairKnownMojibake(msg.content || ''),
+    thinkingText: msg.thinkingText ? repairKnownMojibake(msg.thinkingText) : msg.thinkingText,
+    toolResult: msg.toolResult ? repairKnownMojibake(msg.toolResult) : msg.toolResult,
+  }
 }
 
 function normalizeErrorMessage(error: unknown, fallback: string): string {
@@ -952,7 +961,8 @@ export const useSessionStore = create<SessionState>((set, get) => ({
         }
         // ★ autoSpeak: AI 回复时自动播报
         if (msg.role === 'assistant' && voiceStore.config?.autoSpeak) {
-          const text = msg.content || ''
+          const normalizedMsg = normalizeConversationMessage(msg)
+          const text = normalizedMsg.content || ''
           if (text) voiceStore.speak(text)
         }
         get().addConversationMessage(sessionId, msg)
@@ -1026,19 +1036,20 @@ export const useSessionStore = create<SessionState>((set, get) => ({
 
   // SDK V2: 添加对话消息（支持 text_delta 增量追加）
   addConversationMessage: (sessionId: string, msg: ConversationMessage) => {
+    const normalizedMsg = normalizeConversationMessage(msg)
     set((state) => {
       const existing = state.conversations[sessionId] || []
       const draftId = `delta-${sessionId}`
 
-      if (msg.isDelta) {
+      if (normalizedMsg.isDelta) {
         // 增量消息：找到临时草稿消息，追加 content
         const draftIdx = existing.findIndex(m => m.id === draftId)
         if (draftIdx >= 0) {
           const updated = [...existing]
           updated[draftIdx] = {
             ...updated[draftIdx],
-            content: updated[draftIdx].content + msg.content,
-            timestamp: msg.timestamp,
+            content: updated[draftIdx].content + normalizedMsg.content,
+            timestamp: normalizedMsg.timestamp,
           }
           return { conversations: { ...state.conversations, [sessionId]: updated } }
         }
@@ -1046,7 +1057,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
         return {
           conversations: {
             ...state.conversations,
-            [sessionId]: [...existing, { ...msg, id: draftId }]
+            [sessionId]: [...existing, { ...normalizedMsg, id: draftId }]
           }
         }
       }
@@ -1054,11 +1065,11 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       // 完整消息：先移除同 session 的草稿（delta-xxx），再追加
       const withoutDraft = existing.filter(m => m.id !== draftId)
       // 去重
-      if (withoutDraft.some(m => m.id === msg.id)) return state
+      if (withoutDraft.some(m => m.id === normalizedMsg.id)) return state
       return {
         conversations: {
           ...state.conversations,
-          [sessionId]: [...withoutDraft, msg]
+          [sessionId]: [...withoutDraft, normalizedMsg]
         }
       }
     })
@@ -1070,7 +1081,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     set((state) => {
       const existing = state.conversations[sessionId] || []
       const existingIds = new Set(existing.map(m => m.id))
-      const newMsgs = msgs.filter(m => !existingIds.has(m.id))
+      const newMsgs = msgs.filter(m => !existingIds.has(m.id)).map(normalizeConversationMessage)
       if (newMsgs.length === 0) return state
       return {
         conversations: {

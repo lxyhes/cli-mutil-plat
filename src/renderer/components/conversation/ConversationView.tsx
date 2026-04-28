@@ -10,7 +10,7 @@
 import React, { useEffect, useLayoutEffect, useRef, useMemo, useState, useCallback } from 'react'
 import { AlertTriangle, CheckCircle2, ChevronDown, FolderOpen, Plus, RotateCcw, Settings2, Trash2, Copy, ArrowUp, ArrowDown, Download, X, BookMarked, Target, GitPullRequest, Wrench, ShieldCheck, FileText, Activity, Users } from 'lucide-react'
 import type { ReactNode } from 'react'
-import type { ConversationMessage, UserQuestionMeta, AskUserQuestionMeta } from '../../../shared/types'
+import type { ActivityEvent, ConversationMessage, UserQuestionMeta, AskUserQuestionMeta } from '../../../shared/types'
 import ContextMenu from '../common/ContextMenu'
 import type { MenuItem } from '../common/ContextMenu'
 import { useConversation } from '../../hooks/useConversation'
@@ -83,6 +83,8 @@ interface OpsBriefSnapshot {
   agentCount: number
   activeAgentCount: number
   blockedAgentCount: number
+  agentConflictCount: number
+  agentCoordinationRisks: string[]
 }
 
 interface OpsBriefAgent {
@@ -92,6 +94,12 @@ interface OpsBriefAgent {
   childSessionId?: string
   workDir?: string
   prompt?: string
+  lastFiles: string[]
+  lastCommand?: string
+  risk?: string
+  toolCount: number
+  failedToolCount: number
+  validationCount: number
 }
 
 interface DeliveryReadinessGate {
@@ -138,6 +146,15 @@ interface MissionTemplate {
   signal: string
   prompt: string
   tone: 'blue' | 'green' | 'yellow' | 'purple'
+}
+
+interface TeamPlaybookTemplate {
+  id: string
+  label: string
+  description: string
+  evidence: string[]
+  validation: string[]
+  finalOutput: string[]
 }
 
 interface MissionLaunchpadProps {
@@ -214,6 +231,57 @@ const MISSION_DELIVERY_STEPS = [
   { label: '交付', detail: '摘要与风险' },
 ]
 
+const TEAM_PLAYBOOK_TEMPLATES: TeamPlaybookTemplate[] = [
+  {
+    id: 'bug-fix',
+    label: 'Bug 修复',
+    description: '复现、根因、最小修复、回归验证',
+    evidence: ['复现路径或失败现象', '根因定位依据', '受影响范围'],
+    validation: ['优先重跑失败命令或相关测试', '补充边界用例或手工检查', '确认没有绕过原失败点'],
+    finalOutput: ['根因', '修复范围', '验证结果', '剩余风险'],
+  },
+  {
+    id: 'feature-delivery',
+    label: '功能交付',
+    description: '需求边界、实现切片、验收证据',
+    evidence: ['需求目标与非目标', '关键文件与数据流', '用户可见行为'],
+    validation: ['类型检查或构建', '关键路径测试', '必要的 UI/交互检查'],
+    finalOutput: ['实现摘要', '验收结果', '配置/迁移影响', '下一步'],
+  },
+  {
+    id: 'ui-polish',
+    label: 'UI 打磨',
+    description: '层级、效率、噪音、主题适配',
+    evidence: ['当前体验问题', '改动前后的信息层级', '响应式与主题影响'],
+    validation: ['构建或类型检查', '关键视口检查', '确认不破坏既有交互'],
+    finalOutput: ['体验改动', '视觉/交互取舍', '验证结果', '残余问题'],
+  },
+  {
+    id: 'code-review',
+    label: '代码审查',
+    description: '风险优先、行为回归、测试缺口',
+    evidence: ['改动范围', '关键调用链', '潜在回归点'],
+    validation: ['指出必要测试', '核对错误处理和边界', '确认兼容性影响'],
+    finalOutput: ['按严重程度排序的问题', '开放问题', '测试缺口'],
+  },
+  {
+    id: 'migration',
+    label: '迁移改造',
+    description: '兼容策略、分步切换、回滚路径',
+    evidence: ['旧路径与新路径差异', '数据/配置/接口影响', '依赖清单'],
+    validation: ['迁移前后等价性检查', '构建/测试', '回滚或降级方案检查'],
+    finalOutput: ['迁移步骤', '兼容与回滚', '验证结果', '上线注意事项'],
+  },
+  {
+    id: 'release-check',
+    label: '发布检查',
+    description: '变更、验证、风险、交付说明',
+    evidence: ['变更文件和用户影响', '验证命令', '已知风险'],
+    validation: ['QA/SHIP 或等价检查', '构建', '关键路径冒烟'],
+    finalOutput: ['发布摘要', '验证矩阵', '风险与缓解', '发布/回滚建议'],
+  },
+]
+
 function normalizeCommonPrompts(value: unknown): CommonPrompt[] {
   if (!Array.isArray(value)) return DEFAULT_COMMON_PROMPTS
   const prompts = value
@@ -268,6 +336,67 @@ function getToolCommand(message: ConversationMessage): string {
   const command = message.toolInput?.command
   if (typeof command === 'string') return command
   return ''
+}
+
+function summarizeOpsBriefAgent(
+  agent: Pick<OpsBriefAgent, 'agentId' | 'name' | 'status' | 'childSessionId' | 'workDir' | 'prompt'>,
+  messages: ConversationMessage[] = [],
+  activities: ActivityEvent[] = [],
+): OpsBriefAgent {
+  const files: string[] = []
+  const seenFiles = new Set<string>()
+  const commands: string[] = []
+  const validationCommands: string[] = []
+  let toolCount = 0
+  let failedToolCount = 0
+
+  for (const message of messages) {
+    if (message.fileChange?.filePath && !seenFiles.has(message.fileChange.filePath)) {
+      seenFiles.add(message.fileChange.filePath)
+      files.push(message.fileChange.filePath)
+    }
+    if (message.role === 'tool_use') {
+      toolCount += 1
+      const command = getToolCommand(message)
+      if (command) {
+        commands.push(command)
+        if (isValidationCommand(command)) {
+          validationCommands.push(command)
+        }
+      }
+    } else if (message.role === 'tool_result' && message.isError) {
+      failedToolCount += 1
+    }
+  }
+
+  for (const activity of activities) {
+    if (activity.type === 'command_execute' && activity.detail) {
+      commands.push(activity.detail)
+      if (isValidationCommand(activity.detail)) {
+        validationCommands.push(activity.detail)
+      }
+    }
+  }
+
+  const risk = agent.status === 'failed'
+    ? 'Agent 执行失败'
+    : agent.status === 'cancelled'
+      ? 'Agent 已取消'
+      : failedToolCount > 0
+        ? `${failedToolCount} 个工具结果异常`
+        : files.length > 0 && validationCommands.length === 0
+          ? '有改动但缺少验证证据'
+          : undefined
+
+  return {
+    ...agent,
+    lastFiles: files.slice(-3).map(getShortFileName),
+    lastCommand: compactText(commands[commands.length - 1] || '', 72),
+    risk,
+    toolCount,
+    failedToolCount,
+    validationCount: validationCommands.length,
+  }
 }
 
 function isValidationCommand(command: string): boolean {
@@ -395,6 +524,46 @@ function buildGatePrompt(gate: DeliveryReadinessGate, snapshot: OpsBriefSnapshot
   ].join('\n')
 }
 
+function buildTeamPlaybookPrompt(template: TeamPlaybookTemplate, snapshot: OpsBriefSnapshot): string {
+  const changedFiles = snapshot.lastFiles.length > 0
+    ? snapshot.lastFiles.map(file => `- ${file}`).join('\n')
+    : '- 暂未识别到文件改动'
+  const risks = snapshot.risks.map(risk => `- ${risk}`).join('\n')
+  const evidence = snapshot.evidence.map(item => `- ${item}`).join('\n')
+
+  return [
+    `请按「${template.label}」团队模板推进当前 Mission。`,
+    '',
+    `模板目标：${template.description}`,
+    '',
+    '## 当前上下文',
+    `- 项目：${snapshot.projectName}`,
+    `- 目标：${snapshot.goal}`,
+    `- 阶段：${snapshot.phaseLabel}`,
+    `- 交付状态：${snapshot.deliveryReadiness}`,
+    `- 健康分：${snapshot.missionHealthScore}`,
+    snapshot.lastCommand ? `- 最近命令：${snapshot.lastCommand}` : '',
+    '',
+    '## 最近文件',
+    changedFiles,
+    '',
+    '## 已有风险与证据',
+    risks,
+    evidence,
+    '',
+    '## 必要证据',
+    template.evidence.map(item => `- ${item}`).join('\n'),
+    '',
+    '## 验证要求',
+    template.validation.map(item => `- ${item}`).join('\n'),
+    '',
+    '## 最终输出',
+    template.finalOutput.map(item => `- ${item}`).join('\n'),
+    '',
+    '请先判断当前证据是否足够；如果不足，先补齐最小缺口。涉及代码改动时，完成后运行必要验证并说明结果。',
+  ].filter(Boolean).join('\n')
+}
+
 function getAgentStatusLabel(status: OpsBriefAgent['status']): string {
   return {
     pending: '待启动',
@@ -412,6 +581,10 @@ function buildSupervisorDispatchPrompt(snapshot: OpsBriefSnapshot): string {
       agent.workDir ? `  - 工作目录：${agent.workDir}` : '',
       agent.childSessionId ? `  - 子会话：${agent.childSessionId}` : '',
       agent.prompt ? `  - 当前任务：${compactText(agent.prompt, 120)}` : '',
+      agent.lastFiles.length > 0 ? `  - 最近文件：${agent.lastFiles.join('、')}` : '',
+      agent.lastCommand ? `  - 最近命令：${agent.lastCommand}` : '',
+      agent.validationCount > 0 ? `  - 验证证据：${agent.validationCount} 条` : '',
+      agent.risk ? `  - 风险：${agent.risk}` : '',
     ].filter(Boolean).join('\n')).join('\n')
     : '- 当前还没有可见子 Agent，请先按工作流拆分职责，再决定是否需要创建 Agent。'
   const gates = snapshot.readinessGates
@@ -420,6 +593,9 @@ function buildSupervisorDispatchPrompt(snapshot: OpsBriefSnapshot): string {
   const files = snapshot.lastFiles.length > 0
     ? snapshot.lastFiles.map(file => `- ${file}`).join('\n')
     : '- 暂未识别到文件改动'
+  const coordinationRisks = snapshot.agentCoordinationRisks.length > 0
+    ? snapshot.agentCoordinationRisks.map(risk => `- ${risk}`).join('\n')
+    : '- 暂未发现明显 Agent 协作冲突'
 
   return [
     '请以 Supervisor 的方式梳理当前多 Agent 工作板，并给出下一轮可执行分派。',
@@ -433,6 +609,9 @@ function buildSupervisorDispatchPrompt(snapshot: OpsBriefSnapshot): string {
     '',
     '## 当前 Agent',
     agents,
+    '',
+    '## 协作风险',
+    coordinationRisks,
     '',
     '## 交付门禁',
     gates,
@@ -450,6 +629,55 @@ function buildSupervisorDispatchPrompt(snapshot: OpsBriefSnapshot): string {
     '- 每个工作流都要包含最小验证方式；如果不需要代码改动，也要说明交付证据。',
     '- 最后输出：推荐分派、并行/串行顺序、风险处理、合并与交付检查清单。',
   ].filter(Boolean).join('\n')
+}
+
+type SupervisorPromptMode = 'rebalance' | 'unblock' | 'validate' | 'merge'
+
+function buildSupervisorActionPrompt(snapshot: OpsBriefSnapshot, mode: SupervisorPromptMode): string {
+  const modeConfig = {
+    rebalance: {
+      title: '请重新平衡当前多 Agent 工作板。',
+      focus: [
+        '- 识别是否有 Agent 工作边界重叠、等待依赖、任务过大或职责不清。',
+        '- 给出新的 owner 分配、文件边界和并行/串行顺序。',
+        '- 保留已经完成的工作，不要要求重做已有成果。',
+      ],
+    },
+    unblock: {
+      title: '请优先处理当前多 Agent 工作板里的阻塞。',
+      focus: [
+        '- 找出失败、取消、等待确认、验证缺口或交付门禁阻塞。',
+        '- 给出最小解阻塞动作，明确谁处理、需要看哪些证据、完成后如何验证。',
+        '- 如果阻塞不影响交付，请说明依据和保留风险。',
+      ],
+    },
+    validate: {
+      title: '请为当前多 Agent 工作生成验证计划。',
+      focus: [
+        '- 按工作流列出每个 Agent 产出的最小验证命令或人工检查证据。',
+        '- 优先覆盖改动文件、失败门禁、最近命令和交付风险。',
+        '- 输出可直接执行的验证顺序，并说明失败时的修复归属。',
+      ],
+    },
+    merge: {
+      title: '请生成当前多 Agent 工作的合并与交付摘要。',
+      focus: [
+        '- 汇总每个 Agent 的职责、产出、风险、验证证据和剩余事项。',
+        '- 检查是否存在重复所有权、未验证改动或阻塞门禁。',
+        '- 输出合并顺序、最终交付说明和用户下一步。',
+      ],
+    },
+  }[mode]
+
+  return [
+    buildSupervisorDispatchPrompt(snapshot),
+    '',
+    '## 本次动作',
+    modeConfig.title,
+    '',
+    '## 重点要求',
+    modeConfig.focus.join('\n'),
+  ].join('\n')
 }
 
 function unwrapIpcData<T = any>(result: any): T | undefined {
@@ -909,11 +1137,42 @@ const OpsBrief = React.memo(function OpsBrief({
               <div className="mt-3 rounded-lg border border-border-subtle bg-bg-primary/45 p-3">
                 <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
                   <div className="flex items-center gap-2">
-                    <Users size={14} className={snapshot.activeAgentCount > 0 ? 'text-accent-purple' : 'text-text-muted'} />
+                    <BookMarked size={14} className="text-accent-blue" />
+                    <span className="text-xs font-semibold text-text-secondary">团队模板</span>
+                    <span className="rounded-md bg-accent-blue/10 px-1.5 py-0.5 text-[10px] font-medium text-accent-blue">
+                      {TEAM_PLAYBOOK_TEMPLATES.length} 个 playbook
+                    </span>
+                  </div>
+                </div>
+                <div className="grid gap-1.5 sm:grid-cols-2 lg:grid-cols-3">
+                  {TEAM_PLAYBOOK_TEMPLATES.map(template => (
+                    <button
+                      key={template.id}
+                      type="button"
+                      onClick={() => onInsertPrompt(buildTeamPlaybookPrompt(template, snapshot))}
+                      className="min-w-0 rounded-md border border-border-subtle bg-bg-primary/70 px-2 py-2 text-left transition-colors hover:border-accent-blue/30 hover:bg-bg-hover"
+                      title={template.description}
+                    >
+                      <div className="truncate text-[11px] font-semibold text-text-primary">{template.label}</div>
+                      <div className="mt-0.5 truncate text-[10px] text-text-muted">{template.description}</div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="mt-3 rounded-lg border border-border-subtle bg-bg-primary/45 p-3">
+                <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <Users size={14} className={snapshot.agentConflictCount > 0 ? 'text-accent-yellow' : snapshot.activeAgentCount > 0 ? 'text-accent-purple' : 'text-text-muted'} />
                     <span className="text-xs font-semibold text-text-secondary">协作看板</span>
-                    <span className={`rounded-md px-1.5 py-0.5 text-[10px] font-medium ${snapshot.blockedAgentCount > 0 ? 'bg-accent-red/10 text-accent-red' : snapshot.activeAgentCount > 0 ? 'bg-accent-purple/10 text-accent-purple' : 'bg-bg-tertiary text-text-muted'}`}>
+                    <span className={`rounded-md px-1.5 py-0.5 text-[10px] font-medium ${snapshot.agentConflictCount > 0 ? 'bg-accent-yellow/10 text-accent-yellow' : snapshot.blockedAgentCount > 0 ? 'bg-accent-red/10 text-accent-red' : snapshot.activeAgentCount > 0 ? 'bg-accent-purple/10 text-accent-purple' : 'bg-bg-tertiary text-text-muted'}`}>
                       {snapshot.agentCount > 0 ? `${snapshot.activeAgentCount} 执行中 / ${snapshot.agentCount} 总数` : '未启用'}
                     </span>
+                    {snapshot.agentConflictCount > 0 && (
+                      <span className="rounded-md bg-accent-yellow/10 px-1.5 py-0.5 text-[10px] font-medium text-accent-yellow">
+                        {snapshot.agentConflictCount} 个冲突信号
+                      </span>
+                    )}
                   </div>
                   <button
                     type="button"
@@ -923,6 +1182,33 @@ const OpsBrief = React.memo(function OpsBrief({
                     生成分派
                   </button>
                 </div>
+                <div className="mb-2 flex flex-wrap gap-1.5">
+                  {([
+                    ['rebalance', '再平衡'],
+                    ['unblock', '解阻塞'],
+                    ['validate', '验证'],
+                    ['merge', '合并摘要'],
+                  ] as Array<[SupervisorPromptMode, string]>).map(([mode, label]) => (
+                    <button
+                      key={mode}
+                      type="button"
+                      onClick={() => onInsertPrompt(buildSupervisorActionPrompt(snapshot, mode))}
+                      className="rounded-md bg-bg-primary/70 px-2 py-1 text-[11px] font-medium text-text-secondary transition-colors hover:bg-bg-hover hover:text-accent-purple"
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+                {snapshot.agentCoordinationRisks.length > 0 && (
+                  <div className="mb-2 space-y-1 rounded-md border border-accent-yellow/20 bg-accent-yellow/5 px-3 py-2">
+                    {snapshot.agentCoordinationRisks.slice(0, 3).map(risk => (
+                      <div key={risk} className="flex min-w-0 items-start gap-2 text-[11px] leading-5 text-text-secondary">
+                        <AlertTriangle size={12} className="mt-1 shrink-0 text-accent-yellow" />
+                        <span className="min-w-0">{risk}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
                 {snapshot.agents.length > 0 ? (
                   <div className="grid gap-2 md:grid-cols-2">
                     {snapshot.agents.slice(0, 4).map(agent => (
@@ -944,6 +1230,30 @@ const OpsBrief = React.memo(function OpsBrief({
                         <div className="mt-1 truncate font-mono text-[11px] text-text-muted" title={agent.workDir || agent.childSessionId || agent.agentId}>
                           {agent.workDir || agent.childSessionId || agent.agentId}
                         </div>
+                        {(agent.lastFiles.length > 0 || agent.lastCommand || agent.risk) && (
+                          <div className="mt-2 space-y-1 border-t border-border-subtle pt-2">
+                            {agent.lastFiles.length > 0 && (
+                              <div className="flex min-w-0 flex-wrap gap-1">
+                                {agent.lastFiles.map(file => (
+                                  <span key={file} className="max-w-full truncate rounded bg-bg-tertiary px-1.5 py-0.5 text-[10px] font-medium text-text-muted" title={file}>
+                                    {file}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
+                            {agent.lastCommand && (
+                              <div className="truncate font-mono text-[10px] text-text-muted" title={agent.lastCommand}>
+                                {agent.lastCommand}
+                              </div>
+                            )}
+                            {agent.risk && (
+                              <div className="flex min-w-0 items-start gap-1.5 text-[10px] leading-4 text-accent-yellow">
+                                <AlertTriangle size={11} className="mt-0.5 shrink-0" />
+                                <span className="min-w-0">{agent.risk}</span>
+                              </div>
+                            )}
+                          </div>
+                        )}
                       </div>
                     ))}
                   </div>
@@ -1170,6 +1480,8 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
   const selectedSessionId = useSessionStore(state => state.selectedSessionId)
   const session = useSessionStore(state => state.sessions.find(s => s.id === sessionId))
   const sessionAgents = useSessionStore(state => state.agents[sessionId] || [])
+  const agentConversations = useSessionStore(state => state.conversations)
+  const agentActivities = useSessionStore(state => state.activities)
   const fetchAgents = useSessionStore(state => state.fetchAgents)
   const createTask = useTaskStore(state => state.createTask)
   const setViewMode = useUIStore(state => state.setViewMode)
@@ -1591,16 +1903,45 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
 
     const hasMissionRisk = risks.some(risk => !risk.includes('暂无明显'))
     const primarySignal = compactText(hasMissionRisk ? risks[0] : nextActions[0], 54)
-    const agents: OpsBriefAgent[] = sessionAgents.map(agent => ({
-      agentId: agent.agentId,
-      name: agent.name,
-      status: agent.status,
-      childSessionId: agent.childSessionId,
-      workDir: agent.workDir,
-      prompt: agent.prompt,
-    }))
-    const activeAgentCount = agents.filter(agent => agent.status === 'pending' || agent.status === 'running').length
+    const agents: OpsBriefAgent[] = sessionAgents.map(agent => summarizeOpsBriefAgent(
+      {
+        agentId: agent.agentId,
+        name: agent.name,
+        status: agent.status,
+        childSessionId: agent.childSessionId,
+        workDir: agent.workDir,
+        prompt: agent.prompt,
+      },
+      agent.childSessionId ? agentConversations[agent.childSessionId] : [],
+      agent.childSessionId ? agentActivities[agent.childSessionId] : [],
+    ))
+    const activeAgents = agents.filter(agent => agent.status === 'pending' || agent.status === 'running')
+    const activeAgentCount = activeAgents.length
     const blockedAgentCount = agents.filter(agent => agent.status === 'failed' || agent.status === 'cancelled').length
+    const workDirOwners = new Map<string, OpsBriefAgent[]>()
+    for (const agent of activeAgents) {
+      const key = (agent.workDir || '').trim().toLowerCase()
+      if (!key) continue
+      workDirOwners.set(key, [...(workDirOwners.get(key) || []), agent])
+    }
+    const overlappingWorkDirs = Array.from(workDirOwners.entries())
+      .filter(([, owners]) => owners.length > 1)
+    const fileOwners = new Map<string, OpsBriefAgent[]>()
+    for (const agent of activeAgents) {
+      for (const file of agent.lastFiles) {
+        const key = file.toLowerCase()
+        fileOwners.set(key, [...(fileOwners.get(key) || []), agent])
+      }
+    }
+    const overlappingFiles = Array.from(fileOwners.entries())
+      .filter(([, owners]) => owners.length > 1)
+    const agentCoordinationRisks = [
+      ...overlappingWorkDirs.map(([workDir, owners]) => `多个执行中的 Agent 共享工作目录：${owners.map(agent => agent.name || agent.agentId).join('、')} -> ${workDir}`),
+      ...overlappingFiles.map(([file, owners]) => `多个执行中的 Agent 最近触达同一文件：${owners.map(agent => agent.name || agent.agentId).join('、')} -> ${file}`),
+      blockedAgentCount > 0 ? `${blockedAgentCount} 个 Agent 处于失败或取消状态，需要确认是否影响交付` : '',
+      activeAgentCount > 3 ? `${activeAgentCount} 个 Agent 正在并行，建议确认 owner 边界和合并顺序` : '',
+    ].filter(Boolean)
+    const agentConflictCount = overlappingWorkDirs.length + overlappingFiles.length + blockedAgentCount
 
     return {
       projectName: getProjectName(workingDirectory, session?.name || session?.config?.name),
@@ -1640,10 +1981,14 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
       agentCount: agents.length,
       activeAgentCount,
       blockedAgentCount,
+      agentConflictCount,
+      agentCoordinationRisks,
     }
   }, [
     messages,
     sessionAgents,
+    agentConversations,
+    agentActivities,
     workingDirectory,
     session?.name,
     session?.config?.name,

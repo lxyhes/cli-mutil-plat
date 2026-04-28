@@ -95,7 +95,7 @@ Scope:
 - Add supervisor prompts for rebalance, unblock, validate, and merge summary.
 - Highlight conflicts or duplicate ownership before agents overlap.
 
-Status: started. The conversation task cockpit now surfaces a compact collaboration board for child agents, including active/total/blocked counts and recent agent status. It also adds a Supervisor dispatch prompt that converts the current mission, delivery gates, changed files, risks, evidence, and visible agent state into an actionable ownership and validation plan.
+Status: completed for the first usable slice. The conversation task cockpit now surfaces a compact collaboration board for child agents, including active/total/blocked counts, recent agent status, touched files, last command, per-agent risk, and coordination risk signals. It also adds Supervisor prompts for dispatch, rebalance, unblock, validate, and merge summary, converting the current mission, delivery gates, changed files, risks, evidence, visible agent state, and possible ownership conflicts into actionable ownership and validation plans.
 
 ### Phase 4: Team Templates
 
@@ -106,6 +106,8 @@ Scope:
 - Templates for bug fix, feature delivery, UI polish, code review, migration, release check.
 - Each template defines expected evidence, validation, and final output.
 - Support project-specific defaults from memory.
+
+Status: started. The task cockpit now exposes six reusable team playbooks for bug fix, feature delivery, UI polish, code review, migration, and release check. Each playbook inserts a context-aware prompt with current mission state, changed files, risks, evidence, expected evidence, validation requirements, and final output format.
 
 ### Phase 5: Organization Trust Layer
 

@@ -440,14 +440,14 @@ export class CodexAppServerAdapter extends BaseProviderAdapter {
       }
       if (!foundInPath) {
         const installHint = process.platform === 'win32'
-          ? '璇烽€氳繃浠ヤ笅鏂瑰紡涔嬩竴瀹夎 Codex CLI:\n' +
+          ? '请通过以下方式之一安装 Codex CLI:\n' +
             '  1. npm install -g @openai/codex\n' +
-            '  2. 瀹夎 Cursor 鎴?Trae 缂栬緫鍣紙鍐呯疆 Codex锛塡n' +
-            '  3. 鍦?Provider 绠＄悊涓皢 command 閰嶇疆涓?codex 鍙墽琛屾枃浠剁殑缁濆璺緞'
-          : '璇烽€氳繃浠ヤ笅鏂瑰紡涔嬩竴瀹夎 Codex CLI:\n' +
+            '  2. 安装 Cursor 或 Trae 编辑器（内置 Codex）\n' +
+            '  3. 在 Provider 管理中将 command 配置为 codex 可执行文件的绝对路径'
+          : '请通过以下方式之一安装 Codex CLI:\n' +
             '  1. npm install -g @openai/codex\n' +
-            '  2. 鍦?Provider 绠＄悊涓皢 command 閰嶇疆涓?codex 鍙墽琛屾枃浠剁殑缁濆璺緞'
-        const errMessage = `Codex CLI 鏈畨瑁呮垨涓嶅湪 PATH 涓紙鏌ユ壘鍛戒护: ${codexCommand}锛夈€俓n${installHint}`
+            '  2. 在 Provider 管理中将 command 配置为 codex 可执行文件的绝对路径'
+        const errMessage = `Codex CLI 未安装或不在 PATH 中（查找命令: ${codexCommand}）。\n${installHint}`
         console.error(`[CodexAdapter] ${errMessage}`)
         this.emitEvent(sessionId, {
           type: 'error',
@@ -853,7 +853,7 @@ export class CodexAppServerAdapter extends BaseProviderAdapter {
     const session = this.sessions.get(sessionId)
     if (!session) throw new Error(`Session ${sessionId} not found`)
     if (session.adapter.status === 'running') {
-      throw new Error('褰撳墠杞浠嶅湪鎵ц锛岃绛夊緟瀹屾垚鍚庡啀鍒囨崲妯″瀷')
+      throw new Error('当前轮次仍在执行，请等待完成后再切换模型')
     }
 
     const baseInstructions = session.baseInstructions ?? await this.resolveSystemPrompt(session.config.systemPrompt as any)
@@ -1085,7 +1085,7 @@ export class CodexAppServerAdapter extends BaseProviderAdapter {
         id: uuidv4(),
         sessionId,
         role: 'system' as const,
-        content: `鈴?Codex 浠嶅湪澶勭悊涓?.. (宸茬瓑寰?${timeStr}, 闈欓粯 ${silentSeconds}s)`,
+        content: `Codex 仍在处理中... (已等待 ${timeStr}, 静默 ${silentSeconds}s)`,
         timestamp: new Date().toISOString(),
       }
       session.adapter.messages.push(heartbeatMsg)
@@ -1517,7 +1517,7 @@ export class CodexAppServerAdapter extends BaseProviderAdapter {
     'item/commandExecution/requestApproval': (sid, s, ts, p) => {
       const command: string = p.command || ''
       this.handleApprovalRequest(sid, s, ts, {
-        itemId: String(p.itemId || ''), prompt: `鎵ц鍛戒护闇€瑕佹巿鏉?\n${command.slice(0, 300)}`,
+        itemId: String(p.itemId || ''), prompt: `执行命令需要授权\n${command.slice(0, 300)}`,
         toolName: 'commandExecution', toolInput: { command },
       })
     },
@@ -1544,7 +1544,7 @@ export class CodexAppServerAdapter extends BaseProviderAdapter {
     },
     'codex/event/task_started': () => {},
     'codex/event/mcp_startup_update': (sid, _s, _ts, p) => {
-      console.log(`[CodexAdapter][${sid}] MCP startup: ${p.server || p.serverId || ''} 鈫?${p.status || ''}`)
+      console.log(`[CodexAdapter][${sid}] MCP startup: ${p.server || p.serverId || ''} -> ${p.status || ''}`)
     },
     'codex/event/mcp_startup_complete': (sid, _s, _ts, p) => {
       const ready: string[] = p.ready || []; const failed: string[] = p.failed || []
@@ -1580,7 +1580,7 @@ export class CodexAppServerAdapter extends BaseProviderAdapter {
       const command = String(params.command || params?.input?.command || params?.toolInput?.command || '')
       const approvalItemId = String(params.itemId || params.id || params.approvalId || '')
       this.handleApprovalRequest(sessionId, session, ts, {
-        itemId: approvalItemId, prompt: `鎵ц鍛戒护闇€瑕佹巿鏉僜n${command.slice(0, 300)}`,
+        itemId: approvalItemId, prompt: `执行命令需要授权\n${command.slice(0, 300)}`,
         toolName: 'commandExecution', toolInput: { command },
       })
       return
@@ -1622,7 +1622,7 @@ export class CodexAppServerAdapter extends BaseProviderAdapter {
       session.activeToolUseIds.add(toolUseId)
       const toolMsg = {
         id: uuidv4(), sessionId, role: 'tool_use' as const,
-        content: `鎵ц: ${command.slice(0, 120)}`, timestamp: ts,
+        content: `执行: ${command.slice(0, 120)}`, timestamp: ts,
         toolName: 'shell', toolInput: { command } as Record<string, unknown>, toolUseId,
       }
       session.adapter.messages.push(toolMsg)
@@ -1680,7 +1680,7 @@ export class CodexAppServerAdapter extends BaseProviderAdapter {
       const command: string = String(item.command || 'shell command').slice(0, 160)
       const toolMsg = {
         id: uuidv4(), sessionId, role: 'tool_use' as const,
-        content: `鎵ц: ${command.slice(0, 120)}`, timestamp: ts,
+        content: `执行: ${command.slice(0, 120)}`, timestamp: ts,
         toolName: 'shell', toolInput: { command } as Record<string, unknown>, toolUseId,
       }
       session.adapter.messages.push(toolMsg)
@@ -1749,7 +1749,7 @@ export class CodexAppServerAdapter extends BaseProviderAdapter {
     console.error(`[CodexAdapter][${sessionId}] codex/event/error: ${errorMessage.slice(0, 500)}`)
     const errMsg = {
       id: uuidv4(), sessionId, role: 'system' as const,
-      content: `Codex 閿欒: ${errorMessage.slice(0, 500)}`, timestamp: ts,
+      content: `Codex 错误: ${errorMessage.slice(0, 500)}`, timestamp: ts,
     }
     session.adapter.messages.push(errMsg)
     this.emit('conversation-message', sessionId, errMsg)

@@ -650,7 +650,7 @@ export function registerSessionHandlers(deps: IpcDependencies): void {
           sessionId,
           ready: true,
           status: readyInfo.status,
-          error: readyInfo.error || '浼氳瘽鍚姩澶辫触',
+          error: readyInfo.error || '会话启动失败',
         }
       }
 
@@ -680,7 +680,7 @@ export function registerSessionHandlers(deps: IpcDependencies): void {
         throw new SpectrAIError({
           code: ErrorCode.INTERNAL,
           message: 'SDK V2 SessionManager not initialized',
-          userMessage: 'SDK V2 SessionManager 鏈垵濮嬪寲'
+          userMessage: 'SDK V2 SessionManager 未初始化'
         })
       }
 
@@ -712,7 +712,7 @@ export function registerSessionHandlers(deps: IpcDependencies): void {
         throw new SpectrAIError({
           code: ErrorCode.INTERNAL,
           message: 'SDK V2 SessionManager not initialized',
-          userMessage: 'SDK V2 SessionManager 鏈垵濮嬪寲'
+          userMessage: 'SDK V2 SessionManager 未初始化'
         })
       }
       if (smV2.getSession(sessionId)) {
@@ -764,7 +764,7 @@ export function registerSessionHandlers(deps: IpcDependencies): void {
         throw new SpectrAIError({
           code: ErrorCode.INTERNAL,
           message: 'SDK V2 SessionManager not initialized',
-          userMessage: 'SDK V2 SessionManager 鏈垵濮嬪寲'
+          userMessage: 'SDK V2 SessionManager 未初始化'
         })
       }
       await smV2.sendMessage(sessionId, input)
@@ -781,7 +781,7 @@ export function registerSessionHandlers(deps: IpcDependencies): void {
         throw new SpectrAIError({
           code: ErrorCode.INTERNAL,
           message: 'SDK V2 SessionManager not initialized',
-          userMessage: 'SDK V2 SessionManager 鏈垵濮嬪寲'
+          userMessage: 'SDK V2 SessionManager 未初始化'
         })
       }
       await smV2.sendConfirmation(sessionId, confirmed)
@@ -904,7 +904,7 @@ export function registerSessionHandlers(deps: IpcDependencies): void {
         throw new SpectrAIError({
           code: ErrorCode.INVALID_INPUT,
           message: 'Session name cannot be empty',
-          userMessage: '鍚嶇О涓嶈兘涓虹┖'
+          userMessage: '名称不能为空'
         })
       }
 
@@ -966,7 +966,7 @@ export function registerSessionHandlers(deps: IpcDependencies): void {
         throw new SpectrAIError({
           code: ErrorCode.INTERNAL,
           message: 'SDK V2 SessionManager not initialized',
-          userMessage: 'SDK V2 SessionManager 鏈垵濮嬪寲'
+          userMessage: 'SDK V2 SessionManager 未初始化'
         })
       }
 
@@ -975,7 +975,7 @@ export function registerSessionHandlers(deps: IpcDependencies): void {
         throw new SpectrAIError({
           code: ErrorCode.INVALID_INPUT,
           message: 'Model ID cannot be empty',
-          userMessage: '妯″瀷 ID 涓嶈兘涓虹┖'
+          userMessage: '模型 ID 不能为空'
         })
       }
       const reasoningEffort = options?.reasoningEffort
@@ -1004,7 +1004,7 @@ export function registerSessionHandlers(deps: IpcDependencies): void {
         throw new SpectrAIError({
           code: ErrorCode.INTERNAL,
           message: 'Failed to set model override',
-          userMessage: '璁剧疆妯″瀷瑕嗙洊澶辫触'
+          userMessage: '设置模型覆盖失败'
         })
       }
 
@@ -1034,7 +1034,7 @@ export function registerSessionHandlers(deps: IpcDependencies): void {
         throw new SpectrAIError({
           code: ErrorCode.INTERNAL,
           message: 'SDK V2 SessionManager not initialized',
-          userMessage: 'SDK V2 SessionManager 鏈垵濮嬪寲'
+          userMessage: 'SDK V2 SessionManager 未初始化'
         })
       }
 
@@ -1392,7 +1392,7 @@ export function registerSessionHandlers(deps: IpcDependencies): void {
         throw new SpectrAIError({
           code: ErrorCode.INTERNAL,
           message: 'SDK V2 SessionManager not initialized',
-          userMessage: 'SDK V2 SessionManager 鏈垵濮嬪寲'
+          userMessage: 'SDK V2 SessionManager 未初始化'
         })
       }
       const dispatch = await smV2.sendMessage(sessionId, message)
@@ -1410,7 +1410,7 @@ export function registerSessionHandlers(deps: IpcDependencies): void {
         throw new SpectrAIError({
           code: ErrorCode.INTERNAL,
           message: 'SDK V2 SessionManager not initialized',
-          userMessage: 'SDK V2 SessionManager 鏈垵濮嬪寲'
+          userMessage: 'SDK V2 SessionManager 未初始化'
         })
       }
       await smV2.abortSession(sessionId)
@@ -1442,7 +1442,7 @@ export function registerSessionHandlers(deps: IpcDependencies): void {
         throw new SpectrAIError({
           code: ErrorCode.INTERNAL,
           message: 'SDK V2 SessionManager not initialized',
-          userMessage: 'SDK V2 SessionManager 鏈垵濮嬪寲'
+          userMessage: 'SDK V2 SessionManager 未初始化'
         })
       }
       await smV2.sendConfirmation(sessionId, accept)
@@ -1465,7 +1465,7 @@ export function registerSessionHandlers(deps: IpcDependencies): void {
       if (!smV2) throw new SpectrAIError({
           code: ErrorCode.INTERNAL,
           message: 'SDK V2 SessionManager not initialized',
-          userMessage: 'SDK V2 SessionManager 鏈垵濮嬪寲'
+          userMessage: 'SDK V2 SessionManager 未初始化'
         })
       await smV2.sendQuestionAnswer(sessionId, answers)
       return createSuccessResponse({ success: true })
@@ -1482,7 +1482,7 @@ export function registerSessionHandlers(deps: IpcDependencies): void {
       if (!smV2) throw new SpectrAIError({
           code: ErrorCode.INTERNAL,
           message: 'SDK V2 SessionManager not initialized',
-          userMessage: 'SDK V2 SessionManager 鏈垵濮嬪寲'
+          userMessage: 'SDK V2 SessionManager 未初始化'
         })
       await smV2.sendPlanApproval(sessionId, approved)
       return createSuccessResponse({ success: true })
@@ -1499,7 +1499,7 @@ export function registerSessionHandlers(deps: IpcDependencies): void {
       if (!smV2) throw new SpectrAIError({
           code: ErrorCode.INTERNAL,
           message: 'SDK V2 SessionManager not initialized',
-          userMessage: 'SDK V2 SessionManager 鏈垵濮嬪寲'
+          userMessage: 'SDK V2 SessionManager 未初始化'
         })
       const messages = smV2.getScheduledMessages(sessionId)
       return createSuccessResponse({ messages })
@@ -1516,7 +1516,7 @@ export function registerSessionHandlers(deps: IpcDependencies): void {
       if (!smV2) throw new SpectrAIError({
           code: ErrorCode.INTERNAL,
           message: 'SDK V2 SessionManager not initialized',
-          userMessage: 'SDK V2 SessionManager 鏈垵濮嬪寲'
+          userMessage: 'SDK V2 SessionManager 未初始化'
         })
       const cleared = smV2.clearScheduledMessages(sessionId)
       return createSuccessResponse({ cleared })
