@@ -1,11 +1,13 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   buildDeliveryMetricActionPrompt,
+  configureDeliveryMetricStorageAdapter,
   consumePendingDeliveryMetricAction,
   formatMetricAge,
   getDeliveryMetricActionItems,
   getDeliveryMetricFreshness,
   loadDeliveryMetricActionLifecycles,
+  loadDeliveryMetricSnapshots,
   markDeliveryMetricActionSent,
   queueDeliveryMetricAction,
   recordDeliveryMetricSnapshot,
@@ -60,6 +62,7 @@ function installWindowStorageMock() {
 }
 
 afterEach(() => {
+  configureDeliveryMetricStorageAdapter(null)
   vi.unstubAllGlobals()
 })
 
@@ -111,6 +114,43 @@ describe('delivery metrics summary', () => {
       projectMemoryCount: 1,
       blockedCount: 1,
     })
+  })
+})
+
+describe('delivery metric storage adapter', () => {
+  it('loads legacy metric arrays and saves a versioned storage envelope', () => {
+    const { storage, events } = installWindowStorageMock()
+    storage.set('prismops-delivery-metrics-v1', JSON.stringify([
+      metric({ sessionId: 'legacy', updatedAt: '2026-04-27T10:00:00.000Z' }),
+    ]))
+
+    expect(loadDeliveryMetricSnapshots().map(record => record.sessionId)).toEqual(['legacy'])
+
+    recordDeliveryMetricSnapshot(metric({ sessionId: 'current', updatedAt: '2026-04-28T10:00:00.000Z' }))
+
+    const stored = JSON.parse(storage.get('prismops-delivery-metrics-v1') || '{}')
+
+    expect(stored).toMatchObject({
+      schema: 'prismops.delivery-metrics',
+      version: 1,
+    })
+    expect(stored.data.map((record: DeliveryMetricSnapshotRecord) => record.sessionId)).toEqual(['current', 'legacy'])
+    expect(events).toContain('prismops-delivery-metrics-updated')
+  })
+
+  it('can run through an injected storage adapter without window storage', () => {
+    const storage = new Map<string, string>()
+    configureDeliveryMetricStorageAdapter({
+      getItem: key => storage.get(key) ?? null,
+      setItem: (key, value) => {
+        storage.set(key, value)
+      },
+    })
+
+    recordDeliveryMetricSnapshot(metric({ sessionId: 'adapter-backed' }))
+
+    expect(loadDeliveryMetricSnapshots().map(record => record.sessionId)).toEqual(['adapter-backed'])
+    expect(JSON.parse(storage.get('prismops-delivery-metrics-v1') || '{}').schema).toBe('prismops.delivery-metrics')
   })
 })
 
@@ -241,7 +281,7 @@ describe('delivery metric action queue ranking', () => {
   })
 
   it('tracks queued and inserted lifecycle without duplicating repeated clicks', () => {
-    installWindowStorageMock()
+    const { storage } = installWindowStorageMock()
     const item = getDeliveryMetricActionItems([
       metric({ sessionId: 'session-a', validationCount: 0 }),
     ])[0]
@@ -254,6 +294,14 @@ describe('delivery metric action queue ranking', () => {
     expect(queuedRecords).toHaveLength(1)
     expect(queuedRecords[0].status).toBe('queued')
     expect(queuedRecords[0].clickCount).toBe(2)
+    expect(JSON.parse(storage.get('prismops-delivery-actions-v1') || '{}')).toMatchObject({
+      schema: 'prismops.delivery-metrics',
+      version: 1,
+    })
+    expect(JSON.parse(storage.get('prismops-delivery-action-lifecycle-v1') || '{}')).toMatchObject({
+      schema: 'prismops.delivery-metrics',
+      version: 1,
+    })
 
     const consumed = consumePendingDeliveryMetricAction('session-a')
     const insertedRecords = loadDeliveryMetricActionLifecycles()

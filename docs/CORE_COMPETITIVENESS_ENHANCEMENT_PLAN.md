@@ -306,7 +306,7 @@ Definition of done:
 
 ### Reliability And Evidence Sprint
 
-Status: first reliability slice completed.
+Status: reliability and evidence sprint completed.
 
 Completed:
 
@@ -318,8 +318,9 @@ Completed:
 - Added evidence timeline excerpts and schema metadata to trust report and delivery pack Markdown exports.
 - Added Dashboard empty, stale, and mixed-freshness states for delivery metrics.
 - Added queued remediation action lifecycle tracking for queued, inserted, sent, and completed states.
+- Moved delivery metric persistence behind a versioned storage adapter with legacy localStorage compatibility.
+- Added visual QA snapshot checks for Dashboard empty/active states and cockpit collapsed/expanded states.
 
 Remaining:
 
-- Move metric persistence behind a project-level storage adapter.
-- Add visual QA screenshots for cockpit and Dashboard states.
+- Continue with Phase C project memory flywheel: categorized memory extraction, source references, and delivery-pack memory suggestions.

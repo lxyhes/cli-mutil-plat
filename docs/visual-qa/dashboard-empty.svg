@@ -1,0 +1,68 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="960" viewBox="0 0 1440 960" role="img" aria-label="Dashboard Empty Metrics">
+  <rect width="100%" height="100%" fill="#f7f8fb" />
+  <rect x="18" y="18" width="1404" height="924" rx="10" fill="#ffffff" stroke="#dfe5ee" />
+  <text x="40" y="918" font-size="11" font-weight="500" fill="#758293">Dashboard 空指标态</text>
+  <rect x="18" y="18" width="1404" height="44" rx="10" fill="#fbfcfe" stroke="#dfe5ee" />
+  <circle cx="44" cy="40" r="5" fill="#76b900" />
+  <text x="62" y="44" font-size="13" font-weight="700" fill="#26313f">PrismOps Dashboard</text>
+  <text x="1110" y="44" font-size="12" font-weight="500" fill="#758293">等待会话产生指标</text>
+  <rect x="32" y="74" width="243.2" height="82" rx="8" fill="#f2f8ff" stroke="#bdd9fb" />
+  <text x="46" y="108" font-size="24" font-weight="800" fill="#26313f">0</text>
+  <text x="46" y="132" font-size="11" font-weight="500" fill="#758293">总会话</text>
+  <rect x="285.2" y="74" width="243.2" height="82" rx="8" fill="#f5fbef" stroke="#c8e4b6" />
+  <text x="299.2" y="108" font-size="24" font-weight="800" fill="#26313f">0</text>
+  <text x="299.2" y="132" font-size="11" font-weight="500" fill="#758293">正在处理</text>
+  <rect x="538.4" y="74" width="243.2" height="82" rx="8" fill="#fff8e8" stroke="#f0d18e" />
+  <text x="552.4" y="108" font-size="24" font-weight="800" fill="#26313f">0</text>
+  <text x="552.4" y="132" font-size="11" font-weight="500" fill="#758293">等你继续</text>
+  <rect x="791.6" y="74" width="243.2" height="82" rx="8" fill="#fff4f3" stroke="#f2b8b5" />
+  <text x="805.6" y="108" font-size="24" font-weight="800" fill="#26313f">0</text>
+  <text x="805.6" y="132" font-size="11" font-weight="500" fill="#758293">需要处理</text>
+  <rect x="1044.8" y="74" width="243.2" height="82" rx="8" fill="#fbfcfe" stroke="#dfe5ee" />
+  <text x="1058.8" y="108" font-size="24" font-weight="800" fill="#26313f">0</text>
+  <text x="1058.8" y="132" font-size="11" font-weight="500" fill="#758293">已完成</text>
+  <rect x="32" y="176" width="1256" height="42" rx="8" fill="#f2f8ff" stroke="#bdd9fb" />
+  <text x="48" y="202" font-size="12" font-weight="500" fill="#758293">还没有可用交付指标。打开会话并产生工具、验证或交付包后，这里会开始统计。</text>
+  <rect x="32" y="236" width="201" height="92" rx="8" fill="#fbfcfe" stroke="#dfe5ee" />
+  <text x="44" y="258" font-size="11" font-weight="500" fill="#758293">综合得分</text>
+  <text x="44" y="286" font-size="22" font-weight="800" fill="#26313f">--</text>
+  <text x="44" y="309" font-size="10.5" font-weight="500" fill="#758293">安全会话 0%</text>
+  <rect x="243" y="236" width="201" height="92" rx="8" fill="#fbfcfe" stroke="#dfe5ee" />
+  <text x="255" y="258" font-size="11" font-weight="500" fill="#758293">交付包率</text>
+  <text x="255" y="286" font-size="22" font-weight="800" fill="#26313f">0%</text>
+  <text x="255" y="309" font-size="10.5" font-weight="500" fill="#758293">已导出交付包的会话占比</text>
+  <rect x="454" y="236" width="201" height="92" rx="8" fill="#fbfcfe" stroke="#dfe5ee" />
+  <text x="466" y="258" font-size="11" font-weight="500" fill="#758293">验证覆盖</text>
+  <text x="466" y="286" font-size="22" font-weight="800" fill="#26313f">0%</text>
+  <text x="466" y="309" font-size="10.5" font-weight="500" fill="#758293">代码改动会话中的验证占比</text>
+  <rect x="665" y="236" width="201" height="92" rx="8" fill="#fbfcfe" stroke="#dfe5ee" />
+  <text x="677" y="258" font-size="11" font-weight="500" fill="#758293">平均交付</text>
+  <text x="677" y="286" font-size="22" font-weight="800" fill="#26313f">暂无</text>
+  <text x="677" y="309" font-size="10.5" font-weight="500" fill="#758293">从任务开始到可交付证据</text>
+  <rect x="876" y="236" width="201" height="92" rx="8" fill="#fbfcfe" stroke="#dfe5ee" />
+  <text x="888" y="258" font-size="11" font-weight="500" fill="#758293">项目记忆</text>
+  <text x="888" y="286" font-size="22" font-weight="800" fill="#26313f">0</text>
+  <text x="888" y="309" font-size="10.5" font-weight="500" fill="#758293">已沉淀的复用知识条目</text>
+  <rect x="1087" y="236" width="201" height="92" rx="8" fill="#fbfcfe" stroke="#dfe5ee" />
+  <text x="1099" y="258" font-size="11" font-weight="500" fill="#758293">阻塞会话</text>
+  <text x="1099" y="286" font-size="22" font-weight="800" fill="#26313f">0</text>
+  <text x="1099" y="309" font-size="10.5" font-weight="500" fill="#758293">存在异常工具或错误状态</text>
+  <rect x="32" y="348" width="820" height="230" rx="8" fill="#fbfcfe" stroke="#dfe5ee" />
+  <text x="46" y="373" font-size="13" font-weight="700" fill="#26313f">活跃会话 (0)</text>
+  <rect x="44" y="392" width="796" height="30" rx="6" fill="#ffffff" stroke="#edf2f7" />
+  <text x="56" y="411" font-size="11.5" font-weight="500" fill="#758293">暂无活跃会话</text>
+  <rect x="876" y="348" width="412" height="230" rx="8" fill="#f2f8ff" stroke="#bdd9fb" />
+  <text x="890" y="373" font-size="13" font-weight="700" fill="#26313f">用量统计</text>
+  <rect x="888" y="392" width="388" height="30" rx="6" fill="#ffffff" stroke="#edf2f7" />
+  <text x="900" y="411" font-size="11.5" font-weight="500" fill="#758293">今日请求 0</text>
+  <rect x="888" y="428" width="388" height="30" rx="6" fill="#ffffff" stroke="#edf2f7" />
+  <text x="900" y="447" font-size="11.5" font-weight="500" fill="#758293">Token 0</text>
+  <rect x="888" y="464" width="388" height="30" rx="6" fill="#ffffff" stroke="#edf2f7" />
+  <text x="900" y="483" font-size="11.5" font-weight="500" fill="#758293">平均耗时 暂无</text>
+  <rect x="32" y="604" width="1256" height="260" rx="8" fill="#fbfcfe" stroke="#dfe5ee" />
+  <text x="46" y="629" font-size="13" font-weight="700" fill="#26313f">最近活动</text>
+  <rect x="44" y="648" width="1232" height="30" rx="6" fill="#ffffff" stroke="#edf2f7" />
+  <text x="56" y="667" font-size="11.5" font-weight="500" fill="#758293">暂无活动事件</text>
+  <rect x="44" y="684" width="1232" height="30" rx="6" fill="#ffffff" stroke="#edf2f7" />
+  <text x="56" y="703" font-size="11.5" font-weight="500" fill="#758293">等待会话运行后生成可审计证据</text>
+</svg>

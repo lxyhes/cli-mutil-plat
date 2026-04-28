@@ -4,9 +4,29 @@ export const DELIVERY_ACTION_EVENT = 'prismops-delivery-action-queued'
 const STORAGE_KEY = 'prismops-delivery-metrics-v1'
 const ACTION_STORAGE_KEY = 'prismops-delivery-actions-v1'
 const ACTION_LIFECYCLE_STORAGE_KEY = 'prismops-delivery-action-lifecycle-v1'
+const STORAGE_SCHEMA = 'prismops.delivery-metrics'
+const STORAGE_SCHEMA_VERSION = 1
 const MAX_RECORDS = 120
 const MAX_ACTION_LIFECYCLES = 160
 const STALE_METRIC_HOURS = 24
+
+export interface DeliveryMetricStorageAdapter {
+  getItem(key: string): string | null
+  setItem(key: string, value: string): void
+}
+
+interface VersionedStorageEnvelope<T> {
+  schema: typeof STORAGE_SCHEMA
+  version: number
+  updatedAt: string
+  data: T
+}
+
+let storageAdapterOverride: DeliveryMetricStorageAdapter | null = null
+
+export function configureDeliveryMetricStorageAdapter(adapter: DeliveryMetricStorageAdapter | null): void {
+  storageAdapterOverride = adapter
+}
 
 export interface DeliveryMetricSnapshotRecord {
   sessionId: string
@@ -95,6 +115,58 @@ export interface DeliveryMetricActionLifecycleSummary {
   active: number
 }
 
+function getDeliveryMetricStorageAdapter(): DeliveryMetricStorageAdapter | null {
+  if (storageAdapterOverride) return storageAdapterOverride
+  if (typeof window === 'undefined') return null
+  return window.localStorage
+}
+
+function dispatchDeliveryMetricEvent(eventName: string): void {
+  if (typeof window === 'undefined') return
+  window.dispatchEvent(new Event(eventName))
+}
+
+function isVersionedStorageEnvelope<T>(value: unknown): value is VersionedStorageEnvelope<T> {
+  const envelope = value as VersionedStorageEnvelope<T>
+  return Boolean(
+    envelope &&
+    envelope.schema === STORAGE_SCHEMA &&
+    typeof envelope.version === 'number' &&
+    'data' in envelope,
+  )
+}
+
+function readStorageValue<T>(
+  key: string,
+  fallback: T,
+  normalize: (value: unknown) => T,
+): T {
+  const adapter = getDeliveryMetricStorageAdapter()
+  if (!adapter) return fallback
+
+  try {
+    const raw = adapter.getItem(key)
+    if (!raw) return fallback
+    const parsed = JSON.parse(raw)
+    return normalize(isVersionedStorageEnvelope<T>(parsed) ? parsed.data : parsed)
+  } catch {
+    return fallback
+  }
+}
+
+function writeStorageValue<T>(key: string, data: T): void {
+  const adapter = getDeliveryMetricStorageAdapter()
+  if (!adapter) return
+
+  const envelope: VersionedStorageEnvelope<T> = {
+    schema: STORAGE_SCHEMA,
+    version: STORAGE_SCHEMA_VERSION,
+    updatedAt: new Date().toISOString(),
+    data,
+  }
+  adapter.setItem(key, JSON.stringify(envelope))
+}
+
 function isRecord(value: unknown): value is DeliveryMetricSnapshotRecord {
   const record = value as DeliveryMetricSnapshotRecord
   return Boolean(
@@ -107,21 +179,14 @@ function isRecord(value: unknown): value is DeliveryMetricSnapshotRecord {
 }
 
 export function loadDeliveryMetricSnapshots(): DeliveryMetricSnapshotRecord[] {
-  if (typeof window === 'undefined') return []
-  try {
-    const raw = window.localStorage.getItem(STORAGE_KEY)
-    if (!raw) return []
-    const parsed = JSON.parse(raw)
-    return Array.isArray(parsed)
-      ? parsed.filter(isRecord).sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
+  return readStorageValue(STORAGE_KEY, [], value => (
+    Array.isArray(value)
+      ? value.filter(isRecord).sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
       : []
-  } catch {
-    return []
-  }
+  ))
 }
 
 export function recordDeliveryMetricSnapshot(snapshot: DeliveryMetricSnapshotRecord): void {
-  if (typeof window === 'undefined') return
   try {
     const next = [
       snapshot,
@@ -129,9 +194,9 @@ export function recordDeliveryMetricSnapshot(snapshot: DeliveryMetricSnapshotRec
     ]
       .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
       .slice(0, MAX_RECORDS)
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next))
+    writeStorageValue(STORAGE_KEY, next)
     completeResolvedDeliveryMetricActions(snapshot)
-    window.dispatchEvent(new Event(DELIVERY_METRICS_EVENT))
+    dispatchDeliveryMetricEvent(DELIVERY_METRICS_EVENT)
   } catch {
     // Metrics are an enhancement; never block the conversation surface.
   }
@@ -167,27 +232,20 @@ function isActiveLifecycleStatus(status: DeliveryMetricActionLifecycleStatus): b
 }
 
 export function loadDeliveryMetricActionLifecycles(): DeliveryMetricActionLifecycleRecord[] {
-  if (typeof window === 'undefined') return []
-  try {
-    const raw = window.localStorage.getItem(ACTION_LIFECYCLE_STORAGE_KEY)
-    if (!raw) return []
-    const parsed = JSON.parse(raw)
-    return Array.isArray(parsed)
-      ? parsed.filter(isLifecycleRecord).sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
+  return readStorageValue(ACTION_LIFECYCLE_STORAGE_KEY, [], value => (
+    Array.isArray(value)
+      ? value.filter(isLifecycleRecord).sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
       : []
-  } catch {
-    return []
-  }
+  ))
 }
 
 function saveDeliveryMetricActionLifecycles(records: DeliveryMetricActionLifecycleRecord[]): void {
-  if (typeof window === 'undefined') return
   try {
     const next = records
       .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
       .slice(0, MAX_ACTION_LIFECYCLES)
-    window.localStorage.setItem(ACTION_LIFECYCLE_STORAGE_KEY, JSON.stringify(next))
-    window.dispatchEvent(new Event(DELIVERY_ACTION_EVENT))
+    writeStorageValue(ACTION_LIFECYCLE_STORAGE_KEY, next)
+    dispatchDeliveryMetricEvent(DELIVERY_ACTION_EVENT)
   } catch {
     // Action lifecycle tracking is best-effort only.
   }
@@ -421,22 +479,17 @@ export function getDeliveryMetricActionItems(records: DeliveryMetricSnapshotReco
 }
 
 function loadPendingActions(): Record<string, PendingDeliveryMetricAction> {
-  if (typeof window === 'undefined') return {}
-  try {
-    const raw = window.localStorage.getItem(ACTION_STORAGE_KEY)
-    if (!raw) return {}
-    const parsed = JSON.parse(raw)
-    return parsed && typeof parsed === 'object' ? parsed : {}
-  } catch {
-    return {}
-  }
+  return readStorageValue(ACTION_STORAGE_KEY, {}, value => (
+    value && typeof value === 'object' && !Array.isArray(value)
+      ? value as Record<string, PendingDeliveryMetricAction>
+      : {}
+  ))
 }
 
 function savePendingActions(actions: Record<string, PendingDeliveryMetricAction>): void {
-  if (typeof window === 'undefined') return
   try {
-    window.localStorage.setItem(ACTION_STORAGE_KEY, JSON.stringify(actions))
-    window.dispatchEvent(new Event(DELIVERY_ACTION_EVENT))
+    writeStorageValue(ACTION_STORAGE_KEY, actions)
+    dispatchDeliveryMetricEvent(DELIVERY_ACTION_EVENT)
   } catch {
     // Action handoff is best-effort only.
   }

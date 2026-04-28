@@ -1,0 +1,91 @@
+{
+  "generatedAt": "2026-04-28T10:24:37.656Z",
+  "viewport": {
+    "width": 1440,
+    "height": 960
+  },
+  "mode": "svg-fixture",
+  "passed": true,
+  "results": [
+    {
+      "id": "dashboard-empty",
+      "title": "Dashboard Empty Metrics",
+      "output": "docs/visual-qa/dashboard-empty.svg",
+      "passed": true,
+      "checks": {
+        "viewport": true,
+        "fitsOneScreen": true,
+        "textFits": true,
+        "visualDensity": true,
+        "colorVariety": true
+      },
+      "metrics": {
+        "blockCount": 65,
+        "textCount": 41,
+        "colorCount": 15,
+        "maxY": 918,
+        "worstTextRatio": 0.74
+      }
+    },
+    {
+      "id": "dashboard-active",
+      "title": "Dashboard Active Metrics And Action Queue",
+      "output": "docs/visual-qa/dashboard-active.svg",
+      "passed": true,
+      "checks": {
+        "viewport": true,
+        "fitsOneScreen": true,
+        "textFits": true,
+        "visualDensity": true,
+        "colorVariety": true
+      },
+      "metrics": {
+        "blockCount": 71,
+        "textCount": 44,
+        "colorCount": 15,
+        "maxY": 918,
+        "worstTextRatio": 0.74
+      }
+    },
+    {
+      "id": "cockpit-collapsed",
+      "title": "Conversation Cockpit Collapsed",
+      "output": "docs/visual-qa/cockpit-collapsed.svg",
+      "passed": true,
+      "checks": {
+        "viewport": true,
+        "fitsOneScreen": true,
+        "textFits": true,
+        "visualDensity": true,
+        "colorVariety": true
+      },
+      "metrics": {
+        "blockCount": 49,
+        "textCount": 26,
+        "colorCount": 15,
+        "maxY": 918,
+        "worstTextRatio": 0.992
+      }
+    },
+    {
+      "id": "cockpit-expanded",
+      "title": "Conversation Cockpit Expanded",
+      "output": "docs/visual-qa/cockpit-expanded.svg",
+      "passed": true,
+      "checks": {
+        "viewport": true,
+        "fitsOneScreen": true,
+        "textFits": true,
+        "visualDensity": true,
+        "colorVariety": true
+      },
+      "metrics": {
+        "blockCount": 79,
+        "textCount": 38,
+        "colorCount": 18,
+        "maxY": 918,
+        "worstTextRatio": 0.992
+      }
+    }
+  ]
+}
