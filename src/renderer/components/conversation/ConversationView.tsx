@@ -975,6 +975,7 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
   const [ctxMenu, setCtxMenu] = useState({ visible: false, x: 0, y: 0 })
   const [queuedMessages, setQueuedMessages] = useState<QueuedMessage[]>([])
   const [queueHintText, setQueueHintText] = useState('')
+  const [queueHintAction, setQueueHintAction] = useState<'kanban' | null>(null)
   const [shipActionLoading, setShipActionLoading] = useState<'run' | 'summary' | null>(null)
   const [showScrollBottom, setShowScrollBottom] = useState(false)
   const [commonPrompts, setCommonPrompts] = useState<CommonPrompt[]>(() => loadCommonPrompts())
@@ -1043,6 +1044,8 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
   const selectedSessionId = useSessionStore(state => state.selectedSessionId)
   const session = useSessionStore(state => state.sessions.find(s => s.id === sessionId))
   const createTask = useTaskStore(state => state.createTask)
+  const setViewMode = useUIStore(state => state.setViewMode)
+  const setPaneContent = useUIStore(state => state.setPaneContent)
 
   // 是否有未响应的权限请求
   const lastActivity = useSessionStore(state => state.lastActivities[sessionId])
@@ -1559,16 +1562,25 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
     if (answer.suggestedPrompt) {
       setExternalInsert(answer.suggestedPrompt)
       setQueueHintText('已插入 Code Graph 上下文，检查后发送即可')
+      setQueueHintAction(null)
     }
   }, [])
+
+  const handleOpenTaskBoard = useCallback(() => {
+    setPaneContent('primary', 'sessions')
+    setViewMode('kanban')
+    setQueueHintAction(null)
+  }, [setPaneContent, setViewMode])
 
   const handleRunShipPlan = useCallback(async () => {
     if (!workingDirectory || shipActionLoading) {
       setQueueHintText('当前会话没有绑定项目目录，无法运行交付检查')
+      setQueueHintAction(null)
       return
     }
     setShipActionLoading('run')
     setQueueHintText('正在运行 QA/SHIP 交付检查...')
+    setQueueHintAction(null)
     try {
       const result = await window.spectrAI.ship.runPlan(workingDirectory, {
         includeOptional: false,
@@ -1596,9 +1608,33 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
         } catch (taskError: any) {
           repairTaskError = taskError?.message || '修复任务创建失败'
         }
+        try {
+          await window.spectrAI.workingContext.addProblem(
+            sessionId,
+            `QA/SHIP 交付检查失败：${run.summary || '请查看失败命令和输出摘要'}`,
+          )
+          await window.spectrAI.workingContext.addTodo(
+            sessionId,
+            `修复并复验失败命令：${failedResults.map(item => item.command || item.label || item.id).filter(Boolean).join('；')}`,
+          )
+          await window.spectrAI.workingContext.createSnapshot(sessionId, 'ship-check-failed')
+        } catch (contextError) {
+          console.warn('[ConversationView] Failed to persist failed ship check context', contextError)
+        }
+      } else if (run?.passed) {
+        try {
+          await window.spectrAI.workingContext.addDecision(
+            sessionId,
+            `QA/SHIP 交付检查通过：${run.summary || '所有必要检查已通过'}`,
+          )
+          await window.spectrAI.workingContext.createSnapshot(sessionId, 'ship-check-passed')
+        } catch (contextError) {
+          console.warn('[ConversationView] Failed to persist passed ship check context', contextError)
+        }
       }
       setExternalInsert(prompt)
-      setQueueHintText(`${run?.summary || '交付检查已完成'}，结果已插入输入框${repairTaskCreated ? '，已创建修复任务' : ''}${repairTaskError ? `，${repairTaskError}` : ''}`)
+      setQueueHintText(`${run?.summary || '交付检查已完成'}，结果已插入输入框并沉淀到工作上下文${repairTaskCreated ? '，已创建修复任务' : ''}${repairTaskError ? `，${repairTaskError}` : ''}`)
+      setQueueHintAction(repairTaskCreated ? 'kanban' : null)
     } catch (error: any) {
       setQueueHintText(error?.message || '交付检查运行失败')
     } finally {
@@ -1609,10 +1645,12 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
   const handleGenerateShipSummary = useCallback(async () => {
     if (!workingDirectory || shipActionLoading) {
       setQueueHintText('当前会话没有绑定项目目录，无法生成交付说明')
+      setQueueHintAction(null)
       return
     }
     setShipActionLoading('summary')
     setQueueHintText('正在生成交付说明...')
+    setQueueHintAction(null)
     try {
       const result = await window.spectrAI.ship.generateChangeSummary(workingDirectory)
       if (!result?.success) {
@@ -1627,14 +1665,30 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
         '',
         '请输出：变更摘要、验证结果、剩余风险、建议提交说明和用户下一步。',
       ].join('\n')
+      try {
+        await window.spectrAI.workingContext.addDecision(
+          sessionId,
+          `已生成交付说明：${summary?.summary || summary?.suggestedCommitMessage || '请查看输入框中的交付说明草稿'}`,
+        )
+        if (Array.isArray(summary?.warnings) && summary.warnings.length > 0) {
+          await window.spectrAI.workingContext.addTodo(
+            sessionId,
+            `交付前确认注意事项：${summary.warnings.slice(0, 3).join('；')}`,
+          )
+        }
+        await window.spectrAI.workingContext.createSnapshot(sessionId, 'delivery-summary-generated')
+      } catch (contextError) {
+        console.warn('[ConversationView] Failed to persist delivery summary context', contextError)
+      }
       setExternalInsert(prompt)
-      setQueueHintText('交付说明已插入输入框，检查后发送即可')
+      setQueueHintText('交付说明已插入输入框，并已沉淀到工作上下文')
+      setQueueHintAction(null)
     } catch (error: any) {
       setQueueHintText(error?.message || '交付说明生成失败')
     } finally {
       setShipActionLoading(null)
     }
-  }, [workingDirectory, shipActionLoading])
+  }, [workingDirectory, shipActionLoading, sessionId])
 
   // 右键菜单项
   const ctxMenuItems: MenuItem[] = [
@@ -2039,6 +2093,7 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
                         await window.spectrAI.session.clearQueue(sessionId)
                         setQueuedMessages([])
                         setQueueHintText('')
+                        setQueueHintAction(null)
                       } catch { /* ignore */ }
                     }}
                     className="p-0.5 rounded hover:bg-accent-blue/20 transition-colors flex-shrink-0"
@@ -2065,9 +2120,21 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
             <div className="px-4 pb-1">
               <div className="flex items-center justify-between gap-2 rounded-md border border-border-subtle bg-bg-elevated px-2.5 py-1.5 text-xs text-text-secondary">
                 <span className="min-w-0 flex-1 truncate">{queueHintText}</span>
+                {queueHintAction === 'kanban' && (
+                  <button
+                    type="button"
+                    onClick={handleOpenTaskBoard}
+                    className="shrink-0 rounded-md bg-accent-blue/10 px-2 py-0.5 text-[11px] font-medium text-accent-blue transition-colors hover:bg-accent-blue/15"
+                  >
+                    查看任务
+                  </button>
+                )}
                 <button
                   type="button"
-                  onClick={() => setQueueHintText('')}
+                  onClick={() => {
+                    setQueueHintText('')
+                    setQueueHintAction(null)
+                  }}
                   className="rounded p-0.5 text-text-muted transition-colors hover:bg-bg-hover hover:text-text-primary"
                   title="关闭提示"
                 >
