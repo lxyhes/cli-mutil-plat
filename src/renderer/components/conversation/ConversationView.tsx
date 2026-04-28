@@ -82,6 +82,8 @@ interface OpsBriefSnapshot {
   risks: string[]
   evidence: string[]
   readinessGates: DeliveryReadinessGate[]
+  deliveryMetrics: DeliveryMetric[]
+  deliveryMetricScore: number
   agents: OpsBriefAgent[]
   agentCount: number
   activeAgentCount: number
@@ -111,6 +113,14 @@ interface DeliveryReadinessGate {
   detail: string
   status: 'passed' | 'warning' | 'blocked'
   prompt: string
+}
+
+interface DeliveryMetric {
+  id: string
+  label: string
+  value: string
+  detail: string
+  status: 'passed' | 'warning' | 'blocked'
 }
 
 interface ShipCommandRunResult {
@@ -588,6 +598,16 @@ function buildDeliveryPackPrompt(snapshot: OpsBriefSnapshot): string {
   ].filter(Boolean).join('\n')
 }
 
+function downloadMarkdownFile(markdown: string, fileName: string): void {
+  const blob = new Blob([markdown], { type: 'text/markdown;charset=utf-8' })
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = fileName
+  link.click()
+  URL.revokeObjectURL(url)
+}
+
 function buildGatePrompt(gate: DeliveryReadinessGate, snapshot: OpsBriefSnapshot): string {
   return [
     `请处理交付门禁：「${gate.label}」。`,
@@ -703,10 +723,52 @@ function getTrustSignalClass(tone: TrustSignalTone): string {
   }[tone]
 }
 
+function getDeliveryMetricClass(status: DeliveryMetric['status']): string {
+  return {
+    passed: 'border-accent-green/20 bg-accent-green/5 text-accent-green',
+    warning: 'border-accent-yellow/25 bg-accent-yellow/10 text-accent-yellow',
+    blocked: 'border-accent-red/25 bg-accent-red/10 text-accent-red',
+  }[status]
+}
+
+function getDeliveryMetricLabel(status: DeliveryMetric['status']): string {
+  return {
+    passed: '通过',
+    warning: '待补齐',
+    blocked: '阻塞',
+  }[status]
+}
+
+function formatElapsedMinutes(minutes: number): string {
+  if (minutes < 1) return '<1m'
+  if (minutes < 60) return `${minutes}m`
+  const hours = Math.floor(minutes / 60)
+  const rest = minutes % 60
+  return rest > 0 ? `${hours}h ${rest}m` : `${hours}h`
+}
+
+function markDeliveryPackGenerated(snapshot: OpsBriefSnapshot): OpsBriefSnapshot {
+  const deliveryMetrics = snapshot.deliveryMetrics.map(metric =>
+    metric.id === 'delivery-pack'
+      ? {
+        ...metric,
+        value: '已导出',
+        detail: '本会话已生成 Markdown 交付包',
+        status: 'passed' as const,
+      }
+      : metric,
+  )
+  const deliveryMetricScore = Math.round((deliveryMetrics.filter(metric => metric.status === 'passed').length / deliveryMetrics.length) * 100)
+  return { ...snapshot, deliveryMetrics, deliveryMetricScore }
+}
+
 function buildTrustAuditPrompt(snapshot: OpsBriefSnapshot): string {
   const policy = getTrustPolicyPreset(snapshot)
   const gates = snapshot.readinessGates
     .map(gate => `- ${gate.label}：${gate.status === 'passed' ? '通过' : gate.status === 'blocked' ? '阻塞' : '待补齐'}；${gate.detail}`)
+    .join('\n')
+  const metrics = snapshot.deliveryMetrics
+    .map(metric => `- ${metric.label}：${getDeliveryMetricLabel(metric.status)}；${metric.value}；${metric.detail}`)
     .join('\n')
   const files = snapshot.lastFiles.length > 0
     ? snapshot.lastFiles.map(file => `- ${file}`).join('\n')
@@ -724,6 +786,10 @@ function buildTrustAuditPrompt(snapshot: OpsBriefSnapshot): string {
     `- 阶段：${snapshot.phaseLabel}`,
     `- 交付状态：${snapshot.deliveryReadiness}`,
     `- 健康分：${snapshot.missionHealthScore}`,
+    '',
+    '## 核心指标',
+    `- 指标得分：${snapshot.deliveryMetricScore}`,
+    metrics,
     '',
     '## 审计线索',
     `- 对话消息：${snapshot.messageCount} 条`,
@@ -774,6 +840,9 @@ function buildTrustReportMarkdown(snapshot: OpsBriefSnapshot): string {
   const gates = snapshot.readinessGates.map(gate =>
     `- ${gate.label}: ${gate.status === 'passed' ? '通过' : gate.status === 'blocked' ? '阻塞' : '待补齐'} - ${gate.detail}`,
   )
+  const metrics = snapshot.deliveryMetrics.map(metric =>
+    `${metric.label}: ${getDeliveryMetricLabel(metric.status)} - ${metric.value} - ${metric.detail}`,
+  )
   const agents = snapshot.agents.map(agent => [
     `- ${agent.name || agent.agentId}: ${getAgentStatusLabel(agent.status)}`,
     agent.workDir ? `  - 工作目录: ${agent.workDir}` : '',
@@ -792,6 +861,7 @@ function buildTrustReportMarkdown(snapshot: OpsBriefSnapshot): string {
     `- 当前阶段: ${snapshot.phaseLabel}`,
     `- 交付状态: ${snapshot.deliveryReadiness}`,
     `- Mission 健康分: ${snapshot.missionHealthScore} (${snapshot.missionHealthLabel})`,
+    `- 核心指标得分: ${snapshot.deliveryMetricScore}`,
     `- 主信号: ${snapshot.primarySignal}`,
     '',
     '## Mission',
@@ -820,6 +890,10 @@ function buildTrustReportMarkdown(snapshot: OpsBriefSnapshot): string {
     `- Provider/模型治理: ${snapshot.providerId || '未知'} / ${snapshot.modelId || '默认/未上报'}`,
     `- 项目知识: ${snapshot.projectPath ? '已绑定项目目录，可沉淀共享记忆' : '未绑定项目目录，知识沉淀受限'}`,
     '',
+    '## 核心指标',
+    '',
+    formatMarkdownList(metrics, '暂无核心指标'),
+    '',
     '## 交付门禁',
     '',
     formatMarkdownList(gates, '暂无门禁数据'),
@@ -847,6 +921,78 @@ function buildTrustReportMarkdown(snapshot: OpsBriefSnapshot): string {
     '## 下一步',
     '',
     formatMarkdownList(snapshot.nextActions, '暂无下一步建议'),
+  ].filter(Boolean).join('\n')
+}
+
+function buildDeliveryPackMarkdown(snapshot: OpsBriefSnapshot, summary?: any): string {
+  const generatedAt = new Date().toISOString()
+  const openGates = snapshot.readinessGates.filter(gate => gate.status !== 'passed')
+  const gates = snapshot.readinessGates.map(gate =>
+    `- ${gate.label}: ${gate.status === 'passed' ? '通过' : gate.status === 'blocked' ? '阻塞' : '待补齐'} - ${gate.detail}`,
+  )
+  const metrics = snapshot.deliveryMetrics.map(metric =>
+    `${metric.label}: ${getDeliveryMetricLabel(metric.status)} - ${metric.value} - ${metric.detail}`,
+  )
+  const validationEvidence = snapshot.evidence.filter(item => item.includes('验证') || item.includes('命令') || item.includes('工具'))
+  const warnings = Array.isArray(summary?.warnings) ? summary.warnings : []
+
+  return [
+    `# PrismOps 交付包 - ${snapshot.projectName}`,
+    '',
+    `生成时间: ${generatedAt}`,
+    '',
+    '## 交付结论',
+    '',
+    `- 状态: ${openGates.length === 0 ? '可交付' : `待补齐 ${openGates.length} 个门禁`}`,
+    `- 阶段: ${snapshot.phaseLabel}`,
+    `- 交付状态: ${snapshot.deliveryReadiness}`,
+    `- 健康分: ${snapshot.missionHealthScore} (${snapshot.missionHealthLabel})`,
+    `- 核心指标得分: ${snapshot.deliveryMetricScore}`,
+    '',
+    '## 变更摘要',
+    '',
+    summary?.summary ? `- ${summary.summary}` : '- 暂无自动摘要，请根据会话内容补充。',
+    summary?.markdown ? `\n${summary.markdown}` : '',
+    '',
+    '## Mission',
+    '',
+    `- 项目: ${snapshot.projectName}`,
+    `- 目录: ${snapshot.projectPath || '未绑定'}`,
+    `- 目标: ${snapshot.goal}`,
+    `- Provider: ${snapshot.providerId || '未知'}`,
+    `- 模型: ${snapshot.modelId || '默认/未上报'}`,
+    '',
+    '## 改动范围',
+    '',
+    `- 文件数量: ${snapshot.changedFileCount}`,
+    `- Diff 规模: +${snapshot.additions} / -${snapshot.deletions}`,
+    formatMarkdownList(snapshot.lastFiles, '暂未识别到文件改动'),
+    '',
+    '## 验证证据',
+    '',
+    `- 验证命令数量: ${snapshot.validationCount}`,
+    `- 最近命令: ${snapshot.lastCommand || '暂无'}`,
+    formatMarkdownList(validationEvidence, '暂无验证证据'),
+    '',
+    '## 核心指标',
+    '',
+    formatMarkdownList(metrics, '暂无核心指标'),
+    '',
+    '## 交付门禁',
+    '',
+    formatMarkdownList(gates, '暂无门禁数据'),
+    '',
+    '## 风险与注意事项',
+    '',
+    formatMarkdownList([...snapshot.risks, ...warnings], '暂无明显风险'),
+    '',
+    '## 下一步',
+    '',
+    formatMarkdownList(snapshot.nextActions, '暂无下一步建议'),
+    '',
+    '## 建议提交说明',
+    '',
+    summary?.suggestedCommitMessage || 'chore: update delivery work',
   ].filter(Boolean).join('\n')
 }
 
@@ -1702,6 +1848,9 @@ const OpsBrief = React.memo(function OpsBrief({
                     <span className={`rounded-md px-1.5 py-0.5 text-[10px] font-medium ${getTrustSignalClass(policyPreset.tone)}`}>
                       {policyPreset.label}
                     </span>
+                    <span className={`rounded-md px-1.5 py-0.5 text-[10px] font-medium ${snapshot.deliveryMetricScore >= 80 ? getTrustSignalClass('good') : snapshot.deliveryMetricScore >= 60 ? getTrustSignalClass('warn') : getTrustSignalClass('bad')}`}>
+                      指标 {snapshot.deliveryMetricScore}
+                    </span>
                   </div>
                   <div className="flex flex-wrap items-center gap-1">
                     <select
@@ -1754,6 +1903,19 @@ const OpsBrief = React.memo(function OpsBrief({
                       </div>
                     )
                   })}
+                </div>
+                <div className="mt-2 grid gap-1.5 sm:grid-cols-2 lg:grid-cols-5">
+                  {snapshot.deliveryMetrics.map(metric => (
+                    <div key={metric.id} className={`min-w-0 rounded-md border px-2 py-1.5 ${getDeliveryMetricClass(metric.status)}`}>
+                      <div className="flex min-w-0 items-center justify-between gap-2">
+                        <span className="truncate text-[10px] font-semibold text-text-primary">{metric.label}</span>
+                        <span className="shrink-0 text-[10px] font-medium">{metric.value}</span>
+                      </div>
+                      <div className="mt-0.5 truncate text-[10px] leading-4 text-text-secondary" title={metric.detail}>
+                        {metric.detail}
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </div>
 
@@ -1835,6 +1997,8 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
   const [shipActionLoading, setShipActionLoading] = useState<'run' | 'summary' | null>(null)
   const [playbookActionLoading, setPlaybookActionLoading] = useState<string | null>(null)
   const [trustKnowledgeLoading, setTrustKnowledgeLoading] = useState(false)
+  const [deliveryPackGenerated, setDeliveryPackGenerated] = useState(false)
+  const [knowledgeExtractionCount, setKnowledgeExtractionCount] = useState(0)
   const [showScrollBottom, setShowScrollBottom] = useState(false)
   const [commonPrompts, setCommonPrompts] = useState<CommonPrompt[]>(() => loadCommonPrompts())
   const [trustPolicyOverrides, setTrustPolicyOverrides] = useState<Record<string, TrustPolicyPresetId>>(() => loadTrustPolicyOverrides())
@@ -1855,6 +2019,11 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
   // 思考计时器：streaming 开始时重置，每秒 +1
   const [thinkingSeconds, setThinkingSeconds] = useState(0)
   const thinkingStartRef = useRef<number>(0)
+
+  useEffect(() => {
+    setDeliveryPackGenerated(false)
+    setKnowledgeExtractionCount(0)
+  }, [sessionId])
 
   useEffect(() => {
     if (isStreaming) {
@@ -2133,6 +2302,7 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
     let deletions = 0
     let failedToolCount = 0
     let messageCount = 0
+    let firstMessageAtMs = 0
     const uniqueFiles: string[] = []
     const seenFiles = new Set<string>()
     const toolUseMessages: ConversationMessage[] = []
@@ -2142,6 +2312,12 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
     for (const message of messages) {
       if ((message.role === 'user' || message.role === 'assistant')) {
         messageCount += 1
+        if (!firstMessageAtMs) {
+          const timestampMs = Date.parse(message.timestamp)
+          if (Number.isFinite(timestampMs)) {
+            firstMessageAtMs = timestampMs
+          }
+        }
       }
 
       if (message.role === 'user' && message.content && !message.content.startsWith('\u25B6 /')) {
@@ -2367,6 +2543,69 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
     ].filter(Boolean)
     const agentConflictCount = overlappingWorkDirs.length + overlappingFiles.length + blockedAgentCount
 
+    const hasCodeChanges = uniqueFiles.length > 0
+    const hasValidationEvidence = validationCommands.length > 0
+    const hasDeliveryEvidence = deliveryPackGenerated || (hasCodeChanges && hasValidationEvidence && failedToolCount === 0)
+    const elapsedMinutes = firstMessageAtMs > 0
+      ? Math.max(0, Math.round((Date.now() - firstMessageAtMs) / 60000))
+      : 0
+    const deliveryMetrics: DeliveryMetric[] = [
+      {
+        id: 'delivery-pack',
+        label: '交付包',
+        value: deliveryPackGenerated ? '已导出' : hasDeliveryEvidence ? '可生成' : '待补齐',
+        detail: deliveryPackGenerated
+          ? '本会话已生成 Markdown 交付包'
+          : hasDeliveryEvidence
+            ? '已有改动与验证，可生成交付包'
+            : '需要改动、验证和风险说明',
+        status: deliveryPackGenerated || hasDeliveryEvidence ? 'passed' : hasCodeChanges ? 'warning' : 'blocked',
+      },
+      {
+        id: 'validation-coverage',
+        label: '验证覆盖',
+        value: hasCodeChanges ? (hasValidationEvidence ? `${validationCommands.length} 条` : '缺少') : '无需',
+        detail: hasCodeChanges
+          ? hasValidationEvidence
+            ? '代码改动已有验证证据'
+            : '代码改动后应补齐测试、构建或类型检查'
+          : '当前未识别到代码改动',
+        status: hasCodeChanges && !hasValidationEvidence ? 'warning' : 'passed',
+      },
+      {
+        id: 'handoff-time',
+        label: '交付耗时',
+        value: hasDeliveryEvidence ? formatElapsedMinutes(elapsedMinutes) : firstMessageAtMs > 0 ? '进行中' : '未开始',
+        detail: hasDeliveryEvidence
+          ? '从首条任务到可交付证据'
+          : '等待验证和交付说明闭环',
+        status: hasDeliveryEvidence ? 'passed' : firstMessageAtMs > 0 ? 'warning' : 'blocked',
+      },
+      {
+        id: 'project-memory',
+        label: '项目记忆',
+        value: knowledgeExtractionCount > 0 ? `${knowledgeExtractionCount} 条` : workingDirectory ? '待沉淀' : '未绑定',
+        detail: knowledgeExtractionCount > 0
+          ? '本会话已沉淀复用知识'
+          : workingDirectory
+            ? '可从会话一键沉淀团队记忆'
+            : '需要绑定项目目录后沉淀',
+        status: knowledgeExtractionCount > 0 ? 'passed' : workingDirectory ? 'warning' : 'blocked',
+      },
+      {
+        id: 'safety',
+        label: '安全状态',
+        value: failedToolCount > 0 ? `${failedToolCount} 异常` : hasWaitingAction ? '待处理' : '清爽',
+        detail: failedToolCount > 0
+          ? '需要复盘失败工具结果'
+          : hasWaitingAction
+            ? '有权限、问题或计划审批等待处理'
+            : '未发现失败工具或等待项',
+        status: failedToolCount > 0 || status === 'error' ? 'blocked' : hasWaitingAction ? 'warning' : 'passed',
+      },
+    ]
+    const deliveryMetricScore = Math.round((deliveryMetrics.filter(metric => metric.status === 'passed').length / deliveryMetrics.length) * 100)
+
     return {
       projectName: getProjectName(workingDirectory, session?.name || session?.config?.name),
       projectPath: workingDirectory,
@@ -2404,6 +2643,8 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
       risks,
       evidence,
       readinessGates,
+      deliveryMetrics,
+      deliveryMetricScore,
       agents,
       agentCount: agents.length,
       activeAgentCount,
@@ -2433,6 +2674,8 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
     status,
     isStreaming,
     liveProgressText,
+    deliveryPackGenerated,
+    knowledgeExtractionCount,
   ])
 
   // Prompt 型 Skill 静默执行：展开模板后静默发送，用户只看到 ▶ /skillname 徽章
@@ -2574,17 +2817,24 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
       return
     }
     setShipActionLoading('summary')
-    setQueueHintText('正在生成交付说明...')
+    setQueueHintText('正在生成交付包...')
     setQueueHintAction(null)
     try {
       const result = await window.spectrAI.ship.generateChangeSummary(workingDirectory)
       if (!result?.success) {
-        setQueueHintText(result?.error?.userMessage || result?.error?.message || result?.error || '交付说明生成失败')
+        setQueueHintText(result?.error?.userMessage || result?.error?.message || result?.error || '交付包生成失败')
         return
       }
       const summary = unwrapIpcData<any>(result)
+      const deliveryPackSnapshot = markDeliveryPackGenerated(opsBrief)
+      const deliveryPackMarkdown = buildDeliveryPackMarkdown(deliveryPackSnapshot, summary)
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-')
+      downloadMarkdownFile(
+        deliveryPackMarkdown,
+        `prismops-delivery-pack-${getSafeReportFileName(deliveryPackSnapshot.projectName)}-${timestamp}.md`,
+      )
       const prompt = summary?.suggestedPrompt || summary?.markdown || [
-        '请基于当前会话生成交付说明。',
+        '请基于当前会话生成交付包。',
         '',
         `变更摘要：${summary?.summary || '暂无摘要'}`,
         '',
@@ -2593,7 +2843,7 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
       try {
         await window.spectrAI.workingContext.addDecision(
           sessionId,
-          `已生成交付说明：${summary?.summary || summary?.suggestedCommitMessage || '请查看输入框中的交付说明草稿'}`,
+          `已生成并导出交付包：${summary?.summary || summary?.suggestedCommitMessage || deliveryPackSnapshot.deliveryReadiness}`,
         )
         if (Array.isArray(summary?.warnings) && summary.warnings.length > 0) {
           await window.spectrAI.workingContext.addTodo(
@@ -2601,19 +2851,20 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
             `交付前确认注意事项：${summary.warnings.slice(0, 3).join('；')}`,
           )
         }
-        await window.spectrAI.workingContext.createSnapshot(sessionId, 'delivery-summary-generated')
+        await window.spectrAI.workingContext.createSnapshot(sessionId, 'delivery-pack-generated')
       } catch (contextError) {
-        console.warn('[ConversationView] Failed to persist delivery summary context', contextError)
+        console.warn('[ConversationView] Failed to persist delivery pack context', contextError)
       }
+      setDeliveryPackGenerated(true)
       setExternalInsert(prompt)
-      setQueueHintText('交付说明已插入输入框，并已沉淀到工作上下文')
+      setQueueHintText('交付包已导出为 Markdown，交付说明已插入输入框并沉淀到工作上下文')
       setQueueHintAction(null)
     } catch (error: any) {
-      setQueueHintText(error?.message || '交付说明生成失败')
+      setQueueHintText(error?.message || '交付包生成失败')
     } finally {
       setShipActionLoading(null)
     }
-  }, [workingDirectory, shipActionLoading, sessionId])
+  }, [workingDirectory, shipActionLoading, sessionId, opsBrief])
 
   const handleInsertTeamPlaybook = useCallback(async (template: TeamPlaybookTemplate) => {
     if (playbookActionLoading) return
@@ -2640,14 +2891,8 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
 
   const handleExportTrustReport = useCallback((snapshot: OpsBriefSnapshot) => {
     const markdown = buildTrustReportMarkdown(snapshot)
-    const blob = new Blob([markdown], { type: 'text/markdown;charset=utf-8' })
-    const url = URL.createObjectURL(blob)
-    const link = document.createElement('a')
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-')
-    link.href = url
-    link.download = `prismops-trust-report-${getSafeReportFileName(snapshot.projectName)}-${timestamp}.md`
-    link.click()
-    URL.revokeObjectURL(url)
+    downloadMarkdownFile(markdown, `prismops-trust-report-${getSafeReportFileName(snapshot.projectName)}-${timestamp}.md`)
     setQueueHintText('可信交付报告已导出为 Markdown')
     setQueueHintAction(null)
     void window.spectrAI.workingContext.addDecision(
@@ -2675,6 +2920,9 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
       }
       const count = result.count || 0
       const extracted = Array.isArray(result.extracted) ? result.extracted : []
+      if (count > 0) {
+        setKnowledgeExtractionCount(prev => prev + count)
+      }
       setQueueHintText(count > 0
         ? `已沉淀 ${count} 条项目知识：${extracted.slice(0, 3).join('、') || '可在知识库查看'}`
         : '当前会话暂未提取到新的项目知识')

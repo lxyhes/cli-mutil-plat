@@ -71,7 +71,7 @@ Scope:
 - Encourage the agent to either complete missing validation or explicitly explain why it cannot.
 - Keep this as a prompt-level workflow first, so it is low risk and works across providers.
 
-Status: started.
+Status: completed for the first usable slice. The task cockpit delivery action now produces an evidence-backed delivery pack that includes mission state, changed files, validation evidence, risks, delivery gates, next actions, and suggested commit notes. The delivery pack is exported as Markdown and persisted into working context so the handoff is reviewable after the session.
 
 ### Phase 2: Delivery Readiness Gates
 
@@ -83,7 +83,7 @@ Scope:
 - Add one-click actions for "run checks", "summarize changes", and "create repair task".
 - Persist delivery snapshots into working context.
 
-Status: in progress. The task cockpit now evaluates five visible gates: mission scope, traceable changes, validation evidence, failure clearance, and delivery handoff. The validation gate can run QA/SHIP checks directly, failed QA/SHIP runs create a repair task automatically with a one-click jump to the task board, the handoff gate can generate a delivery summary into the message composer, and ship results are persisted into working context snapshots.
+Status: completed for the first usable slice. The task cockpit now evaluates five visible gates: mission scope, traceable changes, validation evidence, failure clearance, and delivery handoff. The validation gate can run QA/SHIP checks directly, failed QA/SHIP runs create a repair task automatically with a one-click jump to the task board, and the handoff gate generates a Markdown delivery pack plus a composer-ready delivery summary. Ship results and delivery-pack snapshots are persisted into working context.
 
 ### Phase 3: Agent Work Board
 
@@ -121,7 +121,7 @@ Scope:
 - Exportable delivery reports
 - Provider and model governance
 
-Status: started. The task cockpit now includes a first Organization Trust Layer slice with audit signals, persisted permission policy presets, project knowledge readiness, one-click session-to-project knowledge extraction, provider/model governance, delivery report readiness, a prompt action for generating a transferable trust/audit summary, and a Markdown export action for downloading a trust delivery report from the current mission, tool history, file changes, validation evidence, risks, gates, agent state, and provider/model state.
+Status: completed for the first usable slice. The task cockpit now includes an Organization Trust Layer with audit signals, persisted permission policy presets, project knowledge readiness, one-click session-to-project knowledge extraction, provider/model governance, delivery report readiness, a prompt action for generating a transferable trust/audit summary, Markdown export for trust delivery reports, and a compact success-metrics strip covering delivery-pack creation, validation coverage, verified handoff time, reusable project memories, and safety state.
 
 ## Success Metrics
 
