@@ -317,9 +317,9 @@ Completed:
 - Added an initial evidence timeline model in the conversation cockpit, covering mission updates, tools, validation commands, file changes, tool failures, and delivery-pack events.
 - Added evidence timeline excerpts and schema metadata to trust report and delivery pack Markdown exports.
 - Added Dashboard empty, stale, and mixed-freshness states for delivery metrics.
+- Added queued remediation action lifecycle tracking for queued, inserted, sent, and completed states.
 
 Remaining:
 
 - Move metric persistence behind a project-level storage adapter.
-- Add lifecycle tracking for queued remediation actions beyond pending/consumed.
 - Add visual QA screenshots for cockpit and Dashboard states.

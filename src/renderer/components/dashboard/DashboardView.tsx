@@ -13,16 +13,21 @@ import { STATUS_COLORS, STATUS_LABELS } from '../../../shared/constants'
 import type { Session, SessionStatus, ActivityEvent } from '../../../shared/types'
 import UsageDashboard from '../usage/UsageDashboard'
 import {
+  DELIVERY_ACTION_EVENT,
   DELIVERY_METRICS_EVENT,
   formatMetricAge,
   formatMetricDuration,
   formatMetricPercent,
   getDeliveryMetricActionItems,
   getDeliveryMetricFreshness,
+  loadDeliveryMetricActionLifecycles,
   loadDeliveryMetricSnapshots,
   queueDeliveryMetricAction,
+  summarizeDeliveryMetricActionLifecycles,
   summarizeDeliveryMetrics,
   type DeliveryMetricActionItem,
+  type DeliveryMetricActionLifecycleRecord,
+  type DeliveryMetricActionLifecycleSummary,
   type DeliveryMetricFreshness,
   type DeliveryMetricSnapshotRecord,
 } from '../../utils/deliveryMetrics'
@@ -91,6 +96,7 @@ export default function DashboardView() {
   const { sessions, selectSession, activities } = useSessionStore()
   const [recentEvents, setRecentEvents] = useState<(ActivityEvent & { sessionName: string })[]>([])
   const [deliveryRecords, setDeliveryRecords] = useState<DeliveryMetricSnapshotRecord[]>(() => loadDeliveryMetricSnapshots())
+  const [actionLifecycles, setActionLifecycles] = useState<DeliveryMetricActionLifecycleRecord[]>(() => loadDeliveryMetricActionLifecycles())
   const [clockTick, setTick] = useState(0)
 
   // 分类
@@ -104,6 +110,10 @@ export default function DashboardView() {
   const successSummary = useMemo(() => summarizeDeliveryMetrics(deliveryRecords), [deliveryRecords])
   const metricFreshness = useMemo(() => getDeliveryMetricFreshness(deliveryRecords), [deliveryRecords, clockTick])
   const actionItems = useMemo(() => getDeliveryMetricActionItems(deliveryRecords, 5), [deliveryRecords])
+  const actionLifecycleSummary = useMemo(
+    () => summarizeDeliveryMetricActionLifecycles(actionLifecycles),
+    [actionLifecycles],
+  )
   const openActionItem = (item: DeliveryMetricActionItem) => {
     queueDeliveryMetricAction(item)
     selectSession(item.sessionId)
@@ -131,12 +141,17 @@ export default function DashboardView() {
   }, [])
 
   useEffect(() => {
-    const refreshMetrics = () => setDeliveryRecords(loadDeliveryMetricSnapshots())
+    const refreshMetrics = () => {
+      setDeliveryRecords(loadDeliveryMetricSnapshots())
+      setActionLifecycles(loadDeliveryMetricActionLifecycles())
+    }
     refreshMetrics()
     window.addEventListener(DELIVERY_METRICS_EVENT, refreshMetrics)
+    window.addEventListener(DELIVERY_ACTION_EVENT, refreshMetrics)
     window.addEventListener('storage', refreshMetrics)
     return () => {
       window.removeEventListener(DELIVERY_METRICS_EVENT, refreshMetrics)
+      window.removeEventListener(DELIVERY_ACTION_EVENT, refreshMetrics)
       window.removeEventListener('storage', refreshMetrics)
     }
   }, [])
@@ -232,7 +247,12 @@ export default function DashboardView() {
             tone={successSummary.blockedCount > 0 ? 'bad' : successSummary.sessionCount > 0 ? 'good' : 'neutral'}
           />
         </div>
-        <ActionQueue items={actionItems} freshness={metricFreshness} onOpenAction={openActionItem} />
+        <ActionQueue
+          items={actionItems}
+          freshness={metricFreshness}
+          lifecycleSummary={actionLifecycleSummary}
+          onOpenAction={openActionItem}
+        />
       </section>
 
       <div className="grid grid-cols-3 gap-4">
@@ -387,9 +407,17 @@ function MetricsStateNotice({ freshness }: { freshness: DeliveryMetricFreshness 
   return null
 }
 
-function ActionQueue({ items, freshness, onOpenAction }: {
+function getLifecycleSummaryText(summary: DeliveryMetricActionLifecycleSummary): string {
+  if (summary.active > 0) return `${summary.active} 项处理中`
+  if (summary.completed > 0) return `已闭环 ${summary.completed} 项`
+  if (summary.abandoned > 0) return `${summary.abandoned} 项已放弃`
+  return '按风险和分数排序'
+}
+
+function ActionQueue({ items, freshness, lifecycleSummary, onOpenAction }: {
   items: DeliveryMetricActionItem[]
   freshness: DeliveryMetricFreshness
+  lifecycleSummary: DeliveryMetricActionLifecycleSummary
   onOpenAction: (item: DeliveryMetricActionItem) => void
 }) {
   if (items.length === 0) {
@@ -398,6 +426,9 @@ function ActionQueue({ items, freshness, onOpenAction }: {
     return (
       <div className="rounded-lg border border-accent-green/20 bg-accent-green/5 px-3 py-2 text-xs text-text-secondary">
         当前没有明显改进项，继续保持交付包、验证证据和项目记忆闭环。
+        {lifecycleSummary.completed > 0 && (
+          <span className="ml-1 text-accent-green">已闭环 {lifecycleSummary.completed} 个队列动作。</span>
+        )}
       </div>
     )
   }
@@ -409,7 +440,7 @@ function ActionQueue({ items, freshness, onOpenAction }: {
           <AlertCircle className="h-3.5 w-3.5 text-accent-yellow" />
           改进队列
         </div>
-        <span className="text-[10px] text-text-muted">按风险和分数排序</span>
+        <span className="text-[10px] text-text-muted">{getLifecycleSummaryText(lifecycleSummary)}</span>
       </div>
       <div className="grid gap-1.5 lg:grid-cols-2">
         {items.map(item => (

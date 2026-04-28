@@ -3,7 +3,9 @@ export const DELIVERY_ACTION_EVENT = 'prismops-delivery-action-queued'
 
 const STORAGE_KEY = 'prismops-delivery-metrics-v1'
 const ACTION_STORAGE_KEY = 'prismops-delivery-actions-v1'
+const ACTION_LIFECYCLE_STORAGE_KEY = 'prismops-delivery-action-lifecycle-v1'
 const MAX_RECORDS = 120
+const MAX_ACTION_LIFECYCLES = 160
 const STALE_METRIC_HOURS = 24
 
 export interface DeliveryMetricSnapshotRecord {
@@ -57,10 +59,40 @@ export interface DeliveryMetricActionItem {
 }
 
 export interface PendingDeliveryMetricAction {
+  actionId?: string
   sessionId: string
   prompt: string
   reason: string
   createdAt: string
+}
+
+export type DeliveryMetricActionLifecycleStatus = 'queued' | 'inserted' | 'sent' | 'completed' | 'abandoned'
+
+export interface DeliveryMetricActionLifecycleRecord {
+  id: string
+  sessionId: string
+  projectName: string
+  reason: string
+  suggestedAction: string
+  priority: DeliveryMetricActionItem['priority']
+  score: number
+  status: DeliveryMetricActionLifecycleStatus
+  createdAt: string
+  updatedAt: string
+  insertedAt?: string
+  sentAt?: string
+  completedAt?: string
+  abandonedAt?: string
+  clickCount: number
+}
+
+export interface DeliveryMetricActionLifecycleSummary {
+  queued: number
+  inserted: number
+  sent: number
+  completed: number
+  abandoned: number
+  active: number
 }
 
 function isRecord(value: unknown): value is DeliveryMetricSnapshotRecord {
@@ -98,10 +130,143 @@ export function recordDeliveryMetricSnapshot(snapshot: DeliveryMetricSnapshotRec
       .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
       .slice(0, MAX_RECORDS)
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next))
+    completeResolvedDeliveryMetricActions(snapshot)
     window.dispatchEvent(new Event(DELIVERY_METRICS_EVENT))
   } catch {
     // Metrics are an enhancement; never block the conversation surface.
   }
+}
+
+function isLifecycleRecord(value: unknown): value is DeliveryMetricActionLifecycleRecord {
+  const record = value as DeliveryMetricActionLifecycleRecord
+  return Boolean(
+    record &&
+    typeof record.id === 'string' &&
+    typeof record.sessionId === 'string' &&
+    typeof record.reason === 'string' &&
+    typeof record.status === 'string' &&
+    typeof record.createdAt === 'string',
+  )
+}
+
+function makeDeliveryActionFingerprint(sessionId: string, reason: string, suggestedAction: string): string {
+  return `${sessionId}\n${reason}\n${suggestedAction}`
+}
+
+function makeDeliveryActionId(item: DeliveryMetricActionItem, createdAt: string): string {
+  const source = makeDeliveryActionFingerprint(item.sessionId, item.reason, item.suggestedAction)
+  let hash = 0
+  for (let index = 0; index < source.length; index += 1) {
+    hash = ((hash << 5) - hash + source.charCodeAt(index)) | 0
+  }
+  return `delivery-action-${Math.abs(hash)}-${new Date(createdAt).getTime()}`
+}
+
+function isActiveLifecycleStatus(status: DeliveryMetricActionLifecycleStatus): boolean {
+  return status === 'queued' || status === 'inserted' || status === 'sent'
+}
+
+export function loadDeliveryMetricActionLifecycles(): DeliveryMetricActionLifecycleRecord[] {
+  if (typeof window === 'undefined') return []
+  try {
+    const raw = window.localStorage.getItem(ACTION_LIFECYCLE_STORAGE_KEY)
+    if (!raw) return []
+    const parsed = JSON.parse(raw)
+    return Array.isArray(parsed)
+      ? parsed.filter(isLifecycleRecord).sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
+      : []
+  } catch {
+    return []
+  }
+}
+
+function saveDeliveryMetricActionLifecycles(records: DeliveryMetricActionLifecycleRecord[]): void {
+  if (typeof window === 'undefined') return
+  try {
+    const next = records
+      .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
+      .slice(0, MAX_ACTION_LIFECYCLES)
+    window.localStorage.setItem(ACTION_LIFECYCLE_STORAGE_KEY, JSON.stringify(next))
+    window.dispatchEvent(new Event(DELIVERY_ACTION_EVENT))
+  } catch {
+    // Action lifecycle tracking is best-effort only.
+  }
+}
+
+export function summarizeDeliveryMetricActionLifecycles(
+  records: DeliveryMetricActionLifecycleRecord[],
+): DeliveryMetricActionLifecycleSummary {
+  const summary: DeliveryMetricActionLifecycleSummary = {
+    queued: 0,
+    inserted: 0,
+    sent: 0,
+    completed: 0,
+    abandoned: 0,
+    active: 0,
+  }
+
+  for (const record of records) {
+    if (record.status in summary) {
+      summary[record.status as DeliveryMetricActionLifecycleStatus] += 1
+    }
+    if (isActiveLifecycleStatus(record.status)) summary.active += 1
+  }
+
+  return summary
+}
+
+function updateLifecycleRecord(
+  actionId: string | undefined,
+  updater: (record: DeliveryMetricActionLifecycleRecord, now: string) => DeliveryMetricActionLifecycleRecord,
+): void {
+  if (!actionId) return
+  const records = loadDeliveryMetricActionLifecycles()
+  const now = new Date().toISOString()
+  const next = records.map(record => record.id === actionId ? updater(record, now) : record)
+  saveDeliveryMetricActionLifecycles(next)
+}
+
+export function markDeliveryMetricActionSent(actionId: string | undefined): void {
+  updateLifecycleRecord(actionId, (record, now) => {
+    if (!isActiveLifecycleStatus(record.status)) return record
+    return {
+      ...record,
+      status: 'sent',
+      sentAt: record.sentAt || now,
+      updatedAt: now,
+    }
+  })
+}
+
+export function markDeliveryMetricActionAbandoned(actionId: string | undefined): void {
+  updateLifecycleRecord(actionId, (record, now) => {
+    if (!isActiveLifecycleStatus(record.status)) return record
+    return {
+      ...record,
+      status: 'abandoned',
+      abandonedAt: record.abandonedAt || now,
+      updatedAt: now,
+    }
+  })
+}
+
+function completeResolvedDeliveryMetricActions(snapshot: DeliveryMetricSnapshotRecord): void {
+  const records = loadDeliveryMetricActionLifecycles()
+  const activeRecords = records.filter(record => record.sessionId === snapshot.sessionId && isActiveLifecycleStatus(record.status))
+  if (activeRecords.length === 0) return
+  if (buildActionItem(snapshot)) return
+
+  const now = snapshot.updatedAt || new Date().toISOString()
+  const next = records.map(record => {
+    if (record.sessionId !== snapshot.sessionId || !isActiveLifecycleStatus(record.status)) return record
+    return {
+      ...record,
+      status: 'completed' as const,
+      completedAt: record.completedAt || now,
+      updatedAt: now,
+    }
+  })
+  saveDeliveryMetricActionLifecycles(next)
 }
 
 function ratio(numerator: number, denominator: number): number {
@@ -298,11 +463,48 @@ export function buildDeliveryMetricActionPrompt(item: DeliveryMetricActionItem):
 
 export function queueDeliveryMetricAction(item: DeliveryMetricActionItem): void {
   const actions = loadPendingActions()
+  const lifecycles = loadDeliveryMetricActionLifecycles()
+  const now = new Date().toISOString()
+  const fingerprint = makeDeliveryActionFingerprint(item.sessionId, item.reason, item.suggestedAction)
+  const reusableLifecycle = lifecycles.find(record =>
+    isActiveLifecycleStatus(record.status) &&
+    makeDeliveryActionFingerprint(record.sessionId, record.reason, record.suggestedAction) === fingerprint,
+  )
+  const lifecycle: DeliveryMetricActionLifecycleRecord = reusableLifecycle
+    ? {
+        ...reusableLifecycle,
+        projectName: item.projectName,
+        priority: item.priority,
+        score: item.score,
+        status: 'queued',
+        updatedAt: now,
+        clickCount: reusableLifecycle.clickCount + 1,
+      }
+    : {
+        id: makeDeliveryActionId(item, now),
+        sessionId: item.sessionId,
+        projectName: item.projectName,
+        reason: item.reason,
+        suggestedAction: item.suggestedAction,
+        priority: item.priority,
+        score: item.score,
+        status: 'queued',
+        createdAt: now,
+        updatedAt: now,
+        clickCount: 1,
+      }
+
+  saveDeliveryMetricActionLifecycles([
+    lifecycle,
+    ...lifecycles.filter(record => record.id !== lifecycle.id),
+  ])
+
   actions[item.sessionId] = {
+    actionId: lifecycle.id,
     sessionId: item.sessionId,
     prompt: buildDeliveryMetricActionPrompt(item),
     reason: item.reason,
-    createdAt: new Date().toISOString(),
+    createdAt: now,
   }
   savePendingActions(actions)
 }
@@ -313,6 +515,15 @@ export function consumePendingDeliveryMetricAction(sessionId: string): PendingDe
   if (!action) return null
   delete actions[sessionId]
   savePendingActions(actions)
+  updateLifecycleRecord(action.actionId, (record, now) => {
+    if (!isActiveLifecycleStatus(record.status)) return record
+    return {
+      ...record,
+      status: 'inserted',
+      insertedAt: record.insertedAt || now,
+      updatedAt: now,
+    }
+  })
   return action
 }
 

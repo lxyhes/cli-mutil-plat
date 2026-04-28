@@ -5,7 +5,11 @@ import {
   formatMetricAge,
   getDeliveryMetricActionItems,
   getDeliveryMetricFreshness,
+  loadDeliveryMetricActionLifecycles,
+  markDeliveryMetricActionSent,
   queueDeliveryMetricAction,
+  recordDeliveryMetricSnapshot,
+  summarizeDeliveryMetricActionLifecycles,
   summarizeDeliveryMetrics,
   type DeliveryMetricActionItem,
   type DeliveryMetricSnapshotRecord,
@@ -234,5 +238,65 @@ describe('delivery metric action queue ranking', () => {
     expect(consumed?.prompt).toContain('生成 Markdown 交付包')
     expect(consumePendingDeliveryMetricAction('session-a')).toBeNull()
     expect(events).toContain('prismops-delivery-action-queued')
+  })
+
+  it('tracks queued and inserted lifecycle without duplicating repeated clicks', () => {
+    installWindowStorageMock()
+    const item = getDeliveryMetricActionItems([
+      metric({ sessionId: 'session-a', validationCount: 0 }),
+    ])[0]
+
+    queueDeliveryMetricAction(item)
+    queueDeliveryMetricAction(item)
+
+    const queuedRecords = loadDeliveryMetricActionLifecycles()
+
+    expect(queuedRecords).toHaveLength(1)
+    expect(queuedRecords[0].status).toBe('queued')
+    expect(queuedRecords[0].clickCount).toBe(2)
+
+    const consumed = consumePendingDeliveryMetricAction('session-a')
+    const insertedRecords = loadDeliveryMetricActionLifecycles()
+
+    expect(consumed?.actionId).toBe(queuedRecords[0].id)
+    expect(insertedRecords[0].status).toBe('inserted')
+    expect(insertedRecords[0].insertedAt).toBeTruthy()
+    expect(summarizeDeliveryMetricActionLifecycles(insertedRecords)).toMatchObject({
+      inserted: 1,
+      active: 1,
+    })
+  })
+
+  it('marks sent actions as completed after a resolving metric snapshot', () => {
+    installWindowStorageMock()
+    const item = getDeliveryMetricActionItems([
+      metric({
+        sessionId: 'session-a',
+        score: 62,
+        validationCount: 0,
+        deliveryPackGenerated: false,
+      }),
+    ])[0]
+
+    queueDeliveryMetricAction(item)
+    const consumed = consumePendingDeliveryMetricAction('session-a')
+    markDeliveryMetricActionSent(consumed?.actionId)
+
+    expect(loadDeliveryMetricActionLifecycles()[0].status).toBe('sent')
+
+    recordDeliveryMetricSnapshot(metric({
+      sessionId: 'session-a',
+      score: 92,
+      deliveryPackGenerated: true,
+      validationCount: 2,
+      projectMemoryCount: 1,
+      safetyStatus: 'passed',
+    }))
+
+    const summary = summarizeDeliveryMetricActionLifecycles(loadDeliveryMetricActionLifecycles())
+
+    expect(summary.completed).toBe(1)
+    expect(summary.active).toBe(0)
+    expect(loadDeliveryMetricActionLifecycles()[0].completedAt).toBe('2026-04-28T10:00:00.000Z')
   })
 })

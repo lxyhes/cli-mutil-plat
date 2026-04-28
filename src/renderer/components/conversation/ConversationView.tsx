@@ -31,7 +31,13 @@ import PlanApprovalPanel from './PlanApprovalPanel'
 import CrossSessionSearch from './CrossSessionSearch'
 import SessionKnowledgePanel from './SessionKnowledgePanel'
 import { isPrimaryModifierPressed } from '../../utils/shortcut'
-import { DELIVERY_ACTION_EVENT, consumePendingDeliveryMetricAction, recordDeliveryMetricSnapshot } from '../../utils/deliveryMetrics'
+import {
+  DELIVERY_ACTION_EVENT,
+  consumePendingDeliveryMetricAction,
+  markDeliveryMetricActionSent,
+  recordDeliveryMetricSnapshot,
+  type PendingDeliveryMetricAction,
+} from '../../utils/deliveryMetrics'
 
 
 // ---- Provider 颜色映射 ----
@@ -511,6 +517,10 @@ function summarizeOpsBriefAgent(
 
 function isValidationCommand(command: string): boolean {
   return /\b(test|typecheck|build|lint|check|pytest|vitest|jest|tsc|cargo\s+check|go\s+test)\b/i.test(command)
+}
+
+function isDeliveryMetricActionPrompt(text: string, action: PendingDeliveryMetricAction): boolean {
+  return text.includes('请根据 Dashboard 改进队列') && text.includes(action.reason)
 }
 
 const SESSION_STATUS_LABEL: Record<string, string> = {
@@ -2407,6 +2417,7 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
   // 记录是否已完成首次滚到底部（每次组件挂载重置）
   const hasScrolledInitially = useRef(false)
   const scrollFrameRef = useRef<number | null>(null)
+  const activeDeliveryMetricActionRef = useRef<PendingDeliveryMetricAction | null>(null)
 
   // 思考计时器：streaming 开始时重置，每秒 +1
   const [thinkingSeconds, setThinkingSeconds] = useState(0)
@@ -2422,6 +2433,7 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
     const consumeQueuedAction = () => {
       const action = consumePendingDeliveryMetricAction(sessionId)
       if (!action) return
+      activeDeliveryMetricActionRef.current = action
       setExternalInsert(action.prompt)
       setQueueHintText(`已带入改进队列建议：${action.reason}`)
       setQueueHintAction(null)
@@ -2681,6 +2693,11 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
     }
 
     const dispatch = await sendMessage(text)
+    const activeAction = activeDeliveryMetricActionRef.current
+    if (activeAction && isDeliveryMetricActionPrompt(text, activeAction)) {
+      markDeliveryMetricActionSent(activeAction.actionId)
+      activeDeliveryMetricActionRef.current = null
+    }
     if (!dispatch?.scheduled) return
 
     if (dispatch.reason === 'session_starting') {
