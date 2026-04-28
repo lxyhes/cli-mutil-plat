@@ -1286,10 +1286,10 @@ const OpsBrief = React.memo(function OpsBrief({
   }>
 
   return (
-    <section className={`mb-4 overflow-hidden rounded-lg border border-border-subtle bg-bg-elevated shadow-sm ${expanded ? 'mb-5' : ''}`}>
+    <section className="mb-3 overflow-hidden rounded-lg border border-border-subtle bg-bg-elevated shadow-sm">
       <div className="flex min-w-0">
         <div className={`w-1.5 shrink-0 ${accentRailClass}`} />
-        <div className={`min-w-0 flex-1 ${expanded ? 'px-4 py-3' : 'px-3 py-2.5'}`}>
+        <div className={`min-w-0 flex-1 ${expanded ? 'px-3 py-2.5' : 'px-3 py-2'}`}>
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div className="min-w-0 flex-1">
               <div className="mb-2 flex flex-wrap items-center gap-2">
@@ -1396,39 +1396,41 @@ const OpsBrief = React.memo(function OpsBrief({
             </div>
           </div>
 
-          <div className="mt-3 flex items-center gap-1.5">
-            {deliverySteps.map((step, index) => {
-              const active = step.active || (!step.done && deliverySteps.slice(0, index).every(s => s.done))
-              return (
-                <div key={step.label} className="flex min-w-0 flex-1 items-center gap-1.5">
-                  <span
-                    title={step.label}
-                    className={`h-2 w-2 shrink-0 rounded-full ${
-                      step.done
-                        ? 'bg-accent-green'
-                        : active
-                          ? 'bg-accent-blue'
-                          : 'bg-border-subtle'
-                    }`}
-                  />
-                  <span className={`hidden truncate text-[11px] sm:block ${step.done || active ? 'text-text-secondary' : 'text-text-muted'}`}>
-                    {step.label}
-                  </span>
-                  {index < deliverySteps.length - 1 && (
+          {expanded && (
+            <div className="mt-2 flex items-center gap-1.5">
+              {deliverySteps.map((step, index) => {
+                const active = step.active || (!step.done && deliverySteps.slice(0, index).every(s => s.done))
+                return (
+                  <div key={step.label} className="flex min-w-0 flex-1 items-center gap-1.5">
                     <span
-                      className={`h-px min-w-4 flex-1 ${
+                      title={step.label}
+                      className={`h-2 w-2 shrink-0 rounded-full ${
                         step.done
-                          ? 'bg-accent-green/50'
+                          ? 'bg-accent-green'
                           : active
-                            ? 'bg-accent-blue/45'
+                            ? 'bg-accent-blue'
                             : 'bg-border-subtle'
                       }`}
                     />
-                  )}
-                </div>
-              )
-            })}
-          </div>
+                    <span className={`hidden truncate text-[11px] sm:block ${step.done || active ? 'text-text-secondary' : 'text-text-muted'}`}>
+                      {step.label}
+                    </span>
+                    {index < deliverySteps.length - 1 && (
+                      <span
+                        className={`h-px min-w-4 flex-1 ${
+                          step.done
+                            ? 'bg-accent-green/50'
+                            : active
+                              ? 'bg-accent-blue/45'
+                              : 'bg-border-subtle'
+                        }`}
+                      />
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          )}
 
           {!expanded && (
             <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-border-subtle pt-2 text-[11px] text-text-muted">
@@ -1454,8 +1456,8 @@ const OpsBrief = React.memo(function OpsBrief({
           )}
 
           {expanded && (
-            <>
-              <div className="mt-3 grid gap-x-4 gap-y-2 border-y border-border-subtle py-2 sm:grid-cols-2 lg:grid-cols-[auto_auto_auto_auto_1fr]">
+            <div className="mt-3 max-h-[44vh] overflow-y-auto pr-1 [scrollbar-width:thin]">
+              <div className="grid gap-x-4 gap-y-2 border-y border-border-subtle py-2 sm:grid-cols-2 lg:grid-cols-[auto_auto_auto_auto_1fr]">
                 <div className="flex items-center gap-1.5 text-xs text-text-secondary">
                   <GitPullRequest size={14} className="text-accent-green" />
                   <span>{snapshot.changedFileCount} 文件</span>
@@ -1804,7 +1806,7 @@ const OpsBrief = React.memo(function OpsBrief({
                   </div>
                 </div>
               </div>
-            </>
+            </div>
           )}
         </div>
       </div>
@@ -1841,9 +1843,9 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
   const [promptDraft, setPromptDraft] = useState({ label: '', text: '' })
   const [opsBriefExpanded, setOpsBriefExpanded] = useState(() => {
     try {
-      return localStorage.getItem('prismops-ops-brief-expanded') !== 'false'
+      return localStorage.getItem('prismops-ops-brief-expanded-v2') === 'true'
     } catch {
-      return true
+      return false
     }
   })
   // 记录是否已完成首次滚到底部（每次组件挂载重置）
@@ -1867,7 +1869,7 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
 
   useEffect(() => {
     try {
-      localStorage.setItem('prismops-ops-brief-expanded', String(opsBriefExpanded))
+      localStorage.setItem('prismops-ops-brief-expanded-v2', String(opsBriefExpanded))
     } catch {
       // ignore
     }
@@ -2788,25 +2790,6 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
             </button>
           )}
           <div className="mx-auto max-w-[1040px]">
-        {messages.length > 0 && (
-          <OpsBrief
-            snapshot={opsBrief}
-            onInsertPrompt={setPendingInsert}
-            onInsertPlaybook={handleInsertTeamPlaybook}
-            onExportTrustReport={handleExportTrustReport}
-            onExtractProjectKnowledge={handleExtractProjectKnowledge}
-            onChangeTrustPolicyPreset={handleChangeTrustPolicyPreset}
-            onOpenKnowledge={() => setKnowledgePanelOpen(true)}
-            onRunShipPlan={handleRunShipPlan}
-            onGenerateShipSummary={handleGenerateShipSummary}
-            canOpenKnowledge={!!workingDirectory}
-            shipActionLoading={shipActionLoading}
-            playbookActionLoading={playbookActionLoading}
-            trustKnowledgeLoading={trustKnowledgeLoading}
-            expanded={opsBriefExpanded}
-            onToggleExpanded={() => setOpsBriefExpanded(expanded => !expanded)}
-          />
-        )}
         {messages.length === 0 ? (
           <div className="flex min-h-[420px] items-center justify-center text-text-muted text-sm">
             {isLoading ? (
@@ -2869,6 +2852,26 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
                 : `tg-${group.messages[0]?.id || idx}`
             return <React.Fragment key={fragmentKey}>{elements}</React.Fragment>
           })
+        )}
+
+        {messages.length > 0 && (
+          <OpsBrief
+            snapshot={opsBrief}
+            onInsertPrompt={setPendingInsert}
+            onInsertPlaybook={handleInsertTeamPlaybook}
+            onExportTrustReport={handleExportTrustReport}
+            onExtractProjectKnowledge={handleExtractProjectKnowledge}
+            onChangeTrustPolicyPreset={handleChangeTrustPolicyPreset}
+            onOpenKnowledge={() => setKnowledgePanelOpen(true)}
+            onRunShipPlan={handleRunShipPlan}
+            onGenerateShipSummary={handleGenerateShipSummary}
+            canOpenKnowledge={!!workingDirectory}
+            shipActionLoading={shipActionLoading}
+            playbookActionLoading={playbookActionLoading}
+            trustKnowledgeLoading={trustKnowledgeLoading}
+            expanded={opsBriefExpanded}
+            onToggleExpanded={() => setOpsBriefExpanded(expanded => !expanded)}
+          />
         )}
 
         {/* 流式响应指示器 - 带实时计时器 + 渐变扫光动画 */}

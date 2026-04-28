@@ -353,6 +353,16 @@ function isCodexModelRefreshTimeout(text: string): boolean {
   return /failed to refresh available models/i.test(text) && /timeout waiting for child process to exit/i.test(text)
 }
 
+function isIgnorableCodexStderr(text: string): boolean {
+  const normalized = text.toLowerCase()
+  if (isCodexModelRefreshTimeout(text)) return true
+  return (
+    normalized.includes('rmcp::transport::worker') &&
+    normalized.includes('http request failed') &&
+    normalized.includes('chatgpt.com/backend-api/wham/apps')
+  )
+}
+
 export class CodexAppServerAdapter extends BaseProviderAdapter {
   readonly providerId = 'codex'
   readonly displayName = 'Codex CLI'
@@ -575,6 +585,10 @@ export class CodexAppServerAdapter extends BaseProviderAdapter {
       if (!text.trim()) return
       if (isCodexModelRefreshTimeout(text)) {
         console.warn(`[CodexAdapter] Codex model refresh timed out for ${sessionId}; using fallback model list.`)
+        return
+      }
+      if (isIgnorableCodexStderr(text)) {
+        console.debug(`[CodexAdapter] suppressed non-critical stderr for ${sessionId}: ${text.slice(0, 180)}`)
         return
       }
       console.debug(`[CodexAdapter] stderr for ${sessionId}: ${text.slice(0, 300)}`)
