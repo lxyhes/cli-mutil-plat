@@ -128,6 +128,15 @@ function normalizeConversationMessage(msg: ConversationMessage): ConversationMes
   }
 }
 
+function toAsciiLogText(value: unknown): string {
+  return repairKnownMojibake(String(value ?? '')).replace(/[^\x20-\x7E]/g, (char) => {
+    const codePoint = char.codePointAt(0) ?? 0
+    return codePoint <= 0xffff
+      ? `\\u${codePoint.toString(16).padStart(4, '0')}`
+      : `\\u{${codePoint.toString(16)}}`
+  })
+}
+
 function normalizeErrorMessage(error: unknown, fallback: string): string {
   if (!error) return fallback
 
@@ -769,12 +778,12 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       try {
         const result = await get().resumeSession(session.id)
         if (result.success) {
-          console.log(`[AutoResume] Resumed ${session.name} -> ${result.sessionId}`)
+          console.log(`[AutoResume] Resumed ${toAsciiLogText(session.name)} -> ${result.sessionId}`)
         } else {
-          console.warn(`[AutoResume] Failed: ${session.name}: ${result.error}`)
+          console.warn(`[AutoResume] Failed: ${toAsciiLogText(session.name)}: ${toAsciiLogText(result.error)}`)
         }
       } catch (error) {
-        console.error(`[AutoResume] Error: ${session.name}:`, error)
+        console.error(`[AutoResume] Error: ${toAsciiLogText(session.name)}:`, error)
       }
     }
 

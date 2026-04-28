@@ -50,6 +50,15 @@ function normalizeText(text: string): string {
     .trim()
 }
 
+function toAsciiLogText(value: unknown): string {
+  return String(value ?? '').replace(/[^\x20-\x7E]/g, (char) => {
+    const codePoint = char.codePointAt(0) ?? 0
+    return codePoint <= 0xffff
+      ? `\\u${codePoint.toString(16).padStart(4, '0')}`
+      : `\\u{${codePoint.toString(16)}}`
+  })
+}
+
 function estimateTokensApprox(text: string): number {
   if (!text) return 0
   const cjkCount = (text.match(/[\u4E00-\u9FFF]/g) || []).length
@@ -1185,7 +1194,7 @@ export function registerSessionHandlers(deps: IpcDependencies): void {
         const readyTimeoutMs = provider.id === 'codex' ? 12000 : provider.id === 'iflow' ? 90000 : 6000;
         await smV2.waitForSessionReady(newSessionId, readyTimeoutMs);
 
-        console.warn(`[IPC] ${provider.name} does not support native resume; created continuation session ${newSessionId} from ${oldSessionId}`);
+        console.warn(`[IPC] ${toAsciiLogText(provider.name)} does not support native resume; created continuation session ${newSessionId} from ${oldSessionId}`);
         return createSuccessResponse({ sessionId: newSessionId, recreated: true });
       }
 
@@ -1215,16 +1224,16 @@ export function registerSessionHandlers(deps: IpcDependencies): void {
       if (isSubcommand) {
         if (claudeSessionId) {
           resumeArgs = [resumeArg, claudeSessionId]
-          console.log(`[IPC] Resuming with ${provider.name} subcommand: ${resumeArg} ${claudeSessionId}`)
+          console.log(`[IPC] Resuming with ${toAsciiLogText(provider.name)} subcommand: ${resumeArg} ${claudeSessionId}`)
         } else {
           resumeArgs = [resumeArg]
-          console.warn(`[IPC] No session ID, falling back to ${provider.name}: ${resumeArg}`)
+          console.warn(`[IPC] No session ID, falling back to ${toAsciiLogText(provider.name)}: ${resumeArg}`)
         }
       } else {
         resumeArgs = [...baseArgs]
         if (claudeSessionId) {
           resumeArgs.push(resumeArg, claudeSessionId)
-          console.log(`[IPC] Resuming with ${provider.name} flag: ${resumeArg} ${claudeSessionId}`)
+          console.log(`[IPC] Resuming with ${toAsciiLogText(provider.name)} flag: ${resumeArg} ${claudeSessionId}`)
         } else {
           resumeArgs.push(resumeArg)
           console.warn(`[IPC] No claudeSessionId in DB, falling back to ${resumeArg} picker`)
@@ -1244,7 +1253,7 @@ export function registerSessionHandlers(deps: IpcDependencies): void {
         if (resumeInitialPrompt) {
           const promptTokens = estimateTokensApprox(resumeInitialPrompt)
           console.warn(
-            `[IPC] ${provider.name} resume fallback: summaries=${summaries.length}, recentMessages=${history.length}, promptTokens~${promptTokens}`
+            `[IPC] ${toAsciiLogText(provider.name)} resume fallback: summaries=${summaries.length}, recentMessages=${history.length}, promptTokens~${promptTokens}`
           )
         }
       }
@@ -1358,7 +1367,7 @@ export function registerSessionHandlers(deps: IpcDependencies): void {
         provider
       )
       concurrencyGuard.registerSession()
-      console.log(`[IPC] SDK V2 resume: ${oldSessionId} via ${provider.name} adapter`)
+      console.log(`[IPC] SDK V2 resume: ${oldSessionId} via ${toAsciiLogText(provider.name)} adapter`)
 
       database.updateSession(oldSessionId, {
         status: 'running' as any,

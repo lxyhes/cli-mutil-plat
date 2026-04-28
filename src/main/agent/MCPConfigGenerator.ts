@@ -18,6 +18,15 @@ const CODEX_TEMP_BASE_DIR = path.join(os.tmpdir(), 'spectrai-codex')
 /** OpenCode 临时配置文件目录基础路径 */
 const OPENCODE_TEMP_BASE_DIR = path.join(os.tmpdir(), 'spectrai-opencode')
 
+function toAsciiLogText(value: unknown): string {
+  return String(value ?? '').replace(/[^\x20-\x7E]/g, (char) => {
+    const codePoint = char.codePointAt(0) ?? 0
+    return codePoint <= 0xffff
+      ? `\\u${codePoint.toString(16).padStart(4, '0')}`
+      : `\\u{${codePoint.toString(16)}}`
+  })
+}
+
 /**
  * 获取 AgentMCPServer 的脚本路径
  * 开发模式：out/main/agent/AgentMCPServer.js（__dirname 在 asar 外）
@@ -193,8 +202,8 @@ export class MCPConfigGenerator {
     const escapedServerPath = escape(serverPath)
 
     const tomlLines = [
-      '# PrismOps 自动生成 - MCP 配置',
-      '# 此文件由 MCPConfigGenerator 管理，请勿手动编辑',
+      '# PrismOps generated MCP config',
+      '# Managed by MCPConfigGenerator. Do not edit manually.',
       '',
     ]
 
@@ -223,7 +232,7 @@ export class MCPConfigGenerator {
           }
         }
         if (inheritedTopLevel.length > 0) {
-          tomlLines.push('# 从全局 config.toml 继承的顶层配置')
+          tomlLines.push('# Top-level config inherited from global config.toml')
           tomlLines.push(...inheritedTopLevel)
           tomlLines.push('')
           console.log(`[MCPConfig] Codex: Inherited top-level keys: ${inheritedTopLevel.map(l => l.split('=')[0].trim()).join(', ')}`)
@@ -295,8 +304,8 @@ export class MCPConfigGenerator {
                 tomlLines.push(`${k} = "${escape(v)}"`)
               }
             }
-            injected.push(`${mcp.name}(${mcp.command})`)
-            console.log(`[MCPConfig] Codex: Injecting MCP "${mcp.name}" id=${mcp.id} command=${mcp.command} args=${JSON.stringify(mcp.args || [])}`)
+            injected.push(`${toAsciiLogText(mcp.name)}(${mcp.command})`)
+            console.log(`[MCPConfig] Codex: Injecting MCP "${toAsciiLogText(mcp.name)}" id=${mcp.id} command=${mcp.command} args=${JSON.stringify(mcp.args || [])}`)
           }
           // http/sse：Codex 暂不支持 URL 类型 MCP，跳过
         }
@@ -308,7 +317,7 @@ export class MCPConfigGenerator {
 
     // 追加 [model_providers.*] 块（已在顶部提取，这里放在所有 [section] 之后）
     if (modelProviderBlocks.length > 0) {
-      tomlLines.push('', '# 从全局 config.toml 继承的 model_providers 配置')
+      tomlLines.push('', '# model_providers config inherited from global config.toml')
       tomlLines.push(...modelProviderBlocks)
       console.log(`[MCPConfig] Codex: Inherited ${modelProviderBlocks.length} model_provider(s) from global config.toml`)
     }
@@ -316,7 +325,7 @@ export class MCPConfigGenerator {
     const tomlContent = tomlLines.join('\n')
     fs.writeFileSync(path.join(tempDir, 'config.toml'), tomlContent, 'utf-8')
     // 诊断：打印完整 TOML（排查 MCP 配置导致 Codex 挂起问题）
-    console.log(`[MCPConfig] Codex config.toml:\n${tomlContent}`)
+    console.log(`[MCPConfig] Codex config.toml:\n${toAsciiLogText(tomlContent)}`)
 
     // 复制 auth.json（Codex 认证文件，也存放在 CODEX_HOME 下）
     const authSrc = path.join(globalCodexHome, 'auth.json')
@@ -404,7 +413,7 @@ export class MCPConfigGenerator {
               ...(Object.keys(envEntries).length > 0 ? { environment: envEntries } : {}),
               enabled: true,
             }
-            injected.push(`${mcp.name}(${mcp.command})`)
+            injected.push(`${toAsciiLogText(mcp.name)}(${mcp.command})`)
           } else if ((mcp.transport === 'http' || mcp.transport === 'sse') && mcp.url) {
             config.mcp[mcp.id] = {
               type: 'remote',
@@ -412,7 +421,7 @@ export class MCPConfigGenerator {
               ...(mcp.headers && Object.keys(mcp.headers).length > 0 ? { headers: mcp.headers } : {}),
               enabled: true,
             }
-            injected.push(`${mcp.name}(${mcp.url})`)
+            injected.push(`${toAsciiLogText(mcp.name)}(${mcp.url})`)
           }
         }
         console.log(`[MCPConfig] OpenCode: Injected ${injected.length}/${userMcps.length} user MCP(s): ${injected.join(', ') || '(none)'}`)
