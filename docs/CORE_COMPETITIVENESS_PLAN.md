@@ -83,7 +83,7 @@ Scope:
 - Add one-click actions for "run checks", "summarize changes", and "create repair task".
 - Persist delivery snapshots into working context.
 
-Status: started. The task cockpit now evaluates five visible gates: mission scope, traceable changes, validation evidence, failure clearance, and delivery handoff.
+Status: in progress. The task cockpit now evaluates five visible gates: mission scope, traceable changes, validation evidence, failure clearance, and delivery handoff. The validation gate can run QA/SHIP checks directly, failed QA/SHIP runs create a repair task automatically, and the handoff gate can generate a delivery summary into the message composer.
 
 ### Phase 3: Agent Work Board
 

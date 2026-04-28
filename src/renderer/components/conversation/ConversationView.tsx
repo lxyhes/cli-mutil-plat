@@ -17,6 +17,8 @@ import { useConversation } from '../../hooks/useConversation'
 import type { QueuedMessage } from '../../hooks/useConversation'
 import { useSessionStore } from '../../stores/sessionStore'
 import { useUIStore } from '../../stores/uiStore'
+import { useTaskStore } from '../../stores/taskStore'
+import type { TaskCard } from '../../../shared/types'
 import MessageBubble from './MessageBubble'
 import MessageInput from './MessageInput'
 import SessionToolbar, { type SkillItem } from './SessionToolbar'
@@ -86,6 +88,29 @@ interface DeliveryReadinessGate {
   status: 'passed' | 'warning' | 'blocked'
   prompt: string
 }
+
+interface ShipCommandRunResult {
+  id?: string
+  label?: string
+  command?: string
+  status?: string
+  exitCode?: number | null
+  outputTail?: string
+  errorMessage?: string
+}
+
+interface ShipRunResult {
+  passed?: boolean
+  summary?: string
+  suggestedPrompt?: string
+  plan?: {
+    projectPath?: string
+    changedFiles?: string[]
+  }
+  results?: ShipCommandRunResult[]
+}
+
+type ShipRepairTaskDraft = Partial<TaskCard> & { metadata?: Record<string, unknown> }
 
 interface CommonPrompt {
   id: string
@@ -361,6 +386,77 @@ function unwrapIpcData<T = any>(result: any): T | undefined {
   if (!result) return undefined
   if (result.success === false) return undefined
   return (result.data || result) as T
+}
+
+function truncateShipOutput(text: string | undefined, max = 1800): string {
+  if (!text) return ''
+  return text.length > max ? `${text.slice(0, max)}\n...已截断...` : text
+}
+
+function getFailedShipResults(run: ShipRunResult): ShipCommandRunResult[] {
+  return (run.results || []).filter(result => result.status === 'failed' || result.status === 'timed-out')
+}
+
+function buildShipRepairTask(run: ShipRunResult, workingDirectory: string, sessionId: string): ShipRepairTaskDraft {
+  const failedResults = getFailedShipResults(run)
+  const failedNames = failedResults
+    .map(result => result.label || result.id || result.command || '交付检查')
+    .slice(0, 3)
+    .join('、')
+
+  const failureDetails = failedResults.map(result => [
+    `### ${result.label || result.id || '交付检查命令'}`,
+    `命令：${result.command || '未知命令'}`,
+    result.exitCode !== undefined && result.exitCode !== null ? `退出码：${result.exitCode}` : '',
+    result.errorMessage ? `错误：${result.errorMessage}` : '',
+    result.outputTail ? '输出摘要：' : '',
+    result.outputTail ? '```text' : '',
+    truncateShipOutput(result.outputTail),
+    result.outputTail ? '```' : '',
+  ].filter(Boolean).join('\n')).join('\n\n')
+
+  const projectPath = run.plan?.projectPath || workingDirectory
+  const changedFiles = run.plan?.changedFiles?.length
+    ? run.plan.changedFiles.map(file => `- ${file}`).join('\n')
+    : '- 未识别到改动文件或无需列出'
+
+  return {
+    title: `修复 QA/SHIP 失败：${failedNames || '交付检查'}`,
+    description: [
+      'QA/SHIP 自动检查失败。请根据下面的失败命令和输出摘要定位根因，做最小修复后重跑失败命令。',
+      '',
+      `项目路径：${projectPath}`,
+      `检查摘要：${run.summary || '暂无摘要'}`,
+      '',
+      '## 失败命令',
+      failureDetails || '- 暂无失败详情',
+      '',
+      '## 改动文件',
+      changedFiles,
+      '',
+      '## 验收条件',
+      '- 定位并修复失败根因，不绕过失败检查。',
+      '- 优先只重跑失败命令，确认通过。',
+      '- 最后再次运行 QA/SHIP 交付检查。',
+    ].join('\n'),
+    status: 'todo',
+    priority: 'high',
+    tags: ['qa-ship', 'repair', 'auto-generated'],
+    gitRepoPath: projectPath,
+    metadata: {
+      source: 'qa-ship',
+      sessionId,
+      projectPath,
+      summary: run.summary,
+      failedCommands: failedResults.map(result => ({
+        id: result.id,
+        label: result.label,
+        command: result.command,
+        status: result.status,
+        exitCode: result.exitCode,
+      })),
+    },
+  }
 }
 
 interface ConversationViewProps {
@@ -743,10 +839,11 @@ const OpsBrief = React.memo(function OpsBrief({
                   </div>
                   <button
                     type="button"
-                    onClick={() => onInsertPrompt(buildDeliveryPackPrompt(snapshot))}
+                    onClick={onGenerateShipSummary}
+                    disabled={shipActionLoading !== null}
                     className="rounded-md px-2 py-1 text-[11px] font-medium text-accent-green transition-colors hover:bg-accent-green/10"
                   >
-                    生成交付包
+                    {shipActionLoading === 'summary' ? '生成中...' : '生成交付包'}
                   </button>
                 </div>
                 <div className="grid gap-2 md:grid-cols-2">
@@ -775,15 +872,27 @@ const OpsBrief = React.memo(function OpsBrief({
                             <div className="mt-1 line-clamp-2 text-[11px] leading-4 text-text-secondary">
                               {gate.detail}
                             </div>
-                            {gate.status !== 'passed' && (
-                              <button
-                                type="button"
-                                onClick={() => onInsertPrompt(buildGatePrompt(gate, snapshot))}
-                                className="mt-2 rounded-md bg-bg-primary/70 px-2 py-0.5 text-[11px] font-medium text-text-secondary transition-colors hover:bg-bg-hover hover:text-accent-blue"
-                              >
-                                处理
-                              </button>
-                            )}
+                            {gate.status !== 'passed' && (() => {
+                              const isValidationGate = gate.id === 'validation'
+                              const isHandoffGate = gate.id === 'handoff'
+                              const action = isValidationGate ? onRunShipPlan : isHandoffGate ? onGenerateShipSummary : () => onInsertPrompt(buildGatePrompt(gate, snapshot))
+                              const loading = (isValidationGate && shipActionLoading === 'run') || (isHandoffGate && shipActionLoading === 'summary')
+                              const label = isValidationGate
+                                ? (loading ? '检查中...' : '运行检查')
+                                : isHandoffGate
+                                  ? (loading ? '生成中...' : '生成说明')
+                                  : '处理'
+                              return (
+                                <button
+                                  type="button"
+                                  onClick={action}
+                                  disabled={shipActionLoading !== null}
+                                  className="mt-2 rounded-md bg-bg-primary/70 px-2 py-0.5 text-[11px] font-medium text-text-secondary transition-colors hover:bg-bg-hover hover:text-accent-blue disabled:cursor-not-allowed disabled:opacity-50"
+                                >
+                                  {label}
+                                </button>
+                              )
+                            })()}
                           </div>
                         </div>
                       </div>
@@ -866,6 +975,7 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
   const [ctxMenu, setCtxMenu] = useState({ visible: false, x: 0, y: 0 })
   const [queuedMessages, setQueuedMessages] = useState<QueuedMessage[]>([])
   const [queueHintText, setQueueHintText] = useState('')
+  const [shipActionLoading, setShipActionLoading] = useState<'run' | 'summary' | null>(null)
   const [showScrollBottom, setShowScrollBottom] = useState(false)
   const [commonPrompts, setCommonPrompts] = useState<CommonPrompt[]>(() => loadCommonPrompts())
   const [promptPickerOpen, setPromptPickerOpen] = useState(false)
@@ -932,6 +1042,7 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
   const selectSession = useSessionStore(state => state.selectSession)
   const selectedSessionId = useSessionStore(state => state.selectedSessionId)
   const session = useSessionStore(state => state.sessions.find(s => s.id === sessionId))
+  const createTask = useTaskStore(state => state.createTask)
 
   // 是否有未响应的权限请求
   const lastActivity = useSessionStore(state => state.lastActivities[sessionId])
@@ -1451,6 +1562,80 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
     }
   }, [])
 
+  const handleRunShipPlan = useCallback(async () => {
+    if (!workingDirectory || shipActionLoading) {
+      setQueueHintText('当前会话没有绑定项目目录，无法运行交付检查')
+      return
+    }
+    setShipActionLoading('run')
+    setQueueHintText('正在运行 QA/SHIP 交付检查...')
+    try {
+      const result = await window.spectrAI.ship.runPlan(workingDirectory, {
+        includeOptional: false,
+        stopOnFailure: true,
+      })
+      if (!result?.success) {
+        setQueueHintText(result?.error?.userMessage || result?.error?.message || result?.error || '交付检查运行失败')
+        return
+      }
+      const run = unwrapIpcData<ShipRunResult>(result)
+      const prompt = run?.suggestedPrompt || [
+        'QA/SHIP 交付检查已完成，请根据结果继续处理。',
+        '',
+        `结果摘要：${run?.summary || '暂无摘要'}`,
+        '',
+        '请输出：验证结果、失败项处理建议、剩余风险，以及是否可以交付。',
+      ].join('\n')
+      const failedResults = run ? getFailedShipResults(run) : []
+      let repairTaskCreated = false
+      let repairTaskError = ''
+      if (run && !run.passed && failedResults.length > 0) {
+        try {
+          await createTask(buildShipRepairTask(run, workingDirectory, sessionId))
+          repairTaskCreated = true
+        } catch (taskError: any) {
+          repairTaskError = taskError?.message || '修复任务创建失败'
+        }
+      }
+      setExternalInsert(prompt)
+      setQueueHintText(`${run?.summary || '交付检查已完成'}，结果已插入输入框${repairTaskCreated ? '，已创建修复任务' : ''}${repairTaskError ? `，${repairTaskError}` : ''}`)
+    } catch (error: any) {
+      setQueueHintText(error?.message || '交付检查运行失败')
+    } finally {
+      setShipActionLoading(null)
+    }
+  }, [workingDirectory, shipActionLoading, createTask, sessionId])
+
+  const handleGenerateShipSummary = useCallback(async () => {
+    if (!workingDirectory || shipActionLoading) {
+      setQueueHintText('当前会话没有绑定项目目录，无法生成交付说明')
+      return
+    }
+    setShipActionLoading('summary')
+    setQueueHintText('正在生成交付说明...')
+    try {
+      const result = await window.spectrAI.ship.generateChangeSummary(workingDirectory)
+      if (!result?.success) {
+        setQueueHintText(result?.error?.userMessage || result?.error?.message || result?.error || '交付说明生成失败')
+        return
+      }
+      const summary = unwrapIpcData<any>(result)
+      const prompt = summary?.suggestedPrompt || summary?.markdown || [
+        '请基于当前会话生成交付说明。',
+        '',
+        `变更摘要：${summary?.summary || '暂无摘要'}`,
+        '',
+        '请输出：变更摘要、验证结果、剩余风险、建议提交说明和用户下一步。',
+      ].join('\n')
+      setExternalInsert(prompt)
+      setQueueHintText('交付说明已插入输入框，检查后发送即可')
+    } catch (error: any) {
+      setQueueHintText(error?.message || '交付说明生成失败')
+    } finally {
+      setShipActionLoading(null)
+    }
+  }, [workingDirectory, shipActionLoading])
+
   // 右键菜单项
   const ctxMenuItems: MenuItem[] = [
     {
@@ -1530,7 +1715,10 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
             snapshot={opsBrief}
             onInsertPrompt={setPendingInsert}
             onOpenKnowledge={() => setKnowledgePanelOpen(true)}
+            onRunShipPlan={handleRunShipPlan}
+            onGenerateShipSummary={handleGenerateShipSummary}
             canOpenKnowledge={!!workingDirectory}
+            shipActionLoading={shipActionLoading}
             expanded={opsBriefExpanded}
             onToggleExpanded={() => setOpsBriefExpanded(expanded => !expanded)}
           />
@@ -1869,6 +2057,22 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
                     ))}
                   </div>
                 )}
+              </div>
+            </div>
+          )}
+
+          {queueHintText && queuedMessages.length === 0 && (
+            <div className="px-4 pb-1">
+              <div className="flex items-center justify-between gap-2 rounded-md border border-border-subtle bg-bg-elevated px-2.5 py-1.5 text-xs text-text-secondary">
+                <span className="min-w-0 flex-1 truncate">{queueHintText}</span>
+                <button
+                  type="button"
+                  onClick={() => setQueueHintText('')}
+                  className="rounded p-0.5 text-text-muted transition-colors hover:bg-bg-hover hover:text-text-primary"
+                  title="关闭提示"
+                >
+                  <X size={12} />
+                </button>
               </div>
             </div>
           )}
