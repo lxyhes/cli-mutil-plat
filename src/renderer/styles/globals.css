@@ -2037,6 +2037,12 @@
     0 12px 32px color-mix(in srgb, var(--color-shadow-md) 45%, transparent);
 }
 
+.message-composer .chat-message-textarea:focus,
+.message-composer .chat-message-textarea:focus-visible {
+  outline: none !important;
+  box-shadow: none !important;
+}
+
 .message-user-bubble {
   background:
     linear-gradient(

@@ -1125,7 +1125,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
       )}
 
       <div className={`message-composer mx-auto flex max-w-[1040px] flex-col rounded-lg bg-bg-input p-2 transition-colors
-        ${dragOver ? 'shadow-[0_0_0_1px_var(--color-accent-blue),0_10px_28px_var(--color-shadow-sm)]' : 'shadow-[0_10px_28px_var(--color-shadow-sm)]'} focus-within:shadow-[0_0_0_1px_rgba(88,166,255,0.45),0_10px_28px_var(--color-shadow-sm)] md:p-2.5`}>
+        ${dragOver ? 'shadow-[0_0_0_1px_var(--color-accent-blue),0_10px_28px_var(--color-shadow-sm)]' : 'shadow-[0_10px_28px_var(--color-shadow-sm)]'} md:p-2.5`}>
 
         {/* 附件区域：图片预览 + 文件引用卡片（有附件时显示） */}
         {hasAttachments && (
@@ -1237,7 +1237,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
             placeholder={isDisabled ? '等待 AI 响应...' : placeholder}
             disabled={isDisabled}
             rows={1}
-            className="flex-1 bg-transparent text-text-primary text-sm
+            className="chat-message-textarea flex-1 bg-transparent text-text-primary text-sm
               px-2 py-1.5 resize-none overflow-y-auto leading-5 min-h-[2rem]
               focus:outline-none focus-visible:outline-none
               disabled:opacity-50 disabled:cursor-not-allowed

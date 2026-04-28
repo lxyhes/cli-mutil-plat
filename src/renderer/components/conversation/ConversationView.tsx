@@ -38,6 +38,13 @@ import {
   recordDeliveryMetricSnapshot,
   type PendingDeliveryMetricAction,
 } from '../../utils/deliveryMetrics'
+import {
+  buildProjectMemorySuggestionPrompt,
+  buildProjectMemorySuggestions,
+  filterProjectMemoryForPlaybook,
+  formatProjectMemorySuggestionsForMarkdown,
+  type ProjectMemorySuggestion,
+} from '../../utils/projectMemorySuggestions'
 
 
 // ---- Provider 颜色映射 ----
@@ -90,6 +97,7 @@ interface OpsBriefSnapshot {
   risks: string[]
   evidence: string[]
   evidenceTimeline: EvidenceTimelineEntry[]
+  projectMemorySuggestions: ProjectMemorySuggestion[]
   readinessGates: DeliveryReadinessGate[]
   deliveryMetrics: DeliveryMetric[]
   deliveryMetricScore: number
@@ -588,6 +596,7 @@ function buildDeliveryPackPrompt(snapshot: OpsBriefSnapshot): string {
   const risks = snapshot.risks.map(risk => `- ${risk}`).join('\n')
   const evidence = snapshot.evidence.map(item => `- ${item}`).join('\n')
   const nextActions = snapshot.nextActions.map(action => `- ${action}`).join('\n')
+  const memorySuggestions = formatProjectMemorySuggestionsForMarkdown(snapshot.projectMemorySuggestions)
 
   return [
     '请为当前 Mission 生成一份可交付工作包，并在必要时继续补齐缺口。',
@@ -616,6 +625,9 @@ function buildDeliveryPackPrompt(snapshot: OpsBriefSnapshot): string {
     '',
     '## 建议下一步',
     nextActions,
+    '',
+    '## 建议沉淀的项目记忆',
+    memorySuggestions,
     '',
     '## 输出要求',
     '- 先判断当前是否可以交付；如果不能，列出最小补齐动作并执行。',
@@ -826,6 +838,7 @@ function buildTrustAuditPrompt(snapshot: OpsBriefSnapshot): string {
   const timeline = snapshot.evidenceTimeline
     .map(entry => `- ${entry.timestamp || '未知时间'}：${getEvidenceTimelineLabel(entry.type)}；${entry.label}；${entry.detail}`)
     .join('\n')
+  const memorySuggestions = formatProjectMemorySuggestionsForMarkdown(snapshot.projectMemorySuggestions)
   const files = snapshot.lastFiles.length > 0
     ? snapshot.lastFiles.map(file => `- ${file}`).join('\n')
     : '- 暂未识别到文件改动'
@@ -867,6 +880,9 @@ function buildTrustAuditPrompt(snapshot: OpsBriefSnapshot): string {
     `- 项目知识：${snapshot.projectPath ? '已绑定项目目录，可沉淀共享记忆' : '未绑定项目目录，知识沉淀受限'}`,
     gates,
     '',
+    '## 建议沉淀的项目记忆',
+    memorySuggestions,
+    '',
     '## 最近文件',
     files,
     '',
@@ -906,6 +922,7 @@ function buildTrustReportMarkdown(snapshot: OpsBriefSnapshot): string {
     const time = entry.timestamp ? `${entry.timestamp} - ` : ''
     return `${time}${getEvidenceTimelineLabel(entry.type)} - ${entry.label}: ${entry.detail}`
   })
+  const memorySuggestions = formatProjectMemorySuggestionsForMarkdown(snapshot.projectMemorySuggestions).split('\n')
   const agents = snapshot.agents.map(agent => [
     `- ${agent.name || agent.agentId}: ${getAgentStatusLabel(agent.status)}`,
     agent.workDir ? `  - 工作目录: ${agent.workDir}` : '',
@@ -966,6 +983,10 @@ function buildTrustReportMarkdown(snapshot: OpsBriefSnapshot): string {
     '## 交付门禁',
     '',
     formatMarkdownList(gates, '暂无门禁数据'),
+    '',
+    '## 项目记忆建议',
+    '',
+    formatMarkdownList(memorySuggestions, '暂无项目记忆建议'),
     '',
     '## 最近文件',
     '',
