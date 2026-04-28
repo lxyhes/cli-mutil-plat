@@ -107,7 +107,7 @@ Scope:
 - Each template defines expected evidence, validation, and final output.
 - Support project-specific defaults from memory.
 
-Status: started. The task cockpit now exposes six reusable team playbooks for bug fix, feature delivery, UI polish, code review, migration, and release check. Each playbook inserts a context-aware prompt with current mission state, changed files, risks, evidence, expected evidence, validation requirements, and final output format.
+Status: completed for the first usable slice. The task cockpit now exposes six reusable team playbooks for bug fix, feature delivery, UI polish, code review, migration, and release check. Each playbook reads the current working context before insertion, so project memory and team defaults are carried into the prompt alongside current mission state, changed files, risks, evidence, expected evidence, validation requirements, and final output format.
 
 ### Phase 5: Organization Trust Layer
 
@@ -120,6 +120,8 @@ Scope:
 - Shared project knowledge
 - Exportable delivery reports
 - Provider and model governance
+
+Status: started. The task cockpit now includes a first Organization Trust Layer slice with audit signals, persisted permission policy presets, project knowledge readiness, one-click session-to-project knowledge extraction, provider/model governance, delivery report readiness, a prompt action for generating a transferable trust/audit summary, and a Markdown export action for downloading a trust delivery report from the current mission, tool history, file changes, validation evidence, risks, gates, agent state, and provider/model state.
 
 ## Success Metrics
 

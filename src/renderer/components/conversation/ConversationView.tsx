@@ -56,6 +56,9 @@ type MessageGroup =
 interface OpsBriefSnapshot {
   projectName: string
   projectPath?: string
+  providerId?: string
+  modelId?: string
+  trustPolicyPresetId: TrustPolicyPresetId
   goal: string
   statusLabel: string
   statusTone: 'neutral' | 'active' | 'blocked' | 'done'
@@ -157,6 +160,16 @@ interface TeamPlaybookTemplate {
   finalOutput: string[]
 }
 
+type TrustSignalTone = 'good' | 'warn' | 'bad' | 'neutral'
+type TrustPolicyPresetId = 'auto' | 'explore' | 'standard' | 'strict'
+
+interface TrustPolicyPreset {
+  id: TrustPolicyPresetId
+  label: string
+  detail: string
+  tone: TrustSignalTone
+}
+
 interface MissionLaunchpadProps {
   providerId?: string
   sessionId: string
@@ -166,6 +179,35 @@ interface MissionLaunchpadProps {
 }
 
 const COMMON_PROMPTS_STORAGE_KEY = 'prismops-common-prompts'
+const TRUST_POLICY_STORAGE_KEY = 'prismops-trust-policy-presets'
+
+const TRUST_POLICY_PRESETS: Record<Exclude<TrustPolicyPresetId, 'auto'>, TrustPolicyPreset> = {
+  explore: {
+    id: 'explore',
+    label: '探索模式',
+    detail: '以读取、分析和方案收敛为主',
+    tone: 'neutral',
+  },
+  standard: {
+    id: 'standard',
+    label: '标准审批',
+    detail: '代码改动需补齐验证证据',
+    tone: 'warn',
+  },
+  strict: {
+    id: 'strict',
+    label: '保守审批',
+    detail: '权限、失败项或等待项先人工确认',
+    tone: 'warn',
+  },
+}
+
+const TRUST_POLICY_OPTIONS: Array<{ id: TrustPolicyPresetId; label: string }> = [
+  { id: 'auto', label: '自动策略' },
+  { id: 'explore', label: '探索模式' },
+  { id: 'standard', label: '标准审批' },
+  { id: 'strict', label: '保守审批' },
+]
 
 const DEFAULT_COMMON_PROMPTS: CommonPrompt[] = [
   { id: 'review-project', label: '审视项目', text: '审视下我的项目，先给出结构、风险点和下一步优先级。' },
@@ -315,6 +357,42 @@ function saveCommonPrompts(prompts: CommonPrompt[]): void {
   }
 }
 
+function normalizeTrustPolicyPresetId(value: unknown): TrustPolicyPresetId {
+  return value === 'explore' || value === 'standard' || value === 'strict' ? value : 'auto'
+}
+
+function loadTrustPolicyOverrides(): Record<string, TrustPolicyPresetId> {
+  try {
+    const raw = localStorage.getItem(TRUST_POLICY_STORAGE_KEY)
+    if (!raw) return {}
+    const parsed = JSON.parse(raw)
+    if (!parsed || typeof parsed !== 'object') return {}
+    return Object.entries(parsed).reduce<Record<string, TrustPolicyPresetId>>((acc, [key, value]) => {
+      const normalized = normalizeTrustPolicyPresetId(value)
+      if (key && normalized !== 'auto') acc[key] = normalized
+      return acc
+    }, {})
+  } catch {
+    return {}
+  }
+}
+
+function saveTrustPolicyOverrides(overrides: Record<string, TrustPolicyPresetId>): void {
+  try {
+    localStorage.setItem(TRUST_POLICY_STORAGE_KEY, JSON.stringify(overrides))
+  } catch {
+    // ignore
+  }
+}
+
+function getTrustPolicyScopeKey(projectPath: string | undefined, sessionId: string): string {
+  return projectPath || `session:${sessionId}`
+}
+
+function getTrustPolicyOptionLabel(presetId: TrustPolicyPresetId): string {
+  return TRUST_POLICY_OPTIONS.find(option => option.id === presetId)?.label || '自动策略'
+}
+
 function getProjectName(workingDirectory?: string, fallback?: string): string {
   const normalized = (workingDirectory || '').replace(/\\/g, '/').replace(/\/+$/, '')
   const parts = normalized.split('/').filter(Boolean)
@@ -330,6 +408,12 @@ function compactText(value: string, max = 110): string {
   const text = value.replace(/\s+/g, ' ').trim()
   if (text.length <= max) return text
   return `${text.slice(0, max - 1)}…`
+}
+
+function truncateLongText(value: string, max = 1800): string {
+  const text = value.trim()
+  if (text.length <= max) return text
+  return `${text.slice(0, max)}\n...已截断...`
 }
 
 function getToolCommand(message: ConversationMessage): string {
@@ -524,12 +608,18 @@ function buildGatePrompt(gate: DeliveryReadinessGate, snapshot: OpsBriefSnapshot
   ].join('\n')
 }
 
-function buildTeamPlaybookPrompt(template: TeamPlaybookTemplate, snapshot: OpsBriefSnapshot): string {
+function extractWorkingContextPrompt(result: any): string {
+  const prompt = result?.prompt || result?.data?.prompt || result?.context?.prompt
+  return typeof prompt === 'string' ? prompt.trim() : ''
+}
+
+function buildTeamPlaybookPrompt(template: TeamPlaybookTemplate, snapshot: OpsBriefSnapshot, memoryPrompt = ''): string {
   const changedFiles = snapshot.lastFiles.length > 0
     ? snapshot.lastFiles.map(file => `- ${file}`).join('\n')
     : '- 暂未识别到文件改动'
   const risks = snapshot.risks.map(risk => `- ${risk}`).join('\n')
   const evidence = snapshot.evidence.map(item => `- ${item}`).join('\n')
+  const memory = memoryPrompt.trim()
 
   return [
     `请按「${template.label}」团队模板推进当前 Mission。`,
@@ -547,6 +637,9 @@ function buildTeamPlaybookPrompt(template: TeamPlaybookTemplate, snapshot: OpsBr
     '## 最近文件',
     changedFiles,
     '',
+    '## 项目记忆与团队默认偏好',
+    memory ? truncateLongText(memory, 1800) : '- 暂未读取到项目记忆；按当前上下文、团队模板和已有证据推进。',
+    '',
     '## 已有风险与证据',
     risks,
     evidence,
@@ -561,6 +654,199 @@ function buildTeamPlaybookPrompt(template: TeamPlaybookTemplate, snapshot: OpsBr
     template.finalOutput.map(item => `- ${item}`).join('\n'),
     '',
     '请先判断当前证据是否足够；如果不足，先补齐最小缺口。涉及代码改动时，完成后运行必要验证并说明结果。',
+  ].filter(Boolean).join('\n')
+}
+
+function getTrustPolicyPreset(snapshot: OpsBriefSnapshot): TrustPolicyPreset {
+  if (snapshot.trustPolicyPresetId !== 'auto') {
+    return TRUST_POLICY_PRESETS[snapshot.trustPolicyPresetId]
+  }
+
+  if (snapshot.failedToolCount > 0 || snapshot.statusTone === 'blocked') {
+    return {
+      id: 'strict',
+      label: '保守审批',
+      detail: '权限、失败项或等待项先人工确认',
+      tone: 'warn',
+    }
+  }
+  if (snapshot.changedFileCount > 0 && snapshot.validationCount > 0) {
+    return {
+      id: 'standard',
+      label: '交付准入',
+      detail: '已有改动与验证，可进入审计摘要',
+      tone: 'good',
+    }
+  }
+  if (snapshot.changedFileCount > 0) {
+    return {
+      id: 'standard',
+      label: '标准审批',
+      detail: '代码改动需补齐验证证据',
+      tone: 'warn',
+    }
+  }
+  return {
+    id: 'explore',
+    label: '探索模式',
+    detail: '以读取、分析和方案收敛为主',
+    tone: 'neutral',
+  }
+}
+
+function getTrustSignalClass(tone: TrustSignalTone): string {
+  return {
+    good: 'border-accent-green/20 bg-accent-green/5 text-accent-green',
+    warn: 'border-accent-yellow/25 bg-accent-yellow/10 text-accent-yellow',
+    bad: 'border-accent-red/25 bg-accent-red/10 text-accent-red',
+    neutral: 'border-border-subtle bg-bg-primary/70 text-text-secondary',
+  }[tone]
+}
+
+function buildTrustAuditPrompt(snapshot: OpsBriefSnapshot): string {
+  const policy = getTrustPolicyPreset(snapshot)
+  const gates = snapshot.readinessGates
+    .map(gate => `- ${gate.label}：${gate.status === 'passed' ? '通过' : gate.status === 'blocked' ? '阻塞' : '待补齐'}；${gate.detail}`)
+    .join('\n')
+  const files = snapshot.lastFiles.length > 0
+    ? snapshot.lastFiles.map(file => `- ${file}`).join('\n')
+    : '- 暂未识别到文件改动'
+
+  return [
+    '请生成当前会话的组织可信交付摘要。',
+    '',
+    '## Mission',
+    `- 项目：${snapshot.projectName}`,
+    `- 目录：${snapshot.projectPath || '未绑定'}`,
+    `- Provider：${snapshot.providerId || '未知'}`,
+    `- 模型：${snapshot.modelId || '默认/未上报'}`,
+    `- 目标：${snapshot.goal}`,
+    `- 阶段：${snapshot.phaseLabel}`,
+    `- 交付状态：${snapshot.deliveryReadiness}`,
+    `- 健康分：${snapshot.missionHealthScore}`,
+    '',
+    '## 审计线索',
+    `- 对话消息：${snapshot.messageCount} 条`,
+    `- 工具调用：${snapshot.toolCount} 次，异常 ${snapshot.failedToolCount} 个`,
+    `- 文件改动：${snapshot.changedFileCount} 个文件，+${snapshot.additions} / -${snapshot.deletions}`,
+    `- 验证证据：${snapshot.validationCount} 条`,
+    snapshot.lastCommand ? `- 最近命令：${snapshot.lastCommand}` : '',
+    '',
+    '## 权限与治理',
+    `- 建议权限策略：${policy.label}（${policy.detail}）`,
+    `- 策略预设：${getTrustPolicyOptionLabel(snapshot.trustPolicyPresetId)}`,
+    `- Provider/模型治理：${snapshot.providerId || '未知'} / ${snapshot.modelId || '默认/未上报'}`,
+    `- Agent 状态：${snapshot.activeAgentCount} 执行中 / ${snapshot.agentCount} 总数，${snapshot.agentConflictCount} 个协作风险信号`,
+    '',
+    '## 项目知识与交付门禁',
+    `- 项目知识：${snapshot.projectPath ? '已绑定项目目录，可沉淀共享记忆' : '未绑定项目目录，知识沉淀受限'}`,
+    gates,
+    '',
+    '## 最近文件',
+    files,
+    '',
+    '## 风险与证据',
+    snapshot.risks.map(risk => `- 风险：${risk}`).join('\n'),
+    snapshot.evidence.map(item => `- 证据：${item}`).join('\n'),
+    '',
+    '## 输出要求',
+    '- 用团队可转发格式输出：交付结论、审计时间线、权限策略、知识库更新建议、验证证据、剩余风险。',
+    '- 如果证据不足，列出最小补齐动作，并标明阻塞项。',
+  ].filter(Boolean).join('\n')
+}
+
+function formatMarkdownList(items: string[], fallback: string): string {
+  return items.length > 0 ? items.map(item => `- ${item}`).join('\n') : `- ${fallback}`
+}
+
+function getSafeReportFileName(value: string): string {
+  return value
+    .replace(/[<>:"/\\|?*\x00-\x1f]/g, '-')
+    .replace(/\s+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '')
+    .slice(0, 72) || 'prismops'
+}
+
+function buildTrustReportMarkdown(snapshot: OpsBriefSnapshot): string {
+  const policy = getTrustPolicyPreset(snapshot)
+  const generatedAt = new Date().toISOString()
+  const gates = snapshot.readinessGates.map(gate =>
+    `- ${gate.label}: ${gate.status === 'passed' ? '通过' : gate.status === 'blocked' ? '阻塞' : '待补齐'} - ${gate.detail}`,
+  )
+  const agents = snapshot.agents.map(agent => [
+    `- ${agent.name || agent.agentId}: ${getAgentStatusLabel(agent.status)}`,
+    agent.workDir ? `  - 工作目录: ${agent.workDir}` : '',
+    agent.lastFiles.length > 0 ? `  - 最近文件: ${agent.lastFiles.join(', ')}` : '',
+    agent.lastCommand ? `  - 最近命令: ${agent.lastCommand}` : '',
+    agent.risk ? `  - 风险: ${agent.risk}` : '',
+  ].filter(Boolean).join('\n'))
+
+  return [
+    `# PrismOps 可信交付报告 - ${snapshot.projectName}`,
+    '',
+    `生成时间: ${generatedAt}`,
+    '',
+    '## 交付结论',
+    '',
+    `- 当前阶段: ${snapshot.phaseLabel}`,
+    `- 交付状态: ${snapshot.deliveryReadiness}`,
+    `- Mission 健康分: ${snapshot.missionHealthScore} (${snapshot.missionHealthLabel})`,
+    `- 主信号: ${snapshot.primarySignal}`,
+    '',
+    '## Mission',
+    '',
+    `- 项目: ${snapshot.projectName}`,
+    `- 目录: ${snapshot.projectPath || '未绑定'}`,
+    `- 目标: ${snapshot.goal}`,
+    `- Provider: ${snapshot.providerId || '未知'}`,
+    `- 模型: ${snapshot.modelId || '默认/未上报'}`,
+    '',
+    '## 审计线索',
+    '',
+    `- 对话消息: ${snapshot.messageCount} 条`,
+    `- 工具调用: ${snapshot.toolCount} 次`,
+    `- 异常工具结果: ${snapshot.failedToolCount} 个`,
+    `- 文件改动: ${snapshot.changedFileCount} 个文件`,
+    `- Diff 规模: +${snapshot.additions} / -${snapshot.deletions}`,
+    `- 验证证据: ${snapshot.validationCount} 条`,
+    snapshot.lastCommand ? `- 最近命令: ${snapshot.lastCommand}` : '',
+    '',
+    '## 权限与治理',
+    '',
+    `- 建议权限策略: ${policy.label}`,
+    `- 策略预设: ${getTrustPolicyOptionLabel(snapshot.trustPolicyPresetId)}`,
+    `- 策略说明: ${policy.detail}`,
+    `- Provider/模型治理: ${snapshot.providerId || '未知'} / ${snapshot.modelId || '默认/未上报'}`,
+    `- 项目知识: ${snapshot.projectPath ? '已绑定项目目录，可沉淀共享记忆' : '未绑定项目目录，知识沉淀受限'}`,
+    '',
+    '## 交付门禁',
+    '',
+    formatMarkdownList(gates, '暂无门禁数据'),
+    '',
+    '## 最近文件',
+    '',
+    formatMarkdownList(snapshot.lastFiles, '暂未识别到文件改动'),
+    '',
+    '## Agent 状态',
+    '',
+    `- Agent 总数: ${snapshot.agentCount}`,
+    `- 执行中: ${snapshot.activeAgentCount}`,
+    `- 阻塞/取消: ${snapshot.blockedAgentCount}`,
+    `- 协作风险信号: ${snapshot.agentConflictCount}`,
+    formatMarkdownList(agents, '当前会话没有可见子 Agent'),
+    '',
+    '## 风险',
+    '',
+    formatMarkdownList(snapshot.risks, '暂无明显阻塞'),
+    '',
+    '## 证据',
+    '',
+    formatMarkdownList(snapshot.evidence, '暂无证据'),
+    '',
+    '## 下一步',
+    '',
+    formatMarkdownList(snapshot.nextActions, '暂无下一步建议'),
   ].filter(Boolean).join('\n')
 }
 
@@ -764,11 +1050,17 @@ interface ConversationViewProps {
 interface OpsBriefProps {
   snapshot: OpsBriefSnapshot
   onInsertPrompt: (text: string) => void
+  onInsertPlaybook: (template: TeamPlaybookTemplate) => void
+  onExportTrustReport: (snapshot: OpsBriefSnapshot) => void
+  onExtractProjectKnowledge: (snapshot: OpsBriefSnapshot) => void
+  onChangeTrustPolicyPreset: (presetId: TrustPolicyPresetId) => void
   onOpenKnowledge: () => void
   onRunShipPlan: () => void
   onGenerateShipSummary: () => void
   canOpenKnowledge: boolean
   shipActionLoading: 'run' | 'summary' | null
+  playbookActionLoading: string | null
+  trustKnowledgeLoading: boolean
   expanded: boolean
   onToggleExpanded: () => void
 }
@@ -890,11 +1182,17 @@ const MissionLaunchpad = React.memo(function MissionLaunchpad({ providerId, sess
 const OpsBrief = React.memo(function OpsBrief({
   snapshot,
   onInsertPrompt,
+  onInsertPlaybook,
+  onExportTrustReport,
+  onExtractProjectKnowledge,
+  onChangeTrustPolicyPreset,
   onOpenKnowledge,
   onRunShipPlan,
   onGenerateShipSummary,
   canOpenKnowledge,
   shipActionLoading,
+  playbookActionLoading,
+  trustKnowledgeLoading,
   expanded,
   onToggleExpanded,
 }: OpsBriefProps) {
@@ -936,6 +1234,56 @@ const OpsBrief = React.memo(function OpsBrief({
     { label: '验证', done: snapshot.validationCount > 0, active: snapshot.validationCount > 0 && snapshot.failedToolCount === 0 },
     { label: '交付', done: snapshot.validationCount > 0 && snapshot.changedFileCount > 0 && snapshot.failedToolCount === 0, active: false },
   ]
+  const policyPreset = getTrustPolicyPreset(snapshot)
+  const trustSignals = [
+    {
+      id: 'audit',
+      label: '审计线索',
+      value: `${snapshot.messageCount} 对话 / ${snapshot.toolCount} 工具`,
+      detail: `${snapshot.changedFileCount} 文件，${snapshot.validationCount} 验证`,
+      tone: snapshot.messageCount > 0 || snapshot.toolCount > 0 ? 'good' : 'neutral',
+      icon: FileText,
+    },
+    {
+      id: 'policy',
+      label: '权限策略',
+      value: policyPreset.label,
+      detail: policyPreset.detail,
+      tone: policyPreset.tone,
+      icon: Settings2,
+    },
+    {
+      id: 'knowledge',
+      label: '项目知识',
+      value: canOpenKnowledge ? '已绑定' : '未绑定',
+      detail: canOpenKnowledge ? '可沉淀共享记忆' : '需要项目目录',
+      tone: canOpenKnowledge ? 'good' : 'warn',
+      icon: BookMarked,
+    },
+    {
+      id: 'model',
+      label: '模型治理',
+      value: snapshot.providerId || '未知',
+      detail: snapshot.modelId || '默认/未上报',
+      tone: snapshot.providerId ? 'good' : 'warn',
+      icon: Activity,
+    },
+    {
+      id: 'report',
+      label: '交付报告',
+      value: snapshot.validationCount > 0 && snapshot.changedFileCount > 0 && snapshot.failedToolCount === 0 ? '可生成' : '待补齐',
+      detail: snapshot.validationCount > 0 ? '已有验证证据' : '缺少验证证据',
+      tone: snapshot.validationCount > 0 && snapshot.failedToolCount === 0 ? 'good' : snapshot.changedFileCount > 0 ? 'warn' : 'neutral',
+      icon: ShieldCheck,
+    },
+  ] as Array<{
+    id: string
+    label: string
+    value: string
+    detail: string
+    tone: TrustSignalTone
+    icon: typeof FileText
+  }>
 
   return (
     <section className={`mb-4 overflow-hidden rounded-lg border border-border-subtle bg-bg-elevated shadow-sm ${expanded ? 'mb-5' : ''}`}>
@@ -1142,21 +1490,28 @@ const OpsBrief = React.memo(function OpsBrief({
                     <span className="rounded-md bg-accent-blue/10 px-1.5 py-0.5 text-[10px] font-medium text-accent-blue">
                       {TEAM_PLAYBOOK_TEMPLATES.length} 个 playbook
                     </span>
+                    <span className="rounded-md bg-bg-tertiary px-1.5 py-0.5 text-[10px] font-medium text-text-muted">
+                      带入项目记忆
+                    </span>
                   </div>
                 </div>
                 <div className="grid gap-1.5 sm:grid-cols-2 lg:grid-cols-3">
-                  {TEAM_PLAYBOOK_TEMPLATES.map(template => (
-                    <button
-                      key={template.id}
-                      type="button"
-                      onClick={() => onInsertPrompt(buildTeamPlaybookPrompt(template, snapshot))}
-                      className="min-w-0 rounded-md border border-border-subtle bg-bg-primary/70 px-2 py-2 text-left transition-colors hover:border-accent-blue/30 hover:bg-bg-hover"
-                      title={template.description}
-                    >
-                      <div className="truncate text-[11px] font-semibold text-text-primary">{template.label}</div>
-                      <div className="mt-0.5 truncate text-[10px] text-text-muted">{template.description}</div>
-                    </button>
-                  ))}
+                  {TEAM_PLAYBOOK_TEMPLATES.map(template => {
+                    const isLoading = playbookActionLoading === template.id
+                    return (
+                      <button
+                        key={template.id}
+                        type="button"
+                        onClick={() => onInsertPlaybook(template)}
+                        disabled={playbookActionLoading !== null}
+                        className="min-w-0 rounded-md border border-border-subtle bg-bg-primary/70 px-2 py-2 text-left transition-colors hover:border-accent-blue/30 hover:bg-bg-hover disabled:cursor-wait disabled:opacity-60"
+                        title={template.description}
+                      >
+                        <div className="truncate text-[11px] font-semibold text-text-primary">{isLoading ? '读取记忆中...' : template.label}</div>
+                        <div className="mt-0.5 truncate text-[10px] text-text-muted">{template.description}</div>
+                      </button>
+                    )
+                  })}
                 </div>
               </div>
 
@@ -1337,6 +1692,69 @@ const OpsBrief = React.memo(function OpsBrief({
                 </div>
               </div>
 
+              <div className="mt-3 rounded-lg border border-border-subtle bg-bg-primary/45 p-3">
+                <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <ShieldCheck size={14} className={policyPreset.tone === 'good' ? 'text-accent-green' : policyPreset.tone === 'warn' ? 'text-accent-yellow' : 'text-text-muted'} />
+                    <span className="text-xs font-semibold text-text-secondary">组织可信层</span>
+                    <span className={`rounded-md px-1.5 py-0.5 text-[10px] font-medium ${getTrustSignalClass(policyPreset.tone)}`}>
+                      {policyPreset.label}
+                    </span>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-1">
+                    <select
+                      value={snapshot.trustPolicyPresetId}
+                      onChange={event => onChangeTrustPolicyPreset(normalizeTrustPolicyPresetId(event.target.value))}
+                      className="h-7 rounded-md border border-border-subtle bg-bg-primary px-2 text-[11px] font-medium text-text-secondary outline-none transition-colors hover:border-accent-blue/30 focus:border-accent-blue/50"
+                      title="权限策略预设"
+                    >
+                      {TRUST_POLICY_OPTIONS.map(option => (
+                        <option key={option.id} value={option.id}>{option.label}</option>
+                      ))}
+                    </select>
+                    <button
+                      type="button"
+                      onClick={() => onInsertPrompt(buildTrustAuditPrompt(snapshot))}
+                      className="rounded-md px-2 py-1 text-[11px] font-medium text-accent-green transition-colors hover:bg-accent-green/10"
+                    >
+                      审计摘要
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onExtractProjectKnowledge(snapshot)}
+                      disabled={!canOpenKnowledge || trustKnowledgeLoading}
+                      className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium text-accent-purple transition-colors hover:bg-accent-purple/10 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      <BookMarked size={12} />
+                      {trustKnowledgeLoading ? '沉淀中' : '沉淀知识'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onExportTrustReport(snapshot)}
+                      className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium text-accent-blue transition-colors hover:bg-accent-blue/10"
+                    >
+                      <Download size={12} />
+                      导出报告
+                    </button>
+                  </div>
+                </div>
+                <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
+                  {trustSignals.map(signal => {
+                    const SignalIcon = signal.icon
+                    return (
+                      <div key={signal.id} className={`min-w-0 rounded-md border p-2 ${getTrustSignalClass(signal.tone)}`}>
+                        <div className="flex min-w-0 items-center gap-1.5">
+                          <SignalIcon size={13} className="shrink-0" />
+                          <span className="truncate text-[11px] font-semibold text-text-primary">{signal.label}</span>
+                        </div>
+                        <div className="mt-1 truncate text-xs font-semibold" title={signal.value}>{signal.value}</div>
+                        <div className="mt-0.5 line-clamp-2 text-[10px] leading-4 text-text-secondary">{signal.detail}</div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+
               <div className="mt-3 grid gap-4 text-xs md:grid-cols-3">
                 <div className="min-w-0">
                   <div className="mb-2 flex items-center justify-between gap-2">
@@ -1413,8 +1831,11 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
   const [queueHintText, setQueueHintText] = useState('')
   const [queueHintAction, setQueueHintAction] = useState<'kanban' | null>(null)
   const [shipActionLoading, setShipActionLoading] = useState<'run' | 'summary' | null>(null)
+  const [playbookActionLoading, setPlaybookActionLoading] = useState<string | null>(null)
+  const [trustKnowledgeLoading, setTrustKnowledgeLoading] = useState(false)
   const [showScrollBottom, setShowScrollBottom] = useState(false)
   const [commonPrompts, setCommonPrompts] = useState<CommonPrompt[]>(() => loadCommonPrompts())
+  const [trustPolicyOverrides, setTrustPolicyOverrides] = useState<Record<string, TrustPolicyPresetId>>(() => loadTrustPolicyOverrides())
   const [promptPickerOpen, setPromptPickerOpen] = useState(false)
   const [promptManagerOpen, setPromptManagerOpen] = useState(false)
   const [promptDraft, setPromptDraft] = useState({ label: '', text: '' })
@@ -1479,6 +1900,7 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
   const selectSession = useSessionStore(state => state.selectSession)
   const selectedSessionId = useSessionStore(state => state.selectedSessionId)
   const session = useSessionStore(state => state.sessions.find(s => s.id === sessionId))
+  const sessionInitData = useSessionStore(state => state.sessionInitData[sessionId])
   const sessionAgents = useSessionStore(state => state.agents[sessionId] || [])
   const agentConversations = useSessionStore(state => state.conversations)
   const agentActivities = useSessionStore(state => state.activities)
@@ -1946,6 +2368,9 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
     return {
       projectName: getProjectName(workingDirectory, session?.name || session?.config?.name),
       projectPath: workingDirectory,
+      providerId: providerId || session?.config?.providerId,
+      modelId: session?.config?.modelOverride || sessionInitData?.model,
+      trustPolicyPresetId: normalizeTrustPolicyPresetId(trustPolicyOverrides[getTrustPolicyScopeKey(workingDirectory, sessionId)]),
       goal: compactText(userGoal || session?.config?.initialPrompt || session?.name || session?.config?.name || '还没有明确目标，先发送一条任务描述开始推进。', 120),
       statusLabel: pendingPermission
         ? '等待确认'
@@ -1992,7 +2417,13 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
     workingDirectory,
     session?.name,
     session?.config?.name,
+    session?.config?.providerId,
     session?.config?.initialPrompt,
+    session?.config?.modelOverride,
+    sessionInitData?.model,
+    providerId,
+    trustPolicyOverrides,
+    sessionId,
     pendingPermission,
     pendingAskQuestion,
     pendingQuestion,
@@ -2182,6 +2613,107 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
     }
   }, [workingDirectory, shipActionLoading, sessionId])
 
+  const handleInsertTeamPlaybook = useCallback(async (template: TeamPlaybookTemplate) => {
+    if (playbookActionLoading) return
+    setPlaybookActionLoading(template.id)
+    setQueueHintText(`正在读取项目记忆并生成「${template.label}」模板...`)
+    setQueueHintAction(null)
+    try {
+      let memoryPrompt = ''
+      try {
+        const result = await window.spectrAI.workingContext.getPrompt(sessionId)
+        memoryPrompt = extractWorkingContextPrompt(result)
+      } catch (contextError) {
+        console.warn('[ConversationView] Failed to load working context prompt for team playbook', contextError)
+      }
+      setPendingInsert(buildTeamPlaybookPrompt(template, opsBrief, memoryPrompt))
+      setQueueHintText(memoryPrompt
+        ? `已带入项目记忆，生成「${template.label}」团队模板`
+        : `已生成「${template.label}」团队模板；当前没有可用项目记忆`)
+      setQueueHintAction(null)
+    } finally {
+      setPlaybookActionLoading(null)
+    }
+  }, [opsBrief, playbookActionLoading, sessionId])
+
+  const handleExportTrustReport = useCallback((snapshot: OpsBriefSnapshot) => {
+    const markdown = buildTrustReportMarkdown(snapshot)
+    const blob = new Blob([markdown], { type: 'text/markdown;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-')
+    link.href = url
+    link.download = `prismops-trust-report-${getSafeReportFileName(snapshot.projectName)}-${timestamp}.md`
+    link.click()
+    URL.revokeObjectURL(url)
+    setQueueHintText('可信交付报告已导出为 Markdown')
+    setQueueHintAction(null)
+    void window.spectrAI.workingContext.addDecision(
+      sessionId,
+      `已导出可信交付报告：${snapshot.projectName}，${snapshot.deliveryReadiness}`,
+    ).catch(error => {
+      console.warn('[ConversationView] Failed to persist trust report export context', error)
+    })
+  }, [sessionId])
+
+  const handleExtractProjectKnowledge = useCallback(async (snapshot: OpsBriefSnapshot) => {
+    if (!snapshot.projectPath) {
+      setQueueHintText('当前会话没有绑定项目目录，无法沉淀项目知识')
+      setQueueHintAction(null)
+      return
+    }
+    setTrustKnowledgeLoading(true)
+    setQueueHintText('正在从当前会话沉淀项目知识...')
+    setQueueHintAction(null)
+    try {
+      const result = await (window as any).spectrAI?.projectKnowledge?.extractFromSession(sessionId, snapshot.projectPath)
+      if (!result?.success) {
+        setQueueHintText(result?.error?.userMessage || result?.error?.message || result?.error || '项目知识沉淀失败')
+        return
+      }
+      const count = result.count || 0
+      const extracted = Array.isArray(result.extracted) ? result.extracted : []
+      setQueueHintText(count > 0
+        ? `已沉淀 ${count} 条项目知识：${extracted.slice(0, 3).join('、') || '可在知识库查看'}`
+        : '当前会话暂未提取到新的项目知识')
+      void window.spectrAI.workingContext.addDecision(
+        sessionId,
+        count > 0
+          ? `已从当前会话沉淀 ${count} 条项目知识：${extracted.slice(0, 3).join('、') || snapshot.projectName}`
+          : '已尝试从当前会话沉淀项目知识，暂未发现新增条目',
+      ).catch(error => {
+        console.warn('[ConversationView] Failed to persist project knowledge extraction context', error)
+      })
+    } catch (error: any) {
+      setQueueHintText(error?.message || '项目知识沉淀失败')
+    } finally {
+      setTrustKnowledgeLoading(false)
+    }
+  }, [sessionId])
+
+  const handleChangeTrustPolicyPreset = useCallback((presetId: TrustPolicyPresetId) => {
+    const normalized = normalizeTrustPolicyPresetId(presetId)
+    const scopeKey = getTrustPolicyScopeKey(workingDirectory, sessionId)
+    setTrustPolicyOverrides(prev => {
+      const next = { ...prev }
+      if (normalized === 'auto') {
+        delete next[scopeKey]
+      } else {
+        next[scopeKey] = normalized
+      }
+      saveTrustPolicyOverrides(next)
+      return next
+    })
+    setQueueHintText(`权限策略预设已切换为：${getTrustPolicyOptionLabel(normalized)}`)
+    setQueueHintAction(null)
+    void window.spectrAI.workingContext.addDecision(
+      sessionId,
+      `权限策略预设切换为：${getTrustPolicyOptionLabel(normalized)}`,
+    ).catch(error => {
+      console.warn('[ConversationView] Failed to persist trust policy context', error)
+    })
+  }, [sessionId, workingDirectory])
+
   // 右键菜单项
   const ctxMenuItems: MenuItem[] = [
     {
@@ -2260,11 +2792,17 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
           <OpsBrief
             snapshot={opsBrief}
             onInsertPrompt={setPendingInsert}
+            onInsertPlaybook={handleInsertTeamPlaybook}
+            onExportTrustReport={handleExportTrustReport}
+            onExtractProjectKnowledge={handleExtractProjectKnowledge}
+            onChangeTrustPolicyPreset={handleChangeTrustPolicyPreset}
             onOpenKnowledge={() => setKnowledgePanelOpen(true)}
             onRunShipPlan={handleRunShipPlan}
             onGenerateShipSummary={handleGenerateShipSummary}
             canOpenKnowledge={!!workingDirectory}
             shipActionLoading={shipActionLoading}
+            playbookActionLoading={playbookActionLoading}
+            trustKnowledgeLoading={trustKnowledgeLoading}
             expanded={opsBriefExpanded}
             onToggleExpanded={() => setOpsBriefExpanded(expanded => !expanded)}
           />
