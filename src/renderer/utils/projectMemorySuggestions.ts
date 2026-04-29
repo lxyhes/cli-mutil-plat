@@ -1,6 +1,11 @@
 import type { KnowledgeCategory, KnowledgePriority } from '../../shared/types'
 import type { CreateUnifiedKnowledgeParams, UnifiedKnowledgeEntry } from '../../shared/knowledgeCenterTypes'
 
+export const PROJECT_MEMORY_TELEMETRY_EVENT = 'prismops-memory-telemetry-updated'
+
+const MEMORY_TELEMETRY_STORAGE_KEY = 'prismops-memory-telemetry-events'
+const MAX_MEMORY_TELEMETRY_EVENTS = 200
+
 export type ProjectMemorySuggestionType =
   | 'decision'
   | 'command'
@@ -70,6 +75,37 @@ export interface ProjectMemoryStaleCandidate {
   suggestionTitle: string
   reason: string
   score: number
+}
+
+export interface ProjectMemoryTelemetryEvent {
+  id: string
+  sessionId: string
+  projectPath?: string
+  kind:
+    | 'suggestion-accepted'
+    | 'suggestion-edited'
+    | 'suggestion-rejected'
+    | 'playbook-memory-injected'
+    | 'stale-memory-updated'
+    | 'stale-memory-archived'
+  suggestionId?: string
+  playbookId?: string
+  confidence?: number
+  filteredLength?: number
+  suggestionCount?: number
+  timestamp: string
+}
+
+export interface ProjectMemoryTelemetrySummary {
+  eventCount: number
+  reviewedCount: number
+  acceptedCount: number
+  editedCount: number
+  rejectedCount: number
+  promotionRate: number
+  playbookInjectionCount: number
+  averageFilteredLength: number
+  averageConfidence: number
 }
 
 type ProjectKnowledgeLike = Pick<UnifiedKnowledgeEntry, 'id' | 'type' | 'category' | 'title' | 'content' | 'tags' | 'updatedAt'>
@@ -183,6 +219,100 @@ function hasContradiction(left: string, right: string): boolean {
     (leftText.includes(a) && rightText.includes(b)) ||
     (leftText.includes(b) && rightText.includes(a))
   ))
+}
+
+function getProjectMemoryStorage(): Storage | null {
+  if (typeof window === 'undefined') return null
+  return window.localStorage
+}
+
+function dispatchProjectMemoryTelemetryEvent(): void {
+  if (typeof window === 'undefined') return
+  window.dispatchEvent(new Event(PROJECT_MEMORY_TELEMETRY_EVENT))
+}
+
+function isMemoryTelemetryEvent(value: unknown): value is ProjectMemoryTelemetryEvent {
+  const event = value as ProjectMemoryTelemetryEvent
+  return Boolean(
+    event &&
+    typeof event.id === 'string' &&
+    typeof event.sessionId === 'string' &&
+    typeof event.kind === 'string' &&
+    typeof event.timestamp === 'string',
+  )
+}
+
+function normalizeMemoryTelemetryEvents(value: unknown): ProjectMemoryTelemetryEvent[] {
+  if (!Array.isArray(value)) return []
+  return value
+    .filter(isMemoryTelemetryEvent)
+    .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+}
+
+export function loadProjectMemoryTelemetryEvents(): ProjectMemoryTelemetryEvent[] {
+  const storage = getProjectMemoryStorage()
+  if (!storage) return []
+  try {
+    const raw = storage.getItem(MEMORY_TELEMETRY_STORAGE_KEY)
+    return normalizeMemoryTelemetryEvents(raw ? JSON.parse(raw) : [])
+  } catch {
+    return []
+  }
+}
+
+export function recordProjectMemoryTelemetryEvent(event: Omit<ProjectMemoryTelemetryEvent, 'id' | 'timestamp'> & { timestamp?: string }): void {
+  const storage = getProjectMemoryStorage()
+  if (!storage) return
+  try {
+    const timestamp = event.timestamp || new Date().toISOString()
+    const next: ProjectMemoryTelemetryEvent = {
+      ...event,
+      id: `memory-telemetry-${timestamp}-${event.kind}-${event.suggestionId || event.playbookId || 'event'}`,
+      timestamp,
+    }
+    const records = normalizeMemoryTelemetryEvents([
+      next,
+      ...loadProjectMemoryTelemetryEvents(),
+    ]).slice(0, MAX_MEMORY_TELEMETRY_EVENTS)
+    storage.setItem(MEMORY_TELEMETRY_STORAGE_KEY, JSON.stringify(records))
+    dispatchProjectMemoryTelemetryEvent()
+  } catch {
+    // Memory telemetry should never block the conversation surface.
+  }
+}
+
+function ratio(numerator: number, denominator: number): number {
+  return denominator > 0 ? Math.round((numerator / denominator) * 100) : 0
+}
+
+export function summarizeProjectMemoryTelemetry(events: ProjectMemoryTelemetryEvent[]): ProjectMemoryTelemetrySummary {
+  const acceptedCount = events.filter(event => event.kind === 'suggestion-accepted').length
+  const editedCount = events.filter(event => event.kind === 'suggestion-edited').length
+  const rejectedCount = events.filter(event => event.kind === 'suggestion-rejected').length
+  const playbookEvents = events.filter(event => event.kind === 'playbook-memory-injected')
+  const reviewedCount = acceptedCount + editedCount + rejectedCount
+  const confidenceValues = events
+    .map(event => event.confidence)
+    .filter((value): value is number => typeof value === 'number' && Number.isFinite(value))
+  const filteredLengths = playbookEvents
+    .map(event => event.filteredLength)
+    .filter((value): value is number => typeof value === 'number' && Number.isFinite(value))
+
+  return {
+    eventCount: events.length,
+    reviewedCount,
+    acceptedCount,
+    editedCount,
+    rejectedCount,
+    promotionRate: ratio(acceptedCount + editedCount, reviewedCount),
+    playbookInjectionCount: playbookEvents.length,
+    averageFilteredLength: filteredLengths.length > 0
+      ? Math.round(filteredLengths.reduce((sum, value) => sum + value, 0) / filteredLengths.length)
+      : 0,
+    averageConfidence: confidenceValues.length > 0
+      ? Math.round((confidenceValues.reduce((sum, value) => sum + value, 0) / confidenceValues.length) * 100)
+      : 0,
+  }
 }
 
 function stableId(type: ProjectMemorySuggestionType, title: string): string {

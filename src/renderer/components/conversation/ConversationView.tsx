@@ -46,6 +46,7 @@ import {
   filterProjectMemoryForPlaybook,
   findStaleProjectMemoryCandidates,
   formatProjectMemorySuggestionsForMarkdown,
+  recordProjectMemoryTelemetryEvent,
   type ProjectMemorySuggestion,
   type ProjectMemorySuggestionReview,
   type ProjectMemoryStaleCandidate,
@@ -227,7 +228,6 @@ interface MissionLaunchpadProps {
 const COMMON_PROMPTS_STORAGE_KEY = 'prismops-common-prompts'
 const TRUST_POLICY_STORAGE_KEY = 'prismops-trust-policy-presets'
 const MEMORY_SUGGESTION_REVIEW_STORAGE_KEY = 'prismops-memory-suggestion-reviews'
-const MEMORY_TELEMETRY_STORAGE_KEY = 'prismops-memory-telemetry-events'
 
 const TRUST_POLICY_PRESETS: Record<Exclude<TrustPolicyPresetId, 'auto'>, TrustPolicyPreset> = {
   explore: {
@@ -470,23 +470,6 @@ function loadMemorySuggestionReviews(sessionId: string): ProjectMemorySuggestion
 function saveMemorySuggestionReviews(sessionId: string, reviews: ProjectMemorySuggestionReviewMap): void {
   try {
     localStorage.setItem(getMemorySuggestionReviewStorageKey(sessionId), JSON.stringify(reviews))
-  } catch {
-    // ignore
-  }
-}
-
-function appendMemoryTelemetryEvent(event: Omit<ProjectMemoryTelemetryEvent, 'id' | 'timestamp'> & { timestamp?: string }): void {
-  try {
-    const raw = localStorage.getItem(MEMORY_TELEMETRY_STORAGE_KEY)
-    const events = raw ? JSON.parse(raw) : []
-    const list = Array.isArray(events) ? events : []
-    const timestamp = event.timestamp || new Date().toISOString()
-    const next: ProjectMemoryTelemetryEvent = {
-      ...event,
-      id: `memory-telemetry-${timestamp}-${event.kind}-${event.suggestionId || event.playbookId || 'event'}`,
-      timestamp,
-    }
-    localStorage.setItem(MEMORY_TELEMETRY_STORAGE_KEY, JSON.stringify([...list.slice(-199), next]))
   } catch {
     // ignore
   }
@@ -1413,19 +1396,7 @@ interface ProjectMemorySuggestionDraft {
 
 type ProjectMemorySuggestionReviewMap = Record<string, ProjectMemorySuggestionReview>
 type ProjectMemorySuggestionDraftMap = Record<string, ProjectMemorySuggestionDraft>
-
-interface ProjectMemoryTelemetryEvent {
-  id: string
-  sessionId: string
-  projectPath?: string
-  kind: 'suggestion-accepted' | 'suggestion-edited' | 'suggestion-rejected' | 'playbook-memory-injected'
-  suggestionId?: string
-  playbookId?: string
-  confidence?: number
-  filteredLength?: number
-  suggestionCount?: number
-  timestamp: string
-}
+type StaleMemoryResolutionAction = 'refresh' | 'archive'
 
 interface OpsBriefProps {
   snapshot: OpsBriefSnapshot
@@ -1438,6 +1409,7 @@ interface OpsBriefProps {
   onStartEditMemorySuggestion: (suggestion: ProjectMemorySuggestion) => void
   onCancelEditMemorySuggestion: () => void
   onChangeMemorySuggestionDraft: (suggestionId: string, draft: ProjectMemorySuggestionDraft) => void
+  onResolveStaleMemoryCandidate: (candidate: ProjectMemoryStaleCandidate, action: StaleMemoryResolutionAction, snapshot: OpsBriefSnapshot) => void
   onChangeTrustPolicyPreset: (presetId: TrustPolicyPresetId) => void
   onOpenKnowledge: () => void
   onRunShipPlan: () => void
@@ -1450,6 +1422,7 @@ interface OpsBriefProps {
   memorySuggestionDrafts: ProjectMemorySuggestionDraftMap
   memorySuggestionEditingId: string | null
   memorySuggestionSavingId: string | null
+  staleMemorySavingId: string | null
   expanded: boolean
   onToggleExpanded: () => void
 }
@@ -1604,6 +1577,7 @@ const OpsBrief = React.memo(function OpsBrief({
   onStartEditMemorySuggestion,
   onCancelEditMemorySuggestion,
   onChangeMemorySuggestionDraft,
+  onResolveStaleMemoryCandidate,
   onChangeTrustPolicyPreset,
   onOpenKnowledge,
   onRunShipPlan,
@@ -1616,6 +1590,7 @@ const OpsBrief = React.memo(function OpsBrief({
   memorySuggestionDrafts,
   memorySuggestionEditingId,
   memorySuggestionSavingId,
+  staleMemorySavingId,
   expanded,
   onToggleExpanded,
 }: OpsBriefProps) {
@@ -2294,6 +2269,24 @@ const OpsBrief = React.memo(function OpsBrief({
                             <div key={`${candidate.entryId}-${candidate.suggestionId}`} className="min-w-0 rounded bg-bg-primary/45 px-2 py-1.5 text-[10px] leading-4 text-text-secondary">
                               <div className="truncate font-semibold text-text-primary" title={candidate.entryTitle}>{candidate.entryTitle}</div>
                               <div className="truncate" title={candidate.reason}>{candidate.reason}</div>
+                              <div className="mt-1 flex flex-wrap justify-end gap-1">
+                                <button
+                                  type="button"
+                                  onClick={() => onResolveStaleMemoryCandidate(candidate, 'refresh', snapshot)}
+                                  disabled={staleMemorySavingId === candidate.entryId}
+                                  className="rounded-md px-1.5 py-0.5 text-[10px] font-medium text-accent-green transition-colors hover:bg-accent-green/10 disabled:cursor-not-allowed disabled:opacity-50"
+                                >
+                                  {staleMemorySavingId === candidate.entryId ? '处理中' : '用新证据更新'}
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => onResolveStaleMemoryCandidate(candidate, 'archive', snapshot)}
+                                  disabled={staleMemorySavingId === candidate.entryId}
+                                  className="rounded-md px-1.5 py-0.5 text-[10px] font-medium text-accent-yellow transition-colors hover:bg-accent-yellow/10 disabled:cursor-not-allowed disabled:opacity-50"
+                                >
+                                  归档旧知识
+                                </button>
+                              </div>
                             </div>
                           ))}
                         </div>
@@ -2735,6 +2728,7 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
   const [memorySuggestionDrafts, setMemorySuggestionDrafts] = useState<ProjectMemorySuggestionDraftMap>({})
   const [memorySuggestionEditingId, setMemorySuggestionEditingId] = useState<string | null>(null)
   const [memorySuggestionSavingId, setMemorySuggestionSavingId] = useState<string | null>(null)
+  const [staleMemorySavingId, setStaleMemorySavingId] = useState<string | null>(null)
   const [deliveryPackGenerated, setDeliveryPackGenerated] = useState(false)
   const [deliveryPackGeneratedAtMs, setDeliveryPackGeneratedAtMs] = useState(0)
   const [knowledgeExtractionCount, setKnowledgeExtractionCount] = useState(0)
@@ -2768,6 +2762,7 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
     setMemorySuggestionDrafts({})
     setMemorySuggestionEditingId(null)
     setMemorySuggestionSavingId(null)
+    setStaleMemorySavingId(null)
   }, [sessionId])
 
   useEffect(() => {
@@ -2842,6 +2837,7 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
   const setViewMode = useUIStore(state => state.setViewMode)
   const setPaneContent = useUIStore(state => state.setPaneContent)
   const createKnowledgeEntry = useKnowledgeCenterStore(state => state.createEntry)
+  const updateKnowledgeEntry = useKnowledgeCenterStore(state => state.updateEntry)
   const knowledgeEntries = useKnowledgeCenterStore(state => state.entries)
   const fetchKnowledgeEntries = useKnowledgeCenterStore(state => state.fetchEntries)
 
@@ -3859,7 +3855,7 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
       const suggestionMemory = formatProjectMemorySuggestionsForMarkdown(opsBrief.projectMemorySuggestions, '')
       if (opsBrief.projectMemorySuggestions.length > 0) memoryParts.push(`## 当前会话建议记忆\n${suggestionMemory}`)
       const memoryPrompt = filterProjectMemoryForPlaybook(memoryParts.join('\n\n'), template)
-      appendMemoryTelemetryEvent({
+      recordProjectMemoryTelemetryEvent({
         sessionId,
         projectPath: workingDirectory,
         kind: 'playbook-memory-injected',
@@ -3973,7 +3969,7 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
     setMemorySuggestionEditingId(current => current === suggestion.id ? null : current)
     setQueueHintText(`已拒绝建议记忆：${suggestion.title}`)
     setQueueHintAction(null)
-    appendMemoryTelemetryEvent({
+    recordProjectMemoryTelemetryEvent({
       sessionId,
       kind: 'suggestion-rejected',
       suggestionId: suggestion.id,
@@ -4044,7 +4040,7 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
       setMemorySuggestionEditingId(current => current === suggestion.id ? null : current)
       setKnowledgeExtractionCount(prev => prev + 1)
       setQueueHintText(`${status === 'edited' ? '已编辑并沉淀' : '已沉淀'}建议记忆：${title}`)
-      appendMemoryTelemetryEvent({
+      recordProjectMemoryTelemetryEvent({
         sessionId,
         projectPath: snapshot.projectPath,
         kind: status === 'edited' ? 'suggestion-edited' : 'suggestion-accepted',
@@ -4063,6 +4059,93 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
       setMemorySuggestionSavingId(null)
     }
   }, [createKnowledgeEntry, memorySuggestionDrafts, sessionId])
+
+  const handleResolveStaleMemoryCandidate = useCallback(async (
+    candidate: ProjectMemoryStaleCandidate,
+    action: StaleMemoryResolutionAction,
+    snapshot: OpsBriefSnapshot,
+  ) => {
+    const entry = knowledgeEntries.find(item => item.id === candidate.entryId)
+    const suggestion = snapshot.projectMemorySuggestions.find(item => item.id === candidate.suggestionId)
+    if (!entry || !suggestion) {
+      setQueueHintText('未找到要处理的项目知识或新证据，请刷新后重试')
+      setQueueHintAction(null)
+      return
+    }
+
+    const reviewedAt = new Date().toISOString()
+    setStaleMemorySavingId(candidate.entryId)
+    setQueueHintText(action === 'refresh' ? '正在用新证据更新旧项目知识...' : '正在归档旧项目知识...')
+    setQueueHintAction(null)
+
+    try {
+      const ok = action === 'refresh'
+        ? await updateKnowledgeEntry(candidate.entryId, {
+          category: suggestion.knowledgeCategory,
+          title: suggestion.title,
+          content: suggestion.content,
+          tags: [...new Set([...entry.tags, ...suggestion.tags, 'stale-reviewed', 'refreshed-memory'])],
+          priority: suggestion.priority,
+          autoInject: suggestion.priority === 'high',
+          metadata: {
+            ...(entry.metadata || {}),
+            staleReview: {
+              action: 'refresh',
+              reviewedAt,
+              sourceSuggestionId: suggestion.id,
+              sourceReference: suggestion.sourceReference,
+              reason: candidate.reason,
+              score: candidate.score,
+            },
+          },
+        })
+        : await updateKnowledgeEntry(candidate.entryId, {
+          autoInject: false,
+          tags: [...new Set([...entry.tags, 'stale-reviewed', 'archived-memory'])],
+          metadata: {
+            ...(entry.metadata || {}),
+            staleReview: {
+              action: 'archive',
+              reviewedAt,
+              sourceSuggestionId: suggestion.id,
+              sourceReference: suggestion.sourceReference,
+              reason: candidate.reason,
+              score: candidate.score,
+            },
+            archivedAt: reviewedAt,
+            archivedReason: candidate.reason,
+          },
+        })
+
+      if (!ok) {
+        setQueueHintText('陈旧记忆处理失败，请打开知识中心检查后重试')
+        return
+      }
+
+      recordProjectMemoryTelemetryEvent({
+        sessionId,
+        projectPath: snapshot.projectPath,
+        kind: action === 'refresh' ? 'stale-memory-updated' : 'stale-memory-archived',
+        suggestionId: suggestion.id,
+        confidence: suggestion.confidence,
+      })
+      setQueueHintText(action === 'refresh'
+        ? `已用新证据更新项目知识：${suggestion.title}`
+        : `已归档旧项目知识并关闭自动注入：${entry.title}`)
+      void window.spectrAI.workingContext.addDecision(
+        sessionId,
+        action === 'refresh'
+          ? `已用新证据更新陈旧项目知识：${entry.title} -> ${suggestion.title}；原因：${candidate.reason}`
+          : `已归档陈旧项目知识并关闭自动注入：${entry.title}；原因：${candidate.reason}`,
+      ).catch(error => {
+        console.warn('[ConversationView] Failed to persist stale memory review context', error)
+      })
+    } catch (error: any) {
+      setQueueHintText(error?.message || '陈旧记忆处理失败')
+    } finally {
+      setStaleMemorySavingId(null)
+    }
+  }, [knowledgeEntries, sessionId, updateKnowledgeEntry])
 
   const handleChangeTrustPolicyPreset = useCallback((presetId: TrustPolicyPresetId) => {
     const normalized = normalizeTrustPolicyPresetId(presetId)
@@ -4247,6 +4330,7 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
             onStartEditMemorySuggestion={handleStartEditMemorySuggestion}
             onCancelEditMemorySuggestion={handleCancelEditMemorySuggestion}
             onChangeMemorySuggestionDraft={handleChangeMemorySuggestionDraft}
+            onResolveStaleMemoryCandidate={handleResolveStaleMemoryCandidate}
             onChangeTrustPolicyPreset={handleChangeTrustPolicyPreset}
             onOpenKnowledge={() => setKnowledgePanelOpen(true)}
             onRunShipPlan={handleRunShipPlan}
@@ -4259,6 +4343,7 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
             memorySuggestionDrafts={memorySuggestionDrafts}
             memorySuggestionEditingId={memorySuggestionEditingId}
             memorySuggestionSavingId={memorySuggestionSavingId}
+            staleMemorySavingId={staleMemorySavingId}
             expanded={opsBriefExpanded}
             onToggleExpanded={() => setOpsBriefExpanded(expanded => !expanded)}
           />

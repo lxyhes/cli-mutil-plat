@@ -327,7 +327,7 @@ Remaining:
 
 ### Project Memory Flywheel
 
-Status: stale review and telemetry slice completed.
+Status: Phase C core loop completed.
 
 Completed:
 
@@ -342,8 +342,10 @@ Completed:
 - Added stale-memory candidate detection when fresh session evidence conflicts with existing project knowledge.
 - Added cockpit stale-memory review prompt generation for likely outdated knowledge.
 - Added lightweight memory telemetry for accepted, edited, rejected, and playbook-injected memory flows.
+- Surfaced memory telemetry as Dashboard flywheel metrics for review close rate and playbook reuse.
+- Added direct stale-memory refresh and archive actions in the cockpit review flow.
 
 Remaining:
 
-- Surface memory telemetry as dashboard/trend metrics.
-- Add direct update/archive actions for stale project knowledge entries after review.
+- Extend memory telemetry from local trend cards into team/project historical reports.
+- Add bulk stale-memory review for larger knowledge bases.

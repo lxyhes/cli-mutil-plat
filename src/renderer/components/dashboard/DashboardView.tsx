@@ -31,6 +31,13 @@ import {
   type DeliveryMetricFreshness,
   type DeliveryMetricSnapshotRecord,
 } from '../../utils/deliveryMetrics'
+import {
+  PROJECT_MEMORY_TELEMETRY_EVENT,
+  loadProjectMemoryTelemetryEvents,
+  summarizeProjectMemoryTelemetry,
+  type ProjectMemoryTelemetryEvent,
+  type ProjectMemoryTelemetrySummary,
+} from '../../utils/projectMemorySuggestions'
 
 function formatDuration(startedAt: string): string {
   const seconds = Math.floor((Date.now() - new Date(startedAt).getTime()) / 1000)
@@ -97,6 +104,7 @@ export default function DashboardView() {
   const [recentEvents, setRecentEvents] = useState<(ActivityEvent & { sessionName: string })[]>([])
   const [deliveryRecords, setDeliveryRecords] = useState<DeliveryMetricSnapshotRecord[]>(() => loadDeliveryMetricSnapshots())
   const [actionLifecycles, setActionLifecycles] = useState<DeliveryMetricActionLifecycleRecord[]>(() => loadDeliveryMetricActionLifecycles())
+  const [memoryTelemetryEvents, setMemoryTelemetryEvents] = useState<ProjectMemoryTelemetryEvent[]>(() => loadProjectMemoryTelemetryEvents())
   const [clockTick, setTick] = useState(0)
 
   // 分类
@@ -113,6 +121,10 @@ export default function DashboardView() {
   const actionLifecycleSummary = useMemo(
     () => summarizeDeliveryMetricActionLifecycles(actionLifecycles),
     [actionLifecycles],
+  )
+  const memoryTelemetrySummary = useMemo(
+    () => summarizeProjectMemoryTelemetry(memoryTelemetryEvents),
+    [memoryTelemetryEvents],
   )
   const openActionItem = (item: DeliveryMetricActionItem) => {
     queueDeliveryMetricAction(item)
@@ -144,14 +156,17 @@ export default function DashboardView() {
     const refreshMetrics = () => {
       setDeliveryRecords(loadDeliveryMetricSnapshots())
       setActionLifecycles(loadDeliveryMetricActionLifecycles())
+      setMemoryTelemetryEvents(loadProjectMemoryTelemetryEvents())
     }
     refreshMetrics()
     window.addEventListener(DELIVERY_METRICS_EVENT, refreshMetrics)
     window.addEventListener(DELIVERY_ACTION_EVENT, refreshMetrics)
+    window.addEventListener(PROJECT_MEMORY_TELEMETRY_EVENT, refreshMetrics)
     window.addEventListener('storage', refreshMetrics)
     return () => {
       window.removeEventListener(DELIVERY_METRICS_EVENT, refreshMetrics)
       window.removeEventListener(DELIVERY_ACTION_EVENT, refreshMetrics)
+      window.removeEventListener(PROJECT_MEMORY_TELEMETRY_EVENT, refreshMetrics)
       window.removeEventListener('storage', refreshMetrics)
     }
   }, [])
@@ -253,6 +268,7 @@ export default function DashboardView() {
           lifecycleSummary={actionLifecycleSummary}
           onOpenAction={openActionItem}
         />
+        <MemoryFlywheelPanel summary={memoryTelemetrySummary} />
       </section>
 
       <div className="grid grid-cols-3 gap-4">
@@ -405,6 +421,58 @@ function MetricsStateNotice({ freshness }: { freshness: DeliveryMetricFreshness 
   }
 
   return null
+}
+
+function MemoryFlywheelPanel({ summary }: { summary: ProjectMemoryTelemetrySummary }) {
+  if (summary.eventCount === 0) {
+    return (
+      <div className="rounded-lg border border-border-subtle bg-bg-elevated/60 px-3 py-2 text-xs text-text-secondary">
+        记忆飞轮还没有审核数据。接受、编辑、拒绝建议记忆，或插入团队 playbook 后，这里会显示复用和沉淀趋势。
+      </div>
+    )
+  }
+
+  return (
+    <div className="rounded-lg border border-border-subtle bg-bg-elevated/65 p-2">
+      <div className="mb-2 flex flex-wrap items-center justify-between gap-2 px-1">
+        <div className="flex items-center gap-1.5 text-xs font-semibold text-text-secondary">
+          <Monitor className="h-3.5 w-3.5 text-accent-purple" />
+          记忆飞轮
+        </div>
+        <span className="text-[10px] text-text-muted">{summary.eventCount} 条事件</span>
+      </div>
+      <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
+        <SuccessMetricCard
+          icon={CheckCircle}
+          label="审核闭环"
+          value={formatMetricPercent(summary.promotionRate)}
+          detail={`${summary.acceptedCount + summary.editedCount} 沉淀 / ${summary.rejectedCount} 拒绝`}
+          tone={summary.promotionRate >= 60 ? 'good' : summary.reviewedCount > 0 ? 'warn' : 'neutral'}
+        />
+        <SuccessMetricCard
+          icon={Monitor}
+          label="审核样本"
+          value={String(summary.reviewedCount)}
+          detail={`编辑 ${summary.editedCount} 条，平均置信 ${summary.averageConfidence}%`}
+          tone={summary.reviewedCount > 0 ? 'good' : 'neutral'}
+        />
+        <SuccessMetricCard
+          icon={Activity}
+          label="Playbook 复用"
+          value={String(summary.playbookInjectionCount)}
+          detail="团队模板注入相关记忆次数"
+          tone={summary.playbookInjectionCount > 0 ? 'good' : 'neutral'}
+        />
+        <SuccessMetricCard
+          icon={Zap}
+          label="相关内容"
+          value={summary.averageFilteredLength > 0 ? `${summary.averageFilteredLength}` : '--'}
+          detail="平均注入字符数，越高代表可复用上下文越丰富"
+          tone={summary.averageFilteredLength > 0 ? 'good' : 'neutral'}
+        />
+      </div>
+    </div>
+  )
 }
 
 function getLifecycleSummaryText(summary: DeliveryMetricActionLifecycleSummary): string {

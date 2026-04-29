@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   buildProjectMemorySuggestionKnowledgeParams,
   buildProjectMemorySuggestionPrompt,
@@ -6,6 +6,9 @@ import {
   filterProjectMemoryForPlaybook,
   findStaleProjectMemoryCandidates,
   formatProjectMemorySuggestionsForMarkdown,
+  loadProjectMemoryTelemetryEvents,
+  recordProjectMemoryTelemetryEvent,
+  summarizeProjectMemoryTelemetry,
   type ProjectMemorySuggestionInput,
 } from './projectMemorySuggestions'
 
@@ -39,6 +42,33 @@ function input(overrides: Partial<ProjectMemorySuggestionInput> = {}): ProjectMe
     ...overrides,
   }
 }
+
+function installWindowStorageMock() {
+  const storage = new Map<string, string>()
+  const events: string[] = []
+
+  vi.stubGlobal('window', {
+    localStorage: {
+      getItem: (key: string) => storage.get(key) ?? null,
+      setItem: (key: string, value: string) => {
+        storage.set(key, value)
+      },
+      removeItem: (key: string) => {
+        storage.delete(key)
+      },
+    },
+    dispatchEvent: (event: Event) => {
+      events.push(event.type)
+      return true
+    },
+  })
+
+  return { storage, events }
+}
+
+afterEach(() => {
+  vi.unstubAllGlobals()
+})
 
 describe('project memory suggestions', () => {
   it('builds categorized suggestions with source references and confidence', () => {
@@ -129,6 +159,55 @@ describe('project memory suggestions', () => {
       suggestionId: suggestion.id,
       reason: '新验证或命令路径与已有知识不同',
     })
+  })
+
+  it('records and summarizes memory telemetry events', () => {
+    const { events } = installWindowStorageMock()
+
+    recordProjectMemoryTelemetryEvent({
+      sessionId: 'session-1',
+      projectPath: 'E:/repo',
+      kind: 'suggestion-accepted',
+      suggestionId: 'memory-a',
+      confidence: 0.8,
+      timestamp: '2026-04-28T10:00:00.000Z',
+    })
+    recordProjectMemoryTelemetryEvent({
+      sessionId: 'session-1',
+      kind: 'suggestion-rejected',
+      suggestionId: 'memory-b',
+      confidence: 0.6,
+      timestamp: '2026-04-28T10:01:00.000Z',
+    })
+    recordProjectMemoryTelemetryEvent({
+      sessionId: 'session-1',
+      projectPath: 'E:/repo',
+      kind: 'playbook-memory-injected',
+      playbookId: 'ui-polish',
+      filteredLength: 900,
+      suggestionCount: 2,
+      timestamp: '2026-04-28T10:02:00.000Z',
+    })
+
+    const stored = loadProjectMemoryTelemetryEvents()
+    const summary = summarizeProjectMemoryTelemetry(stored)
+
+    expect(stored.map(event => event.kind)).toEqual([
+      'playbook-memory-injected',
+      'suggestion-rejected',
+      'suggestion-accepted',
+    ])
+    expect(summary).toMatchObject({
+      eventCount: 3,
+      reviewedCount: 2,
+      acceptedCount: 1,
+      rejectedCount: 1,
+      promotionRate: 50,
+      playbookInjectionCount: 1,
+      averageFilteredLength: 900,
+      averageConfidence: 70,
+    })
+    expect(events).toContain('prismops-memory-telemetry-updated')
   })
 
   it('filters long memory prompts toward the selected playbook', () => {
