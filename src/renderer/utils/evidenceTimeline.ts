@@ -1,6 +1,6 @@
 export type EvidenceTimelineTone = 'good' | 'warn' | 'bad' | 'neutral'
 
-export type EvidenceTimelineType = 'mission' | 'tool' | 'validation' | 'file' | 'agent' | 'delivery' | 'permission' | 'error'
+export type EvidenceTimelineType = 'mission' | 'tool' | 'validation' | 'change' | 'risk' | 'handoff'
 
 export function getEvidenceTimelineClass(tone: EvidenceTimelineTone): string {
   return {
@@ -16,10 +16,8 @@ export function getEvidenceTimelineLabel(type: EvidenceTimelineType): string {
     mission: '目标',
     tool: '工具',
     validation: '验证',
-    file: '文件',
-    agent: 'Agent',
-    delivery: '交付',
-    permission: '权限',
-    error: '异常',
+    change: '文件',
+    risk: '风险',
+    handoff: '交付',
   }[type]
 }
