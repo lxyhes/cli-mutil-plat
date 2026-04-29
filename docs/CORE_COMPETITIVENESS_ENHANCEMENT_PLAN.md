@@ -349,11 +349,11 @@ Completed:
 
 Remaining:
 
-- Move into Phase D multi-agent delivery governance.
+- ~~Move into Phase D multi-agent delivery governance.~~ (Completed)
 
 ### Multi-Agent Delivery Governance
 
-Status: Phase D governance foundation started.
+Status: Phase D governance foundation completed.
 
 Completed:
 
@@ -362,8 +362,9 @@ Completed:
 - Added a merge-readiness supervisor prompt that uses ownership, file boundaries, validation responsibility, blockers, and merge order.
 - Added Agent Ownership Matrix context to delivery-pack generation and Markdown exports for per-agent accountability.
 - Added a Dashboard Agent governance summary for active, completed, blocked, and governed parent-session counts.
-
-Remaining:
-
-- Add durable agent outcome metrics for completed, blocked, reverted, validated, and merged.
-- Extend merge-readiness gates with richer command/file conflict detection across completed agent outputs.
+- Added durable agent outcome metrics (`completed`, `blocked`, `reverted`, `validated`, `merged`) to `AgentInfo` and `AgentResult` types.
+- Set agent `outcome` fields in `AgentManagerV2.completeAgent` and `AgentManager.onChildSessionEnded` based on exit code.
+- Synced agent outcome through IPC into `sessionStore` on `agent:completed` events and derived agents during session list refresh.
+- Extended `AgentGovernanceSummary` and `AgentGovernancePanel` with `validatedCount`, `mergedCount`, `revertedCount`, plus `validatedRate` and `mergedRate` cards in the Dashboard.
+- Extended merge-readiness gates with richer command/file conflict detection across **all** agents (including completed), not just active ones.
+- Added `conflictingAgents` and `conflictDetail` fields to `AgentOwnershipLane` and surfaced them in the cockpit UI and Markdown exports.

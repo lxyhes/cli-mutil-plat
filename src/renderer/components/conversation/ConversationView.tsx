@@ -1261,6 +1261,7 @@ function formatAgentOwnershipMatrixMarkdown(snapshot: OpsBriefSnapshot): string 
     lane.lastCommand ? `  - 最近命令: ${lane.lastCommand}` : '',
     `  - 验证责任: ${lane.validationLabel}`,
     lane.risk ? `  - 风险: ${lane.risk}` : '',
+    lane.conflictDetail ? `  - 冲突: ${lane.conflictDetail}` : '',
   ].filter(Boolean).join('\n')).join('\n')
 }
 
@@ -2132,6 +2133,11 @@ const OpsBrief = React.memo(function OpsBrief({
                           <div className="mt-1 truncate text-[10px] text-text-secondary" title={lane.validationLabel}>
                             {lane.validationLabel}
                           </div>
+                          {lane.conflictDetail && (
+                            <div className="mt-1 truncate text-[10px] text-accent-yellow" title={lane.conflictDetail}>
+                              {lane.conflictDetail}
+                            </div>
+                          )}
                         </div>
                       ))}
                     </div>
@@ -3542,8 +3548,9 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
     const activeAgents = agents.filter(agent => agent.status === 'pending' || agent.status === 'running')
     const activeAgentCount = activeAgents.length
     const blockedAgentCount = agents.filter(agent => agent.status === 'failed' || agent.status === 'cancelled').length
+    // Build ownership maps across ALL agents (not just active) for richer conflict detection
     const workDirOwners = new Map<string, OpsBriefAgent[]>()
-    for (const agent of activeAgents) {
+    for (const agent of agents) {
       const key = (agent.workDir || '').trim().toLowerCase()
       if (!key) continue
       workDirOwners.set(key, [...(workDirOwners.get(key) || []), agent])
@@ -3551,7 +3558,7 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
     const overlappingWorkDirs = Array.from(workDirOwners.entries())
       .filter(([, owners]) => owners.length > 1)
     const fileOwners = new Map<string, OpsBriefAgent[]>()
-    for (const agent of activeAgents) {
+    for (const agent of agents) {
       for (const file of agent.lastFiles) {
         const key = file.toLowerCase()
         fileOwners.set(key, [...(fileOwners.get(key) || []), agent])
@@ -3559,9 +3566,29 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
     }
     const overlappingFiles = Array.from(fileOwners.entries())
       .filter(([, owners]) => owners.length > 1)
+
+    // Build a quick lookup for which agents overlap with which
+    const agentConflicts = new Map<string, Set<string>>()
+    for (const [, owners] of overlappingWorkDirs) {
+      for (const owner of owners) {
+        if (!agentConflicts.has(owner.agentId)) agentConflicts.set(owner.agentId, new Set())
+        for (const other of owners) {
+          if (other.agentId !== owner.agentId) agentConflicts.get(owner.agentId)!.add(other.agentId)
+        }
+      }
+    }
+    for (const [, owners] of overlappingFiles) {
+      for (const owner of owners) {
+        if (!agentConflicts.has(owner.agentId)) agentConflicts.set(owner.agentId, new Set())
+        for (const other of owners) {
+          if (other.agentId !== owner.agentId) agentConflicts.get(owner.agentId)!.add(other.agentId)
+        }
+      }
+    }
+
     const agentCoordinationRisks = [
-      ...overlappingWorkDirs.map(([workDir, owners]) => `多个执行中的 Agent 共享工作目录：${owners.map(agent => agent.name || agent.agentId).join('、')} -> ${workDir}`),
-      ...overlappingFiles.map(([file, owners]) => `多个执行中的 Agent 最近触达同一文件：${owners.map(agent => agent.name || agent.agentId).join('、')} -> ${file}`),
+      ...overlappingWorkDirs.map(([workDir, owners]) => `多个 Agent 共享工作目录：${owners.map(agent => agent.name || agent.agentId).join('、')} -> ${workDir}`),
+      ...overlappingFiles.map(([file, owners]) => `多个 Agent 最近触达同一文件：${owners.map(agent => agent.name || agent.agentId).join('、')} -> ${file}`),
       blockedAgentCount > 0 ? `${blockedAgentCount} 个 Agent 处于失败或取消状态，需要确认是否影响交付` : '',
       activeAgentCount > 3 ? `${activeAgentCount} 个 Agent 正在并行，建议确认 owner 边界和合并顺序` : '',
     ].filter(Boolean)
@@ -3572,22 +3599,31 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
       const hasFileOverlap = agent.lastFiles.some(file => (fileOwners.get(file.toLowerCase())?.length || 0) > 1)
       const hasChanges = agent.lastFiles.length > 0
       const hasValidation = agent.validationCount > 0
+
+      const conflictingAgents = Array.from(agentConflicts.get(agent.agentId) || []).filter(id => id !== agent.agentId)
+      const conflictDetail = conflictingAgents.length > 0
+        ? `与 ${conflictingAgents.length} 个 Agent 存在文件或目录冲突`
+        : undefined
+
+      // Richer merge readiness: consider conflicts across completed agents too
       const mergeReadiness: AgentMergeReadiness = agent.status === 'failed' || agent.status === 'cancelled' || agent.failedToolCount > 0
         ? 'blocked'
-        : hasWorkDirOverlap || hasFileOverlap || agent.status === 'running' || agent.status === 'pending'
+        : hasWorkDirOverlap || hasFileOverlap
           ? 'watch'
-          : hasChanges && !hasValidation
-            ? 'needs-validation'
-            : 'ready'
+          : agent.status === 'running' || agent.status === 'pending'
+            ? 'watch'
+            : hasChanges && !hasValidation
+              ? 'needs-validation'
+              : 'ready'
       const validationLabel = hasValidation
         ? `${agent.validationCount} 条验证证据`
         : hasChanges
           ? '有文件改动，缺少验证证据'
           : '暂无文件改动，按交付说明确认'
       const risk = agent.risk || (hasWorkDirOverlap
-        ? '工作目录与其他执行中的 Agent 重叠'
+        ? '工作目录与其他 Agent 重叠'
         : hasFileOverlap
-          ? '最近触达文件与其他执行中的 Agent 重叠'
+          ? '最近触达文件与其他 Agent 重叠'
           : undefined)
 
       return {
@@ -3600,6 +3636,8 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
         validationLabel,
         mergeReadiness,
         risk,
+        conflictingAgents: conflictingAgents.length > 0 ? conflictingAgents : undefined,
+        conflictDetail,
       }
     })
 
