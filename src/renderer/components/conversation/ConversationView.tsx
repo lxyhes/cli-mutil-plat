@@ -720,6 +720,38 @@ function downloadMarkdownFile(markdown: string, fileName: string): void {
   URL.revokeObjectURL(url)
 }
 
+/** Compute a simple content hash for report signing / integrity verification */
+function computeReportHash(content: string): string {
+  let hash = 0
+  for (let i = 0; i < content.length; i++) {
+    const char = content.charCodeAt(i)
+    hash = ((hash << 5) - hash + char) | 0
+  }
+  return Math.abs(hash).toString(16).padStart(8, '0')
+}
+
+/** Redact sensitive patterns from exported report content */
+function redactSensitiveContent(content: string, options?: { redactPaths?: boolean; redactCommands?: boolean; redactKeys?: boolean }): string {
+  let result = content
+  if (options?.redactPaths) {
+    // Redact absolute file system paths (keep file names)
+    result = result.replace(/(?:[A-Za-z]:\\|\/)(?:[^\s\"'`<>\n]*\\\/)+([^\s\"'`<>\n]+)/g, (_match, filename) => `[REDACTED_PATH]/${filename}`)
+  }
+  if (options?.redactCommands) {
+    // Redact command outputs that look like tokens/keys (base64-like strings > 24 chars)
+    result = result.replace(/\b[A-Za-z0-9+/]{32,}={0,2}\b/g, '[REDACTED_TOKEN]')
+    // Redact potential API keys
+    result = result.replace(/\b(sk-[a-zA-Z0-9]{20,})\b/g, '[REDACTED_KEY]')
+    result = result.replace(/\b([a-zA-Z0-9_-]*api[_-]?key[a-zA-Z0-9_-]*[:=]\s*)[^\s\n]+/gi, '$1[REDACTED_VALUE]')
+  }
+  if (options?.redactKeys) {
+    // Redact bearer/auth headers
+    result = result.replace(/(Authorization[:\s]+Bearer\s+)[^\s\n]+/gi, '$1[REDACTED_BEARER]')
+    result = result.replace(/(password[:=]\s*)[^\s\n]+/gi, '$1[REDACTED_PASSWORD]')
+  }
+  return result
+}
+
 function buildGatePrompt(gate: DeliveryReadinessGate, snapshot: OpsBriefSnapshot): string {
   return [
     `请处理交付门禁：「${gate.label}」。`,
@@ -1024,7 +1056,7 @@ function getSafeReportFileName(value: string): string {
     .slice(0, 72) || 'prismops'
 }
 
-function buildTrustReportMarkdown(snapshot: OpsBriefSnapshot): string {
+function buildTrustReportMarkdown(snapshot: OpsBriefSnapshot, options?: { redactPaths?: boolean; redactCommands?: boolean; redactKeys?: boolean }): string {
   const policy = getTrustPolicyPreset(snapshot)
   const generatedAt = new Date().toISOString()
   const gates = snapshot.readinessGates.map(gate =>
@@ -1046,12 +1078,19 @@ function buildTrustReportMarkdown(snapshot: OpsBriefSnapshot): string {
     agent.risk ? `  - 风险: ${agent.risk}` : '',
   ].filter(Boolean).join('\n'))
 
-  return [
+  const redactionFlags = [
+    options?.redactPaths ? 'paths' : '',
+    options?.redactCommands ? 'commands' : '',
+    options?.redactKeys ? 'keys' : '',
+  ].filter(Boolean)
+
+  let body = [
     `# PrismOps 可信交付报告 - ${snapshot.projectName}`,
     '',
     `生成时间: ${generatedAt}`,
     `报告 Schema: prismops.trust-report.v1`,
     `生成来源: conversation-task-cockpit`,
+    redactionFlags.length > 0 ? `脱敏选项: ${redactionFlags.join(', ')}` : '',
     '',
     '## 交付结论',
     '',
@@ -1127,9 +1166,16 @@ function buildTrustReportMarkdown(snapshot: OpsBriefSnapshot): string {
     '',
     formatMarkdownList(snapshot.nextActions, '暂无下一步建议'),
   ].filter(Boolean).join('\n')
+  const report = redactSensitiveContent(body, options)
+  const hash = computeReportHash(report)
+  return `<!-- report-hash: ${hash} -->\n${report}`
 }
 
-function buildDeliveryPackMarkdown(snapshot: OpsBriefSnapshot, summary?: any): string {
+function buildDeliveryPackMarkdown(
+  snapshot: OpsBriefSnapshot,
+  summary?: any,
+  options?: { redactPaths?: boolean; redactCommands?: boolean; redactKeys?: boolean },
+): string {
   const generatedAt = new Date().toISOString()
   const openGates = snapshot.readinessGates.filter(gate => gate.status !== 'passed')
   const gates = snapshot.readinessGates.map(gate =>
@@ -1147,12 +1193,19 @@ function buildDeliveryPackMarkdown(snapshot: OpsBriefSnapshot, summary?: any): s
   const ownershipMatrix = formatAgentOwnershipMatrixMarkdown(snapshot)
   const warnings = Array.isArray(summary?.warnings) ? summary.warnings : []
 
-  return [
+  const redactionFlags = [
+    options?.redactPaths ? 'paths' : '',
+    options?.redactCommands ? 'commands' : '',
+    options?.redactKeys ? 'keys' : '',
+  ].filter(Boolean)
+
+  const body = [
     `# PrismOps 交付包 - ${snapshot.projectName}`,
     '',
     `生成时间: ${generatedAt}`,
     `报告 Schema: prismops.delivery-pack.v1`,
     `生成来源: conversation-task-cockpit`,
+    redactionFlags.length > 0 ? `脱敏选项: ${redactionFlags.join(', ')}` : '',
     '',
     '## 交付结论',
     '',
@@ -1219,6 +1272,9 @@ function buildDeliveryPackMarkdown(snapshot: OpsBriefSnapshot, summary?: any): s
     '',
     summary?.suggestedCommitMessage || 'chore: update delivery work',
   ].filter(Boolean).join('\n')
+  const report = redactSensitiveContent(body, options)
+  const hash = computeReportHash(report)
+  return `<!-- report-hash: ${hash} -->\n${report}`
 }
 
 function getAgentStatusLabel(status: OpsBriefAgent['status']): string {
@@ -4006,7 +4062,7 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
       }
       const summary = unwrapIpcData<any>(result)
       const deliveryPackSnapshot = markDeliveryPackGenerated(opsBrief)
-      const deliveryPackMarkdown = buildDeliveryPackMarkdown(deliveryPackSnapshot, summary)
+      const deliveryPackMarkdown = buildDeliveryPackMarkdown(deliveryPackSnapshot, summary, { redactPaths: true, redactKeys: true })
       const timestamp = new Date().toISOString().replace(/[:.]/g, '-')
       downloadMarkdownFile(
         deliveryPackMarkdown,
@@ -4091,7 +4147,7 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
   }, [opsBrief, playbookActionLoading, sessionId, workingDirectory])
 
   const handleExportTrustReport = useCallback((snapshot: OpsBriefSnapshot) => {
-    const markdown = buildTrustReportMarkdown(snapshot)
+    const markdown = buildTrustReportMarkdown(snapshot, { redactPaths: true, redactKeys: true })
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-')
     downloadMarkdownFile(markdown, `prismops-trust-report-${getSafeReportFileName(snapshot.projectName)}-${timestamp}.md`)
     setQueueHintText('可信交付报告已导出为 Markdown')

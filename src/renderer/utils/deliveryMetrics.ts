@@ -600,3 +600,117 @@ export function formatMetricAge(hours?: number): string {
   const days = Math.round(hours / 24)
   return `${days}d`
 }
+
+const DM_DAY_MS = 24 * 60 * 60 * 1000
+
+function dmClampHistoryDayCount(dayCount?: number): number {
+  if (!dayCount || !Number.isFinite(dayCount)) return 14
+  return Math.max(1, Math.min(30, Math.round(dayCount)))
+}
+
+function dmUtcDayStart(value: Date): number {
+  return Date.UTC(value.getUTCFullYear(), value.getUTCMonth(), value.getUTCDate())
+}
+
+function dmDateKeyFromMs(value: number): string {
+  return new Date(value).toISOString().slice(0, 10)
+}
+
+function dmShortDateLabel(dateKey: string): string {
+  const [, month, day] = dateKey.split('-')
+  return `${month}/${day}`
+}
+
+function dmProjectLabelFromPath(projectPath?: string): string {
+  if (!projectPath) return 'Unscoped'
+  const parts = projectPath.split(/[\\/]+/).filter(Boolean)
+  return parts[parts.length - 1] || projectPath
+}
+
+export interface DeliveryMetricHistoryTrendPoint extends DeliveryMetricSummary {
+  date: string
+  label: string
+}
+
+export interface DeliveryMetricHistoryProjectReport extends DeliveryMetricSummary {
+  projectPath?: string
+  projectLabel: string
+  lastActivityAt?: string
+}
+
+export interface DeliveryMetricHistoryReport {
+  generatedAt: string
+  dayCount: number
+  total: DeliveryMetricSummary
+  trend: DeliveryMetricHistoryTrendPoint[]
+  projects: DeliveryMetricHistoryProjectReport[]
+}
+
+export interface DeliveryMetricHistoryOptions {
+  dayCount?: number
+  now?: Date | number
+  projectLimit?: number
+}
+
+export function summarizeDeliveryMetricsHistory(
+  records: DeliveryMetricSnapshotRecord[],
+  options: DeliveryMetricHistoryOptions = {},
+): DeliveryMetricHistoryReport {
+  const dayCount = dmClampHistoryDayCount(options.dayCount)
+  const now = options.now instanceof Date ? options.now : new Date(options.now || Date.now())
+  const endDayMs = dmUtcDayStart(Number.isFinite(now.getTime()) ? now : new Date())
+  const startDayMs = endDayMs - (dayCount - 1) * DM_DAY_MS
+  const endExclusiveMs = endDayMs + DM_DAY_MS
+  const projectLimit = options.projectLimit ?? 5
+
+  const meaningful = records.filter(isMeaningfulMetricRecord)
+  const recentRecords = meaningful.filter(record => {
+    const time = new Date(record.updatedAt).getTime()
+    return Number.isFinite(time) && time >= startDayMs && time < endExclusiveMs
+  })
+
+  const trend = Array.from({ length: dayCount }, (_, index) => {
+    const date = dmDateKeyFromMs(startDayMs + index * DM_DAY_MS)
+    const dayRecords = recentRecords.filter(record => {
+      const recordTime = new Date(record.updatedAt).getTime()
+      return dmDateKeyFromMs(recordTime) === date
+    })
+    return {
+      date,
+      label: dmShortDateLabel(date),
+      ...summarizeDeliveryMetrics(dayRecords),
+    }
+  })
+
+  const projectGroups = new Map<string, DeliveryMetricSnapshotRecord[]>()
+  for (const record of recentRecords) {
+    const key = record.projectPath || 'unscoped'
+    projectGroups.set(key, [...(projectGroups.get(key) || []), record])
+  }
+
+  const projects = [...projectGroups.entries()]
+    .map(([key, projectRecords]) => {
+      const latest = projectRecords
+        .map(record => record.updatedAt)
+        .sort((a, b) => new Date(b).getTime() - new Date(a).getTime())[0]
+      return {
+        projectPath: key === 'unscoped' ? undefined : key,
+        projectLabel: dmProjectLabelFromPath(key === 'unscoped' ? undefined : key),
+        lastActivityAt: latest,
+        ...summarizeDeliveryMetrics(projectRecords),
+      }
+    })
+    .sort((a, b) => {
+      if (b.sessionCount !== a.sessionCount) return b.sessionCount - a.sessionCount
+      return new Date(b.lastActivityAt || 0).getTime() - new Date(a.lastActivityAt || 0).getTime()
+    })
+    .slice(0, projectLimit)
+
+  return {
+    generatedAt: new Date(endDayMs).toISOString(),
+    dayCount,
+    total: summarizeDeliveryMetrics(recentRecords),
+    trend,
+    projects,
+  }
+}

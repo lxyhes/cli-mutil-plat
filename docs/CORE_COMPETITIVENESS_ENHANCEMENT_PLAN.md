@@ -368,3 +368,21 @@ Completed:
 - Extended `AgentGovernanceSummary` and `AgentGovernancePanel` with `validatedCount`, `mergedCount`, `revertedCount`, plus `validatedRate` and `mergedRate` cards in the Dashboard.
 - Extended merge-readiness gates with richer command/file conflict detection across **all** agents (including completed), not just active ones.
 - Added `conflictingAgents` and `conflictDetail` fields to `AgentOwnershipLane` and surfaced them in the cockpit UI and Markdown exports.
+
+### Team And Organization Trust
+
+Status: Phase E team trust foundation completed.
+
+Completed:
+
+- Added `computeReportHash` and `redactSensitiveContent` utilities for report integrity and sensitive data protection.
+- Enhanced `buildTrustReportMarkdown` and `buildDeliveryPackMarkdown` with redaction options (`redactPaths`, `redactCommands`, `redactKeys`) and content hash in report metadata.
+- Applied default redaction (`redactPaths: true`, `redactKeys: true`) to both trust report and delivery pack exports.
+- Added `summarizeDeliveryMetricsHistory` with daily trend and per-project rollup in `deliveryMetrics.ts`.
+- Added `DeliveryMetricsHistoryReportPanel` to Dashboard with daily session trend chart and per-project delivery pack rate, validation coverage, and safety rate.
+
+Remaining:
+
+- ~~Move into Phase F UX compression and speed.~~ (Ready)
+
+## Phase F: UX Compression And Speed

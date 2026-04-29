@@ -30,6 +30,8 @@ import {
   type DeliveryMetricActionLifecycleSummary,
   type DeliveryMetricFreshness,
   type DeliveryMetricSnapshotRecord,
+  summarizeDeliveryMetricsHistory,
+  type DeliveryMetricHistoryReport,
 } from '../../utils/deliveryMetrics'
 import {
   PROJECT_MEMORY_TELEMETRY_EVENT,
@@ -176,6 +178,10 @@ export default function DashboardView() {
     () => summarizeProjectMemoryTelemetryHistory(memoryTelemetryEvents, { dayCount: 14, projectLimit: 4 }),
     [memoryTelemetryEvents],
   )
+  const deliveryMetricsHistoryReport = useMemo(
+    () => summarizeDeliveryMetricsHistory(deliveryRecords, { dayCount: 14, projectLimit: 4 }),
+    [deliveryRecords],
+  )
   const agentGovernanceSummary = useMemo(() => summarizeAgentGovernance(agents), [agents])
   const openActionItem = (item: DeliveryMetricActionItem) => {
     queueDeliveryMetricAction(item)
@@ -321,6 +327,7 @@ export default function DashboardView() {
         />
         <MemoryFlywheelPanel summary={memoryTelemetrySummary} />
         <MemoryHistoryReportPanel report={memoryHistoryReport} />
+        <DeliveryMetricsHistoryReportPanel report={deliveryMetricsHistoryReport} />
         <AgentGovernancePanel summary={agentGovernanceSummary} />
       </section>
 
@@ -619,6 +626,101 @@ function MemoryHistoryReportPanel({ report }: { report: ProjectMemoryTelemetryHi
                   </span>
                   <span className="rounded bg-accent-yellow/10 px-1.5 py-1 text-accent-yellow">
                     旧知识 {project.staleResolutionCount}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function DeliveryMetricsHistoryReportPanel({ report }: { report: DeliveryMetricHistoryReport }) {
+  if (report.total.sessionCount === 0) return null
+
+  const maxDailySessions = Math.max(1, ...report.trend.map(point => point.sessionCount))
+
+  return (
+    <div className="rounded-lg border border-border-subtle bg-bg-elevated/65 p-2">
+      <div className="mb-2 flex flex-wrap items-center justify-between gap-2 px-1">
+        <div className="flex items-center gap-1.5 text-xs font-semibold text-text-secondary">
+          <BarChart3 className="h-3.5 w-3.5 text-accent-green" />
+          团队交付指标历史
+        </div>
+        <div className="flex flex-wrap items-center gap-2 text-[10px] text-text-muted">
+          <span>近 {report.dayCount} 天</span>
+          <span>{report.total.sessionCount} 个会话</span>
+          <span>交付包率 {formatMetricPercent(report.total.deliveryPackRate)}</span>
+          <span>验证覆盖 {formatMetricPercent(report.total.validationCoverageRate)}</span>
+        </div>
+      </div>
+
+      <div className="grid gap-2 lg:grid-cols-[minmax(0,1fr)_minmax(280px,0.9fr)]">
+        <div className="rounded-md border border-border-subtle bg-bg-primary/55 p-2">
+          <div className="mb-1.5 flex items-center justify-between text-[10px] text-text-muted">
+            <span>每日会话趋势</span>
+            <span>峰值 {maxDailySessions}</span>
+          </div>
+          <div className="flex h-20 items-end gap-1">
+            {report.trend.map(point => {
+              const height = Math.max(6, Math.round((point.sessionCount / maxDailySessions) * 52))
+              const tone = point.blockedCount > 0
+                ? 'bg-accent-red/70'
+                : point.validationCoverageRate >= 70
+                  ? 'bg-accent-green/70'
+                  : point.sessionCount > 0
+                    ? 'bg-accent-blue/65'
+                    : 'bg-border-subtle'
+
+              return (
+                <div key={point.date} className="flex min-w-0 flex-1 flex-col items-center gap-1">
+                  <div
+                    className={`w-full rounded-sm ${tone}`}
+                    style={{ height }}
+                    title={`${point.date}: ${point.sessionCount} 个会话，交付包率 ${formatMetricPercent(point.deliveryPackRate)}，验证覆盖 ${formatMetricPercent(point.validationCoverageRate)}`}
+                  />
+                  <span className="w-full truncate text-center text-[9px] text-text-muted">
+                    {point.label}
+                  </span>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+
+        <div className="rounded-md border border-border-subtle bg-bg-primary/55 p-2">
+          <div className="mb-1.5 flex items-center justify-between text-[10px] text-text-muted">
+            <span>项目报告</span>
+            <span>{report.projects.length} 个项目</span>
+          </div>
+          <div className="space-y-1.5">
+            {report.projects.map(project => (
+              <div key={project.projectPath || project.projectLabel} className="rounded-md border border-border-subtle bg-bg-elevated/60 px-2 py-1.5">
+                <div className="flex min-w-0 items-center justify-between gap-2">
+                  <div className="min-w-0">
+                    <div className="truncate text-xs font-semibold text-text-primary" title={project.projectPath || project.projectLabel}>
+                      {project.projectLabel}
+                    </div>
+                    <div className="mt-0.5 truncate text-[10px] text-text-muted">
+                      最近 {formatHistoryActivity(project.lastActivityAt)}
+                    </div>
+                  </div>
+                  <div className="shrink-0 text-right">
+                    <div className="text-xs font-semibold text-text-primary">{project.sessionCount}</div>
+                    <div className="text-[9px] text-text-muted">会话</div>
+                  </div>
+                </div>
+                <div className="mt-1.5 grid grid-cols-3 gap-1 text-[10px]">
+                  <span className="rounded bg-accent-green/10 px-1.5 py-1 text-accent-green">
+                    交付包 {formatMetricPercent(project.deliveryPackRate)}
+                  </span>
+                  <span className="rounded bg-accent-blue/10 px-1.5 py-1 text-accent-blue">
+                    验证 {formatMetricPercent(project.validationCoverageRate)}
+                  </span>
+                  <span className={`rounded px-1.5 py-1 ${project.blockedCount > 0 ? 'bg-accent-red/10 text-accent-red' : 'bg-accent-green/10 text-accent-green'}`}>
+                    安全 {formatMetricPercent(project.safeSessionRate)}
                   </span>
                 </div>
               </div>
