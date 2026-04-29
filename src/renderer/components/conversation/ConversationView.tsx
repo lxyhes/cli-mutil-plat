@@ -32,6 +32,8 @@ import AskUserQuestionPanel from './AskUserQuestionPanel'
 import PlanApprovalPanel from './PlanApprovalPanel'
 import CrossSessionSearch from './CrossSessionSearch'
 import SessionKnowledgePanel from './SessionKnowledgePanel'
+import AgentOwnershipMatrixPanel from './AgentOwnershipMatrixPanel'
+import AgentBriefCards from './AgentBriefCards'
 import { isPrimaryModifierPressed } from '../../utils/shortcut'
 import {
   DELIVERY_ACTION_EVENT,
@@ -58,6 +60,17 @@ import {
   getSafeReportFileName,
   redactSensitiveContent,
 } from '../../utils/reportExportUtils'
+import {
+  getAgentMergeReadinessClass,
+  getAgentMergeReadinessLabel,
+  getAgentStatusLabel,
+  type AgentMergeReadiness,
+  type AgentStatus,
+} from '../../utils/agentLabels'
+import {
+  getEvidenceTimelineClass,
+  getEvidenceTimelineLabel,
+} from '../../utils/evidenceTimeline'
 import {
   compactText,
   formatElapsedMinutes,
@@ -138,7 +151,7 @@ interface OpsBriefSnapshot {
   agentOwnershipLanes: AgentOwnershipLane[]
 }
 
-interface OpsBriefAgent {
+export interface OpsBriefAgent {
   agentId: string
   name: string
   status: 'pending' | 'running' | 'completed' | 'failed' | 'cancelled'
@@ -153,9 +166,7 @@ interface OpsBriefAgent {
   validationCount: number
 }
 
-type AgentMergeReadiness = 'ready' | 'watch' | 'needs-validation' | 'blocked'
-
-interface AgentOwnershipLane {
+export interface AgentOwnershipLane {
   id: string
   owner: string
   status: OpsBriefAgent['status']
@@ -848,26 +859,6 @@ function getMemorySuggestionReviewClass(review?: ProjectMemorySuggestionReview, 
   }[review.status]
 }
 
-function getEvidenceTimelineClass(tone: EvidenceTimelineEntry['tone']): string {
-  return {
-    good: 'border-transparent bg-accent-green/5 text-accent-green',
-    warn: 'border-transparent bg-accent-yellow/10 text-accent-yellow',
-    bad: 'border-transparent bg-accent-red/10 text-accent-red',
-    neutral: 'border-transparent bg-bg-primary/55 text-text-secondary',
-  }[tone]
-}
-
-function getEvidenceTimelineLabel(type: EvidenceTimelineEntry['type']): string {
-  return {
-    mission: '目标',
-    tool: '工具',
-    validation: '验证',
-    change: '改动',
-    risk: '风险',
-    handoff: '交付',
-  }[type]
-}
-
 function markDeliveryPackGenerated(snapshot: OpsBriefSnapshot): OpsBriefSnapshot {
   const deliveryMetrics = snapshot.deliveryMetrics.map(metric =>
     metric.id === 'delivery-pack'
@@ -1192,34 +1183,6 @@ function buildDeliveryPackMarkdown(
   const report = redactSensitiveContent(body, options)
   const hash = computeReportHash(report)
   return `<!-- report-hash: ${hash} -->\n${report}`
-}
-
-function getAgentStatusLabel(status: OpsBriefAgent['status']): string {
-  return {
-    pending: '待启动',
-    running: '执行中',
-    completed: '已完成',
-    failed: '失败',
-    cancelled: '已取消',
-  }[status]
-}
-
-function getAgentMergeReadinessLabel(status: AgentMergeReadiness): string {
-  return {
-    ready: '可合并',
-    watch: '需观察',
-    'needs-validation': '缺验证',
-    blocked: '阻塞',
-  }[status]
-}
-
-function getAgentMergeReadinessClass(status: AgentMergeReadiness): string {
-  return {
-    ready: 'bg-accent-green/10 text-accent-green',
-    watch: 'bg-accent-blue/10 text-accent-blue',
-    'needs-validation': 'bg-accent-yellow/10 text-accent-yellow',
-    blocked: 'bg-accent-red/10 text-accent-red',
-  }[status]
 }
 
 function formatAgentOwnershipMatrixMarkdown(snapshot: OpsBriefSnapshot): string {
@@ -2074,101 +2037,8 @@ const OpsBrief = React.memo(function OpsBrief({
                     ))}
                   </div>
                 )}
-                {snapshot.agentOwnershipLanes.length > 0 && (
-                  <div className="mb-2 rounded-md border border-border-subtle/70 bg-bg-primary/45 p-2">
-                    <div className="mb-1.5 flex items-center justify-between gap-2 text-[10px] text-text-muted">
-                      <span>Ownership Matrix</span>
-                      <span>{snapshot.agentOwnershipLanes.length} owners</span>
-                    </div>
-                    <div className="grid gap-1.5 lg:grid-cols-2">
-                      {snapshot.agentOwnershipLanes.slice(0, 4).map(lane => (
-                        <div key={lane.id} className="min-w-0 rounded-md bg-bg-elevated/60 px-2 py-1.5">
-                          <div className="flex min-w-0 items-center justify-between gap-2">
-                            <span className="truncate text-[11px] font-semibold text-text-primary" title={lane.owner}>
-                              {lane.owner}
-                            </span>
-                            <span className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium ${getAgentMergeReadinessClass(lane.mergeReadiness)}`}>
-                              {getAgentMergeReadinessLabel(lane.mergeReadiness)}
-                            </span>
-                          </div>
-                          <div className="mt-1 truncate font-mono text-[10px] text-text-muted" title={lane.workDir || lane.lastCommand || lane.id}>
-                            {lane.workDir || lane.lastCommand || lane.id}
-                          </div>
-                          <div className="mt-1 flex min-w-0 flex-wrap gap-1">
-                            {lane.ownedFiles.length > 0 ? lane.ownedFiles.slice(0, 3).map(file => (
-                              <span key={file} className="max-w-full truncate rounded bg-bg-tertiary px-1.5 py-0.5 text-[10px] text-text-muted" title={file}>
-                                {file}
-                              </span>
-                            )) : (
-                              <span className="rounded bg-bg-tertiary px-1.5 py-0.5 text-[10px] text-text-muted">未识别文件边界</span>
-                            )}
-                          </div>
-                          <div className="mt-1 truncate text-[10px] text-text-secondary" title={lane.validationLabel}>
-                            {lane.validationLabel}
-                          </div>
-                          {lane.conflictDetail && (
-                            <div className="mt-1 truncate text-[10px] text-accent-yellow" title={lane.conflictDetail}>
-                              {lane.conflictDetail}
-                            </div>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-                {snapshot.agents.length > 0 ? (
-                  <div className="grid gap-2 md:grid-cols-2">
-                    {snapshot.agents.slice(0, 4).map(agent => (
-                      <div key={agent.agentId} className="min-w-0 rounded-md bg-bg-primary/55 p-2">
-                        <div className="flex min-w-0 items-center justify-between gap-2">
-                          <span className="truncate text-xs font-semibold text-text-primary" title={agent.name || agent.agentId}>
-                            {agent.name || agent.agentId}
-                          </span>
-                          <span className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium ${
-                            agent.status === 'running' || agent.status === 'pending'
-                              ? 'bg-accent-purple/10 text-accent-purple'
-                              : agent.status === 'completed'
-                                ? 'bg-accent-green/10 text-accent-green'
-                                : 'bg-accent-red/10 text-accent-red'
-                          }`}>
-                            {getAgentStatusLabel(agent.status)}
-                          </span>
-                        </div>
-                        <div className="mt-1 truncate font-mono text-[11px] text-text-muted" title={agent.workDir || agent.childSessionId || agent.agentId}>
-                          {agent.workDir || agent.childSessionId || agent.agentId}
-                        </div>
-                        {(agent.lastFiles.length > 0 || agent.lastCommand || agent.risk) && (
-                          <div className="mt-2 space-y-1 pt-2 shadow-[0_-1px_0_rgba(255,255,255,0.035)]">
-                            {agent.lastFiles.length > 0 && (
-                              <div className="flex min-w-0 flex-wrap gap-1">
-                                {agent.lastFiles.map(file => (
-                                  <span key={file} className="max-w-full truncate rounded bg-bg-tertiary px-1.5 py-0.5 text-[10px] font-medium text-text-muted" title={file}>
-                                    {file}
-                                  </span>
-                                ))}
-                              </div>
-                            )}
-                            {agent.lastCommand && (
-                              <div className="truncate font-mono text-[10px] text-text-muted" title={agent.lastCommand}>
-                                {agent.lastCommand}
-                              </div>
-                            )}
-                            {agent.risk && (
-                              <div className="flex min-w-0 items-start gap-1.5 text-[10px] leading-4 text-accent-yellow">
-                                <AlertTriangle size={11} className="mt-0.5 shrink-0" />
-                                <span className="min-w-0">{agent.risk}</span>
-                              </div>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="rounded-md bg-bg-primary/45 px-3 py-2 text-[11px] leading-5 text-text-muted">
-                    当前会话还没有可见子 Agent。可以先生成分派提示，把剩余工作拆成明确 owner、文件边界和验收条件，再决定是否并行执行。
-                  </div>
-                )}
+                <AgentOwnershipMatrixPanel lanes={snapshot.agentOwnershipLanes} />
+                <AgentBriefCards agents={snapshot.agents} />
               </div>
 
               <div className="mt-3 rounded-md bg-bg-primary/28 p-3">
