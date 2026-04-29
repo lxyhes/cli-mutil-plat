@@ -51,6 +51,22 @@ import {
   type ProjectMemorySuggestionReview,
   type ProjectMemoryStaleCandidate,
 } from '../../utils/projectMemorySuggestions'
+import {
+  computeReportHash,
+  downloadMarkdownFile,
+  getSafeReportFileName,
+  redactSensitiveContent,
+} from '../../utils/reportExportUtils'
+import {
+  compactText,
+  formatElapsedMinutes,
+  formatMarkdownList,
+  formatThinkingTime,
+  formatTimelineTimestamp,
+  getProjectName,
+  getShortFileName,
+  truncateLongText,
+} from '../../utils/stringFormatters'
 
 
 // ---- Provider 颜色映射 ----
@@ -502,29 +518,6 @@ function getTrustPolicyOptionLabel(presetId: TrustPolicyPresetId): string {
   return TRUST_POLICY_OPTIONS.find(option => option.id === presetId)?.label || '自动策略'
 }
 
-function getProjectName(workingDirectory?: string, fallback?: string): string {
-  const normalized = (workingDirectory || '').replace(/\\/g, '/').replace(/\/+$/, '')
-  const parts = normalized.split('/').filter(Boolean)
-  return parts[parts.length - 1] || fallback || '未绑定项目'
-}
-
-function getShortFileName(filePath: string): string {
-  const normalized = (filePath || '').replace(/\\/g, '/')
-  return normalized.split('/').filter(Boolean).pop() || filePath
-}
-
-function compactText(value: string, max = 110): string {
-  const text = value.replace(/\s+/g, ' ').trim()
-  if (text.length <= max) return text
-  return `${text.slice(0, max - 1)}…`
-}
-
-function truncateLongText(value: string, max = 1800): string {
-  const text = value.trim()
-  if (text.length <= max) return text
-  return `${text.slice(0, max)}\n...已截断...`
-}
-
 function getToolCommand(message: ConversationMessage): string {
   const command = message.toolInput?.command
   if (typeof command === 'string') return command
@@ -651,13 +644,6 @@ function groupMessages(messages: ConversationMessage[]): MessageGroup[] {
 }
 
 /** 格式化思考耗时：超过 60s 显示分秒 */
-function formatThinkingTime(seconds: number): string {
-  if (seconds < 60) return `${seconds}s`
-  const m = Math.floor(seconds / 60)
-  const s = seconds % 60
-  return `${m}m ${s}s`
-}
-
 function buildDeliveryPackPrompt(snapshot: OpsBriefSnapshot): string {
   const changedFiles = snapshot.lastFiles.length > 0
     ? snapshot.lastFiles.map(file => `- ${file}`).join('\n')
@@ -708,48 +694,6 @@ function buildDeliveryPackPrompt(snapshot: OpsBriefSnapshot): string {
     '- 如果涉及代码改动，运行必要的 typecheck/test/build 或说明为什么无法运行。',
     '- 最后输出：变更摘要、验证结果、剩余风险、建议提交说明、用户下一步。',
   ].filter(Boolean).join('\n')
-}
-
-function downloadMarkdownFile(markdown: string, fileName: string): void {
-  const blob = new Blob([markdown], { type: 'text/markdown;charset=utf-8' })
-  const url = URL.createObjectURL(blob)
-  const link = document.createElement('a')
-  link.href = url
-  link.download = fileName
-  link.click()
-  URL.revokeObjectURL(url)
-}
-
-/** Compute a simple content hash for report signing / integrity verification */
-function computeReportHash(content: string): string {
-  let hash = 0
-  for (let i = 0; i < content.length; i++) {
-    const char = content.charCodeAt(i)
-    hash = ((hash << 5) - hash + char) | 0
-  }
-  return Math.abs(hash).toString(16).padStart(8, '0')
-}
-
-/** Redact sensitive patterns from exported report content */
-function redactSensitiveContent(content: string, options?: { redactPaths?: boolean; redactCommands?: boolean; redactKeys?: boolean }): string {
-  let result = content
-  if (options?.redactPaths) {
-    // Redact absolute file system paths (keep file names)
-    result = result.replace(/(?:[A-Za-z]:\\|\/)(?:[^\s\"'`<>\n]*\\\/)+([^\s\"'`<>\n]+)/g, (_match, filename) => `[REDACTED_PATH]/${filename}`)
-  }
-  if (options?.redactCommands) {
-    // Redact command outputs that look like tokens/keys (base64-like strings > 24 chars)
-    result = result.replace(/\b[A-Za-z0-9+/]{32,}={0,2}\b/g, '[REDACTED_TOKEN]')
-    // Redact potential API keys
-    result = result.replace(/\b(sk-[a-zA-Z0-9]{20,})\b/g, '[REDACTED_KEY]')
-    result = result.replace(/\b([a-zA-Z0-9_-]*api[_-]?key[a-zA-Z0-9_-]*[:=]\s*)[^\s\n]+/gi, '$1[REDACTED_VALUE]')
-  }
-  if (options?.redactKeys) {
-    // Redact bearer/auth headers
-    result = result.replace(/(Authorization[:\s]+Bearer\s+)[^\s\n]+/gi, '$1[REDACTED_BEARER]')
-    result = result.replace(/(password[:=]\s*)[^\s\n]+/gi, '$1[REDACTED_PASSWORD]')
-  }
-  return result
 }
 
 function buildGatePrompt(gate: DeliveryReadinessGate, snapshot: OpsBriefSnapshot): string {
@@ -923,21 +867,6 @@ function getEvidenceTimelineLabel(type: EvidenceTimelineEntry['type']): string {
   }[type]
 }
 
-function formatTimelineTimestamp(timestamp?: string): string {
-  if (!timestamp) return ''
-  const date = new Date(timestamp)
-  if (Number.isNaN(date.getTime())) return ''
-  return date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
-}
-
-function formatElapsedMinutes(minutes: number): string {
-  if (minutes < 1) return '<1m'
-  if (minutes < 60) return `${minutes}m`
-  const hours = Math.floor(minutes / 60)
-  const rest = minutes % 60
-  return rest > 0 ? `${hours}h ${rest}m` : `${hours}h`
-}
-
 function markDeliveryPackGenerated(snapshot: OpsBriefSnapshot): OpsBriefSnapshot {
   const deliveryMetrics = snapshot.deliveryMetrics.map(metric =>
     metric.id === 'delivery-pack'
@@ -1022,10 +951,6 @@ function buildTrustAuditPrompt(snapshot: OpsBriefSnapshot): string {
   ].filter(Boolean).join('\n')
 }
 
-function formatMarkdownList(items: string[], fallback: string): string {
-  return items.length > 0 ? items.map(item => `- ${item}`).join('\n') : `- ${fallback}`
-}
-
 function buildStaleMemoryReviewPrompt(snapshot: OpsBriefSnapshot): string {
   const candidates = snapshot.staleMemoryCandidates.map(candidate => [
     `- 旧知识：${candidate.entryTitle}`,
@@ -1045,15 +970,6 @@ function buildStaleMemoryReviewPrompt(snapshot: OpsBriefSnapshot): string {
     '## 候选项',
     candidates || '- 暂无候选项',
   ].join('\n')
-}
-
-function getSafeReportFileName(value: string): string {
-  return value
-    .replace(/[<>:"/\\|?*\x00-\x1f]/g, '-')
-    .replace(/\s+/g, '-')
-    .replace(/-+/g, '-')
-    .replace(/^-|-$/g, '')
-    .slice(0, 72) || 'prismops'
 }
 
 function buildTrustReportMarkdown(snapshot: OpsBriefSnapshot, options?: { redactPaths?: boolean; redactCommands?: boolean; redactKeys?: boolean }): string {
