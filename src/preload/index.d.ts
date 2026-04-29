@@ -207,6 +207,7 @@ export interface SpectrAIAPI {
       workDir: string
       createdAt: string
       completedAt?: string
+      outcome?: any
       result?: {
         success: boolean
         exitCode: number

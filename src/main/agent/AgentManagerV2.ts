@@ -483,15 +483,18 @@ export class AgentManagerV2 extends EventEmitter {
     if (!agent) return
 
     const output = this.getAgentOutput(agentId).output
+    const outcome = exitCode === 0 ? 'completed' : 'blocked'
     const result: AgentResult = {
       success: exitCode === 0,
       exitCode,
       output,
+      outcome,
     }
 
     agent.info.status = exitCode === 0 ? 'completed' : 'failed'
     agent.info.completedAt = new Date().toISOString()
     agent.info.result = result
+    agent.info.outcome = outcome
 
     // 释放 Agent 锁
     if (this.lockManager) {

@@ -56,16 +56,26 @@ interface AgentGovernanceSummary {
   activeCount: number
   completedCount: number
   blockedCount: number
+  validatedCount: number
+  mergedCount: number
+  revertedCount: number
   completionRate: number
   blockedRate: number
+  validatedRate: number
+  mergedRate: number
 }
 
-function summarizeAgentGovernance(agentsBySession: Record<string, Array<{ status: string }>>): AgentGovernanceSummary {
+function summarizeAgentGovernance(
+  agentsBySession: Record<string, Array<{ status: string; outcome?: string; mergedAt?: string }>>,
+): AgentGovernanceSummary {
   const parentSessionCount = Object.values(agentsBySession).filter(agents => agents.length > 0).length
   const allAgents = Object.values(agentsBySession).flat()
   const activeCount = allAgents.filter(agent => agent.status === 'pending' || agent.status === 'running').length
   const completedCount = allAgents.filter(agent => agent.status === 'completed').length
   const blockedCount = allAgents.filter(agent => agent.status === 'failed' || agent.status === 'cancelled').length
+  const validatedCount = allAgents.filter(agent => agent.outcome === 'validated').length
+  const mergedCount = allAgents.filter(agent => agent.outcome === 'merged' || !!agent.mergedAt).length
+  const revertedCount = allAgents.filter(agent => agent.outcome === 'reverted').length
   const totalCount = allAgents.length
 
   return {
@@ -74,8 +84,13 @@ function summarizeAgentGovernance(agentsBySession: Record<string, Array<{ status
     activeCount,
     completedCount,
     blockedCount,
+    validatedCount,
+    mergedCount,
+    revertedCount,
     completionRate: totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0,
     blockedRate: totalCount > 0 ? Math.round((blockedCount / totalCount) * 100) : 0,
+    validatedRate: completedCount > 0 ? Math.round((validatedCount / completedCount) * 100) : 0,
+    mergedRate: completedCount > 0 ? Math.round((mergedCount / completedCount) * 100) : 0,
   }
 }
 
@@ -629,7 +644,7 @@ function AgentGovernancePanel({ summary }: { summary: AgentGovernanceSummary }) 
           {summary.parentSessionCount} 个会话 / {summary.totalCount} 个 Agent
         </span>
       </div>
-      <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-2 lg:grid-cols-3">
         <SuccessMetricCard
           icon={Users}
           label="执行中"
@@ -653,10 +668,24 @@ function AgentGovernancePanel({ summary }: { summary: AgentGovernanceSummary }) 
         />
         <SuccessMetricCard
           icon={BarChart3}
-          label="治理样本"
-          value={String(summary.parentSessionCount)}
-          detail="存在可见子 Agent 的父会话"
-          tone={summary.parentSessionCount > 0 ? 'good' : 'neutral'}
+          label="已验证"
+          value={formatMetricPercent(summary.validatedRate)}
+          detail={`${summary.validatedCount} 已验证 / ${summary.completedCount} 已完成`}
+          tone={summary.validatedRate >= 70 ? 'good' : summary.validatedCount > 0 ? 'warn' : 'neutral'}
+        />
+        <SuccessMetricCard
+          icon={CheckCircle}
+          label="已合并"
+          value={formatMetricPercent(summary.mergedRate)}
+          detail={`${summary.mergedCount} 已合并 / ${summary.completedCount} 已完成`}
+          tone={summary.mergedRate >= 70 ? 'good' : summary.mergedCount > 0 ? 'warn' : 'neutral'}
+        />
+        <SuccessMetricCard
+          icon={BarChart3}
+          label="已回退"
+          value={String(summary.revertedCount)}
+          detail="被撤销或回退的 Agent"
+          tone={summary.revertedCount > 0 ? 'warn' : 'neutral'}
         />
       </div>
     </div>

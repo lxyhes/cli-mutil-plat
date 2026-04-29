@@ -27,6 +27,11 @@ interface AgentInfo {
   workDir: string
   createdAt: string
   completedAt?: string
+  /** Durable outcome classification for governance metrics */
+  outcome?: 'completed' | 'blocked' | 'reverted' | 'validated' | 'merged'
+  validatedAt?: string
+  mergedAt?: string
+  revertedAt?: string
 }
 
 interface ResumeSessionResult {
@@ -226,6 +231,12 @@ export const useSessionStore = create<SessionState>((set, get) => ({
           agentStatus = 'cancelled'
         }
 
+        // Derive base outcome from session terminal status
+        const derivedOutcome: AgentInfo['outcome'] =
+          s.status === 'completed' || s.status === 'terminated' ? 'completed'
+            : s.status === 'error' ? 'blocked'
+              : undefined
+
         if (!derivedAgents[parentId]) derivedAgents[parentId] = []
         derivedAgents[parentId].push({
           agentId,
@@ -237,6 +248,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
           workDir: s.config?.workingDirectory || '',
           createdAt: s.startedAt || new Date().toISOString(),
           completedAt: s.endedAt,
+          outcome: derivedOutcome,
         })
       }
 
@@ -929,13 +941,18 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       })
     }))
 
-    _agentListenerUnsubs.push(safeAPI.agent.onCompleted((agentId: string, _result: any) => {
+    _agentListenerUnsubs.push(safeAPI.agent.onCompleted((agentId: string, result: any) => {
       set((state) => {
         const newAgents = { ...state.agents }
         for (const parentId of Object.keys(newAgents)) {
           newAgents[parentId] = newAgents[parentId].map(a =>
             a.agentId === agentId
-              ? { ...a, status: 'completed' as const, completedAt: new Date().toISOString() }
+              ? {
+                  ...a,
+                  status: 'completed' as const,
+                  completedAt: new Date().toISOString(),
+                  outcome: (result?.outcome as AgentInfo['outcome']) || a.outcome || 'completed',
+                }
               : a
           )
         }

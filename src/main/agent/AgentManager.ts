@@ -268,6 +268,7 @@ export class AgentManager extends EventEmitter {
       : undefined
 
     const agentStatus = success ? 'completed' : 'failed'
+    const outcome = success ? 'completed' : 'blocked'
 
     // ★ 获取 Agent 使用的 providerId，用于失败时提示切换
     const usedProviderId = session?.config?.providerId || 'claude-code'
@@ -297,7 +298,8 @@ export class AgentManager extends EventEmitter {
       output,
       error: errorMsg,
       failedProvider: !success ? usedProviderId : undefined,
-      artifacts
+      artifacts,
+      outcome,
     }
 
     this.database.updateAgentStatus(agentId, agentStatus)

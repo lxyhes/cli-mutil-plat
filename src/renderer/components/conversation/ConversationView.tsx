@@ -148,6 +148,10 @@ interface AgentOwnershipLane {
   validationLabel: string
   mergeReadiness: AgentMergeReadiness
   risk?: string
+  /** IDs of other agents that have conflicting file or directory overlap */
+  conflictingAgents?: string[]
+  /** Human-readable conflict detail for merge-readiness decisions */
+  conflictDetail?: string
 }
 
 interface DeliveryReadinessGate {

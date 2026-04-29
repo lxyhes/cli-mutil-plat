@@ -30,6 +30,11 @@ export interface AgentInfo {
   completedAt?: string
   result?: AgentResult
   providerId?: string       // 指定 AI Provider（不传则默认 claude-code）
+  /** Durable outcome classification for governance metrics */
+  outcome?: 'completed' | 'blocked' | 'reverted' | 'validated' | 'merged'
+  validatedAt?: string
+  mergedAt?: string
+  revertedAt?: string
 }
 
 /** Agent 执行结果 */
@@ -40,6 +45,8 @@ export interface AgentResult {
   error?: string
   failedProvider?: string   // 失败时记录使用的 provider ID，方便切换重试
   artifacts?: string[]      // 创建/修改的文件列表
+  /** Durable outcome classification inferred from result and post-processing */
+  outcome?: 'completed' | 'blocked' | 'reverted' | 'validated' | 'merged'
 }
 
 /** AgentBridge WebSocket 消息 */
