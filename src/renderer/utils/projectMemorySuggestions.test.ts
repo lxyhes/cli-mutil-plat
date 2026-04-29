@@ -8,6 +8,7 @@ import {
   formatProjectMemorySuggestionsForMarkdown,
   loadProjectMemoryTelemetryEvents,
   recordProjectMemoryTelemetryEvent,
+  summarizeProjectMemoryTelemetryHistory,
   summarizeProjectMemoryTelemetry,
   type ProjectMemorySuggestionInput,
 } from './projectMemorySuggestions'
@@ -208,6 +209,63 @@ describe('project memory suggestions', () => {
       averageConfidence: 70,
     })
     expect(events).toContain('prismops-memory-telemetry-updated')
+  })
+
+  it('builds project history reports from memory telemetry', () => {
+    const report = summarizeProjectMemoryTelemetryHistory([
+      {
+        id: 'event-1',
+        sessionId: 'session-1',
+        projectPath: 'E:/repo/alpha',
+        kind: 'suggestion-accepted',
+        suggestionId: 'memory-a',
+        confidence: 0.9,
+        timestamp: '2026-04-27T10:00:00.000Z',
+      },
+      {
+        id: 'event-2',
+        sessionId: 'session-2',
+        projectPath: 'E:/repo/alpha',
+        kind: 'stale-memory-updated',
+        suggestionId: 'memory-b',
+        timestamp: '2026-04-28T10:00:00.000Z',
+      },
+      {
+        id: 'event-3',
+        sessionId: 'session-3',
+        projectPath: 'E:/repo/beta',
+        kind: 'playbook-memory-injected',
+        playbookId: 'bug-fix',
+        filteredLength: 600,
+        timestamp: '2026-04-28T11:00:00.000Z',
+      },
+      {
+        id: 'event-old',
+        sessionId: 'session-4',
+        projectPath: 'E:/repo/alpha',
+        kind: 'suggestion-rejected',
+        timestamp: '2026-04-20T10:00:00.000Z',
+      },
+    ], {
+      now: '2026-04-28T12:00:00.000Z',
+      dayCount: 2,
+      projectLimit: 2,
+    })
+
+    expect(report.total).toMatchObject({
+      eventCount: 3,
+      reviewedCount: 1,
+      staleResolutionCount: 1,
+      playbookInjectionCount: 1,
+    })
+    expect(report.trend.map(point => point.date)).toEqual(['2026-04-27', '2026-04-28'])
+    expect(report.trend.map(point => point.eventCount)).toEqual([1, 2])
+    expect(report.projects.map(project => project.projectLabel)).toEqual(['alpha', 'beta'])
+    expect(report.projects[0]).toMatchObject({
+      eventCount: 2,
+      promotionRate: 100,
+      staleResolutionCount: 1,
+    })
   })
 
   it('filters long memory prompts toward the selected playbook', () => {

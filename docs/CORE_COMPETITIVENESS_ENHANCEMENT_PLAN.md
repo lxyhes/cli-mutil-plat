@@ -327,7 +327,7 @@ Remaining:
 
 ### Project Memory Flywheel
 
-Status: Phase C core loop completed.
+Status: Phase C project memory flywheel completed.
 
 Completed:
 
@@ -344,8 +344,9 @@ Completed:
 - Added lightweight memory telemetry for accepted, edited, rejected, and playbook-injected memory flows.
 - Surfaced memory telemetry as Dashboard flywheel metrics for review close rate and playbook reuse.
 - Added direct stale-memory refresh and archive actions in the cockpit review flow.
+- Extended memory telemetry into compact Dashboard team/project historical reports with daily trend and per-project rollups.
+- Added bulk stale-memory refresh/archive handling for larger knowledge bases, with telemetry and review metadata.
 
 Remaining:
 
-- Extend memory telemetry from local trend cards into team/project historical reports.
-- Add bulk stale-memory review for larger knowledge bases.
+- Move into Phase D multi-agent delivery governance.

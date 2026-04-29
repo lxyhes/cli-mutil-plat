@@ -6,7 +6,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import {
   Activity, Zap, Clock, Monitor, CheckCircle, AlertCircle,
-  PlayCircle, PauseCircle, Terminal
+  PlayCircle, PauseCircle, Terminal, BarChart3
 } from 'lucide-react'
 import { useSessionStore } from '../../stores/sessionStore'
 import { STATUS_COLORS, STATUS_LABELS } from '../../../shared/constants'
@@ -34,8 +34,10 @@ import {
 import {
   PROJECT_MEMORY_TELEMETRY_EVENT,
   loadProjectMemoryTelemetryEvents,
+  summarizeProjectMemoryTelemetryHistory,
   summarizeProjectMemoryTelemetry,
   type ProjectMemoryTelemetryEvent,
+  type ProjectMemoryTelemetryHistoryReport,
   type ProjectMemoryTelemetrySummary,
 } from '../../utils/projectMemorySuggestions'
 
@@ -124,6 +126,10 @@ export default function DashboardView() {
   )
   const memoryTelemetrySummary = useMemo(
     () => summarizeProjectMemoryTelemetry(memoryTelemetryEvents),
+    [memoryTelemetryEvents],
+  )
+  const memoryHistoryReport = useMemo(
+    () => summarizeProjectMemoryTelemetryHistory(memoryTelemetryEvents, { dayCount: 14, projectLimit: 4 }),
     [memoryTelemetryEvents],
   )
   const openActionItem = (item: DeliveryMetricActionItem) => {
@@ -269,6 +275,7 @@ export default function DashboardView() {
           onOpenAction={openActionItem}
         />
         <MemoryFlywheelPanel summary={memoryTelemetrySummary} />
+        <MemoryHistoryReportPanel report={memoryHistoryReport} />
       </section>
 
       <div className="grid grid-cols-3 gap-4">
@@ -470,6 +477,108 @@ function MemoryFlywheelPanel({ summary }: { summary: ProjectMemoryTelemetrySumma
           detail="平均注入字符数，越高代表可复用上下文越丰富"
           tone={summary.averageFilteredLength > 0 ? 'good' : 'neutral'}
         />
+      </div>
+    </div>
+  )
+}
+
+function formatHistoryActivity(value?: string): string {
+  if (!value) return '暂无活动'
+  const date = new Date(value)
+  if (!Number.isFinite(date.getTime())) return '时间未知'
+  return date.toLocaleDateString('zh-CN', { month: '2-digit', day: '2-digit' })
+}
+
+function MemoryHistoryReportPanel({ report }: { report: ProjectMemoryTelemetryHistoryReport }) {
+  if (report.total.eventCount === 0) return null
+
+  const maxDailyEvents = Math.max(1, ...report.trend.map(point => point.eventCount))
+
+  return (
+    <div className="rounded-lg border border-border-subtle bg-bg-elevated/65 p-2">
+      <div className="mb-2 flex flex-wrap items-center justify-between gap-2 px-1">
+        <div className="flex items-center gap-1.5 text-xs font-semibold text-text-secondary">
+          <BarChart3 className="h-3.5 w-3.5 text-accent-blue" />
+          团队/项目记忆历史
+        </div>
+        <div className="flex flex-wrap items-center gap-2 text-[10px] text-text-muted">
+          <span>近 {report.dayCount} 天</span>
+          <span>{report.total.eventCount} 条事件</span>
+          <span>审核闭环 {formatMetricPercent(report.total.promotionRate)}</span>
+          <span>旧知识处置 {report.total.staleResolutionCount}</span>
+        </div>
+      </div>
+
+      <div className="grid gap-2 lg:grid-cols-[minmax(0,1fr)_minmax(280px,0.9fr)]">
+        <div className="rounded-md border border-border-subtle bg-bg-primary/55 p-2">
+          <div className="mb-1.5 flex items-center justify-between text-[10px] text-text-muted">
+            <span>每日事件趋势</span>
+            <span>峰值 {maxDailyEvents}</span>
+          </div>
+          <div className="flex h-20 items-end gap-1">
+            {report.trend.map(point => {
+              const height = Math.max(6, Math.round((point.eventCount / maxDailyEvents) * 52))
+              const tone = point.staleResolutionCount > 0
+                ? 'bg-accent-yellow/70'
+                : point.promotionRate >= 60
+                  ? 'bg-accent-green/70'
+                  : point.eventCount > 0
+                    ? 'bg-accent-blue/65'
+                    : 'bg-border-subtle'
+
+              return (
+                <div key={point.date} className="flex min-w-0 flex-1 flex-col items-center gap-1">
+                  <div
+                    className={`w-full rounded-sm ${tone}`}
+                    style={{ height }}
+                    title={`${point.date}: ${point.eventCount} 条事件，审核闭环 ${formatMetricPercent(point.promotionRate)}`}
+                  />
+                  <span className="w-full truncate text-center text-[9px] text-text-muted">
+                    {point.label.slice(3)}
+                  </span>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+
+        <div className="rounded-md border border-border-subtle bg-bg-primary/55 p-2">
+          <div className="mb-1.5 flex items-center justify-between text-[10px] text-text-muted">
+            <span>项目报告</span>
+            <span>{report.projects.length} 个项目</span>
+          </div>
+          <div className="space-y-1.5">
+            {report.projects.map(project => (
+              <div key={project.projectPath || project.projectLabel} className="rounded-md border border-border-subtle bg-bg-elevated/60 px-2 py-1.5">
+                <div className="flex min-w-0 items-center justify-between gap-2">
+                  <div className="min-w-0">
+                    <div className="truncate text-xs font-semibold text-text-primary" title={project.projectPath || project.projectLabel}>
+                      {project.projectLabel}
+                    </div>
+                    <div className="mt-0.5 truncate text-[10px] text-text-muted">
+                      最近 {formatHistoryActivity(project.lastActivityAt)}
+                    </div>
+                  </div>
+                  <div className="shrink-0 text-right">
+                    <div className="text-xs font-semibold text-text-primary">{project.eventCount}</div>
+                    <div className="text-[9px] text-text-muted">事件</div>
+                  </div>
+                </div>
+                <div className="mt-1.5 grid grid-cols-3 gap-1 text-[10px]">
+                  <span className="rounded bg-accent-green/10 px-1.5 py-1 text-accent-green">
+                    闭环 {formatMetricPercent(project.promotionRate)}
+                  </span>
+                  <span className="rounded bg-accent-blue/10 px-1.5 py-1 text-accent-blue">
+                    Playbook {project.playbookInjectionCount}
+                  </span>
+                  <span className="rounded bg-accent-yellow/10 px-1.5 py-1 text-accent-yellow">
+                    旧知识 {project.staleResolutionCount}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
     </div>
   )

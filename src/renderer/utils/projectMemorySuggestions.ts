@@ -102,10 +102,38 @@ export interface ProjectMemoryTelemetrySummary {
   acceptedCount: number
   editedCount: number
   rejectedCount: number
+  staleUpdatedCount: number
+  staleArchivedCount: number
+  staleResolutionCount: number
   promotionRate: number
   playbookInjectionCount: number
   averageFilteredLength: number
   averageConfidence: number
+}
+
+export interface ProjectMemoryTelemetryTrendPoint extends ProjectMemoryTelemetrySummary {
+  date: string
+  label: string
+}
+
+export interface ProjectMemoryTelemetryProjectReport extends ProjectMemoryTelemetrySummary {
+  projectPath?: string
+  projectLabel: string
+  lastActivityAt?: string
+}
+
+export interface ProjectMemoryTelemetryHistoryReport {
+  generatedAt: string
+  dayCount: number
+  total: ProjectMemoryTelemetrySummary
+  trend: ProjectMemoryTelemetryTrendPoint[]
+  projects: ProjectMemoryTelemetryProjectReport[]
+}
+
+export interface ProjectMemoryTelemetryHistoryOptions {
+  now?: string | Date
+  dayCount?: number
+  projectLimit?: number
 }
 
 type ProjectKnowledgeLike = Pick<UnifiedKnowledgeEntry, 'id' | 'type' | 'category' | 'title' | 'content' | 'tags' | 'updatedAt'>
@@ -289,6 +317,8 @@ export function summarizeProjectMemoryTelemetry(events: ProjectMemoryTelemetryEv
   const acceptedCount = events.filter(event => event.kind === 'suggestion-accepted').length
   const editedCount = events.filter(event => event.kind === 'suggestion-edited').length
   const rejectedCount = events.filter(event => event.kind === 'suggestion-rejected').length
+  const staleUpdatedCount = events.filter(event => event.kind === 'stale-memory-updated').length
+  const staleArchivedCount = events.filter(event => event.kind === 'stale-memory-archived').length
   const playbookEvents = events.filter(event => event.kind === 'playbook-memory-injected')
   const reviewedCount = acceptedCount + editedCount + rejectedCount
   const confidenceValues = events
@@ -304,6 +334,9 @@ export function summarizeProjectMemoryTelemetry(events: ProjectMemoryTelemetryEv
     acceptedCount,
     editedCount,
     rejectedCount,
+    staleUpdatedCount,
+    staleArchivedCount,
+    staleResolutionCount: staleUpdatedCount + staleArchivedCount,
     promotionRate: ratio(acceptedCount + editedCount, reviewedCount),
     playbookInjectionCount: playbookEvents.length,
     averageFilteredLength: filteredLengths.length > 0
@@ -312,6 +345,96 @@ export function summarizeProjectMemoryTelemetry(events: ProjectMemoryTelemetryEv
     averageConfidence: confidenceValues.length > 0
       ? Math.round((confidenceValues.reduce((sum, value) => sum + value, 0) / confidenceValues.length) * 100)
       : 0,
+  }
+}
+
+const DAY_MS = 24 * 60 * 60 * 1000
+
+function clampHistoryDayCount(dayCount?: number): number {
+  if (!dayCount || !Number.isFinite(dayCount)) return 14
+  return Math.max(1, Math.min(30, Math.round(dayCount)))
+}
+
+function utcDayStart(value: Date): number {
+  return Date.UTC(value.getUTCFullYear(), value.getUTCMonth(), value.getUTCDate())
+}
+
+function dateKeyFromMs(value: number): string {
+  return new Date(value).toISOString().slice(0, 10)
+}
+
+function shortDateLabel(dateKey: string): string {
+  const [, month, day] = dateKey.split('-')
+  return `${month}/${day}`
+}
+
+function projectLabelFromPath(projectPath?: string): string {
+  if (!projectPath) return 'Unscoped'
+  const parts = projectPath.split(/[\\/]+/).filter(Boolean)
+  return parts[parts.length - 1] || projectPath
+}
+
+function validEventTime(event: ProjectMemoryTelemetryEvent): number | null {
+  const time = new Date(event.timestamp).getTime()
+  return Number.isFinite(time) ? time : null
+}
+
+export function summarizeProjectMemoryTelemetryHistory(
+  events: ProjectMemoryTelemetryEvent[],
+  options: ProjectMemoryTelemetryHistoryOptions = {},
+): ProjectMemoryTelemetryHistoryReport {
+  const dayCount = clampHistoryDayCount(options.dayCount)
+  const now = options.now instanceof Date ? options.now : new Date(options.now || Date.now())
+  const endDayMs = utcDayStart(Number.isFinite(now.getTime()) ? now : new Date())
+  const startDayMs = endDayMs - (dayCount - 1) * DAY_MS
+  const endExclusiveMs = endDayMs + DAY_MS
+  const projectLimit = options.projectLimit ?? 5
+  const normalized = normalizeMemoryTelemetryEvents(events)
+  const recentEvents = normalized.filter(event => {
+    const time = validEventTime(event)
+    return time !== null && time >= startDayMs && time < endExclusiveMs
+  })
+
+  const trend = Array.from({ length: dayCount }, (_, index) => {
+    const date = dateKeyFromMs(startDayMs + index * DAY_MS)
+    const dayEvents = recentEvents.filter(event => dateKeyFromMs(validEventTime(event) || 0) === date)
+    return {
+      date,
+      label: shortDateLabel(date),
+      ...summarizeProjectMemoryTelemetry(dayEvents),
+    }
+  })
+
+  const projectGroups = new Map<string, ProjectMemoryTelemetryEvent[]>()
+  for (const event of recentEvents) {
+    const key = event.projectPath || 'unscoped'
+    projectGroups.set(key, [...(projectGroups.get(key) || []), event])
+  }
+
+  const projects = [...projectGroups.entries()]
+    .map(([key, projectEvents]) => {
+      const latest = projectEvents
+        .map(event => event.timestamp)
+        .sort((a, b) => new Date(b).getTime() - new Date(a).getTime())[0]
+      return {
+        projectPath: key === 'unscoped' ? undefined : key,
+        projectLabel: projectLabelFromPath(key === 'unscoped' ? undefined : key),
+        lastActivityAt: latest,
+        ...summarizeProjectMemoryTelemetry(projectEvents),
+      }
+    })
+    .sort((a, b) => {
+      if (b.eventCount !== a.eventCount) return b.eventCount - a.eventCount
+      return new Date(b.lastActivityAt || 0).getTime() - new Date(a.lastActivityAt || 0).getTime()
+    })
+    .slice(0, projectLimit)
+
+  return {
+    generatedAt: new Date(endDayMs).toISOString(),
+    dayCount,
+    total: summarizeProjectMemoryTelemetry(recentEvents),
+    trend,
+    projects,
   }
 }
 

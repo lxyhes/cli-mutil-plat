@@ -118,6 +118,7 @@ interface OpsBriefSnapshot {
   blockedAgentCount: number
   agentConflictCount: number
   agentCoordinationRisks: string[]
+  agentOwnershipLanes: AgentOwnershipLane[]
 }
 
 interface OpsBriefAgent {
@@ -133,6 +134,20 @@ interface OpsBriefAgent {
   toolCount: number
   failedToolCount: number
   validationCount: number
+}
+
+type AgentMergeReadiness = 'ready' | 'watch' | 'needs-validation' | 'blocked'
+
+interface AgentOwnershipLane {
+  id: string
+  owner: string
+  status: OpsBriefAgent['status']
+  workDir?: string
+  ownedFiles: string[]
+  lastCommand?: string
+  validationLabel: string
+  mergeReadiness: AgentMergeReadiness
+  risk?: string
 }
 
 interface DeliveryReadinessGate {
@@ -648,6 +663,8 @@ function buildDeliveryPackPrompt(snapshot: OpsBriefSnapshot): string {
   const nextActions = snapshot.nextActions.map(action => `- ${action}`).join('\n')
   const memorySuggestions = formatProjectMemorySuggestionsForMarkdown(snapshot.projectMemorySuggestions)
 
+  const ownershipMatrix = formatAgentOwnershipMatrixMarkdown(snapshot)
+
   return [
     '请为当前 Mission 生成一份可交付工作包，并在必要时继续补齐缺口。',
     '',
@@ -675,6 +692,9 @@ function buildDeliveryPackPrompt(snapshot: OpsBriefSnapshot): string {
     '',
     '## 建议下一步',
     nextActions,
+    '',
+    '## Agent Ownership Matrix',
+    ownershipMatrix,
     '',
     '## 建议沉淀的项目记忆',
     memorySuggestions,
@@ -1202,6 +1222,39 @@ function getAgentStatusLabel(status: OpsBriefAgent['status']): string {
   }[status]
 }
 
+function getAgentMergeReadinessLabel(status: AgentMergeReadiness): string {
+  return {
+    ready: '可合并',
+    watch: '需观察',
+    'needs-validation': '缺验证',
+    blocked: '阻塞',
+  }[status]
+}
+
+function getAgentMergeReadinessClass(status: AgentMergeReadiness): string {
+  return {
+    ready: 'bg-accent-green/10 text-accent-green',
+    watch: 'bg-accent-blue/10 text-accent-blue',
+    'needs-validation': 'bg-accent-yellow/10 text-accent-yellow',
+    blocked: 'bg-accent-red/10 text-accent-red',
+  }[status]
+}
+
+function formatAgentOwnershipMatrixMarkdown(snapshot: OpsBriefSnapshot): string {
+  if (snapshot.agentOwnershipLanes.length === 0) {
+    return '- 暂无可见子 Agent；如需并行，请先定义 owner、文件边界、验证责任和合并顺序。'
+  }
+
+  return snapshot.agentOwnershipLanes.map(lane => [
+    `- ${lane.owner}: ${getAgentStatusLabel(lane.status)} / ${getAgentMergeReadinessLabel(lane.mergeReadiness)}`,
+    lane.workDir ? `  - 工作目录: ${lane.workDir}` : '',
+    lane.ownedFiles.length > 0 ? `  - 文件边界: ${lane.ownedFiles.join(', ')}` : '  - 文件边界: 暂未识别',
+    lane.lastCommand ? `  - 最近命令: ${lane.lastCommand}` : '',
+    `  - 验证责任: ${lane.validationLabel}`,
+    lane.risk ? `  - 风险: ${lane.risk}` : '',
+  ].filter(Boolean).join('\n')).join('\n')
+}
+
 function buildSupervisorDispatchPrompt(snapshot: OpsBriefSnapshot): string {
   const agents = snapshot.agents.length > 0
     ? snapshot.agents.map(agent => [
@@ -1225,6 +1278,8 @@ function buildSupervisorDispatchPrompt(snapshot: OpsBriefSnapshot): string {
     ? snapshot.agentCoordinationRisks.map(risk => `- ${risk}`).join('\n')
     : '- 暂未发现明显 Agent 协作冲突'
 
+  const ownershipMatrix = formatAgentOwnershipMatrixMarkdown(snapshot)
+
   return [
     '请以 Supervisor 的方式梳理当前多 Agent 工作板，并给出下一轮可执行分派。',
     '',
@@ -1237,6 +1292,9 @@ function buildSupervisorDispatchPrompt(snapshot: OpsBriefSnapshot): string {
     '',
     '## 当前 Agent',
     agents,
+    '',
+    '## Ownership Matrix',
+    ownershipMatrix,
     '',
     '## 协作风险',
     coordinationRisks,
@@ -1259,7 +1317,7 @@ function buildSupervisorDispatchPrompt(snapshot: OpsBriefSnapshot): string {
   ].filter(Boolean).join('\n')
 }
 
-type SupervisorPromptMode = 'rebalance' | 'unblock' | 'validate' | 'merge'
+type SupervisorPromptMode = 'rebalance' | 'unblock' | 'validate' | 'mergeReadiness' | 'merge'
 
 function buildSupervisorActionPrompt(snapshot: OpsBriefSnapshot, mode: SupervisorPromptMode): string {
   const modeConfig = {
@@ -1285,6 +1343,14 @@ function buildSupervisorActionPrompt(snapshot: OpsBriefSnapshot, mode: Superviso
         '- 按工作流列出每个 Agent 产出的最小验证命令或人工检查证据。',
         '- 优先覆盖改动文件、失败门禁、最近命令和交付风险。',
         '- 输出可直接执行的验证顺序，并说明失败时的修复归属。',
+      ],
+    },
+    mergeReadiness: {
+      title: '请生成当前多 Agent 工作的合并就绪检查。',
+      focus: [
+        '- 按 Ownership Matrix 检查每个 owner 的文件边界、验证责任、阻塞项和最近命令。',
+        '- 标出可合并、需观察、缺验证、阻塞四类状态，并给出最小补齐动作。',
+        '- 输出推荐合并顺序；如存在共享目录、重叠文件或未验证改动，必须先说明处理方式。',
       ],
     },
     merge: {
@@ -1410,6 +1476,7 @@ interface OpsBriefProps {
   onCancelEditMemorySuggestion: () => void
   onChangeMemorySuggestionDraft: (suggestionId: string, draft: ProjectMemorySuggestionDraft) => void
   onResolveStaleMemoryCandidate: (candidate: ProjectMemoryStaleCandidate, action: StaleMemoryResolutionAction, snapshot: OpsBriefSnapshot) => void
+  onResolveStaleMemoryCandidates: (candidates: ProjectMemoryStaleCandidate[], action: StaleMemoryResolutionAction, snapshot: OpsBriefSnapshot) => void
   onChangeTrustPolicyPreset: (presetId: TrustPolicyPresetId) => void
   onOpenKnowledge: () => void
   onRunShipPlan: () => void
@@ -1578,6 +1645,7 @@ const OpsBrief = React.memo(function OpsBrief({
   onCancelEditMemorySuggestion,
   onChangeMemorySuggestionDraft,
   onResolveStaleMemoryCandidate,
+  onResolveStaleMemoryCandidates,
   onChangeTrustPolicyPreset,
   onOpenKnowledge,
   onRunShipPlan,
@@ -2005,6 +2073,13 @@ const OpsBrief = React.memo(function OpsBrief({
                       {label}
                     </button>
                   ))}
+                  <button
+                    type="button"
+                    onClick={() => onInsertPrompt(buildSupervisorActionPrompt(snapshot, 'mergeReadiness'))}
+                    className="rounded-md bg-bg-primary/70 px-2 py-1 text-[11px] font-medium text-text-secondary transition-colors hover:bg-bg-hover hover:text-accent-purple"
+                  >
+                    合并就绪
+                  </button>
                 </div>
                 {snapshot.agentCoordinationRisks.length > 0 && (
                   <div className="mb-2 space-y-1 rounded-md bg-accent-yellow/5 px-3 py-2">
@@ -2014,6 +2089,43 @@ const OpsBrief = React.memo(function OpsBrief({
                         <span className="min-w-0">{risk}</span>
                       </div>
                     ))}
+                  </div>
+                )}
+                {snapshot.agentOwnershipLanes.length > 0 && (
+                  <div className="mb-2 rounded-md border border-border-subtle/70 bg-bg-primary/45 p-2">
+                    <div className="mb-1.5 flex items-center justify-between gap-2 text-[10px] text-text-muted">
+                      <span>Ownership Matrix</span>
+                      <span>{snapshot.agentOwnershipLanes.length} owners</span>
+                    </div>
+                    <div className="grid gap-1.5 lg:grid-cols-2">
+                      {snapshot.agentOwnershipLanes.slice(0, 4).map(lane => (
+                        <div key={lane.id} className="min-w-0 rounded-md bg-bg-elevated/60 px-2 py-1.5">
+                          <div className="flex min-w-0 items-center justify-between gap-2">
+                            <span className="truncate text-[11px] font-semibold text-text-primary" title={lane.owner}>
+                              {lane.owner}
+                            </span>
+                            <span className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium ${getAgentMergeReadinessClass(lane.mergeReadiness)}`}>
+                              {getAgentMergeReadinessLabel(lane.mergeReadiness)}
+                            </span>
+                          </div>
+                          <div className="mt-1 truncate font-mono text-[10px] text-text-muted" title={lane.workDir || lane.lastCommand || lane.id}>
+                            {lane.workDir || lane.lastCommand || lane.id}
+                          </div>
+                          <div className="mt-1 flex min-w-0 flex-wrap gap-1">
+                            {lane.ownedFiles.length > 0 ? lane.ownedFiles.slice(0, 3).map(file => (
+                              <span key={file} className="max-w-full truncate rounded bg-bg-tertiary px-1.5 py-0.5 text-[10px] text-text-muted" title={file}>
+                                {file}
+                              </span>
+                            )) : (
+                              <span className="rounded bg-bg-tertiary px-1.5 py-0.5 text-[10px] text-text-muted">未识别文件边界</span>
+                            )}
+                          </div>
+                          <div className="mt-1 truncate text-[10px] text-text-secondary" title={lane.validationLabel}>
+                            {lane.validationLabel}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 )}
                 {snapshot.agents.length > 0 ? (
@@ -2263,9 +2375,25 @@ const OpsBrief = React.memo(function OpsBrief({
                           >
                             生成复核
                           </button>
+                          <button
+                            type="button"
+                            onClick={() => onResolveStaleMemoryCandidates(snapshot.staleMemoryCandidates, 'refresh', snapshot)}
+                            disabled={!!staleMemorySavingId}
+                            className="rounded-md px-2 py-0.5 text-[11px] font-medium text-accent-green transition-colors hover:bg-accent-green/10 disabled:cursor-not-allowed disabled:opacity-50"
+                          >
+                            批量更新
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => onResolveStaleMemoryCandidates(snapshot.staleMemoryCandidates, 'archive', snapshot)}
+                            disabled={!!staleMemorySavingId}
+                            className="rounded-md px-2 py-0.5 text-[11px] font-medium text-accent-yellow transition-colors hover:bg-accent-yellow/10 disabled:cursor-not-allowed disabled:opacity-50"
+                          >
+                            批量归档
+                          </button>
                         </div>
                         <div className="mt-1.5 grid gap-1 lg:grid-cols-2">
-                          {snapshot.staleMemoryCandidates.slice(0, 2).map(candidate => (
+                          {snapshot.staleMemoryCandidates.slice(0, 4).map(candidate => (
                             <div key={`${candidate.entryId}-${candidate.suggestionId}`} className="min-w-0 rounded bg-bg-primary/45 px-2 py-1.5 text-[10px] leading-4 text-text-secondary">
                               <div className="truncate font-semibold text-text-primary" title={candidate.entryTitle}>{candidate.entryTitle}</div>
                               <div className="truncate" title={candidate.reason}>{candidate.reason}</div>
@@ -2273,7 +2401,7 @@ const OpsBrief = React.memo(function OpsBrief({
                                 <button
                                   type="button"
                                   onClick={() => onResolveStaleMemoryCandidate(candidate, 'refresh', snapshot)}
-                                  disabled={staleMemorySavingId === candidate.entryId}
+                                  disabled={!!staleMemorySavingId}
                                   className="rounded-md px-1.5 py-0.5 text-[10px] font-medium text-accent-green transition-colors hover:bg-accent-green/10 disabled:cursor-not-allowed disabled:opacity-50"
                                 >
                                   {staleMemorySavingId === candidate.entryId ? '处理中' : '用新证据更新'}
@@ -2281,7 +2409,7 @@ const OpsBrief = React.memo(function OpsBrief({
                                 <button
                                   type="button"
                                   onClick={() => onResolveStaleMemoryCandidate(candidate, 'archive', snapshot)}
-                                  disabled={staleMemorySavingId === candidate.entryId}
+                                  disabled={!!staleMemorySavingId}
                                   className="rounded-md px-1.5 py-0.5 text-[10px] font-medium text-accent-yellow transition-colors hover:bg-accent-yellow/10 disabled:cursor-not-allowed disabled:opacity-50"
                                 >
                                   归档旧知识
@@ -2289,6 +2417,11 @@ const OpsBrief = React.memo(function OpsBrief({
                               </div>
                             </div>
                           ))}
+                          {snapshot.staleMemoryCandidates.length > 4 && (
+                            <div className="min-w-0 rounded bg-bg-primary/30 px-2 py-1.5 text-[10px] leading-4 text-text-muted">
+                              还有 {snapshot.staleMemoryCandidates.length - 4} 条候选已折叠，可使用批量更新或批量归档统一处理。
+                            </div>
+                          )}
                         </div>
                       </div>
                     )}
@@ -3424,6 +3557,42 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
       activeAgentCount > 3 ? `${activeAgentCount} 个 Agent 正在并行，建议确认 owner 边界和合并顺序` : '',
     ].filter(Boolean)
     const agentConflictCount = overlappingWorkDirs.length + overlappingFiles.length + blockedAgentCount
+    const agentOwnershipLanes: AgentOwnershipLane[] = agents.map(agent => {
+      const workDirKey = (agent.workDir || '').trim().toLowerCase()
+      const hasWorkDirOverlap = !!workDirKey && (workDirOwners.get(workDirKey)?.length || 0) > 1
+      const hasFileOverlap = agent.lastFiles.some(file => (fileOwners.get(file.toLowerCase())?.length || 0) > 1)
+      const hasChanges = agent.lastFiles.length > 0
+      const hasValidation = agent.validationCount > 0
+      const mergeReadiness: AgentMergeReadiness = agent.status === 'failed' || agent.status === 'cancelled' || agent.failedToolCount > 0
+        ? 'blocked'
+        : hasWorkDirOverlap || hasFileOverlap || agent.status === 'running' || agent.status === 'pending'
+          ? 'watch'
+          : hasChanges && !hasValidation
+            ? 'needs-validation'
+            : 'ready'
+      const validationLabel = hasValidation
+        ? `${agent.validationCount} 条验证证据`
+        : hasChanges
+          ? '有文件改动，缺少验证证据'
+          : '暂无文件改动，按交付说明确认'
+      const risk = agent.risk || (hasWorkDirOverlap
+        ? '工作目录与其他执行中的 Agent 重叠'
+        : hasFileOverlap
+          ? '最近触达文件与其他执行中的 Agent 重叠'
+          : undefined)
+
+      return {
+        id: agent.agentId,
+        owner: agent.name || agent.agentId,
+        status: agent.status,
+        workDir: agent.workDir,
+        ownedFiles: agent.lastFiles,
+        lastCommand: agent.lastCommand,
+        validationLabel,
+        mergeReadiness,
+        risk,
+      }
+    })
 
     const hasCodeChanges = uniqueFiles.length > 0
     const hasValidationEvidence = validationCommands.length > 0
@@ -3570,6 +3739,7 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
       blockedAgentCount,
       agentConflictCount,
       agentCoordinationRisks,
+      agentOwnershipLanes,
     }
   }, [
     messages,
@@ -4147,6 +4317,104 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
     }
   }, [knowledgeEntries, sessionId, updateKnowledgeEntry])
 
+  const handleResolveStaleMemoryCandidates = useCallback(async (
+    candidates: ProjectMemoryStaleCandidate[],
+    action: StaleMemoryResolutionAction,
+    snapshot: OpsBriefSnapshot,
+  ) => {
+    const uniqueCandidates = [...new Map(candidates.map(candidate => [candidate.entryId, candidate])).values()]
+    if (uniqueCandidates.length === 0) return
+
+    setStaleMemorySavingId(`bulk-${action}`)
+    setQueueHintText(action === 'refresh' ? '正在批量更新旧项目知识...' : '正在批量归档旧项目知识...')
+    setQueueHintAction(null)
+
+    let completed = 0
+    let skipped = 0
+
+    try {
+      for (const candidate of uniqueCandidates) {
+        const entry = knowledgeEntries.find(item => item.id === candidate.entryId)
+        const suggestion = snapshot.projectMemorySuggestions.find(item => item.id === candidate.suggestionId)
+        if (!entry || !suggestion) {
+          skipped += 1
+          continue
+        }
+
+        const reviewedAt = new Date().toISOString()
+        const ok = action === 'refresh'
+          ? await updateKnowledgeEntry(candidate.entryId, {
+            category: suggestion.knowledgeCategory,
+            title: suggestion.title,
+            content: suggestion.content,
+            tags: [...new Set([...entry.tags, ...suggestion.tags, 'stale-reviewed', 'refreshed-memory', 'bulk-reviewed'])],
+            priority: suggestion.priority,
+            autoInject: suggestion.priority === 'high',
+            metadata: {
+              ...(entry.metadata || {}),
+              staleReview: {
+                action: 'refresh',
+                reviewedAt,
+                sourceSuggestionId: suggestion.id,
+                sourceReference: suggestion.sourceReference,
+                reason: candidate.reason,
+                score: candidate.score,
+                mode: 'bulk',
+              },
+            },
+          })
+          : await updateKnowledgeEntry(candidate.entryId, {
+            autoInject: false,
+            tags: [...new Set([...entry.tags, 'stale-reviewed', 'archived-memory', 'bulk-reviewed'])],
+            metadata: {
+              ...(entry.metadata || {}),
+              staleReview: {
+                action: 'archive',
+                reviewedAt,
+                sourceSuggestionId: suggestion.id,
+                sourceReference: suggestion.sourceReference,
+                reason: candidate.reason,
+                score: candidate.score,
+                mode: 'bulk',
+              },
+              archivedAt: reviewedAt,
+              archivedReason: candidate.reason,
+            },
+          })
+
+        if (!ok) {
+          skipped += 1
+          continue
+        }
+
+        completed += 1
+        recordProjectMemoryTelemetryEvent({
+          sessionId,
+          projectPath: snapshot.projectPath,
+          kind: action === 'refresh' ? 'stale-memory-updated' : 'stale-memory-archived',
+          suggestionId: suggestion.id,
+          confidence: suggestion.confidence,
+        })
+      }
+
+      setQueueHintText(action === 'refresh'
+        ? `已批量用新证据更新 ${completed} 条旧项目知识${skipped > 0 ? `，跳过 ${skipped} 条` : ''}`
+        : `已批量归档 ${completed} 条旧项目知识${skipped > 0 ? `，跳过 ${skipped} 条` : ''}`)
+      void window.spectrAI.workingContext.addDecision(
+        sessionId,
+        action === 'refresh'
+          ? `已批量用新证据更新陈旧项目知识：${completed} 条；跳过：${skipped} 条`
+          : `已批量归档陈旧项目知识并关闭自动注入：${completed} 条；跳过：${skipped} 条`,
+      ).catch(error => {
+        console.warn('[ConversationView] Failed to persist bulk stale memory review context', error)
+      })
+    } catch (error: any) {
+      setQueueHintText(error?.message || '批量陈旧记忆处理失败')
+    } finally {
+      setStaleMemorySavingId(null)
+    }
+  }, [knowledgeEntries, sessionId, updateKnowledgeEntry])
+
   const handleChangeTrustPolicyPreset = useCallback((presetId: TrustPolicyPresetId) => {
     const normalized = normalizeTrustPolicyPresetId(presetId)
     const scopeKey = getTrustPolicyScopeKey(workingDirectory, sessionId)
@@ -4331,6 +4599,7 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
             onCancelEditMemorySuggestion={handleCancelEditMemorySuggestion}
             onChangeMemorySuggestionDraft={handleChangeMemorySuggestionDraft}
             onResolveStaleMemoryCandidate={handleResolveStaleMemoryCandidate}
+            onResolveStaleMemoryCandidates={handleResolveStaleMemoryCandidates}
             onChangeTrustPolicyPreset={handleChangeTrustPolicyPreset}
             onOpenKnowledge={() => setKnowledgePanelOpen(true)}
             onRunShipPlan={handleRunShipPlan}
