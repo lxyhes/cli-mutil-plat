@@ -6,7 +6,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import {
   Activity, Zap, Clock, Monitor, CheckCircle, AlertCircle,
-  PlayCircle, PauseCircle, Terminal, BarChart3
+  PlayCircle, PauseCircle, Terminal, BarChart3, Users
 } from 'lucide-react'
 import { useSessionStore } from '../../stores/sessionStore'
 import { STATUS_COLORS, STATUS_LABELS } from '../../../shared/constants'
@@ -48,6 +48,35 @@ function formatDuration(startedAt: string): string {
   if (hours > 0) return `${hours}h ${minutes}m`
   if (minutes > 0) return `${minutes}m`
   return `${seconds}s`
+}
+
+interface AgentGovernanceSummary {
+  parentSessionCount: number
+  totalCount: number
+  activeCount: number
+  completedCount: number
+  blockedCount: number
+  completionRate: number
+  blockedRate: number
+}
+
+function summarizeAgentGovernance(agentsBySession: Record<string, Array<{ status: string }>>): AgentGovernanceSummary {
+  const parentSessionCount = Object.values(agentsBySession).filter(agents => agents.length > 0).length
+  const allAgents = Object.values(agentsBySession).flat()
+  const activeCount = allAgents.filter(agent => agent.status === 'pending' || agent.status === 'running').length
+  const completedCount = allAgents.filter(agent => agent.status === 'completed').length
+  const blockedCount = allAgents.filter(agent => agent.status === 'failed' || agent.status === 'cancelled').length
+  const totalCount = allAgents.length
+
+  return {
+    parentSessionCount,
+    totalCount,
+    activeCount,
+    completedCount,
+    blockedCount,
+    completionRate: totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0,
+    blockedRate: totalCount > 0 ? Math.round((blockedCount / totalCount) * 100) : 0,
+  }
 }
 
 /** 会话卡片 */
@@ -102,7 +131,7 @@ function SessionCard({ session, onClick }: { session: Session; onClick: () => vo
 }
 
 export default function DashboardView() {
-  const { sessions, selectSession, activities } = useSessionStore()
+  const { sessions, selectSession, activities, agents } = useSessionStore()
   const [recentEvents, setRecentEvents] = useState<(ActivityEvent & { sessionName: string })[]>([])
   const [deliveryRecords, setDeliveryRecords] = useState<DeliveryMetricSnapshotRecord[]>(() => loadDeliveryMetricSnapshots())
   const [actionLifecycles, setActionLifecycles] = useState<DeliveryMetricActionLifecycleRecord[]>(() => loadDeliveryMetricActionLifecycles())
@@ -132,6 +161,7 @@ export default function DashboardView() {
     () => summarizeProjectMemoryTelemetryHistory(memoryTelemetryEvents, { dayCount: 14, projectLimit: 4 }),
     [memoryTelemetryEvents],
   )
+  const agentGovernanceSummary = useMemo(() => summarizeAgentGovernance(agents), [agents])
   const openActionItem = (item: DeliveryMetricActionItem) => {
     queueDeliveryMetricAction(item)
     selectSession(item.sessionId)
@@ -276,6 +306,7 @@ export default function DashboardView() {
         />
         <MemoryFlywheelPanel summary={memoryTelemetrySummary} />
         <MemoryHistoryReportPanel report={memoryHistoryReport} />
+        <AgentGovernancePanel summary={agentGovernanceSummary} />
       </section>
 
       <div className="grid grid-cols-3 gap-4">
@@ -579,6 +610,54 @@ function MemoryHistoryReportPanel({ report }: { report: ProjectMemoryTelemetryHi
             ))}
           </div>
         </div>
+      </div>
+    </div>
+  )
+}
+
+function AgentGovernancePanel({ summary }: { summary: AgentGovernanceSummary }) {
+  if (summary.totalCount === 0) return null
+
+  return (
+    <div className="rounded-lg border border-border-subtle bg-bg-elevated/65 p-2">
+      <div className="mb-2 flex flex-wrap items-center justify-between gap-2 px-1">
+        <div className="flex items-center gap-1.5 text-xs font-semibold text-text-secondary">
+          <Users className="h-3.5 w-3.5 text-accent-purple" />
+          Agent 交付治理
+        </div>
+        <span className="text-[10px] text-text-muted">
+          {summary.parentSessionCount} 个会话 / {summary.totalCount} 个 Agent
+        </span>
+      </div>
+      <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
+        <SuccessMetricCard
+          icon={Users}
+          label="执行中"
+          value={String(summary.activeCount)}
+          detail="pending/running 子任务"
+          tone={summary.activeCount > 0 ? 'warn' : 'neutral'}
+        />
+        <SuccessMetricCard
+          icon={CheckCircle}
+          label="完成率"
+          value={formatMetricPercent(summary.completionRate)}
+          detail={`${summary.completedCount} 已完成 / ${summary.totalCount} 总数`}
+          tone={summary.completionRate >= 70 ? 'good' : summary.completedCount > 0 ? 'warn' : 'neutral'}
+        />
+        <SuccessMetricCard
+          icon={AlertCircle}
+          label="阻塞率"
+          value={formatMetricPercent(summary.blockedRate)}
+          detail={`${summary.blockedCount} 失败或取消`}
+          tone={summary.blockedCount > 0 ? 'bad' : 'good'}
+        />
+        <SuccessMetricCard
+          icon={BarChart3}
+          label="治理样本"
+          value={String(summary.parentSessionCount)}
+          detail="存在可见子 Agent 的父会话"
+          tone={summary.parentSessionCount > 0 ? 'good' : 'neutral'}
+        />
       </div>
     </div>
   )

@@ -1140,6 +1140,7 @@ function buildDeliveryPackMarkdown(snapshot: OpsBriefSnapshot, summary?: any): s
   })
   const validationEvidence = snapshot.evidence.filter(item => item.includes('验证') || item.includes('命令') || item.includes('工具'))
   const memorySuggestions = formatProjectMemorySuggestionsForMarkdown(snapshot.projectMemorySuggestions)
+  const ownershipMatrix = formatAgentOwnershipMatrixMarkdown(snapshot)
   const warnings = Array.isArray(summary?.warnings) ? summary.warnings : []
 
   return [
@@ -1205,6 +1206,10 @@ function buildDeliveryPackMarkdown(snapshot: OpsBriefSnapshot, summary?: any): s
     '## 下一步',
     '',
     formatMarkdownList(snapshot.nextActions, '暂无下一步建议'),
+    '',
+    '## Agent Ownership Matrix',
+    '',
+    ownershipMatrix,
     '',
     '## 建议提交说明',
     '',
