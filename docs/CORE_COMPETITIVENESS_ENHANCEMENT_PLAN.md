@@ -386,3 +386,18 @@ Remaining:
 - ~~Move into Phase F UX compression and speed.~~ (Ready)
 
 ## Phase F: UX Compression And Speed
+
+Completed:
+
+- F1.1: Extracted pure utility functions into standalone `utils` files:
+  - `reportExportUtils.ts` — `downloadMarkdownFile`, `computeReportHash`, `redactSensitiveContent`, `getSafeReportFileName`
+  - `stringFormatters.ts` — `getProjectName`, `getShortFileName`, `compactText`, `truncateLongText`, `formatMarkdownList`, `formatTimelineTimestamp`, `formatElapsedMinutes`, `formatThinkingTime`
+- F2: Render optimization — split `opsBrief` agent-computation into isolated `agentBriefs` `useMemo`, reducing redundant heavy recalculation on every message update.
+- F3: State-slice optimization — adopted `useShallow` from zustand for granular subscriptions:
+  - `ConversationView`: `session`, `agentConversations`, and `agentActivities` now only re-render when their relevant slice changes (not when unrelated sessions update)
+  - `DashboardView`: replaced whole-store destructuring with `useShallow` array selector for `sessions`, `selectSession`, `activities`, `agents`
+
+Remaining:
+
+- F1.2: Extract UI sub-components (DeliveryPanel, AgentGovernancePanel, MessageStream) from `ConversationView.tsx`
+- F4: Full build verification and regression testing

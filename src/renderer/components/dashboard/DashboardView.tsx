@@ -4,6 +4,7 @@
  */
 
 import { useState, useEffect, useMemo } from 'react'
+import { useShallow } from 'zustand/react/shallow'
 import {
   Activity, Zap, Clock, Monitor, CheckCircle, AlertCircle,
   PlayCircle, PauseCircle, Terminal, BarChart3, Users
@@ -148,7 +149,9 @@ function SessionCard({ session, onClick }: { session: Session; onClick: () => vo
 }
 
 export default function DashboardView() {
-  const { sessions, selectSession, activities, agents } = useSessionStore()
+  const [sessions, selectSession, activities, agents] = useSessionStore(
+    useShallow(state => [state.sessions, state.selectSession, state.activities, state.agents]),
+  )
   const [recentEvents, setRecentEvents] = useState<(ActivityEvent & { sessionName: string })[]>([])
   const [deliveryRecords, setDeliveryRecords] = useState<DeliveryMetricSnapshotRecord[]>(() => loadDeliveryMetricSnapshots())
   const [actionLifecycles, setActionLifecycles] = useState<DeliveryMetricActionLifecycleRecord[]>(() => loadDeliveryMetricActionLifecycles())
