@@ -1,5 +1,5 @@
 import type { KnowledgeCategory, KnowledgePriority } from '../../shared/types'
-import type { CreateUnifiedKnowledgeParams } from '../../shared/knowledgeCenterTypes'
+import type { CreateUnifiedKnowledgeParams, UnifiedKnowledgeEntry } from '../../shared/knowledgeCenterTypes'
 
 export type ProjectMemorySuggestionType =
   | 'decision'
@@ -63,6 +63,17 @@ export interface ProjectMemorySuggestionPromotionOptions {
   reviewedAt?: string
 }
 
+export interface ProjectMemoryStaleCandidate {
+  entryId: string
+  entryTitle: string
+  suggestionId: string
+  suggestionTitle: string
+  reason: string
+  score: number
+}
+
+type ProjectKnowledgeLike = Pick<UnifiedKnowledgeEntry, 'id' | 'type' | 'category' | 'title' | 'content' | 'tags' | 'updatedAt'>
+
 interface PlaybookLike {
   id: string
   label: string
@@ -99,9 +110,79 @@ const PLAYBOOK_KEYWORDS: Record<string, string[]> = {
   'release-check': ['发布', '交付', '验证', '风险', '摘要', '回滚'],
 }
 
+const CONTRADICTION_PAIRS: Array<[string, string]> = [
+  ['must', 'must not'],
+  ['required', 'not required'],
+  ['always', 'never'],
+  ['enable', 'disable'],
+  ['enabled', 'disabled'],
+  ['pass', 'fail'],
+  ['passed', 'failed'],
+  ['accept', 'reject'],
+  ['需要', '不需要'],
+  ['必须', '无需'],
+  ['启用', '禁用'],
+  ['开启', '关闭'],
+  ['通过', '失败'],
+  ['接受', '拒绝'],
+]
+
+const STOP_WORDS = new Set([
+  'the',
+  'and',
+  'for',
+  'with',
+  'from',
+  'this',
+  'that',
+  '当前',
+  '项目',
+  '建议',
+  '记忆',
+  '知识',
+])
+
 function compact(value: string, max = 72): string {
   const text = value.replace(/\s+/g, ' ').trim()
   return text.length > max ? `${text.slice(0, max - 1)}...` : text
+}
+
+function normalizeSearchText(value: string): string {
+  return value.toLowerCase().replace(/[^\p{L}\p{N}_:/.-]+/gu, ' ')
+}
+
+function keywordSet(value: string): Set<string> {
+  return new Set(
+    normalizeSearchText(value)
+      .split(/\s+/)
+      .map(token => token.trim())
+      .filter(token => token.length >= 3 && !STOP_WORDS.has(token)),
+  )
+}
+
+function overlapScore(left: string, right: string): number {
+  const leftSet = keywordSet(left)
+  const rightSet = keywordSet(right)
+  if (leftSet.size === 0 || rightSet.size === 0) return 0
+  let overlap = 0
+  for (const token of leftSet) {
+    if (rightSet.has(token)) overlap += 1
+  }
+  return overlap / Math.min(leftSet.size, rightSet.size)
+}
+
+function extractCommandSignature(value: string): string {
+  const match = value.match(/\b(?:npm|pnpm|yarn|go|cargo|pytest|vitest|jest|tsc)\b[^\n;，。]*/i)
+  return match ? match[0].trim().toLowerCase() : ''
+}
+
+function hasContradiction(left: string, right: string): boolean {
+  const leftText = normalizeSearchText(left)
+  const rightText = normalizeSearchText(right)
+  return CONTRADICTION_PAIRS.some(([a, b]) => (
+    (leftText.includes(a) && rightText.includes(b)) ||
+    (leftText.includes(b) && rightText.includes(a))
+  ))
 }
 
 function stableId(type: ProjectMemorySuggestionType, title: string): string {
@@ -287,6 +368,64 @@ export function buildProjectMemorySuggestionKnowledgeParams(
       reviewedAt,
     },
   }
+}
+
+export function findStaleProjectMemoryCandidates(
+  suggestions: ProjectMemorySuggestion[],
+  entries: ProjectKnowledgeLike[],
+  limit = 5,
+): ProjectMemoryStaleCandidate[] {
+  const candidates: ProjectMemoryStaleCandidate[] = []
+
+  for (const suggestion of suggestions) {
+    const suggestionText = `${suggestion.title}\n${suggestion.content}\n${suggestion.tags.join(' ')}`
+    const suggestionCommand = extractCommandSignature(suggestionText)
+
+    for (const entry of entries) {
+      if (entry.type !== 'project-knowledge') continue
+      const entryText = `${entry.title}\n${entry.content}\n${entry.tags.join(' ')}`
+      const sameCategory = entry.category === suggestion.knowledgeCategory
+      const overlap = overlapScore(suggestionText, entryText)
+      const entryCommand = extractCommandSignature(entryText)
+      const commandMismatch = Boolean(suggestionCommand && entryCommand && suggestionCommand !== entryCommand)
+      const contradiction = hasContradiction(suggestionText, entryText)
+
+      let reason = ''
+      let score = overlap * 2 + (sameCategory ? 1 : 0)
+      if (commandMismatch) {
+        reason = '新验证或命令路径与已有知识不同'
+        score += 3
+      } else if (contradiction) {
+        reason = '新证据与已有知识存在相反判断'
+        score += 2.5
+      } else if (sameCategory && overlap >= 0.42) {
+        reason = '同类高相关知识可能需要按最新证据刷新'
+        score += 1
+      }
+
+      if (!reason || score < 2.2) continue
+
+      candidates.push({
+        entryId: entry.id,
+        entryTitle: entry.title,
+        suggestionId: suggestion.id,
+        suggestionTitle: suggestion.title,
+        reason,
+        score: Number(score.toFixed(2)),
+      })
+    }
+  }
+
+  const byPair = new Map<string, ProjectMemoryStaleCandidate>()
+  for (const candidate of candidates) {
+    const key = `${candidate.entryId}:${candidate.suggestionId}`
+    const previous = byPair.get(key)
+    if (!previous || candidate.score > previous.score) byPair.set(key, candidate)
+  }
+
+  return [...byPair.values()]
+    .sort((a, b) => b.score - a.score || a.entryTitle.localeCompare(b.entryTitle))
+    .slice(0, limit)
 }
 
 export function buildProjectMemorySuggestionPrompt(input: ProjectMemorySuggestionInput): string {

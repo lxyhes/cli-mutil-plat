@@ -44,9 +44,11 @@ import {
   buildProjectMemorySuggestionPrompt,
   buildProjectMemorySuggestions,
   filterProjectMemoryForPlaybook,
+  findStaleProjectMemoryCandidates,
   formatProjectMemorySuggestionsForMarkdown,
   type ProjectMemorySuggestion,
   type ProjectMemorySuggestionReview,
+  type ProjectMemoryStaleCandidate,
 } from '../../utils/projectMemorySuggestions'
 
 
@@ -101,6 +103,7 @@ interface OpsBriefSnapshot {
   evidence: string[]
   evidenceTimeline: EvidenceTimelineEntry[]
   projectMemorySuggestions: ProjectMemorySuggestion[]
+  staleMemoryCandidates: ProjectMemoryStaleCandidate[]
   readinessGates: DeliveryReadinessGate[]
   deliveryMetrics: DeliveryMetric[]
   deliveryMetricScore: number
@@ -224,6 +227,7 @@ interface MissionLaunchpadProps {
 const COMMON_PROMPTS_STORAGE_KEY = 'prismops-common-prompts'
 const TRUST_POLICY_STORAGE_KEY = 'prismops-trust-policy-presets'
 const MEMORY_SUGGESTION_REVIEW_STORAGE_KEY = 'prismops-memory-suggestion-reviews'
+const MEMORY_TELEMETRY_STORAGE_KEY = 'prismops-memory-telemetry-events'
 
 const TRUST_POLICY_PRESETS: Record<Exclude<TrustPolicyPresetId, 'auto'>, TrustPolicyPreset> = {
   explore: {
@@ -466,6 +470,23 @@ function loadMemorySuggestionReviews(sessionId: string): ProjectMemorySuggestion
 function saveMemorySuggestionReviews(sessionId: string, reviews: ProjectMemorySuggestionReviewMap): void {
   try {
     localStorage.setItem(getMemorySuggestionReviewStorageKey(sessionId), JSON.stringify(reviews))
+  } catch {
+    // ignore
+  }
+}
+
+function appendMemoryTelemetryEvent(event: Omit<ProjectMemoryTelemetryEvent, 'id' | 'timestamp'> & { timestamp?: string }): void {
+  try {
+    const raw = localStorage.getItem(MEMORY_TELEMETRY_STORAGE_KEY)
+    const events = raw ? JSON.parse(raw) : []
+    const list = Array.isArray(events) ? events : []
+    const timestamp = event.timestamp || new Date().toISOString()
+    const next: ProjectMemoryTelemetryEvent = {
+      ...event,
+      id: `memory-telemetry-${timestamp}-${event.kind}-${event.suggestionId || event.playbookId || 'event'}`,
+      timestamp,
+    }
+    localStorage.setItem(MEMORY_TELEMETRY_STORAGE_KEY, JSON.stringify([...list.slice(-199), next]))
   } catch {
     // ignore
   }
@@ -966,6 +987,27 @@ function formatMarkdownList(items: string[], fallback: string): string {
   return items.length > 0 ? items.map(item => `- ${item}`).join('\n') : `- ${fallback}`
 }
 
+function buildStaleMemoryReviewPrompt(snapshot: OpsBriefSnapshot): string {
+  const candidates = snapshot.staleMemoryCandidates.map(candidate => [
+    `- 旧知识：${candidate.entryTitle}`,
+    `  - 新证据：${candidate.suggestionTitle}`,
+    `  - 原因：${candidate.reason}`,
+    `  - 置信分：${candidate.score}`,
+  ].join('\n')).join('\n')
+
+  return [
+    '请复核下面可能陈旧或冲突的项目记忆。',
+    '',
+    '## 复核原则',
+    '- 只更新确实被当前会话证据推翻、替代或精炼的项目知识。',
+    '- 保留仍然有效的长期约定，不要因为一次性状态覆盖稳定知识。',
+    '- 如果需要更新，请给出新标题、内容、来源和是否继续自动注入。',
+    '',
+    '## 候选项',
+    candidates || '- 暂无候选项',
+  ].join('\n')
+}
+
 function getSafeReportFileName(value: string): string {
   return value
     .replace(/[<>:"/\\|?*\x00-\x1f]/g, '-')
@@ -1371,6 +1413,19 @@ interface ProjectMemorySuggestionDraft {
 
 type ProjectMemorySuggestionReviewMap = Record<string, ProjectMemorySuggestionReview>
 type ProjectMemorySuggestionDraftMap = Record<string, ProjectMemorySuggestionDraft>
+
+interface ProjectMemoryTelemetryEvent {
+  id: string
+  sessionId: string
+  projectPath?: string
+  kind: 'suggestion-accepted' | 'suggestion-edited' | 'suggestion-rejected' | 'playbook-memory-injected'
+  suggestionId?: string
+  playbookId?: string
+  confidence?: number
+  filteredLength?: number
+  suggestionCount?: number
+  timestamp: string
+}
 
 interface OpsBriefProps {
   snapshot: OpsBriefSnapshot
@@ -2219,6 +2274,31 @@ const OpsBrief = React.memo(function OpsBrief({
                         </span>
                       </div>
                     </div>
+                    {snapshot.staleMemoryCandidates.length > 0 && (
+                      <div className="mb-2 rounded-md border border-accent-yellow/20 bg-accent-yellow/5 p-2">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <div className="flex min-w-0 items-center gap-2 text-[11px] font-medium text-accent-yellow">
+                            <AlertTriangle size={13} className="shrink-0" />
+                            <span className="truncate">发现 {snapshot.staleMemoryCandidates.length} 条可能陈旧的项目记忆</span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => onInsertPrompt(buildStaleMemoryReviewPrompt(snapshot))}
+                            className="rounded-md px-2 py-0.5 text-[11px] font-medium text-accent-yellow transition-colors hover:bg-accent-yellow/10"
+                          >
+                            生成复核
+                          </button>
+                        </div>
+                        <div className="mt-1.5 grid gap-1 lg:grid-cols-2">
+                          {snapshot.staleMemoryCandidates.slice(0, 2).map(candidate => (
+                            <div key={`${candidate.entryId}-${candidate.suggestionId}`} className="min-w-0 rounded bg-bg-primary/45 px-2 py-1.5 text-[10px] leading-4 text-text-secondary">
+                              <div className="truncate font-semibold text-text-primary" title={candidate.entryTitle}>{candidate.entryTitle}</div>
+                              <div className="truncate" title={candidate.reason}>{candidate.reason}</div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                     <div className="grid gap-2 lg:grid-cols-2">
                       {snapshot.projectMemorySuggestions.map(suggestion => {
                         const review = memorySuggestionReviews[suggestion.id]
@@ -2762,10 +2842,23 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
   const setViewMode = useUIStore(state => state.setViewMode)
   const setPaneContent = useUIStore(state => state.setPaneContent)
   const createKnowledgeEntry = useKnowledgeCenterStore(state => state.createEntry)
+  const knowledgeEntries = useKnowledgeCenterStore(state => state.entries)
+  const fetchKnowledgeEntries = useKnowledgeCenterStore(state => state.fetchEntries)
 
   useEffect(() => {
     void fetchAgents(sessionId)
   }, [fetchAgents, sessionId])
+
+  useEffect(() => {
+    if (!workingDirectory) return
+    void fetchKnowledgeEntries({
+      type: 'project-knowledge',
+      projectPath: workingDirectory,
+      pageSize: 50,
+      sortBy: 'updatedAt',
+      sortOrder: 'desc',
+    })
+  }, [fetchKnowledgeEntries, workingDirectory])
 
   // 是否有未响应的权限请求
   const lastActivity = useSessionStore(state => state.lastActivities[sessionId])
@@ -3423,6 +3516,11 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
       validationCount: validationCommands.length,
       changedFileCount: uniqueFiles.length,
     })
+    const projectKnowledgeEntries = knowledgeEntries.filter(entry =>
+      entry.type === 'project-knowledge' &&
+      (!workingDirectory || entry.projectPath === workingDirectory)
+    )
+    const staleMemoryCandidates = findStaleProjectMemoryCandidates(projectMemorySuggestions, projectKnowledgeEntries)
 
     return {
       projectName,
@@ -3462,6 +3560,7 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
       evidence,
       evidenceTimeline,
       projectMemorySuggestions,
+      staleMemoryCandidates,
       readinessGates,
       deliveryMetrics,
       deliveryMetricScore,
@@ -3501,6 +3600,7 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
     deliveryPackGenerated,
     deliveryPackGeneratedAtMs,
     knowledgeExtractionCount,
+    knowledgeEntries,
   ])
 
   useEffect(() => {
@@ -3759,6 +3859,14 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
       const suggestionMemory = formatProjectMemorySuggestionsForMarkdown(opsBrief.projectMemorySuggestions, '')
       if (opsBrief.projectMemorySuggestions.length > 0) memoryParts.push(`## 当前会话建议记忆\n${suggestionMemory}`)
       const memoryPrompt = filterProjectMemoryForPlaybook(memoryParts.join('\n\n'), template)
+      appendMemoryTelemetryEvent({
+        sessionId,
+        projectPath: workingDirectory,
+        kind: 'playbook-memory-injected',
+        playbookId: template.id,
+        filteredLength: memoryPrompt.length,
+        suggestionCount: opsBrief.projectMemorySuggestions.length,
+      })
       setPendingInsert(buildTeamPlaybookPrompt(template, opsBrief, memoryPrompt))
       setQueueHintText(memoryPrompt
         ? `已筛选相关项目记忆，生成「${template.label}」团队模板`
@@ -3865,6 +3973,12 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
     setMemorySuggestionEditingId(current => current === suggestion.id ? null : current)
     setQueueHintText(`已拒绝建议记忆：${suggestion.title}`)
     setQueueHintAction(null)
+    appendMemoryTelemetryEvent({
+      sessionId,
+      kind: 'suggestion-rejected',
+      suggestionId: suggestion.id,
+      confidence: suggestion.confidence,
+    })
     void window.spectrAI.workingContext.addDecision(
       sessionId,
       `已拒绝建议记忆：${suggestion.title}；来源：${suggestion.sourceReference}`,
@@ -3930,6 +4044,13 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
       setMemorySuggestionEditingId(current => current === suggestion.id ? null : current)
       setKnowledgeExtractionCount(prev => prev + 1)
       setQueueHintText(`${status === 'edited' ? '已编辑并沉淀' : '已沉淀'}建议记忆：${title}`)
+      appendMemoryTelemetryEvent({
+        sessionId,
+        projectPath: snapshot.projectPath,
+        kind: status === 'edited' ? 'suggestion-edited' : 'suggestion-accepted',
+        suggestionId: suggestion.id,
+        confidence: suggestion.confidence,
+      })
       void window.spectrAI.workingContext.addDecision(
         sessionId,
         `${status === 'edited' ? '已编辑并沉淀' : '已沉淀'}建议记忆到项目知识：${title}；来源：${suggestion.sourceReference}`,

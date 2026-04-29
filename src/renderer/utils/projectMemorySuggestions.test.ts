@@ -4,6 +4,7 @@ import {
   buildProjectMemorySuggestionPrompt,
   buildProjectMemorySuggestions,
   filterProjectMemoryForPlaybook,
+  findStaleProjectMemoryCandidates,
   formatProjectMemorySuggestionsForMarkdown,
   type ProjectMemorySuggestionInput,
 } from './projectMemorySuggestions'
@@ -105,6 +106,29 @@ describe('project memory suggestions', () => {
     })
     expect(params.tags).toContain('reviewed-memory')
     expect(params.tags).toContain('edited')
+  })
+
+  it('flags stale project knowledge when fresh evidence changes the validation path', () => {
+    const [suggestion] = buildProjectMemorySuggestions(input({
+      lastCommand: 'npm run typecheck',
+      validationCount: 1,
+    }))
+
+    const candidates = findStaleProjectMemoryCandidates([suggestion], [{
+      id: 'knowledge-1',
+      type: 'project-knowledge',
+      category: suggestion.knowledgeCategory,
+      title: 'Validation path: npm test',
+      content: 'Before handoff, always run npm test.',
+      tags: ['validation', 'quality-gate'],
+      updatedAt: '2026-04-27T10:00:00.000Z',
+    }])
+
+    expect(candidates[0]).toMatchObject({
+      entryId: 'knowledge-1',
+      suggestionId: suggestion.id,
+      reason: '新验证或命令路径与已有知识不同',
+    })
   })
 
   it('filters long memory prompts toward the selected playbook', () => {

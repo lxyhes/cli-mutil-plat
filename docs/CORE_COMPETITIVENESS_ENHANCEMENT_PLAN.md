@@ -327,7 +327,7 @@ Remaining:
 
 ### Project Memory Flywheel
 
-Status: reviewed promotion slice completed.
+Status: stale review and telemetry slice completed.
 
 Completed:
 
@@ -339,8 +339,11 @@ Completed:
 - Added reviewed one-click promotion from memory suggestion to project knowledge entry.
 - Added inline edit-before-save and reject flows in the expanded cockpit.
 - Added accepted, rejected, and edited review tracking with source, confidence, and review metadata on promoted knowledge entries.
+- Added stale-memory candidate detection when fresh session evidence conflicts with existing project knowledge.
+- Added cockpit stale-memory review prompt generation for likely outdated knowledge.
+- Added lightweight memory telemetry for accepted, edited, rejected, and playbook-injected memory flows.
 
 Remaining:
 
-- Add stale-memory review when new evidence contradicts existing project memory.
-- Add memory relevance telemetry for playbook injection and accepted/rejected suggestions.
+- Surface memory telemetry as dashboard/trend metrics.
+- Add direct update/archive actions for stale project knowledge entries after review.

@@ -146,7 +146,7 @@ export const useKnowledgeCenterStore = create<KnowledgeCenterState & KnowledgeCe
       }
 
       // 根据当前 Tab 过滤类型
-      if (currentTab !== 'all') {
+      if (currentTab !== 'all' && !baseQuery.type) {
         baseQuery.type = currentTab
       }
 
@@ -171,7 +171,7 @@ export const useKnowledgeCenterStore = create<KnowledgeCenterState & KnowledgeCe
       }
 
       // 项目路径过滤（项目级知识）
-      if (currentProjectPath && (currentTab === 'project-knowledge' || currentTab === 'working-memory')) {
+      if (!baseQuery.projectPath && currentProjectPath && (currentTab === 'project-knowledge' || currentTab === 'working-memory')) {
         baseQuery.projectPath = currentProjectPath
       }
 
