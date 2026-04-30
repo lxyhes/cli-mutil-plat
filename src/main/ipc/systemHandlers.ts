@@ -4,6 +4,7 @@
  */
 import { ipcMain, app, shell } from 'electron'
 import fs from 'fs'
+import os from 'os'
 import { join } from 'path'
 import { IPC } from '../../shared/constants'
 import type { DatabaseManager } from '../storage/Database'
@@ -28,6 +29,10 @@ export function registerSystemHandlers(deps: IpcDependencies): void {
     const settings = database.getAppSettings()
     return createSuccessResponse({ settings })
   })
+
+  // App 系统信息（主进程获取，防止渲染进程直接访问 process/os）
+  ipcMain.handle(IPC.APP_GET_CWD, async () => process.cwd())
+  ipcMain.handle(IPC.APP_GET_HOME_PATH, async () => os.homedir())
 
   ipcMain.handle(IPC.SETTINGS_UPDATE, async (_event, key: string, value: any) => {
     database.updateAppSetting(key, value)
@@ -202,7 +207,7 @@ export function wireSessionManagerV2Events(
     prevStatus.set(sessionId, status)
 
     if (status === 'completed' || status === 'error' || status === 'terminated') {
-      concurrencyGuard.unregisterSession()
+      concurrencyGuard.unregisterSession(sessionId)
       sessionHadUserTurn.delete(sessionId)
       prevStatus.delete(sessionId)
 

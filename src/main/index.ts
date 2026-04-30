@@ -623,7 +623,7 @@ function wireEvents(): void {
 
     // 会话结束时注销并发计数并清理所有通知状态
     if (status === 'completed' || status === 'error' || status === 'terminated') {
-      concurrencyGuard.unregisterSession()
+      concurrencyGuard.unregisterSession(sessionId)
       stateInference.removeSession(sessionId)
       outputParser.markSessionEnded(sessionId)
       outputReaderManager.stopWatching(sessionId)

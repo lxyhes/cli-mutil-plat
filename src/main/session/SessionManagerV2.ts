@@ -209,10 +209,14 @@ export class SessionManagerV2 extends EventEmitter implements MemoryManagedCompo
   private textDeltaTimers: Map<string, NodeJS.Timeout> = new Map()
   private readonly textDeltaIntervalMs = 100 // 100ms 节流，大幅减少 IPC 消息量
   private readonly schedulerMaxQueuePerSession = 20
+  private readonly sessionEvictionIntervalMs = 5 * 60 * 1000 // 每 5 分钟清理一次过期会话
+  private evictionTimer?: NodeJS.Timeout
 
   constructor(adapterRegistry: AdapterRegistry) {
     super()
     this.adapterRegistry = adapterRegistry
+    // 启动周期性会话清理，防止 sessions Map 无限增长
+    this.startEvictionTimer()
   }
 
   /** 注入数据库实例（用于 Skill 拦截） */
@@ -1307,6 +1311,7 @@ export class SessionManagerV2 extends EventEmitter implements MemoryManagedCompo
    * 清理所有资源（应用关闭时调用）
    */
   async dispose(): Promise<void> {
+    this.stopEvictionTimer()
     for (const [id, session] of this.sessions) {
       if (session.status !== 'completed' && session.status !== 'terminated') {
         try {
@@ -1360,6 +1365,24 @@ export class SessionManagerV2 extends EventEmitter implements MemoryManagedCompo
 
     if (sessionsToRemove.length > 0) {
       console.log(`[SessionManagerV2] Cleaned up ${sessionsToRemove.length} sessions (mode: ${mode})`)
+    }
+  }
+
+  /** 启动周期性会话清理定时器 */
+  private startEvictionTimer(): void {
+    if (this.evictionTimer) return
+    this.evictionTimer = setInterval(() => {
+      this.cleanup('normal').catch(err => {
+        console.error('[SessionManagerV2] Eviction timer cleanup failed:', err)
+      })
+    }, this.sessionEvictionIntervalMs)
+  }
+
+  /** 停止周期性清理定时器（cleanup 时调用） */
+  private stopEvictionTimer(): void {
+    if (this.evictionTimer) {
+      clearInterval(this.evictionTimer)
+      this.evictionTimer = undefined
     }
   }
 

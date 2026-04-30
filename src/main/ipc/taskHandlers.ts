@@ -287,7 +287,7 @@ export function registerTaskHandlers(deps: IpcDependencies): void {
       }
 
       sessionManagerV2?.createSession(sessionConfig, provider)
-      concurrencyGuard.registerSession()
+      concurrencyGuard.registerSession(sessionId)
 
       // 注入 Workspace 多仓库上下文（追加到 .claude/rules/spectrai-session.md）
       if (task.workspaceId && task.worktreePaths) {

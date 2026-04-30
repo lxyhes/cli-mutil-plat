@@ -45,6 +45,8 @@ export class AgentManagerV2 extends EventEmitter {
   private lockManager: LockManager | null = null
   /** Agent Bridge WebSocket 端口，用于为子会话生成 MCP 配置（0 = 未初始化） */
   private bridgePort: number = 0
+  /** Agent Bridge 认证令牌，用于 MCP 子进程连接时身份验证 */
+  private bridgeToken: string = ''
 
   /** agentId → Agent 信息 */
   private agents: Map<string, ManagedAgent> = new Map()
@@ -85,6 +87,13 @@ export class AgentManagerV2 extends EventEmitter {
    */
   setBridgePort(port: number): void {
     this.bridgePort = port
+  }
+
+  /**
+   * 注入 Agent Bridge 认证令牌（延迟注入，用于为子会话生成 MCP 配置时传递给 MCP 子进程）
+   */
+  setBridgeToken(token: string): void {
+    this.bridgeToken = token
   }
 
   /**
@@ -226,6 +235,7 @@ export class AgentManagerV2 extends EventEmitter {
         mcpConfigPath = MCPConfigGenerator.generate(
           childSessionId,
           this.bridgePort,
+          this.bridgeToken,
           workDir,
           providerId,
           this.database,
@@ -236,6 +246,7 @@ export class AgentManagerV2 extends EventEmitter {
         const codexHomeDir = MCPConfigGenerator.generateForCodex(
           childSessionId,
           this.bridgePort,
+          this.bridgeToken,
           workDir,
           providerId,
           this.database,
@@ -247,6 +258,7 @@ export class AgentManagerV2 extends EventEmitter {
         const opencodeConfigPath = MCPConfigGenerator.generateForOpenCode(
           childSessionId,
           this.bridgePort,
+          this.bridgeToken,
           workDir,
           providerId,
           this.database,

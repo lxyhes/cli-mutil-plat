@@ -23,7 +23,7 @@ export interface ResourceStatus {
 
 export class ConcurrencyGuard {
   private config: ConcurrencyConfig;
-  private activeSessions: number = 0;
+  private activeSessionIds: Set<string> = new Set()
 
   constructor(config?: Partial<ConcurrencyConfig>) {
     const defaultMinMemoryMB = process.platform === 'darwin' ? 256 : 512;
@@ -84,7 +84,7 @@ export class ConcurrencyGuard {
    * 检查是否可以创建新会话
    */
   canCreateSession(): boolean {
-    if (this.activeSessions >= this.config.maxSessions) {
+    if (this.activeSessionIds.size >= this.config.maxSessions) {
       return false;
     }
     return true;
@@ -97,11 +97,11 @@ export class ConcurrencyGuard {
     const { availableMemMB, memoryUsagePercent } = this.getMemorySnapshot();
 
     // 检查会话数限制
-    if (this.activeSessions >= this.config.maxSessions) {
+    if (this.activeSessionIds.size >= this.config.maxSessions) {
       return {
         canCreate: false,
         reason: `Maximum session limit reached (${this.config.maxSessions})`,
-        currentSessions: this.activeSessions,
+        currentSessions: this.activeSessionIds.size,
         maxSessions: this.config.maxSessions,
         memoryUsagePercent,
         availableMemoryMB: availableMemMB
@@ -113,7 +113,7 @@ export class ConcurrencyGuard {
       return {
         canCreate: false,
         reason: `Insufficient memory (${Math.round(availableMemMB)}MB available, ${this.config.minMemoryMB}MB required)`,
-        currentSessions: this.activeSessions,
+        currentSessions: this.activeSessionIds.size,
         maxSessions: this.config.maxSessions,
         memoryUsagePercent,
         availableMemoryMB: availableMemMB
@@ -122,7 +122,7 @@ export class ConcurrencyGuard {
 
     return {
       canCreate: true,
-      currentSessions: this.activeSessions,
+      currentSessions: this.activeSessionIds.size,
       maxSessions: this.config.maxSessions,
       memoryUsagePercent,
       availableMemoryMB: availableMemMB
@@ -132,24 +132,22 @@ export class ConcurrencyGuard {
   /**
    * 注册新会话
    */
-  registerSession(): void {
-    this.activeSessions++;
+  registerSession(sessionId: string): void {
+    this.activeSessionIds.add(sessionId)
   }
 
   /**
    * 注销会话
    */
-  unregisterSession(): void {
-    if (this.activeSessions > 0) {
-      this.activeSessions--;
-    }
+  unregisterSession(sessionId: string): void {
+    this.activeSessionIds.delete(sessionId)
   }
 
   /**
    * 获取当前活跃会话数
    */
   getActiveSessionCount(): number {
-    return this.activeSessions;
+    return this.activeSessionIds.size
   }
 
   /**
@@ -203,10 +201,10 @@ export class ConcurrencyGuard {
       };
     }
 
-    if (this.activeSessions >= this.config.maxSessions * 0.8) {
+    if (this.activeSessionIds.size >= this.config.maxSessions * 0.8) {
       return {
         warn: true,
-        message: `Approaching session limit: ${this.activeSessions}/${this.config.maxSessions}`
+        message: `Approaching session limit: ${this.activeSessionIds.size}/${this.config.maxSessions}`
       };
     }
 

@@ -7,17 +7,27 @@
 import { EventEmitter } from 'events'
 import { WebSocketServer, WebSocket } from 'ws'
 import type { BridgeRequest, BridgeResponse } from './types'
+import { randomBytes } from 'crypto'
 
 export class AgentBridge extends EventEmitter {
   private wss: WebSocketServer | null = null
   private connections: Map<string, WebSocket> = new Map() // sessionId → ws
   private port: number = 0
   private teamBridgeHandler?: (request: BridgeRequest) => Promise<{ result?: any; error?: string }>
-  
+  /** 用于 MCP 子进程认证的共享密钥 */
+  private readonly authToken: string
+
   // ★ 心跳检测配置
   private heartbeatInterval: NodeJS.Timeout | null = null
   private readonly HEARTBEAT_INTERVAL_MS = 30000 // 30 秒
   private readonly HEARTBEAT_TIMEOUT_MS = 10000 // 10 秒超时
+
+  constructor() {
+    super()
+    // 生成 32 字节的随机令牌，base64url 编码后约 43 字符
+    this.authToken = randomBytes(32).toString('base64url')
+    console.log(`[AgentBridge] Auth token generated (first 8 chars: ${this.authToken.substring(0, 8)}...)`)
+  }
 
   /**
    * 启动 WebSocket 服务
@@ -26,7 +36,16 @@ export class AgentBridge extends EventEmitter {
     this.port = port
     this.wss = new WebSocketServer({ host: '127.0.0.1', port })
 
-    this.wss.on('connection', (ws: WebSocket) => {
+    this.wss.on('connection', (ws: WebSocket, req) => {
+      // ★ 验证认证令牌（检查 Authorization header）
+      const authHeader = req.headers['authorization']
+      const token = authHeader?.replace(/^Bearer\s+/i, '')
+      if (!token || token !== this.authToken) {
+        console.warn('[AgentBridge] Rejected unauthenticated connection')
+        ws.close(1008, 'Unauthorized')
+        return
+      }
+
       let registeredSessionId: string | null = null
 
       ws.on('message', (raw: Buffer | string) => {
@@ -170,6 +189,13 @@ export class AgentBridge extends EventEmitter {
    */
   getPort(): number {
     return this.port
+  }
+
+  /**
+   * 获取认证令牌（用于传递给 MCP 子进程连接）
+   */
+  getAuthToken(): string {
+    return this.authToken
   }
 
   /**

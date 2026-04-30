@@ -622,7 +622,7 @@ export function registerSessionHandlers(deps: IpcDependencies): void {
       if (config.prewarm && provider.id === 'iflow') {
         console.log(`[IPC] SESSION_CREATE: using prewarm mode for iFlow`)
         const prewarmResult = await smV2.prewarmSession(config, provider)
-        concurrencyGuard.registerSession()
+        concurrencyGuard.registerSession(prewarmResult.sessionId)
         database.recordDirectoryUsage(config.workingDirectory)
         // 绛夊緟棰勭儹瀹屾垚锛坧rewarmSession 鍐呴儴宸插畬鎴愭彙鎵嬶紝杩斿洖鏃跺凡鏄?waiting_input锛?
         return createSuccessResponse({
@@ -637,7 +637,7 @@ export function registerSessionHandlers(deps: IpcDependencies): void {
       // 鈽?鍒涘缓 SDK V2 浼氳瘽
       // 鏁版嵁搴撹褰曠敱 systemHandlers.ts 涓殑 session_start 浜嬩欢缁熶竴鍐欏叆锛屾澶勪笉閲嶅鍐欙紙閬垮厤 UNIQUE constraint 鍐茬獊锛?
       const sessionId = smV2.createSession(config, provider)
-      concurrencyGuard.registerSession()
+      concurrencyGuard.registerSession(sessionId)
       database.recordDirectoryUsage(config.workingDirectory)
 
       // 绛夊緟浼氳瘽鑴辩 starting锛堝彲浜や簰/澶辫触锛夊啀杩斿洖锛屽噺灏?鍒涘缓鎴愬姛浣嗕粛鍋囨€у鐞嗕腑"鐨勪綋楠岄棶棰?
@@ -692,7 +692,7 @@ export function registerSessionHandlers(deps: IpcDependencies): void {
       }
 
       const result = await smV2.prewarmSession(config, provider)
-      concurrencyGuard.registerSession()
+      concurrencyGuard.registerSession(result.sessionId)
       database.recordDirectoryUsage(config.workingDirectory)
 
       return createSuccessResponse({
@@ -718,7 +718,7 @@ export function registerSessionHandlers(deps: IpcDependencies): void {
       }
       if (smV2.getSession(sessionId)) {
         await smV2.terminateSession(sessionId)
-        concurrencyGuard.unregisterSession()
+        concurrencyGuard.unregisterSession(sessionId)
       }
       database.updateSession(sessionId, { status: 'terminated' as any })
       return createSuccessResponse({ success: true })
@@ -734,7 +734,7 @@ export function registerSessionHandlers(deps: IpcDependencies): void {
       // 鑻ヤ細璇濅粛鍦ㄨ繍琛岋紝鍏堢粓姝?
       if (smV2?.getSession(sessionId)) {
         await smV2.terminateSession(sessionId)
-        concurrencyGuard.unregisterSession()
+        concurrencyGuard.unregisterSession(sessionId)
       }
       database.deleteSession(sessionId)
       // 浠庡唴瀛?Map 涓Щ闄わ紝闃叉 SESSION_GET_ALL 杩斿洖宸插垹闄ょ殑"骞界伒浼氳瘽"
@@ -1180,7 +1180,7 @@ export function registerSessionHandlers(deps: IpcDependencies): void {
         }
 
         const newSessionId = smV2.createSession(resumeConfig, provider);
-        concurrencyGuard.registerSession();
+        concurrencyGuard.registerSession(newSessionId);
         database.recordDirectoryUsage(resumeConfig.workingDirectory);
 
         const readyTimeoutMs = provider.id === 'codex' ? 12000 : provider.id === 'iflow' ? 90000 : 6000;
@@ -1358,7 +1358,7 @@ export function registerSessionHandlers(deps: IpcDependencies): void {
         claudeSessionId || undefined,
         provider
       )
-      concurrencyGuard.registerSession()
+      concurrencyGuard.registerSession(oldSessionId)
       console.log(`[IPC] SDK V2 resume: ${oldSessionId} via ${toAsciiLogText(provider.name)} adapter`)
 
       database.updateSession(oldSessionId, {

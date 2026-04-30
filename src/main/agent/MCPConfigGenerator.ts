@@ -90,11 +90,13 @@ export class MCPConfigGenerator {
    * @param bridgePort - Agent Bridge 端口。
    *   > 0：Supervisor 模式，同时注入 spectrai-agent 系统 MCP + 用户 MCP
    *   = 0：普通会话，仅注入用户 MCP（不含 spectrai-agent）
+   * @param bridgeToken - Agent Bridge 认证令牌，用于 MCP 子进程连接时的身份验证
    * @returns 配置文件路径
    */
   static generate(
     sessionId: string,
     bridgePort: number,
+    bridgeToken: string,
     workDir: string,
     providerId?: string,
     database?: DatabaseManager,
@@ -119,6 +121,7 @@ export class MCPConfigGenerator {
         env: {
           CLAUDEOPS_SESSION_ID: sessionId,
           CLAUDEOPS_BRIDGE_PORT: String(bridgePort),
+          CLAUDEOPS_BRIDGE_TOKEN: bridgeToken,
           CLAUDEOPS_WORK_DIR: workDir,
           CLAUDEOPS_SESSION_MODE: sessionMode || 'supervisor'
         }
@@ -170,11 +173,13 @@ export class MCPConfigGenerator {
    * @param bridgePort - Agent Bridge 端口。
    *   > 0：Supervisor 模式，同时注入 spectrai-agent 系统 MCP + 用户 MCP
    *   = 0：普通会话，仅注入用户 MCP（不含 spectrai-agent）
+   * @param bridgeToken - Agent Bridge 认证令牌
    * @returns 临时 CODEX_HOME 目录路径（调用方需将其注入 CODEX_HOME 环境变量）
    */
   static generateForCodex(
     sessionId: string,
     bridgePort: number,
+    bridgeToken: string,
     workDir: string,
     providerId?: string,
     database?: DatabaseManager,
@@ -264,6 +269,7 @@ export class MCPConfigGenerator {
         '[mcp_servers.spectrai-agent.env]',
         `CLAUDEOPS_SESSION_ID = "${sessionId}"`,
         `CLAUDEOPS_BRIDGE_PORT = "${bridgePort}"`,
+        `CLAUDEOPS_BRIDGE_TOKEN = "${escape(bridgeToken)}"`,
         `CLAUDEOPS_WORK_DIR = "${escape(workDir)}"`,
         `CLAUDEOPS_SESSION_MODE = "${sessionMode || 'supervisor'}"`,
       )
@@ -347,11 +353,13 @@ export class MCPConfigGenerator {
    * @param bridgePort - Agent Bridge 端口。
    *   > 0：Supervisor 模式，同时注入 spectrai-agent 系统 MCP + 用户 MCP
    *   = 0：普通会话，仅注入用户 MCP（不含 spectrai-agent）
+   * @param bridgeToken - Agent Bridge 认证令牌
    * @returns 临时配置文件路径（调用方需将其注入 OPENCODE_CONFIG 环境变量）
    */
   static generateForOpenCode(
     sessionId: string,
     bridgePort: number,
+    bridgeToken: string,
     workDir: string,
     providerId?: string,
     database?: DatabaseManager,
@@ -377,6 +385,7 @@ export class MCPConfigGenerator {
         environment: {
           CLAUDEOPS_SESSION_ID: sessionId,
           CLAUDEOPS_BRIDGE_PORT: String(bridgePort),
+          CLAUDEOPS_BRIDGE_TOKEN: bridgeToken,
           CLAUDEOPS_WORK_DIR: workDir,
           CLAUDEOPS_SESSION_MODE: sessionMode || 'supervisor',
         },

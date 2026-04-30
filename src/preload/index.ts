@@ -55,8 +55,8 @@ if (!ctxBr) {
 
   // ==================== App API ====================
   app: {
-    getCwd: () => process.cwd(),
-    getHomePath: () => require('os').homedir(),
+    getCwd: () => ipcRenderer.invoke(IPC.APP_GET_CWD),
+    getHomePath: () => ipcRenderer.invoke(IPC.APP_GET_HOME_PATH),
     selectDirectory: () => ipcRenderer.invoke('dialog:select-directory'),
     selectFile: () => ipcRenderer.invoke(IPC.DIALOG_SELECT_FILE),
     getRecentDirectories: (limit?: number) => ipcRenderer.invoke(IPC.DIRECTORY_GET_RECENT, limit),

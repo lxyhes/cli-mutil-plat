@@ -106,6 +106,10 @@ export const IPC = {
   SETTINGS_GET_ALL: 'settings:get-all',
   SETTINGS_UPDATE: 'settings:update',
 
+  // App 系统信息（通过主进程获取，避免 preload 直接访问 process/os）
+  APP_GET_CWD: 'app:get-cwd',
+  APP_GET_HOME_PATH: 'app:get-home-path',
+
   // 内存管理
   MEMORY_GET_REPORT: 'memory:get-report',
   MEMORY_FORCE_CLEANUP: 'memory:force-cleanup',
