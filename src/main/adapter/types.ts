@@ -203,6 +203,15 @@ export abstract class BaseProviderAdapter extends EventEmitter {
   abstract cleanup(): void
 
   /**
+   * 检查 Adapter 是否就绪可用（健康检查用）
+   * @returns true 表示 Adapter 可用
+   */
+  async isReady?(): Promise<boolean> {
+    // 默认实现：如果没有任何会话，认为不可用；否则认为可用
+    return true
+  }
+
+  /**
    * 预热会话（仅部分 Adapter 支持，如 iFlow）
    *
    * 与 startSession 不同，预热完成后：

@@ -200,6 +200,32 @@ export const IPC = {
   GIT_AUTO_COMMIT_WITH_DELIVERY_PACK: 'git:auto-commit-with-delivery-pack',
   /** 从交付包中提取建议的提交信息 */
   GIT_EXTRACT_COMMIT_MESSAGE: 'git:extract-commit-message',
+
+  // Provider 健康检查
+  PROVIDER_HEALTH_START: 'provider-health:start',
+  PROVIDER_HEALTH_STOP: 'provider-health:stop',
+  PROVIDER_HEALTH_GET_ALL: 'provider-health:get-all',
+  PROVIDER_HEALTH_GET_STATUS: 'provider-health:get-status',
+  PROVIDER_HEALTH_GET_HEALTHY: 'provider-health:get-healthy',
+  PROVIDER_HEALTH_GET_RECOMMENDED: 'provider-health:get-recommended',
+  PROVIDER_HEALTH_CHECK_MANUAL: 'provider-health:check-manual',
+  PROVIDER_HEALTH_UPDATE_CONFIG: 'provider-health:update-config',
+  PROVIDER_HEALTH_GET_CONFIG: 'provider-health:get-config',
+
+  // Memory Deduplication - 记忆去重和版本历史
+  MEMORY_DEDUP_CALCULATE_SIMILARITY: 'memory-dedup:calculate-similarity',
+  MEMORY_DEDUP_DETECT_DUPLICATES: 'memory-dedup:detect-duplicates',
+  MEMORY_DEDUP_PERFORM_CHECK: 'memory-dedup:perform-check',
+  MEMORY_VERSION_CREATE: 'memory-version:create',
+  MEMORY_VERSION_GET_HISTORY: 'memory-version:get-history',
+  MEMORY_VERSION_ANALYZE_EVOLUTION: 'memory-version:analyze-evolution',
+  MEMORY_MERGE_GENERATE_SUGGESTION: 'memory-merge:generate-suggestion',
+  MEMORY_MERGE_GET_PENDING: 'memory-merge:get-pending',
+  MEMORY_MERGE_ACCEPT: 'memory-merge:accept',
+  MEMORY_MERGE_REJECT: 'memory-merge:reject',
+  MEMORY_DEDUP_UPDATE_CONFIG: 'memory-dedup:update-config',
+  MEMORY_DEDUP_GET_CONFIG: 'memory-dedup:get-config',
+  MEMORY_DEDUP_GET_STATS: 'memory-dedup:get-stats',
   WORKTREE_CREATE: 'worktree:create',
   WORKTREE_REMOVE: 'worktree:remove',
   WORKTREE_LIST: 'worktree:list',

@@ -76,6 +76,7 @@ import { DailyReportService } from './daily-report/DailyReportService'
 import { SkillArenaService } from './arena/SkillArenaService'
 import { CommunityPublishService } from './community/CommunityPublishService'
 import { VoiceService } from './voice/VoiceService'
+import { MemoryDeduplicationService } from './memory/MemoryDeduplicationService'
 
 
 let mainWindow: BrowserWindow | null = null
@@ -207,6 +208,7 @@ let dailyReportService: DailyReportService | undefined = undefined
 let skillArenaService: SkillArenaService | undefined = undefined
 let voiceService: VoiceService | undefined = undefined
 let communityPublishService: CommunityPublishService | undefined = undefined
+let memoryDedupService: MemoryDeduplicationService | undefined = undefined
 
 /**
  * 创建主窗口
@@ -1115,6 +1117,17 @@ app.whenReady().then(async () => {
   voiceService = new VoiceService()
   voiceService.setMainWindow(mainWindow)
   communityPublishService = new CommunityPublishService(database)
+  
+  // ★ Memory Deduplication Service - 记忆去重和版本历史
+  memoryDedupService = new MemoryDeduplicationService(database, {
+    enabled: true,
+    similarityThreshold: 0.85,
+    jaccardWeight: 0.4,
+    tfidfWeight: 0.6,
+    maxVersionsPerMemory: 10,
+    autoMergeEnabled: false,
+    checkIntervalMs: 3600000, // 1小时
+  })
 
   // ★ 注册 team_* 方法处理器到 AgentBridge，使 agents 可以调用团队工具
   agentBridge.setTeamBridgeHandler(async (request) => {
@@ -1268,6 +1281,7 @@ app.whenReady().then(async () => {
     voiceService,
     communityPublishService,
     knowledgeCenterService,
+    memoryDedupService,
   }, fileChangeTracker)
 
   // ── ReferenceProjectService IPC handlers 已在 newFeatureHandlers.ts 中注册，此处不再重复 ──
@@ -1582,6 +1596,16 @@ app.on('before-quit', () => {
   crossSessionMemoryService?.cleanup()
   sessionTemplateService?.cleanup()
   codeContextInjectionService?.cleanup()
+
+  // ★ 清理 Provider 健康检查服务
+  const { cleanupProviderHealth } = await import('./ipc/providerHealthHandlers')
+  cleanupProviderHealth()
+
+  // ★ 清理 Memory Deduplication Service
+  if (memoryDedupService) {
+    memoryDedupService.destroy()
+    memoryDedupService.removeAllListeners()
+  }
 
   // ★ 在 cleanup 之前提前捕获 SDK V2 会话状态
   // 必须在 sessionManagerV2.dispose() 之前拿快照，否则 dispose() 会将所有会话

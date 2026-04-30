@@ -127,6 +127,61 @@ export interface SpectrAIAPI {
     togglePin: (id: string) => Promise<any>
   }
 
+  providerHealth: {
+    start: () => Promise<{ started: boolean }>
+    stop: () => Promise<{ stopped: boolean }>
+    getAll: () => Promise<{
+      statuses: Array<{
+        providerId: string
+        providerName: string
+        status: 'healthy' | 'degraded' | 'unhealthy' | 'unknown'
+        lastCheckedAt: string
+        responseTimeMs?: number
+        errorMessage?: string
+        consecutiveFailures: number
+        successRate: number
+      }>
+    }>
+    getStatus: (providerId: string) => Promise<{
+      status?: {
+        providerId: string
+        providerName: string
+        status: 'healthy' | 'degraded' | 'unhealthy' | 'unknown'
+        lastCheckedAt: string
+        responseTimeMs?: number
+        errorMessage?: string
+        consecutiveFailures: number
+        successRate: number
+      }
+    }>
+    getHealthy: () => Promise<{ providers: any[] }>
+    getRecommended: (preferredProviderId?: string) => Promise<{ provider: any | null }>
+    checkManual: (providerId: string) => Promise<{
+      result?: {
+        providerId: string
+        isHealthy: boolean
+        responseTimeMs: number
+        error?: string
+      }
+    }>
+    updateConfig: (config: {
+      enabled?: boolean
+      maxConsecutiveFailures?: number
+      minSuccessRate?: number
+      checkIntervalMs?: number
+      fallbackProviderIds?: string[]
+    }) => Promise<{ config: any }>
+    getConfig: () => Promise<{
+      config: {
+        enabled: boolean
+        maxConsecutiveFailures: number
+        minSuccessRate: number
+        checkIntervalMs: number
+        fallbackProviderIds: string[]
+      }
+    }>
+  },
+
   nvm: {
     listVersions: () => Promise<string[]>
   }
@@ -424,6 +479,179 @@ export interface SpectrAIAPI {
     getStats: () => Promise<any>
     updateConfig: (updates: any) => Promise<any>
   }
+
+  // Memory Deduplication - 记忆去重和版本历史
+  memoryDedup: {
+    // 相似度计算
+    calculateSimilarity: (text1: string, text2: string) => Promise<{
+      success: boolean
+      result?: {
+        score: number
+        method: string
+        details?: Record<string, any>
+      }
+      error?: string
+    }>
+    
+    // 去重检测
+    detectDuplicates: (newMemory: any, existingMemories: any[]) => Promise<{
+      success: boolean
+      candidates?: Array<{
+        originalId: string
+        duplicateId: string
+        similarity: {
+          score: number
+          method: string
+          details?: Record<string, any>
+        }
+        recommendation: 'merge' | 'keep_both' | 'replace'
+        reason: string
+      }>
+      error?: string
+    }>
+    performCheck: () => Promise<{
+      success: boolean
+      candidates?: any[]
+      error?: string
+    }>
+    
+    // 版本历史
+    createVersion: (params: {
+      memoryId: string
+      content: string
+      keyPoints: string
+      keywords: string
+      summary: string
+      createdBy: string
+      changeType?: string
+      changeReason?: string
+      metadata?: Record<string, any>
+    }) => Promise<{
+      success: boolean
+      version?: {
+        id: string
+        memoryId: string
+        version: number
+        content: string
+        keyPoints: string
+        keywords: string
+        summary: string
+        createdAt: string
+        createdBy: string
+        changeType: string
+        changeReason?: string
+        metadata?: Record<string, any>
+      }
+      error?: string
+    }>
+    getVersionHistory: (memoryId: string, limit?: number) => Promise<{
+      success: boolean
+      versions?: Array<{
+        id: string
+        memoryId: string
+        version: number
+        content: string
+        keyPoints: string
+        keywords: string
+        summary: string
+        createdAt: string
+        createdBy: string
+        changeType: string
+        changeReason?: string
+        metadata?: Record<string, any>
+      }>
+      error?: string
+    }>
+    analyzeEvolution: (memoryId: string) => Promise<{
+      success: boolean
+      analysis?: {
+        memoryId: string
+        versions: any[]
+        evolutionSummary: string
+        majorChanges: Array<{
+          version: number
+          changeType: string
+          description: string
+          timestamp: string
+        }>
+        stabilityScore: number
+      }
+      error?: string
+    }>
+    
+    // 合并建议
+    generateMergeSuggestion: (memoryIds: string[]) => Promise<{
+      success: boolean
+      suggestion?: {
+        id: string
+        memoryIds: string[]
+        suggestedContent: string
+        confidence: number
+        reason: string
+        createdAt: string
+      }
+      error?: string
+    }>
+    getPendingSuggestions: (limit?: number) => Promise<{
+      success: boolean
+      suggestions?: Array<{
+        id: string
+        memoryIds: string[]
+        suggestedContent: string
+        confidence: number
+        reason: string
+        createdAt: string
+      }>
+      error?: string
+    }>
+    acceptSuggestion: (suggestionId: string) => Promise<{
+      success: boolean
+      error?: string
+    }>
+    rejectSuggestion: (suggestionId: string) => Promise<{
+      success: boolean
+      error?: string
+    }>
+    
+    // 配置管理
+    updateConfig: (updates: any) => Promise<{
+      success: boolean
+      config?: {
+        enabled: boolean
+        similarityThreshold: number
+        jaccardWeight: number
+        tfidfWeight: number
+        maxVersionsPerMemory: number
+        autoMergeEnabled: boolean
+        checkIntervalMs: number
+      }
+      error?: string
+    }>
+    getConfig: () => Promise<{
+      success: boolean
+      config?: {
+        enabled: boolean
+        similarityThreshold: number
+        jaccardWeight: number
+        tfidfWeight: number
+        maxVersionsPerMemory: number
+        autoMergeEnabled: boolean
+        checkIntervalMs: number
+      }
+      error?: string
+    }>
+    getStats: () => Promise<{
+      success: boolean
+      stats?: {
+        totalMemories: number
+        totalVersions: number
+        pendingSuggestions: number
+        openConflicts: number
+        averageVersionsPerMemory: number
+      }
+      error?: string
+    }>
+  },
 
   // 会话模板
   sessionTemplate: {

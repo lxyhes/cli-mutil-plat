@@ -307,6 +307,25 @@ if (!ctxBr) {
     togglePin: (id: string) => ipcRenderer.invoke(IPC.PROVIDER_TOGGLE_PIN, id),
   },
 
+  // ==================== Provider Health API ====================
+  providerHealth: {
+    start: () => ipcRenderer.invoke(IPC.PROVIDER_HEALTH_START),
+    stop: () => ipcRenderer.invoke(IPC.PROVIDER_HEALTH_STOP),
+    getAll: () => ipcRenderer.invoke(IPC.PROVIDER_HEALTH_GET_ALL),
+    getStatus: (providerId: string) => ipcRenderer.invoke(IPC.PROVIDER_HEALTH_GET_STATUS, providerId),
+    getHealthy: () => ipcRenderer.invoke(IPC.PROVIDER_HEALTH_GET_HEALTHY),
+    getRecommended: (preferredProviderId?: string) => ipcRenderer.invoke(IPC.PROVIDER_HEALTH_GET_RECOMMENDED, preferredProviderId),
+    checkManual: (providerId: string) => ipcRenderer.invoke(IPC.PROVIDER_HEALTH_CHECK_MANUAL, providerId),
+    updateConfig: (config: {
+      enabled?: boolean
+      maxConsecutiveFailures?: number
+      minSuccessRate?: number
+      checkIntervalMs?: number
+      fallbackProviderIds?: string[]
+    }) => ipcRenderer.invoke(IPC.PROVIDER_HEALTH_UPDATE_CONFIG, config),
+    getConfig: () => ipcRenderer.invoke(IPC.PROVIDER_HEALTH_GET_CONFIG),
+  },
+
   // ==================== NVM API ====================
   nvm: {
     listVersions: () => ipcRenderer.invoke(IPC.NVM_LIST_VERSIONS),
@@ -1170,6 +1189,54 @@ if (!ctxBr) {
     getHistory: (limit?: number) => ipcRenderer.invoke(IPC.VOICE_GET_HISTORY, limit),
     clearHistory: () => ipcRenderer.invoke(IPC.VOICE_CLEAR_HISTORY),
     simulateInput: (text: string) => ipcRenderer.invoke(IPC.VOICE_SIMULATE_INPUT, text),
+  },
+
+  // ==================== Memory Deduplication API ====================
+  memoryDedup: {
+    // 相似度计算
+    calculateSimilarity: (text1: string, text2: string) =>
+      ipcRenderer.invoke(IPC.MEMORY_DEDUP_CALCULATE_SIMILARITY, text1, text2),
+    
+    // 去重检测
+    detectDuplicates: (newMemory: any, existingMemories: any[]) =>
+      ipcRenderer.invoke(IPC.MEMORY_DEDUP_DETECT_DUPLICATES, newMemory, existingMemories),
+    performCheck: () =>
+      ipcRenderer.invoke(IPC.MEMORY_DEDUP_PERFORM_CHECK),
+    
+    // 版本历史
+    createVersion: (params: {
+      memoryId: string
+      content: string
+      keyPoints: string
+      keywords: string
+      summary: string
+      createdBy: string
+      changeType?: string
+      changeReason?: string
+      metadata?: Record<string, any>
+    }) => ipcRenderer.invoke(IPC.MEMORY_VERSION_CREATE, params),
+    getVersionHistory: (memoryId: string, limit?: number) =>
+      ipcRenderer.invoke(IPC.MEMORY_VERSION_GET_HISTORY, memoryId, limit),
+    analyzeEvolution: (memoryId: string) =>
+      ipcRenderer.invoke(IPC.MEMORY_VERSION_ANALYZE_EVOLUTION, memoryId),
+    
+    // 合并建议
+    generateMergeSuggestion: (memoryIds: string[]) =>
+      ipcRenderer.invoke(IPC.MEMORY_MERGE_GENERATE_SUGGESTION, memoryIds),
+    getPendingSuggestions: (limit?: number) =>
+      ipcRenderer.invoke(IPC.MEMORY_MERGE_GET_PENDING, limit),
+    acceptSuggestion: (suggestionId: string) =>
+      ipcRenderer.invoke(IPC.MEMORY_MERGE_ACCEPT, suggestionId),
+    rejectSuggestion: (suggestionId: string) =>
+      ipcRenderer.invoke(IPC.MEMORY_MERGE_REJECT, suggestionId),
+    
+    // 配置管理
+    updateConfig: (updates: any) =>
+      ipcRenderer.invoke(IPC.MEMORY_DEDUP_UPDATE_CONFIG, updates),
+    getConfig: () =>
+      ipcRenderer.invoke(IPC.MEMORY_DEDUP_GET_CONFIG),
+    getStats: () =>
+      ipcRenderer.invoke(IPC.MEMORY_DEDUP_GET_STATS),
   },
 
   // ★ 渲染进程注册 API 就绪回调（避免轮询）

@@ -11,6 +11,7 @@ import {
 import { useTeamStore } from '../../stores/teamStore'
 import type { DAGValidation, TaskDAGNode, TeamTask } from '../../../shared/types'
 import TaskEditDialog from './TaskEditDialog'
+import EnhancedDAGView from './EnhancedDAGView'
 
 type ViewMode = 'board' | 'dag'
 
@@ -626,7 +627,7 @@ export default function TaskBoardView({ teamId, tasks, members }: TaskBoardViewP
             })}
           </div>
         ) : (
-          <DAGView
+          <EnhancedDAGView
             tasks={tasks}
             dag={dag}
             validation={validation}

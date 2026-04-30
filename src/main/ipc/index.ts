@@ -47,6 +47,7 @@ import type { SkillArenaService } from '../arena/SkillArenaService'
 import type { VoiceService } from '../voice/VoiceService'
 import type { CommunityPublishService } from '../community/CommunityPublishService'
 import type { KnowledgeCenterService } from '../knowledge/KnowledgeCenterService'
+import type { MemoryDeduplicationService } from '../memory/MemoryDeduplicationService'
 // ★ 公共工具从 shared.ts 导出，避免 handler → index → handler 循环依赖
 export { sendToRenderer, aiRenamingLocks, performAiRename } from './shared'
 // ★ IPC 错误处理中间件
@@ -104,6 +105,7 @@ export interface IpcDependencies {
   voiceService?: VoiceService
   communityPublishService?: CommunityPublishService
   knowledgeCenterService?: KnowledgeCenterService
+  memoryDedupService?: MemoryDeduplicationService
 }
 
 // 各子模块 handler 注册函数
@@ -140,6 +142,8 @@ import { registerShipHandlers } from './shipHandlers'
 import { registerOpenAICompatHandlers } from './openAICompatHandlers'
 import { registerNewFeatureHandlers, type NewFeatureDeps } from './newFeatureHandlers'
 import { registerKnowledgeCenterHandlers } from './knowledgeCenterHandlers'
+import { setupProviderHealthHandlers, cleanupProviderHealth } from './providerHealthHandlers'
+import { setupMemoryDedupHandlers } from './memoryDedupHandlers'
 import type { FileChangeTracker } from '../tracker/FileChangeTracker'
 
 // re-export wireSessionManagerV2Events from systemHandlers
@@ -218,5 +222,15 @@ export function registerIpcHandlers(deps: IpcDependencies, fileChangeTracker?: F
   // ★ 知识中心 IPC 注册
   if (deps.knowledgeCenterService) {
     registerKnowledgeCenterHandlers(deps.knowledgeCenterService)
+  }
+
+  // ★ Provider 健康检查 IPC 注册
+  if (deps.adapterRegistry) {
+    setupProviderHealthHandlers(deps.database, deps.adapterRegistry)
+  }
+
+  // ★ Memory Deduplication IPC 注册
+  if (deps.memoryDedupService) {
+    setupMemoryDedupHandlers(deps.database)
   }
 }
