@@ -356,6 +356,7 @@ export function registerSessionHandlers(deps: IpcDependencies): void {
   const {
     database, concurrencyGuard, notificationManager, trayManager,
     agentBridgePort,
+    agentBridgeToken,
   } = deps
 
   // ==================== Dialog 鐩稿叧 ====================
@@ -590,6 +591,7 @@ export function registerSessionHandlers(deps: IpcDependencies): void {
       //   bridgePort = 0 鏃?generate* 鍐呴儴鑷姩璺宠繃 spectrai-agent 娈碉紝鍏朵綑閫昏緫涓嶅彉
       {
         const sessionMcpBridgePort = (agentBridgePort && config.enableAgent) ? agentBridgePort : 0
+        const sessionMcpBridgeToken = (agentBridgePort && config.enableAgent) ? (agentBridgeToken || "") : "";
         const mcpSessionId = config.id || `session-${Date.now()}`
         // 纭畾 MCP 宸ュ叿鍒嗙骇妯″紡锛?
         // - supervisor: Supervisor 涓讳細璇濓紝鎷ユ湁瀹屾暣 Agent 璋冨害 + Leader 鍥㈤槦宸ュ叿
@@ -600,7 +602,7 @@ export function registerSessionHandlers(deps: IpcDependencies): void {
           const userMcps = database.getEnabledMcpsForProvider(providerId)
           if (userMcps.length > 0 || sessionMcpBridgePort > 0) {
             config.mcpConfigPath = MCPConfigGenerator.generate(
-              mcpSessionId, sessionMcpBridgePort, config.workingDirectory, providerId, database, mcpSessionMode
+              mcpSessionId, sessionMcpBridgePort, sessionMcpBridgeToken, config.workingDirectory, providerId, database, mcpSessionMode
             )
           }
         } else if (providerId === 'codex') {
@@ -608,7 +610,7 @@ export function registerSessionHandlers(deps: IpcDependencies): void {
           const userMcps = database.getEnabledMcpsForProvider(providerId)
           if (userMcps.length > 0 || sessionMcpBridgePort > 0) {
             const codexHomeDir = MCPConfigGenerator.generateForCodex(
-              mcpSessionId, sessionMcpBridgePort, config.workingDirectory, providerId, database, mcpSessionMode
+              mcpSessionId, sessionMcpBridgePort, sessionMcpBridgeToken, config.workingDirectory, providerId, database, mcpSessionMode
             )
             config.env = { ...config.env, CODEX_HOME: codexHomeDir }
           }
@@ -1085,19 +1087,20 @@ export function registerSessionHandlers(deps: IpcDependencies): void {
         // Resume A锛氱敤鎴?MCP 濮嬬粓娉ㄥ叆锛泂pectrai-agent 浠?enableAgent 鏃舵敞鍏?
         {
           const resumeMcpBridgePort = (agentBridgePort && resumeConfig.enableAgent) ? agentBridgePort : 0
-          const resumeMcpMode = resumeConfig.supervisorMode ? 'supervisor' : 'awareness'
-          if (providerId === 'claude-code' || providerId === 'iflow') {
+          const resumeMcpBridgeToken = (agentBridgePort && resumeConfig.enableAgent) ? (agentBridgeToken || "") : "";
+          const resumeMcpMode = resumeConfig.supervisorMode ? "supervisor" : "awareness"
+          if (providerId === "claude-code" || providerId === "iflow") {
             const userMcps = database.getEnabledMcpsForProvider(providerId)
             if (userMcps.length > 0 || resumeMcpBridgePort > 0) {
               resumeConfig.mcpConfigPath = MCPConfigGenerator.generate(
-                continueSessionId, resumeMcpBridgePort, oldSession.workingDirectory, providerId, database, resumeMcpMode
+                continueSessionId, resumeMcpBridgePort, resumeMcpBridgeToken, oldSession.workingDirectory, providerId, database, resumeMcpMode
               );
             }
           } else if (providerId === 'codex') {
             const userMcps = database.getEnabledMcpsForProvider(providerId)
             if (userMcps.length > 0 || resumeMcpBridgePort > 0) {
               const codexHomeDir = MCPConfigGenerator.generateForCodex(
-                continueSessionId, resumeMcpBridgePort, oldSession.workingDirectory, providerId, database, resumeMcpMode
+                continueSessionId, resumeMcpBridgePort, resumeMcpBridgeToken, oldSession.workingDirectory, providerId, database, resumeMcpMode
               );
               resumeConfig.env = { ...resumeConfig.env, CODEX_HOME: codexHomeDir };
             }
@@ -1266,19 +1269,20 @@ export function registerSessionHandlers(deps: IpcDependencies): void {
       // 鐢ㄦ埛 MCP 濮嬬粓娉ㄥ叆锛泂pectrai-agent 浠?enableAgent锛圫upervisor锛夋ā寮忔椂娉ㄥ叆
       {
         const resumeMcpBridgePort = (agentBridgePort && resumeConfig.enableAgent) ? agentBridgePort : 0
+        const resumeMcpBridgeToken = (agentBridgePort && resumeConfig.enableAgent) ? (agentBridgeToken || "") : "";
         const resumeMcpMode = resumeConfig.supervisorMode ? 'supervisor' : 'awareness'
         if (providerId === 'claude-code' || providerId === 'iflow') {
           const userMcps = database.getEnabledMcpsForProvider(providerId)
           if (userMcps.length > 0 || resumeMcpBridgePort > 0) {
             resumeConfig.mcpConfigPath = MCPConfigGenerator.generate(
-              oldSessionId, resumeMcpBridgePort, oldSession.workingDirectory, providerId, database, resumeMcpMode
+              oldSessionId, resumeMcpBridgePort, resumeMcpBridgeToken, oldSession.workingDirectory, providerId, database, resumeMcpMode
             )
           }
         } else if (providerId === 'codex') {
           const userMcps = database.getEnabledMcpsForProvider(providerId)
           if (userMcps.length > 0 || resumeMcpBridgePort > 0) {
             const codexHomeDir = MCPConfigGenerator.generateForCodex(
-              oldSessionId, resumeMcpBridgePort, oldSession.workingDirectory, providerId, database, resumeMcpMode
+              oldSessionId, resumeMcpBridgePort, resumeMcpBridgeToken, oldSession.workingDirectory, providerId, database, resumeMcpMode
             )
             resumeConfig.env = { ...resumeConfig.env, CODEX_HOME: codexHomeDir }
           }

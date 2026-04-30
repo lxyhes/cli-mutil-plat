@@ -70,6 +70,7 @@ export interface IpcDependencies {
   agentManagerV2?: AgentManagerV2
   outputReaderManager?: OutputReaderManager
   agentBridgePort?: number
+  agentBridgeToken?: string
   taskCoordinator?: TaskSessionCoordinator
   updateManager?: UpdateManager
   memoryCoordinator?: MemoryCoordinator

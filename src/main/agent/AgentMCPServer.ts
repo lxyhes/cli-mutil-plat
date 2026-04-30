@@ -19,6 +19,7 @@ import { createTwoFilesPatch } from 'diff'
 // 从环境变量读取配置
 const SESSION_ID = process.env.CLAUDEOPS_SESSION_ID || ''
 const BRIDGE_PORT = parseInt(process.env.CLAUDEOPS_BRIDGE_PORT || '63721', 10)
+const BRIDGE_TOKEN = process.env.CLAUDEOPS_BRIDGE_TOKEN || ''
 const WORK_DIR = process.env.CLAUDEOPS_WORK_DIR || process.cwd()
 const SESSION_MODE = (process.env.CLAUDEOPS_SESSION_MODE || 'supervisor') as 'supervisor' | 'member' | 'awareness'
 
@@ -63,7 +64,9 @@ const pendingRequests = new Map<string, { resolve: (value: any) => void; reject:
  */
 function connectBridge(): Promise<void> {
   return new Promise((resolve, reject) => {
-    ws = new WebSocket(`ws://127.0.0.1:${BRIDGE_PORT}`)
+    ws = new WebSocket(`ws://127.0.0.1:${BRIDGE_PORT}`, {
+      headers: { 'Authorization': `Bearer ${BRIDGE_TOKEN}` }
+    })
 
     ws.on('open', () => {
       // 注册 sessionId

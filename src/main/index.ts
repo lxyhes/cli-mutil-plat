@@ -533,6 +533,7 @@ async function initializeManagers(): Promise<void> {
   // ★ 注入 bridgePort 到 agentManagerV2，使子会话（团队成员、spawn_agent）也能获得 MCP 工具
   // 必须在 spawnAgent() 首次调用前完成注入，否则子会话无法使用 list_sessions 等跨会话感知工具
   agentManagerV2.setBridgePort(63721)
+  agentManagerV2.setBridgeToken(agentBridge.getAuthToken())
 
   // 12. 内存管理协调器
   memoryCoordinator = new MemoryCoordinator({
@@ -1234,6 +1235,7 @@ app.whenReady().then(async () => {
     taskCoordinator,
     agentManagerV2,
     agentBridgePort: 63721,
+    agentBridgeToken: agentBridge.getAuthToken(),
     updateManager,
     memoryCoordinator,
     teamManager,
