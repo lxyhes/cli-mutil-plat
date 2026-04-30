@@ -7,6 +7,7 @@ import { GitWorktreeService } from '../git/GitWorktreeService'
 import type { IpcDependencies } from './index'
 import type { FileChangeTracker } from '../tracker/FileChangeTracker'
 import { createErrorResponse, createSuccessResponse, ErrorCode, SpectrAIError } from '../../shared/errors'
+import { autoCommitWithDeliveryPack, extractSuggestedCommitMessage } from '../utils/gitIntegration'
 
 export function registerGitHandlers(deps: IpcDependencies, fileChangeTracker?: FileChangeTracker): void {
   // ==================== Git / Worktree ====================
@@ -270,6 +271,41 @@ export function registerGitHandlers(deps: IpcDependencies, fileChangeTracker?: F
     } catch (error: any) {
       console.error('[IPC] WORKTREE_FILE_DIFF error:', error)
       return ''
+    }
+  })
+
+  // ==================== Git Integration with Delivery Pack ====================
+
+  /**
+   * 自动创建 commit 并关联交付包
+   */
+  ipcMain.handle(IPC.GIT_AUTO_COMMIT_WITH_DELIVERY_PACK, async (_event, options: {
+    repoPath: string
+    commitMessage: string
+    deliveryPackHash?: string
+    stageAll?: boolean
+    pushToRemote?: boolean
+  }) => {
+    try {
+      const result = await autoCommitWithDeliveryPack({
+        ...options,
+        gitService,
+      })
+      return createSuccessResponse(result)
+    } catch (error: any) {
+      return createErrorResponse(error, { operation: 'git.autoCommitWithDeliveryPack', repoPath: options.repoPath })
+    }
+  })
+
+  /**
+   * 从交付包中提取建议的提交信息
+   */
+  ipcMain.handle(IPC.GIT_EXTRACT_COMMIT_MESSAGE, async (_event, deliveryPackMarkdown: string) => {
+    try {
+      const message = extractSuggestedCommitMessage(deliveryPackMarkdown)
+      return createSuccessResponse({ message })
+    } catch (error: any) {
+      return createErrorResponse(error, { operation: 'git.extractCommitMessage' })
     }
   })
 

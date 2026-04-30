@@ -41,6 +41,7 @@ import {
   consumePendingDeliveryMetricAction,
   markDeliveryMetricActionSent,
   recordDeliveryMetricSnapshot,
+  calculateEnhancedDeliveryScore,
   type PendingDeliveryMetricAction,
 } from '../../utils/deliveryMetrics'
 import {
@@ -3503,7 +3504,17 @@ const ConversationView: React.FC<ConversationViewProps> = ({ sessionId }) => {
         status: failedToolCount > 0 || status === 'error' ? 'blocked' : hasWaitingAction ? 'warning' : 'passed',
       },
     ]
-    const deliveryMetricScore = Math.round((deliveryMetrics.filter(metric => metric.status === 'passed').length / deliveryMetrics.length) * 100)
+    // 使用增强的交付质量评分算法
+    const deliveryMetricScore = calculateEnhancedDeliveryScore({
+      validationCount: validationCommands.length,
+      changedFileCount: uniqueFiles.length,
+      deliveryPackGenerated: deliveryPackCurrent,
+      safetyStatus: (failedToolCount > 0 || status === 'error' ? 'blocked' : hasWaitingAction ? 'warning' : 'passed') as 'passed' | 'warning' | 'blocked',
+      projectMemoryCount: knowledgeExtractionCount,
+      messageCount,
+      toolCount: toolUseMessages.length,
+      validationStale,
+    })
     const evidenceTimeline = timelineEntries
       .sort((a, b) => new Date(a.timestamp || '').getTime() - new Date(b.timestamp || '').getTime())
       .slice(-18)

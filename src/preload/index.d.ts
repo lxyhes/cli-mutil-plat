@@ -253,6 +253,16 @@ export interface SpectrAIAPI {
       behind: number
     }>
     getCommitFiles: (repoPath: string, hash: string) => Promise<any>
+    /** 自动创建 commit 并关联交付包 */
+    autoCommitWithDeliveryPack: (options: {
+      repoPath: string
+      commitMessage: string
+      deliveryPackHash?: string
+      stageAll?: boolean
+      pushToRemote?: boolean
+    }) => Promise<{ success: boolean; data?: { success: boolean; commitHash?: string; pushed?: boolean }; error?: any }>
+    /** 从交付包中提取建议的提交信息 */
+    extractCommitMessage: (deliveryPackMarkdown: string) => Promise<{ success: boolean; data?: { message: string }; error?: any }>
   }
 
   worktree: {

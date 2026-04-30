@@ -461,6 +461,15 @@ if (!ctxBr) {
                     ipcRenderer.invoke(IPC.GIT_GET_REMOTE_STATUS, repoPath),
     getCommitFiles: (repoPath: string, hash: string) =>
                     ipcRenderer.invoke(IPC.GIT_GET_COMMIT_FILES, repoPath, hash),
+    autoCommitWithDeliveryPack: (options: {
+      repoPath: string
+      commitMessage: string
+      deliveryPackHash?: string
+      stageAll?: boolean
+      pushToRemote?: boolean
+    }) => ipcRenderer.invoke(IPC.GIT_AUTO_COMMIT_WITH_DELIVERY_PACK, options),
+    extractCommitMessage: (deliveryPackMarkdown: string) =>
+      ipcRenderer.invoke(IPC.GIT_EXTRACT_COMMIT_MESSAGE, deliveryPackMarkdown),
   },
 
   worktree: {

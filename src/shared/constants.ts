@@ -196,6 +196,10 @@ export const IPC = {
   GIT_GET_LOG:       'git:get-log',
   GIT_GET_REMOTE_STATUS: 'git:get-remote-status',
   GIT_GET_COMMIT_FILES: 'git:get-commit-files',
+  /** Git 自动 commit 并关联交付包 */
+  GIT_AUTO_COMMIT_WITH_DELIVERY_PACK: 'git:auto-commit-with-delivery-pack',
+  /** 从交付包中提取建议的提交信息 */
+  GIT_EXTRACT_COMMIT_MESSAGE: 'git:extract-commit-message',
   WORKTREE_CREATE: 'worktree:create',
   WORKTREE_REMOVE: 'worktree:remove',
   WORKTREE_LIST: 'worktree:list',

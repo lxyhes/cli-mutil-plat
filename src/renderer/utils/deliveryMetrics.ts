@@ -59,6 +59,78 @@ export interface DeliveryMetricSummary {
   blockedCount: number
 }
 
+/**
+ * 计算增强的交付质量综合评分 (0-100)
+ * 
+ * 评分维度及权重:
+ * - 验证覆盖 (30%): 是否有测试/构建/类型检查
+ * - 交付包完整性 (25%): 是否生成交付包且未过期
+ * - 安全状态 (20%): 无失败工具、无阻塞项
+ * - 项目记忆沉淀 (15%): 是否沉淀可复用知识
+ * - 改动追踪 (10%): 文件改动是否清晰可追溯
+ */
+export function calculateEnhancedDeliveryScore(
+  snapshot: Pick<DeliveryMetricSnapshotRecord, 
+    | 'validationCount' 
+    | 'changedFileCount'
+    | 'deliveryPackGenerated'
+    | 'safetyStatus'
+    | 'projectMemoryCount'
+    | 'messageCount'
+    | 'toolCount'
+    | 'validationStale'>
+): number {
+  // 1. 验证覆盖评分 (0-100) - 权重 30%
+  let validationScore = 0
+  if (snapshot.changedFileCount > 0) {
+    // 有文件改动时才需要验证
+    if (snapshot.validationCount === 0) {
+      validationScore = 0 // 缺少验证
+    } else if (snapshot.validationStale) {
+      validationScore = 40 // 验证已过期
+    } else {
+      // 根据验证数量给分，最多3条验证即满分
+      validationScore = Math.min(100, (snapshot.validationCount / 3) * 100)
+    }
+  } else {
+    validationScore = 100 // 无改动不需要验证
+  }
+
+  // 2. 交付包完整性评分 (0-100) - 权重 25%
+  const deliveryPackScore = snapshot.deliveryPackGenerated ? 100 : 0
+
+  // 3. 安全状态评分 (0-100) - 权重 20%
+  const safetyScore = {
+    passed: 100,
+    warning: 60,
+    blocked: 0,
+  }[snapshot.safetyStatus] || 0
+
+  // 4. 项目记忆沉淀评分 (0-100) - 权重 15%
+  // 有意义的会话(messageCount > 5 或 toolCount > 3)才期望有记忆沉淀
+  const hasMeaningfulActivity = snapshot.messageCount > 5 || snapshot.toolCount > 3
+  const memoryScore = hasMeaningfulActivity
+    ? Math.min(100, snapshot.projectMemoryCount * 50) // 每条记忆50分，最多2条满分
+    : 100 // 无意义活动不扣分
+
+  // 5. 改动追踪评分 (0-100) - 权重 10%
+  // 有工具活动就应该有文件改动记录
+  const changeTrackingScore = snapshot.toolCount > 0 && snapshot.changedFileCount === 0
+    ? 40 // 有工具活动但无文件改动，可能遗漏
+    : 100
+
+  // 加权总分
+  const totalScore = Math.round(
+    validationScore * 0.30 +
+    deliveryPackScore * 0.25 +
+    safetyScore * 0.20 +
+    memoryScore * 0.15 +
+    changeTrackingScore * 0.10
+  )
+
+  return Math.max(0, Math.min(100, totalScore))
+}
+
 export interface DeliveryMetricFreshness {
   state: 'empty' | 'fresh' | 'stale'
   meaningfulCount: number
