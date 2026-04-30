@@ -126,7 +126,6 @@ export class OpenAICompatibleAdapter extends BaseProviderAdapter {
       return
     }
 
-    // 添加用户消息
     const userMsg: ConversationMessage = {
       id: `msg-${Date.now()}-user`,
       sessionId,
@@ -135,27 +134,27 @@ export class OpenAICompatibleAdapter extends BaseProviderAdapter {
       timestamp: new Date().toISOString(),
     }
     session.messages.push(userMsg)
-    this.emitEvent(sessionId, 'text_delta', { text: '' }) // 清空
+    this.emitEvent(sessionId, 'text_delta', { text: '' })
     this.emitStatusChange(sessionId, 'running')
 
-    // 构建 OpenAI 格式消息
     const chatMessages: ChatMessage[] = session.messages.map(m => ({
       role: m.role as 'system' | 'user' | 'assistant',
       content: m.content || '',
     }))
 
-    // 获取模型名（从配置或默认）
-    const adapterConfig = (session as any).adapterConfig as AdapterSessionConfig | undefined
+    const adapterConfig = (session as any).adapterConfig
     const model = adapterConfig?.model || config.defaultModel
-
     const abortController = new AbortController()
     this.abortControllers.set(sessionId, abortController)
 
-    try {
-      const baseUrl = config.baseUrl.replace(/\/$/, '')
-      const url = `${baseUrl}/chat/completions`
+    let fullContent = ''
+    let inputTokens = 0
+    let outputTokens = 0
 
-      const headers: Record<string, string> = {
+    try {
+      const url = `${config.baseUrl.replace(/\/$/, '')}/chat/completions`
+
+      const headers = {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${config.apiKey}`,
         ...config.extraHeaders,
@@ -167,22 +166,16 @@ export class OpenAICompatibleAdapter extends BaseProviderAdapter {
         max_tokens: config.maxTokens,
         temperature: config.temperature,
         stream: true,
+        stream_options: { include_usage: true },
       })
 
-      const response = await fetch(url, {
-        method: 'POST',
-        headers,
-        body,
-        signal: abortController.signal,
-      })
+      const response = await fetch(url, { method: 'POST', headers, body, signal: abortController.signal })
 
       if (!response.ok) {
         const errorText = await response.text()
         throw new Error(`API Error ${response.status}: ${errorText}`)
       }
 
-      // 流式读取 SSE
-      let fullContent = ''
       const reader = response.body?.getReader()
       if (!reader) throw new Error('No response body')
 
@@ -209,30 +202,28 @@ export class OpenAICompatibleAdapter extends BaseProviderAdapter {
               fullContent += delta
               this.emitEvent(sessionId, 'text_delta', { text: delta })
             }
-          } catch {
-            // 忽略解析错误
-          }
+            const usage = data.usage
+            if (usage) {
+              inputTokens = usage.prompt_tokens || 0
+              outputTokens = usage.completion_tokens || 0
+            }
+          } catch { /* ignore */ }
         }
       }
 
-      // 添加助手消息
-      const assistantMsg: ConversationMessage = {
+      session.messages.push({
         id: `msg-${Date.now()}-assistant`,
         sessionId,
         role: 'assistant',
         content: fullContent,
         timestamp: new Date().toISOString(),
-      }
-      session.messages.push(assistantMsg)
-
-      this.emitEvent(sessionId, 'turn_complete', {
-        usage: { inputTokens: 0, outputTokens: 0 },
       })
+
+      this.emitEvent(sessionId, 'turn_complete', { usage: { inputTokens, outputTokens } })
       this.emitStatusChange(sessionId, 'idle')
     } catch (err: any) {
       if (err.name === 'AbortError') {
-        // 用户主动中止
-        this.emitEvent(sessionId, 'turn_complete', { usage: { inputTokens: 0, outputTokens: 0 } })
+        this.emitEvent(sessionId, 'turn_complete', { usage: { inputTokens, outputTokens } })
         this.emitStatusChange(sessionId, 'idle')
       } else {
         this.emitEvent(sessionId, 'error', { text: err.message })

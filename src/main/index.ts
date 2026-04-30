@@ -932,7 +932,7 @@ app.whenReady().then(async () => {
         responseHeaders: {
           ...details.responseHeaders,
           'Content-Security-Policy': [
-            "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self' https:; img-src 'self' data: blob:; font-src 'self' data:"
+            "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self' ws: wss: https: http://localhost:*; img-src 'self' data: blob:; font-src 'self' data:"
           ]
         }
       })

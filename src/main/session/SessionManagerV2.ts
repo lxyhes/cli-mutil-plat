@@ -1666,6 +1666,7 @@ export class SessionManagerV2 extends EventEmitter implements MemoryManagedCompo
     if (status === 'completed' || status === 'terminated' || status === 'error') {
       session.endedAt = new Date().toISOString()
       this.clearThinkingState(id)
+      this.clearTextDeltaState(id)
       session.scheduledMessages = []
       session.schedulerAbortInFlight = false
       session.schedulerDispatchInFlight = false

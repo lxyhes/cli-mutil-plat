@@ -19,6 +19,12 @@ interface RunningExecution {
   workflowId: string
   startedAt: number
   paused: boolean
+  steps: WorkflowStep[]        // 用于恢复执行
+  variables: Record<string, any>
+  context: Record<string, any>
+  executedStepIds: Set<string>  // 已完成的步骤 ID，恢复时跳过
+  remainingStepIds: string[]    // 剩余未执行的步骤 ID 列表
+  currentWaveIndex: number      // 当前波次索引
 }
 
 type ConditionTokenType =
@@ -632,6 +638,50 @@ export class WorkflowService extends EventEmitter {
         }
       }
     }
+    // 检测 DAG 循环依赖
+    this.validateDAGNoCycles(steps)
+  }
+
+  /** 检测 DAG 中是否存在环，存在则抛出错误 */
+  private validateDAGNoCycles(steps: WorkflowStep[]): void {
+    const stepMap = new Map(steps.map(s => [s.id, s]))
+    const visited = new Set<string>()
+    const stack = new Set<string>()
+
+    const hasCycle = (id: string): boolean => {
+      if (stack.has(id)) return true
+      if (visited.has(id)) return false
+      const step = stepMap.get(id)
+      if (!step) return false
+
+      stack.add(id)
+      if (step.dependsOn) {
+        for (const depId of step.dependsOn) {
+          if (hasCycle(depId)) {
+            console.error(`[Workflow] Circular dependency detected at step: ${id} -> ${depId}`)
+            return true
+          }
+        }
+      }
+      if (step.type === 'condition') {
+        if (step.trueSteps) for (const sid of step.trueSteps) if (hasCycle(sid)) return true
+        if (step.falseSteps) for (const sid of step.falseSteps) if (hasCycle(sid)) return true
+      }
+      stack.delete(id)
+      visited.add(id)
+      return false
+    }
+
+    for (const step of steps) {
+      if (hasCycle(step.id)) {
+        throw new SpectrAIError({
+          code: ErrorCode.INVALID_INPUT,
+          message: `Workflow DAG contains circular dependencies involving step: ${step.id}`,
+          userMessage: `工作流包含循环依赖，步骤 "${step.name || step.id}" 存在环`,
+          context: { stepId: step.id },
+        })
+      }
+    }
   }
 
   // ── 执行编排 ────────────────────────────────────────────
@@ -642,6 +692,8 @@ export class WorkflowService extends EventEmitter {
 
     const executionId = `wexe-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
     const context = { ...(initialContext || {}), workflowId }
+    const steps: WorkflowStep[] = workflow.steps || []
+    const variables: Record<string, any> = workflow.variables || {}
 
     // 创建执行记录
     this.db.createWorkflowExecution({
@@ -660,6 +712,12 @@ export class WorkflowService extends EventEmitter {
       workflowId,
       startedAt: Date.now(),
       paused: false,
+      steps,
+      variables: variables || {},
+      context,
+      executedStepIds: new Set<string>(),
+      remainingStepIds: steps.map(s => s.id),
+      currentWaveIndex: 0,
     })
 
     sendToRenderer(IPC.WORKFLOW_STATUS, { type: 'workflow-started', executionId, workflowId })
@@ -686,13 +744,14 @@ export class WorkflowService extends EventEmitter {
       // 1. 计算执行波次（拓扑排序分层）
       const waves = this.computeExecutionWaves(steps)
 
-      const executed = new Set<string>()
       let currentContext = { ...context }
       let currentVariables = { ...variables }
       const results: Record<string, string> = {}
 
       // 2. 逐波执行，同一波次内的步骤并行执行
-      for (let waveIdx = 0; waveIdx < waves.length; waveIdx++) {
+      for (let waveIdx = exec.currentWaveIndex; waveIdx < waves.length; waveIdx++) {
+        exec.currentWaveIndex = waveIdx
+
         if (exec.paused) {
           this.db.updateWorkflowExecution(executionId, { status: 'paused' })
           return
@@ -706,8 +765,12 @@ export class WorkflowService extends EventEmitter {
           stepIds: wave.map(s => s.id),
         })
 
-        // 并行执行同一波次的所有步骤
+        // 并行执行同一波次的所有步骤（跳过已完成的步骤）
         const stepPromises = wave.map(async (step) => {
+          if (exec.executedStepIds.has(step.id)) {
+            return { stepId: step.id, output: 'skipped', newContext: {}, newVariables: {} }
+          }
+
           // 条件分支特殊处理
           if (step.type === 'condition') {
             const conditionResult = this.evaluateCondition(
@@ -743,7 +806,7 @@ export class WorkflowService extends EventEmitter {
         for (const result of waveResults) {
           if (result.status === 'fulfilled') {
             const { stepId, output, newContext, newVariables } = result.value
-            executed.add(stepId)
+            exec.executedStepIds.add(stepId)
             results[stepId] = output
             if (newContext) currentContext = { ...currentContext, ...newContext }
             if (newVariables) currentVariables = { ...currentVariables, ...newVariables }
@@ -835,11 +898,13 @@ export class WorkflowService extends EventEmitter {
       queue = nextQueue
     }
 
-    // 如果有节点未被处理（存在环），将剩余节点放入最后一波
+    // 如果有节点未被处理（存在环），抛出错误而非静默执行
     const processedIds = new Set(waves.flat().map(s => s.id))
     const remaining = steps.filter(s => !processedIds.has(s.id))
     if (remaining.length > 0) {
-      waves.push(remaining)
+      throw new Error(
+        `Workflow DAG contains circular dependencies. Unreachable step IDs: ${remaining.map(s => s.id).join(', ')}`
+      )
     }
 
     return waves
@@ -910,6 +975,16 @@ export class WorkflowService extends EventEmitter {
       exec.paused = false
       this.db.updateWorkflowExecution(executionId, { status: 'running' })
       sendToRenderer(IPC.WORKFLOW_STATUS, { type: 'workflow-resumed', executionId })
+
+      // 异步恢复执行，从当前波次和已完成的步骤继续
+      this.runExecution(
+        executionId,
+        exec.steps,
+        exec.variables,
+        exec.context,
+      ).catch(err => {
+        console.error(`[Workflow] Resume execution ${executionId} failed:`, err)
+      })
     }
   }
 }

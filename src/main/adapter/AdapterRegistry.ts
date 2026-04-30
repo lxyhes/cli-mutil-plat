@@ -80,7 +80,7 @@ export class AdapterRegistry {
   private matchType(providerId: string, adapterType: AdapterType): boolean {
     switch (adapterType) {
       case 'claude-sdk':
-        return providerId === 'claude-code' || providerId === 'qwen-coder'
+        return providerId === 'claude-code'
       case 'codex-appserver':
         return providerId === 'codex'
       case 'gemini-headless':
