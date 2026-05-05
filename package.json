@@ -1,7 +1,7 @@
 {
-  "name": "spectrai",
+  "name": "prismops",
   "version": "0.4.6",
-  "description": "PrismOps - Multi-Agent Coding Workspace",
+  "description": "PrismOps - Multi-Agent Coding Workspace (Tauri + Rust)",
   "main": "./out/main/index.js",
   "author": "weibin <bin.wei@steriguard.cn>",
   "license": "MIT",
@@ -26,7 +26,11 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
-    "qa:visual": "node scripts/visual-qa.mjs"
+    "qa:visual": "node scripts/visual-qa.mjs",
+    "tauri:dev": "tauri dev",
+    "tauri:build": "tauri build",
+    "tauri:dev --debug": "tauri dev --debug",
+    "tauri:build --release": "tauri build --release"
   },
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "^0.2.62",
@@ -37,6 +41,7 @@
     "@modelcontextprotocol/sdk": "^1.26.0",
     "@monaco-editor/react": "^4.7.0",
     "@opencode-ai/sdk": "^1.2.15",
+    "@tauri-apps/api": "^2.0.0",
     "@vitejs/plugin-react": "^5.1.4",
     "@xterm/addon-fit": "^0.10.0",
     "@xterm/addon-web-links": "^0.11.0",
@@ -70,7 +75,7 @@
     "zustand": "^4.5.5"
   },
   "build": {
-    "appId": "com.weibin.spectrai",
+    "appId": "com.weibin.prismops",
     "productName": "PrismOps",
     "directories": {
       "output": "release"
@@ -135,6 +140,7 @@
     "@electron-toolkit/preload": "^3.0.1",
     "@electron-toolkit/tsconfig": "^1.0.1",
     "@electron-toolkit/utils": "^3.0.0",
+    "@tauri-apps/cli": "^2.0.0",
     "@types/better-sqlite3": "^7.6.13",
     "@types/diff": "^7.0.2",
     "@types/node": "^20.17.10",
