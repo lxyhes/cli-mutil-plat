@@ -26,9 +26,9 @@ impl PtyManager {
         rows: u16,
     ) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
         let pty_system = native_pty_system();
-        let pair = pty_system.openpty(Some(PtySize { cols, rows, pixel_width: 0, pixel_height: 0 }))?;
+        let pair = pty_system.openpty(PtySize { cols, rows, pixel_width: 0, pixel_height: 0 })?;
 
-        let mut cmd = CommandBuilder::from_argv(shell, &[]);
+        let mut cmd = CommandBuilder::new(shell);
         cmd.cwd(cwd);
 
         let _child = pair.slave.spawn_command(cmd)?;

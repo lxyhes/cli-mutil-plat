@@ -10,7 +10,7 @@ pub struct QueryResult {
 }
 
 #[tauri::command]
-pub fn db_query(sql: String, params: Vec<serde_json::Value>) -> Result<QueryResult, String> {
+pub fn db_query(_sql: String, _params: Vec<serde_json::Value>) -> Result<QueryResult, String> {
     // TODO: Initialize rusqlite connection and execute query
     // This will be implemented in Phase 1 (Database Migration)
     Ok(QueryResult {
@@ -21,7 +21,7 @@ pub fn db_query(sql: String, params: Vec<serde_json::Value>) -> Result<QueryResu
 }
 
 #[tauri::command]
-pub fn db_execute(sql: String, params: Vec<serde_json::Value>) -> Result<QueryResult, String> {
+pub fn db_execute(_sql: String, _params: Vec<serde_json::Value>) -> Result<QueryResult, String> {
     // TODO: Initialize rusqlite connection and execute statement
     Ok(QueryResult {
         success: true,

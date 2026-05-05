@@ -17,7 +17,7 @@ pub fn get_all_tasks() -> Result<Vec<Task>, String> {
 }
 
 #[tauri::command]
-pub fn create_task(title: String, description: Option<String>) -> Result<Task, String> {
+pub fn create_task(title: String, _description: Option<String>) -> Result<Task, String> {
     // TODO: Create task in database
     Ok(Task {
         id: uuid::Uuid::new_v4().to_string(),

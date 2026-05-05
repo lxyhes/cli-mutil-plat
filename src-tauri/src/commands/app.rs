@@ -1,6 +1,6 @@
 //! App commands - window, settings, app info
 
-use tauri::{AppHandle, Manager};
+use tauri::AppHandle;
 
 #[tauri::command]
 pub fn get_app_info() -> serde_json::Value {
@@ -13,7 +13,7 @@ pub fn get_app_info() -> serde_json::Value {
 }
 
 #[tauri::command]
-pub fn get_cwd(app: AppHandle) -> Result<String, String> {
+pub fn get_cwd(_app: AppHandle) -> Result<String, String> {
     std::env::current_dir()
         .map(|p| p.to_string_lossy().to_string())
         .map_err(|e| e.to_string())

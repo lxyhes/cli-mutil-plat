@@ -42,38 +42,11 @@
   },
   "plugins": {
     "shell": {
-      "open": true,
-      "scope": []
-    },
-    "fs": {
-      "scope": {
-        "allow": ["$APPDATA/**", "$LOCALAPPDATA/**", "$HOME/**", "$WORKSPACE/**", "**"],
-        "deny": []
-      }
-    },
-    "dialog": {
-      "all": true
-    },
-    "clipboard-manager": {
-      "all": true
-    },
-    "notification": {
-      "all": true
-    },
-    "global-shortcut": {
-      "all": true
+      "open": true
     },
     "updater": {
       "pubkey": "",
       "endpoints": []
-    },
-    "http": {
-      "scope": {
-        "allow": [
-          { "url": "https://**" },
-          { "url": "http://**" }
-        ]
-      }
     }
   }
 }

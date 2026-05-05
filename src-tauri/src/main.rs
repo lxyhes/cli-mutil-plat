@@ -10,9 +10,8 @@
 static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
 
 use std::panic;
-use tracing::{error, info, Level};
-use tracing_appender::rolling::{RollingFileAppender, Rotation};
-use tracing_subscriber::{fmt, layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
+use tauri::{Emitter, Manager};
+use tracing::{error, info};
 
 fn main() {
     // Set up panic hook for better error reporting
@@ -28,31 +27,7 @@ fn main() {
         eprintln!("[PANIC] {} at {}", message, location);
     }));
 
-    // Get app data directory for logs
-    let log_dir = dirs::data_dir()
-        .unwrap_or_else(|| std::path::PathBuf::from("."))
-        .join("PrismOps")
-        .join("logs");
-
-    // Create log directory if it doesn't exist
-    std::fs::create_dir_all(&log_dir).ok();
-
-    // Set up file logging with rotation
-    let file_appender = RollingFileAppender::new(Rotation::DAILY, log_dir, "prismops.log");
-    let (non_blocking, _guard) = tracing_appender::non_blocking(file_appender);
-
-    // Initialize tracing subscriber
-    let filter = EnvFilter::try_from_default_env()
-        .unwrap_or_else(|_| EnvFilter::new("info,prismops=debug"));
-
-    tracing_subscriber::registry()
-        .with(filter)
-        .with(fmt::layer().with_writer(std::io::stdout).with_ansi(true))
-        .with(fmt::layer().with_writer(non_blocking).with_ansi(false))
-        .init();
-
     info!("PrismOps starting up");
-    info!("Version: {}", env!("CARGO_PKG_VERSION"));
 
     // Build and run Tauri app
     let result = tauri::Builder::default()
@@ -63,14 +38,17 @@ fn main() {
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_os::init())
-        .plugin(tauri_plugin_global_shortcut::init())
+        .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .plugin(tauri_plugin_http::init())
         .plugin(
             tauri_plugin_log::Builder::new()
                 .target(tauri_plugin_log::Target::new(
+                    tauri_plugin_log::TargetKind::Stdout,
+                ))
+                .target(tauri_plugin_log::Target::new(
                     tauri_plugin_log::TargetKind::LogDir { file_name: Some("prismops".into()) },
                 ))
-                .level(Level::INFO)
+                .level(tauri_plugin_log::log::LevelFilter::Info)
                 .build(),
         )
         .plugin(tauri_plugin_updater::Builder::new().build())
@@ -120,7 +98,7 @@ fn setup_tray(app: &tauri::AppHandle) -> Result<(), Box<dyn std::error::Error>> 
     let _tray = TrayIconBuilder::new()
         .tooltip("PrismOps - AI 会话工作台")
         .menu(&menu)
-        .menu_on_left_click(false)
+        .show_menu_on_left_click(false)
         .on_menu_event(|app, event| {
             match event.id.as_ref() {
                 "show" => {
@@ -184,7 +162,7 @@ fn setup_shortcuts(app: &tauri::AppHandle) -> Result<(), Box<dyn std::error::Err
     })?;
 
     let app_handle = app.clone();
-    app.global_shortcut().on_shortcut(view_grid, move |_app, shortcut, event| {
+    app.global_shortcut().on_shortcut(view_grid, move |_app, _shortcut, event| {
         if event.state == tauri_plugin_global_shortcut::ShortcutState::Pressed {
             if let Some(window) = app_handle.get_webview_window("main") {
                 window.emit("shortcut:view-grid", ()).ok();
@@ -193,7 +171,7 @@ fn setup_shortcuts(app: &tauri::AppHandle) -> Result<(), Box<dyn std::error::Err
     })?;
 
     let app_handle = app.clone();
-    app.global_shortcut().on_shortcut(view_tabs, move |_app, shortcut, event| {
+    app.global_shortcut().on_shortcut(view_tabs, move |_app, _shortcut, event| {
         if event.state == tauri_plugin_global_shortcut::ShortcutState::Pressed {
             if let Some(window) = app_handle.get_webview_window("main") {
                 window.emit("shortcut:view-tabs", ()).ok();
@@ -202,18 +180,13 @@ fn setup_shortcuts(app: &tauri::AppHandle) -> Result<(), Box<dyn std::error::Err
     })?;
 
     let app_handle = app.clone();
-    app.global_shortcut().on_shortcut(view_dashboard, move |_app, shortcut, event| {
+    app.global_shortcut().on_shortcut(view_dashboard, move |_app, _shortcut, event| {
         if event.state == tauri_plugin_global_shortcut::ShortcutState::Pressed {
             if let Some(window) = app_handle.get_webview_window("main") {
                 window.emit("shortcut:view-dashboard", ()).ok();
             }
         }
     })?;
-
-    app.global_shortcut().register(new_session)?;
-    app.global_shortcut().register(view_grid)?;
-    app.global_shortcut().register(view_tabs)?;
-    app.global_shortcut().register(view_dashboard)?;
 
     info!("Global shortcuts registered");
     Ok(())

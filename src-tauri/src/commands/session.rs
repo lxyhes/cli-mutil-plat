@@ -34,13 +34,13 @@ pub async fn create_session(config: SessionConfig) -> Result<SessionInfo, String
 }
 
 #[tauri::command]
-pub async fn terminate_session(session_id: String) -> Result<(), String> {
+pub async fn terminate_session(_session_id: String) -> Result<(), String> {
     // TODO: Implement session termination
     Ok(())
 }
 
 #[tauri::command]
-pub async fn send_input(session_id: String, input: String) -> Result<(), String> {
+pub async fn send_input(_session_id: String, _input: String) -> Result<(), String> {
     // TODO: Send input to session
     Ok(())
 }
