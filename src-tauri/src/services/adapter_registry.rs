@@ -35,7 +35,7 @@ pub trait ProviderAdapter: Send + Sync {
 
 pub struct AdapterRegistry {
     /// Registered adapters: provider_id -> adapter
-    adapters: Arc<RwLock<HashMap<String, Box<dyn ProviderAdapter>>>>,
+    adapters: Arc<RwLock<HashMap<String, Arc<dyn ProviderAdapter>>>>,
 }
 
 impl AdapterRegistry {
@@ -46,7 +46,7 @@ impl AdapterRegistry {
     }
 
     /// Register an adapter
-    pub async fn register(&self, adapter: Box<dyn ProviderAdapter>) {
+    pub async fn register(&self, adapter: Arc<dyn ProviderAdapter>) {
         let provider_id = adapter.provider_id().to_string();
         info!("Registered adapter for provider: {} ({})", provider_id, adapter.display_name());
         self.adapters.write().await.insert(provider_id, adapter);

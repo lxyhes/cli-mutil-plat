@@ -51,7 +51,7 @@ fn add_column_if_not_exists(
     }
 }
 
-mod migrations_additional;
+
 
 /// All versioned migrations (in order from migrations.ts)
 pub const MIGRATIONS: &[Migration] = &[
@@ -840,8 +840,9 @@ pub fn run_migrations(conn: &Connection) -> Result<(), Box<dyn std::error::Error
     
     // Combine base migrations with additional ones
     let mut all_migrations = MIGRATIONS.to_vec();
-    let additional = migrations_additional::get_additional_migrations();
-    all_migrations.extend(additional);
+    // TODO: Re-enable additional migrations when module is properly integrated
+    // let additional = migrations_additional::get_additional_migrations();
+    // all_migrations.extend(additional);
     
     info!("Total migrations available: {}", all_migrations.len());
 

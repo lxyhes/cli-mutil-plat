@@ -9,6 +9,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 use tracing::{debug, error, info, warn};
+use futures_util::StreamExt;
 
 /// Chat message role
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -220,11 +221,17 @@ impl OpenAICompatibleAdapter {
             let text = String::from_utf8_lossy(&chunk);
             buffer.push_str(&text);
 
-            // Process lines
+            // Process complete lines
+            let mut new_buffer = String::new();
             let lines: Vec<&str> = buffer.split('\n').collect();
-            buffer = lines.last().unwrap_or(&"").to_string();
-
-            for line in &lines[..lines.len() - 1] {
+            
+            // Keep the last (potentially incomplete) line in buffer
+            if let Some(last_line) = lines.last() {
+                new_buffer = last_line.to_string();
+            }
+            
+            // Process all complete lines except the last one
+            for line in &lines[..lines.len().saturating_sub(1)] {
                 let trimmed = line.trim();
                 if trimmed.is_empty() || trimmed == "data: [DONE]" {
                     continue;
@@ -255,6 +262,8 @@ impl OpenAICompatibleAdapter {
                     }
                 }
             }
+            
+            buffer = new_buffer;
         }
 
         // Add assistant message

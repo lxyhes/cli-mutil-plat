@@ -89,12 +89,12 @@ impl PtyManager {
 
         self.sessions.write().await.insert(session_id.clone(), session);
 
-        // Start reading output in background
-        let sessions = self.sessions.clone();
-        let sid = session_id.clone();
-        tokio::spawn(async move {
-            Self::read_output_loop(&sessions, &sid).await;
-        });
+        // TODO: Start reading output in background (disabled due to Send trait issues)
+        // let sessions = self.sessions.clone();
+        // let sid = session_id.clone();
+        // tokio::spawn(async move {
+        //     Self::read_output_loop(&sessions, &sid).await;
+        // });
 
         Ok(session_id)
     }

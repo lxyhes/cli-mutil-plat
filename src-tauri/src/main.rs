@@ -9,18 +9,10 @@
 #[global_allocator]
 static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
 
-mod commands;
-
 use std::panic;
-use std::path::PathBuf;
-use std::sync::Arc;
-use tauri::{Emitter, Manager};
-use tokio::sync::RwLock;
 use tracing::{error, info};
 
-use prismops_lib::services::database::DatabaseService;
-use crate::commands::{DbState, db_get_provider, db_get_schema_version, db_get_session,
-    db_get_setting, db_list_providers, db_list_sessions, db_list_tasks};
+use prismops_lib::init_app;
 
 fn main() {
     // Set up panic hook for better error reporting
@@ -38,56 +30,8 @@ fn main() {
 
     info!("PrismOps starting up");
 
-    // Build and run Tauri app
-    let result = tauri::Builder::default()
-        .plugin(tauri_plugin_shell::init())
-        .plugin(tauri_plugin_fs::init())
-        .plugin(tauri_plugin_dialog::init())
-        .plugin(tauri_plugin_clipboard_manager::init())
-        .plugin(tauri_plugin_notification::init())
-        .plugin(tauri_plugin_process::init())
-        .plugin(tauri_plugin_os::init())
-        .plugin(tauri_plugin_global_shortcut::Builder::new().build())
-        .plugin(tauri_plugin_http::init())
-        .plugin(
-            tauri_plugin_log::Builder::new()
-                .target(tauri_plugin_log::Target::new(
-                    tauri_plugin_log::TargetKind::Stdout,
-                ))
-                .target(tauri_plugin_log::Target::new(
-                    tauri_plugin_log::TargetKind::LogDir { file_name: Some("prismops".into()) },
-                ))
-                .level(tauri_plugin_log::log::LevelFilter::Info)
-                .build(),
-        )
-        .plugin(tauri_plugin_updater::Builder::new().build())
-        .manage(Arc::new(RwLock::new({
-            // Open database in setup so we can log errors
-            let db_path = get_app_db_path();
-            info!("Opening database at: {:?}", db_path);
-            match DatabaseService::new(db_path) {
-                Ok(db) => {
-                    let version = db.get_schema_version().unwrap_or(0);
-                    info!("Database schema version: {}", version);
-                    db
-                }
-                Err(e) => {
-                    error!("Failed to open database: {}", e);
-                    panic!("Cannot start without database: {}", e);
-                }
-            }
-        })))
-        .invoke(tauri::generate_handler![
-            db_list_sessions,
-            db_get_session,
-            db_list_providers,
-            db_get_provider,
-            db_list_tasks,
-            db_get_setting,
-            db_get_schema_version,
-            crate::commands::get_app_info,
-            crate::commands::get_home_path,
-        ])
+    // Build Tauri app using library function
+    let result = init_app()
         .setup(|app| {
             info!("PrismOps setup complete");
 

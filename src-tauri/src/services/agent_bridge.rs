@@ -226,7 +226,7 @@ impl AgentBridgeService {
                             "type": "registered",
                             "sessionId": session_id
                         });
-                        tx.send(Message::Text(response.to_string()))?;
+                        tx.send(Message::Text(response.to_string().into()))?;
                     }
                 }
                 "file-change" => {
@@ -264,7 +264,7 @@ impl AgentBridgeService {
                         };
 
                         let response_json = serde_json::to_string(&response)?;
-                        tx.send(Message::Text(response_json))?;
+                        tx.send(Message::Text(response_json.into()))?;
                     }
                 }
                 _ => {
