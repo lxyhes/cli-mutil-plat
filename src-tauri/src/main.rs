@@ -82,7 +82,7 @@ fn setup_tray(app: &tauri::AppHandle) -> Result<(), Box<dyn std::error::Error>> 
         .on_menu_event(|app, event| {
             match event.id.as_ref() {
                 "show" => {
-                    if let Some(window) = app.get_webview_window("main") {
+                    if let Some(window) = app.get_window("main") {
                         window.show().ok();
                         window.set_focus().ok();
                     }
@@ -102,7 +102,7 @@ fn setup_tray(app: &tauri::AppHandle) -> Result<(), Box<dyn std::error::Error>> 
             } = event
             {
                 let app = tray.app_handle();
-                if let Some(window) = app.get_webview_window("main") {
+                if let Some(window) = app.get_window("main") {
                     if window.is_visible().unwrap_or(false) {
                         window.hide().ok();
                     } else {
@@ -135,7 +135,7 @@ fn setup_shortcuts(app: &tauri::AppHandle) -> Result<(), Box<dyn std::error::Err
     app.global_shortcut().on_shortcut(new_session, move |_app, shortcut, event| {
         if event.state == tauri_plugin_global_shortcut::ShortcutState::Pressed {
             info!("Global shortcut pressed: {:?}", shortcut);
-            if let Some(window) = app_handle.get_webview_window("main") {
+            if let Some(window) = app_handle.get_window("main") {
                 window.emit("shortcut:new-session", ()).ok();
             }
         }
@@ -144,7 +144,7 @@ fn setup_shortcuts(app: &tauri::AppHandle) -> Result<(), Box<dyn std::error::Err
     let app_handle = app.clone();
     app.global_shortcut().on_shortcut(view_grid, move |_app, _shortcut, event| {
         if event.state == tauri_plugin_global_shortcut::ShortcutState::Pressed {
-            if let Some(window) = app_handle.get_webview_window("main") {
+            if let Some(window) = app_handle.get_window("main") {
                 window.emit("shortcut:view-grid", ()).ok();
             }
         }
@@ -153,7 +153,7 @@ fn setup_shortcuts(app: &tauri::AppHandle) -> Result<(), Box<dyn std::error::Err
     let app_handle = app.clone();
     app.global_shortcut().on_shortcut(view_tabs, move |_app, _shortcut, event| {
         if event.state == tauri_plugin_global_shortcut::ShortcutState::Pressed {
-            if let Some(window) = app_handle.get_webview_window("main") {
+            if let Some(window) = app_handle.get_window("main") {
                 window.emit("shortcut:view-tabs", ()).ok();
             }
         }
@@ -162,7 +162,7 @@ fn setup_shortcuts(app: &tauri::AppHandle) -> Result<(), Box<dyn std::error::Err
     let app_handle = app.clone();
     app.global_shortcut().on_shortcut(view_dashboard, move |_app, _shortcut, event| {
         if event.state == tauri_plugin_global_shortcut::ShortcutState::Pressed {
-            if let Some(window) = app_handle.get_webview_window("main") {
+            if let Some(window) = app_handle.get_window("main") {
                 window.emit("shortcut:view-dashboard", ()).ok();
             }
         }
