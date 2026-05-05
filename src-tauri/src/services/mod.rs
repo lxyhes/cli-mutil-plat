@@ -3,6 +3,8 @@
 //! Rust async equivalents of the 60+ Electron main process services.
 
 pub mod database;
+pub mod migrations;
+mod migrations_additional;
 pub mod session_manager;
 pub mod adapter_registry;
 pub mod agent_bridge;

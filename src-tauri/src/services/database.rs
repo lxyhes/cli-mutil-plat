@@ -5,17 +5,32 @@
 use rusqlite::{params, Connection, Result as SqlResult};
 use std::path::PathBuf;
 use std::sync::Mutex;
+use tracing::{error, info};
+
+mod migrations;
 
 pub struct DatabaseService {
     conn: Mutex<Connection>,
 }
 
 impl DatabaseService {
-    pub fn new(db_path: PathBuf) -> SqlResult<Self> {
+    pub fn new(db_path: PathBuf) -> Result<Self, Box<dyn std::error::Error>> {
+        // Ensure parent directory exists
+        if let Some(parent) = db_path.parent() {
+            std::fs::create_dir_all(parent)?;
+        }
+
         let conn = Connection::open(&db_path)?;
         conn.execute_batch(
             "PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 5000;",
         )?;
+
+        // Initialize schema version table
+        migrations::ensure_schema_version_table(&conn)?;
+
+        // Run all pending migrations
+        migrations::run_migrations(&conn)?;
+
         Ok(Self {
             conn: Mutex::new(conn),
         })
