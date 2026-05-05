@@ -9,9 +9,18 @@
 #[global_allocator]
 static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
 
+mod commands;
+
 use std::panic;
+use std::path::PathBuf;
+use std::sync::Arc;
 use tauri::{Emitter, Manager};
+use tokio::sync::RwLock;
 use tracing::{error, info};
+
+use prismops_lib::services::database::DatabaseService;
+use crate::commands::{DbState, db_get_provider, db_get_schema_version, db_get_session,
+    db_get_setting, db_list_providers, db_list_sessions, db_list_tasks};
 
 fn main() {
     // Set up panic hook for better error reporting
@@ -52,6 +61,33 @@ fn main() {
                 .build(),
         )
         .plugin(tauri_plugin_updater::Builder::new().build())
+        .manage(Arc::new(RwLock::new({
+            // Open database in setup so we can log errors
+            let db_path = get_app_db_path();
+            info!("Opening database at: {:?}", db_path);
+            match DatabaseService::new(db_path) {
+                Ok(db) => {
+                    let version = db.get_schema_version().unwrap_or(0);
+                    info!("Database schema version: {}", version);
+                    db
+                }
+                Err(e) => {
+                    error!("Failed to open database: {}", e);
+                    panic!("Cannot start without database: {}", e);
+                }
+            }
+        })))
+        .invoke(tauri::generate_handler![
+            db_list_sessions,
+            db_get_session,
+            db_list_providers,
+            db_get_provider,
+            db_list_tasks,
+            db_get_setting,
+            db_get_schema_version,
+            crate::commands::get_app_info,
+            crate::commands::get_home_path,
+        ])
         .setup(|app| {
             info!("PrismOps setup complete");
 
@@ -190,4 +226,14 @@ fn setup_shortcuts(app: &tauri::AppHandle) -> Result<(), Box<dyn std::error::Err
 
     info!("Global shortcuts registered");
     Ok(())
+}
+
+/// Returns the path to the PrismOps/SpectrAI SQLite database file.
+/// Uses SpectrAI's path for Phase 1 to share the existing database.
+fn get_app_db_path() -> PathBuf {
+    let app_data = dirs::data_dir().unwrap_or_else(|| PathBuf::from("."));
+    // Phase 1: share the SpectrAI database to avoid migration complexity
+    let spectr_dir = app_data.join("spectrai");
+    std::fs::create_dir_all(&spectr_dir).ok();
+    spectr_dir.join("claudeops.db")
 }
