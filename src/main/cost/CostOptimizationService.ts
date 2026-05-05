@@ -11,7 +11,7 @@
 
 import { EventEmitter } from 'events'
 import type { AIProvider } from '../../shared/types'
-import type { DatabaseManager } from '../storage/DatabaseManager'
+import type { DatabaseManager } from '../storage/Database'
 import type { CostService, PricingTier } from '../cost/CostService'
 import type { ProviderHealthService } from '../provider/ProviderHealthService'
 
@@ -196,7 +196,7 @@ export class CostOptimizationService extends EventEmitter {
    * 检查预算状态并发出告警
    */
   checkBudgetStatus(): BudgetAlert | null {
-    const budget = this.costService.getBudget()
+    const budget = this.costService.getBudgetConfig()
     if (!budget || !budget.dailyLimit) return null
 
     const today = new Date().toISOString().slice(0, 10)
@@ -266,13 +266,13 @@ export class CostOptimizationService extends EventEmitter {
   }> {
     const providers = this.db.getAllProviders()
     const efficiencies = await Promise.all(
-      providers.map(p => this.calculateCostEfficiency(p))
+      providers.map((p: AIProvider) => this.calculateCostEfficiency(p))
     )
 
-    const sorted = efficiencies.sort((a, b) => b.costScore - a.costScore)
+    const sorted = efficiencies.sort((a: ProviderCostEfficiency, b: ProviderCostEfficiency) => b.costScore - a.costScore)
 
-    const totalCost = sorted.reduce((sum, e) => sum + this.getProviderTotalCost(e.providerId, days), 0)
-    const totalTokens = sorted.reduce((sum, e) => sum + this.getProviderTotalTokens(e.providerId, days), 0)
+    const totalCost = sorted.reduce((sum: number, e: ProviderCostEfficiency) => sum + this.getProviderTotalCost(e.providerId, days), 0)
+    const totalTokens = sorted.reduce((sum: number, e: ProviderCostEfficiency) => sum + this.getProviderTotalTokens(e.providerId, days), 0)
     const averageCostPerToken = totalTokens > 0 ? totalCost / totalTokens : 0
 
     // 生成建议
@@ -308,9 +308,9 @@ export class CostOptimizationService extends EventEmitter {
   async getAllEfficiencies(): Promise<ProviderCostEfficiency[]> {
     const providers = this.db.getAllProviders()
     const efficiencies = await Promise.all(
-      providers.map(p => this.calculateCostEfficiency(p))
+      providers.map((p: AIProvider) => this.calculateCostEfficiency(p))
     )
-    return efficiencies.sort((a, b) => b.costScore - a.costScore)
+    return efficiencies.sort((a: ProviderCostEfficiency, b: ProviderCostEfficiency) => b.costScore - a.costScore)
   }
 
   // ==================== 私有方法 ====================
@@ -504,7 +504,7 @@ export class CostOptimizationService extends EventEmitter {
    */
   private getAvailableProviders(): AIProvider[] {
     const allProviders = this.db.getAllProviders()
-    return allProviders.filter(p => {
+    return allProviders.filter((p: AIProvider) => {
       const health = this.healthService.getHealthStatus(p.id)
       return health && health.status !== 'unhealthy'
     })
@@ -646,7 +646,7 @@ export class CostOptimizationService extends EventEmitter {
     }
 
     // 建议3: 预算告警
-    const budget = this.costService.getBudget()
+    const budget = this.costService.getBudgetConfig()
     if (budget && budget.dailyLimit) {
       const today = new Date().toISOString().slice(0, 10)
       const used = this.dailyBudgetUsed.get(today) || 0
@@ -681,7 +681,7 @@ export class CostOptimizationService extends EventEmitter {
       const startDateStr = startDate.toISOString().slice(0, 10)
 
       // 从 cost_daily_detail 表查询
-      const rows = this.costService.getRawDb().prepare(`
+      const rows = this.costService.getRawDatabase().prepare(`
         SELECT SUM(input_tokens) as inputTokens, SUM(output_tokens) as outputTokens
         FROM cost_daily_detail
         WHERE provider_id = ? AND date >= ?
@@ -725,7 +725,7 @@ export class CostOptimizationService extends EventEmitter {
    * 格式化货币
    */
   private formatCurrency(amount: number): string {
-    const budget = this.costService.getBudget()
+    const budget = this.costService.getBudgetConfig()
     const currency = budget?.currency || 'USD'
     const rate = budget?.cnyRate || 1
 

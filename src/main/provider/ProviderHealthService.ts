@@ -10,7 +10,7 @@
 
 import { EventEmitter } from 'events'
 import type { AIProvider } from '../../shared/types'
-import type { DatabaseManager } from '../storage/DatabaseManager'
+import type { DatabaseManager } from '../storage/Database'
 import type { AdapterRegistry } from '../adapter/AdapterRegistry'
 
 export interface ProviderHealthStatus {
@@ -74,7 +74,7 @@ export class ProviderHealthService extends EventEmitter {
     }
 
     const providers = this.db.getAllProviders()
-    providers.forEach(provider => {
+    providers.forEach((provider: AIProvider) => {
       this.startHealthCheck(provider)
     })
 
@@ -131,7 +131,7 @@ export class ProviderHealthService extends EventEmitter {
         isHealthy = await adapter.isReady()
       } else {
         // Fallback: 检查是否有基本的配置
-        isHealthy = !!provider.command || !!provider.apiKey
+        isHealthy = !!provider.command
       }
 
       responseTimeMs = Date.now() - startTime
@@ -279,7 +279,7 @@ export class ProviderHealthService extends EventEmitter {
         .map(([id]) => id)
     )
 
-    return this.db.getAllProviders().filter(p => healthyProviderIds.has(p.id))
+    return this.db.getAllProviders().filter((p: AIProvider) => healthyProviderIds.has(p.id))
   }
 
   /**

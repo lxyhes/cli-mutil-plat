@@ -191,8 +191,8 @@ export class CostService {
     }
   }
 
-  /** 根据 providerId 获取定价 */
-  private getPricingForProvider(providerId: string): PricingTier | undefined {
+  /** 根据 providerId 获取定价（公开方法，供 CostOptimizationService 使用） */
+  getPricingForProvider(providerId: string): PricingTier | undefined {
     // 精确匹配
     let p = this.pricing.find(t => t.providerId === providerId)
     if (p) return p
@@ -414,6 +414,15 @@ export class CostService {
 
   /** 获取/更新定价 */
   getPricing(): PricingTier[] { return [...this.pricing] }
+
+  getRawDatabase(): any {
+    return this.rawDb
+  }
+
+  // 同步获取预算配置（使用缓存值）
+  getBudgetConfig(): BudgetConfig | undefined {
+    return this.budget
+  }
 
   updatePricing(tiers: PricingTier[]): void {
     this.pricing = [...tiers]

@@ -3,11 +3,11 @@
  */
 
 import { ipcMain } from 'electron'
-import type { DatabaseManager } from '../storage/DatabaseManager'
+import type { DatabaseManager } from '../storage/Database'
 import type { CostService } from '../cost/CostService'
 import type { ProviderHealthService } from '../provider/ProviderHealthService'
 import { CostOptimizationService } from '../cost/CostOptimizationService'
-import * as IPC from '../../shared/constants'
+import { IPC } from '../../shared/constants'
 
 let costOptimizationService: CostOptimizationService | undefined = undefined
 

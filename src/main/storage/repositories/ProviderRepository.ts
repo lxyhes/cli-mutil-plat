@@ -7,10 +7,19 @@ import { BUILTIN_PROVIDERS } from '../../../shared/types'
 export class ProviderRepository {
   constructor(private db: any, private usingSqlite: boolean) {}
 
+  private hasColumn(table: string, column: string): boolean {
+    const cols = this.db.prepare(`PRAGMA table_info('${table}')`).all() as any[]
+    return cols.some((c: any) => c.name === column)
+  }
+
   getAllProviders(): AIProvider[] {
     if (this.usingSqlite) {
       try {
-        const rows = this.db.prepare('SELECT * FROM ai_providers ORDER BY is_pinned DESC, sort_order ASC, created_at ASC').all() as any[]
+        const hasPinned = this.hasColumn('ai_providers', 'is_pinned')
+        const orderBy = hasPinned
+          ? 'ORDER BY is_pinned DESC, sort_order ASC, created_at ASC'
+          : 'ORDER BY sort_order ASC, created_at ASC'
+        const rows = this.db.prepare(`SELECT * FROM ai_providers ${orderBy}`).all() as any[]
         const seenIds = new Set<string>()
         const results: AIProvider[] = rows.map((row: any) => {
           const mapped = this.mapProvider(row)

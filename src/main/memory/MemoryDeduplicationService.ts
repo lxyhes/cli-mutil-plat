@@ -416,7 +416,7 @@ export class MemoryDeduplicationService extends EventEmitter {
         
         candidates.push({
           originalId: existing.id,
-          duplicateId: newMemory.id,
+          duplicateId: 'id' in newMemory ? newMemory.id : newMemory.sessionId,
           similarity,
           recommendation,
           reason,

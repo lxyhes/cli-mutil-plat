@@ -1602,8 +1602,12 @@ app.on('before-quit', () => {
   codeContextInjectionService?.cleanup()
 
   // ★ 清理 Provider 健康检查服务
-  const { cleanupProviderHealth } = await import('./ipc/providerHealthHandlers')
-  cleanupProviderHealth()
+  try {
+    const { cleanupProviderHealth } = require('./ipc/providerHealthHandlers')
+    cleanupProviderHealth()
+  } catch (_err) {
+    // 忽略清理错误
+  }
 
   // ★ 清理 Memory Deduplication Service
   if (memoryDedupService) {

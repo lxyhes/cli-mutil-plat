@@ -3,11 +3,10 @@
  */
 
 import { ipcMain } from 'electron'
-import type { DatabaseManager } from '../storage/DatabaseManager'
+import type { DatabaseManager } from '../storage/Database'
 import type { AdapterRegistry } from '../adapter/AdapterRegistry'
 import { ProviderHealthService } from '../provider/ProviderHealthService'
-import { createSuccessResponse, createErrorResponse } from './utils'
-import * as IPC from '../../shared/constants'
+import { IPC } from '../../shared/constants'
 
 let healthService: ProviderHealthService | null = null
 
@@ -28,9 +27,9 @@ export function setupProviderHealthHandlers(
   ipcMain.handle(IPC.PROVIDER_HEALTH_START, async () => {
     try {
       healthService?.start()
-      return createSuccessResponse({ started: true })
+      return { success: true, started: true }
     } catch (error: any) {
-      return createErrorResponse(error, { operation: 'providerHealth.start' })
+      return { success: false, error: error.message }
     }
   })
 
@@ -38,9 +37,9 @@ export function setupProviderHealthHandlers(
   ipcMain.handle(IPC.PROVIDER_HEALTH_STOP, async () => {
     try {
       healthService?.stop()
-      return createSuccessResponse({ stopped: true })
+      return { success: true, stopped: true }
     } catch (error: any) {
-      return createErrorResponse(error, { operation: 'providerHealth.stop' })
+      return { success: false, error: error.message }
     }
   })
 
@@ -48,9 +47,9 @@ export function setupProviderHealthHandlers(
   ipcMain.handle(IPC.PROVIDER_HEALTH_GET_ALL, async () => {
     try {
       const statuses = healthService?.getAllHealthStatuses() || []
-      return createSuccessResponse({ statuses })
+      return { success: true, statuses }
     } catch (error: any) {
-      return createErrorResponse(error, { operation: 'providerHealth.getAll' })
+      return { success: false, error: error.message }
     }
   })
 
@@ -58,9 +57,9 @@ export function setupProviderHealthHandlers(
   ipcMain.handle(IPC.PROVIDER_HEALTH_GET_STATUS, async (_event, providerId: string) => {
     try {
       const status = healthService?.getHealthStatus(providerId)
-      return createSuccessResponse({ status })
+      return { success: true, status }
     } catch (error: any) {
-      return createErrorResponse(error, { operation: 'providerHealth.getStatus' })
+      return { success: false, error: error.message }
     }
   })
 
@@ -68,9 +67,9 @@ export function setupProviderHealthHandlers(
   ipcMain.handle(IPC.PROVIDER_HEALTH_GET_HEALTHY, async () => {
     try {
       const providers = healthService?.getHealthyProviders() || []
-      return createSuccessResponse({ providers })
+      return { success: true, providers }
     } catch (error: any) {
-      return createErrorResponse(error, { operation: 'providerHealth.getHealthy' })
+      return { success: false, error: error.message }
     }
   })
 
@@ -78,9 +77,9 @@ export function setupProviderHealthHandlers(
   ipcMain.handle(IPC.PROVIDER_HEALTH_GET_RECOMMENDED, async (_event, preferredProviderId?: string) => {
     try {
       const provider = healthService?.getRecommendedProvider(preferredProviderId)
-      return createSuccessResponse({ provider })
+      return { success: true, provider }
     } catch (error: any) {
-      return createErrorResponse(error, { operation: 'providerHealth.getRecommended' })
+      return { success: false, error: error.message }
     }
   })
 
@@ -88,9 +87,9 @@ export function setupProviderHealthHandlers(
   ipcMain.handle(IPC.PROVIDER_HEALTH_CHECK_MANUAL, async (_event, providerId: string) => {
     try {
       const result = await healthService?.triggerManualCheck(providerId)
-      return createSuccessResponse({ result })
+      return { success: true, result }
     } catch (error: any) {
-      return createErrorResponse(error, { operation: 'providerHealth.checkManual' })
+      return { success: false, error: error.message }
     }
   })
 
@@ -104,9 +103,9 @@ export function setupProviderHealthHandlers(
   }) => {
     try {
       healthService?.updateConfig(config)
-      return createSuccessResponse({ config: healthService?.getConfig() })
+      return { success: true, config: healthService?.getConfig() }
     } catch (error: any) {
-      return createErrorResponse(error, { operation: 'providerHealth.updateConfig' })
+      return { success: false, error: error.message }
     }
   })
 
@@ -114,9 +113,9 @@ export function setupProviderHealthHandlers(
   ipcMain.handle(IPC.PROVIDER_HEALTH_GET_CONFIG, async () => {
     try {
       const config = healthService?.getConfig()
-      return createSuccessResponse({ config })
+      return { success: true, config }
     } catch (error: any) {
-      return createErrorResponse(error, { operation: 'providerHealth.getConfig' })
+      return { success: false, error: error.message }
     }
   })
 
