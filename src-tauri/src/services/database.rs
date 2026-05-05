@@ -122,6 +122,68 @@ impl DatabaseService {
         )
     }
 
+    /// Create a new session
+    pub fn create_session(
+        &self,
+        id: &str,
+        name: &str,
+        status: &str,
+        provider_id: Option<&str>,
+        config: Option<&str>,
+    ) -> SqlResult<()> {
+        self.execute_params(
+            "INSERT INTO sessions (id, name, status, provider_id, config, started_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, datetime('now'))",
+            &[&id, &name, &status, &provider_id, &config],
+        )?;
+        Ok(())
+    }
+
+    /// Update session status
+    pub fn update_session_status(&self, id: &str, status: &str) -> SqlResult<()> {
+        self.execute_params(
+            "UPDATE sessions SET status = ?1, updated_at = datetime('now') WHERE id = ?2",
+            &[&status, &id],
+        )?;
+        Ok(())
+    }
+
+    /// Update session ended_at
+    pub fn end_session(&self, id: &str) -> SqlResult<()> {
+        self.execute_params(
+            "UPDATE sessions SET status = 'completed', ended_at = datetime('now'), updated_at = datetime('now') WHERE id = ?1",
+            &[&id],
+        )?;
+        Ok(())
+    }
+
+    /// Pin/unpin a session
+    pub fn set_session_pinned(&self, id: &str, pinned: bool) -> SqlResult<()> {
+        self.execute_params(
+            "UPDATE sessions SET is_pinned = ?1, updated_at = datetime('now') WHERE id = ?2",
+            &[&(pinned as i32), &id],
+        )?;
+        Ok(())
+    }
+
+    /// Rename a session
+    pub fn rename_session(&self, id: &str, name: &str) -> SqlResult<()> {
+        self.execute_params(
+            "UPDATE sessions SET name = ?1, updated_at = datetime('now') WHERE id = ?2",
+            &[&name, &id],
+        )?;
+        Ok(())
+    }
+
+    /// Delete a session
+    pub fn delete_session(&self, id: &str) -> SqlResult<()> {
+        self.execute_params(
+            "DELETE FROM sessions WHERE id = ?1",
+            &[&id],
+        )?;
+        Ok(())
+    }
+
     // ─── Provider Repository ─────────────────────────────────────────────────
 
     pub fn list_providers(&self) -> SqlResult<Vec<ProviderRow>> {
@@ -183,6 +245,122 @@ impl DatabaseService {
         )
     }
 
+    /// Add a new provider
+    pub fn add_provider(
+        &self,
+        id: &str,
+        name: &str,
+        command: &str,
+        is_builtin: bool,
+        icon: Option<&str>,
+        api_base_url: Option<&str>,
+        api_key: Option<&str>,
+        default_model: Option<&str>,
+        adapter_type: Option<&str>,
+        category: Option<&str>,
+    ) -> SqlResult<()> {
+        self.execute_params(
+            "INSERT INTO ai_providers (
+                id, name, command, is_builtin, icon, api_base_url, api_key,
+                default_model, adapter_type, is_pinned, category, sort_order,
+                created_at, updated_at
+            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, 0, ?10, 0, datetime('now'), datetime('now'))",
+            &[
+                &id, &name, &command, &(is_builtin as i32), &icon,
+                &api_base_url, &api_key, &default_model, &adapter_type, &category,
+            ],
+        )?;
+        Ok(())
+    }
+
+    /// Update provider
+    pub fn update_provider(
+        &self,
+        id: &str,
+        name: Option<&str>,
+        command: Option<&str>,
+        api_base_url: Option<&str>,
+        api_key: Option<&str>,
+        default_model: Option<&str>,
+        icon: Option<&str>,
+        category: Option<&str>,
+    ) -> SqlResult<()> {
+        // Build dynamic UPDATE query based on provided fields
+        let mut updates = Vec::new();
+        let mut params: Vec<&dyn rusqlite::ToSql> = Vec::new();
+
+        if let Some(name) = name {
+            updates.push("name = ?");
+            params.push(name);
+        }
+        if let Some(command) = command {
+            updates.push("command = ?");
+            params.push(command);
+        }
+        if let Some(api_base_url) = api_base_url {
+            updates.push("api_base_url = ?");
+            params.push(api_base_url);
+        }
+        if let Some(api_key) = api_key {
+            updates.push("api_key = ?");
+            params.push(api_key);
+        }
+        if let Some(default_model) = default_model {
+            updates.push("default_model = ?");
+            params.push(default_model);
+        }
+        if let Some(icon) = icon {
+            updates.push("icon = ?");
+            params.push(icon);
+        }
+        if let Some(category) = category {
+            updates.push("category = ?");
+            params.push(category);
+        }
+
+        if updates.is_empty() {
+            return Ok(()); // Nothing to update
+        }
+
+        updates.push("updated_at = datetime('now')");
+        params.push(id);
+
+        let sql = format!(
+            "UPDATE ai_providers SET {} WHERE id = ?",
+            updates.join(", ")
+        );
+
+        self.execute_params(&sql, &params)?;
+        Ok(())
+    }
+
+    /// Delete a provider
+    pub fn delete_provider(&self, id: &str) -> SqlResult<()> {
+        self.execute_params(
+            "DELETE FROM ai_providers WHERE id = ?1 AND is_builtin = 0",
+            &[&id],
+        )?;
+        Ok(())
+    }
+
+    /// Pin/unpin a provider
+    pub fn set_provider_pinned(&self, id: &str, pinned: bool) -> SqlResult<()> {
+        self.execute_params(
+            "UPDATE ai_providers SET is_pinned = ?1, updated_at = datetime('now') WHERE id = ?2",
+            &[&(pinned as i32), &id],
+        )?;
+        Ok(())
+    }
+
+    /// Update provider sort order
+    pub fn update_provider_sort_order(&self, id: &str, sort_order: i32) -> SqlResult<()> {
+        self.execute_params(
+            "UPDATE ai_providers SET sort_order = ?1, updated_at = datetime('now') WHERE id = ?2",
+            &[&sort_order, &id],
+        )?;
+        Ok(())
+    }
+
     // ─── Conversation Repository ─────────────────────────────────────────────
 
     pub fn list_conversations(&self, session_id: &str, limit: i64) -> SqlResult<Vec<ConversationRow>> {
@@ -207,6 +385,65 @@ impl DatabaseService {
                 Ok(result)
             },
         )
+    }
+
+    /// Insert a conversation message
+    pub fn insert_conversation(
+        &self,
+        id: &str,
+        session_id: &str,
+        role: &str,
+        content: &str,
+        message_type: Option<&str>,
+        tool_name: Option<&str>,
+        tool_input: Option<&str>,
+        tool_result: Option<&str>,
+        is_error: bool,
+        thinking_text: Option<&str>,
+        usage_input_tokens: Option<i32>,
+        usage_output_tokens: Option<i32>,
+    ) -> SqlResult<()> {
+        self.execute_params(
+            "INSERT INTO conversation_messages (
+                id, session_id, role, type, content, timestamp,
+                tool_name, tool_input, tool_result, is_error,
+                thinking_text, usage_input_tokens, usage_output_tokens
+            ) VALUES (?1, ?2, ?3, COALESCE(?4, 'text'), ?5, datetime('now'),
+                      ?6, ?7, ?8, ?9, ?10, ?11, ?12)",
+            &[
+                &id, &session_id, &role, &message_type, &content,
+                &tool_name, &tool_input, &tool_result, &(is_error as i32),
+                &thinking_text, &usage_input_tokens, &usage_output_tokens,
+            ],
+        )?;
+        Ok(())
+    }
+
+    /// Update a conversation message
+    pub fn update_conversation(&self, id: &str, content: &str) -> SqlResult<()> {
+        self.execute_params(
+            "UPDATE conversation_messages SET content = ?1 WHERE id = ?2",
+            &[&content, &id],
+        )?;
+        Ok(())
+    }
+
+    /// Delete a conversation message
+    pub fn delete_conversation(&self, id: &str) -> SqlResult<()> {
+        self.execute_params(
+            "DELETE FROM conversation_messages WHERE id = ?1",
+            &[&id],
+        )?;
+        Ok(())
+    }
+
+    /// Clear all conversations for a session
+    pub fn clear_session_conversations(&self, session_id: &str) -> SqlResult<()> {
+        self.execute_params(
+            "DELETE FROM conversation_messages WHERE session_id = ?1",
+            &[&session_id],
+        )?;
+        Ok(())
     }
 
     // ─── Task Repository ────────────────────────────────────────────────────
@@ -249,6 +486,79 @@ impl DatabaseService {
                 }
             },
         )
+    }
+
+    /// Set a setting value (insert or update)
+    pub fn set_setting(&self, key: &str, value: &str) -> SqlResult<()> {
+        self.execute_params(
+            "INSERT INTO app_settings (key, value, updated_at)
+             VALUES (?1, ?2, datetime('now'))
+             ON CONFLICT(key) DO UPDATE SET value = ?2, updated_at = datetime('now')",
+            &[&key, &value],
+        )?;
+        Ok(())
+    }
+
+    /// Delete a setting
+    pub fn delete_setting(&self, key: &str) -> SqlResult<()> {
+        self.execute_params(
+            "DELETE FROM app_settings WHERE key = ?1",
+            &[&key],
+        )?;
+        Ok(())
+    }
+
+    // ─── Task Repository Write Operations ────────────────────────────────────
+
+    /// Create a new task
+    pub fn create_task(
+        &self,
+        id: &str,
+        title: &str,
+        status: &str,
+        priority: Option<i32>,
+        workspace_id: Option<&str>,
+    ) -> SqlResult<()> {
+        self.execute_params(
+            "INSERT INTO tasks (id, title, status, priority, workspace_id, created_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, datetime('now'))",
+            &[&id, &title, &status, &priority, &workspace_id],
+        )?;
+        Ok(())
+    }
+
+    /// Update task status
+    pub fn update_task_status(&self, id: &str, status: &str) -> SqlResult<()> {
+        self.execute_params(
+            "UPDATE tasks SET status = ?1 WHERE id = ?2",
+            &[&status, &id],
+        )?;
+        Ok(())
+    }
+
+    /// Delete a task
+    pub fn delete_task(&self, id: &str) -> SqlResult<()> {
+        self.execute_params(
+            "DELETE FROM tasks WHERE id = ?1",
+            &[&id],
+        )?;
+        Ok(())
+    }
+
+    // ─── Transaction Support ────────────────────────────────────────────────
+
+    /// Execute multiple operations in a transaction
+    pub fn transaction<F, T>(&self, f: F) -> Result<T, Box<dyn std::error::Error>>
+    where
+        F: FnOnce(&Connection) -> Result<T, Box<dyn std::error::Error>>,
+    {
+        let conn = self.conn.lock().unwrap();
+        let tx = conn.unchecked_transaction()?;
+        
+        let result = f(&tx)?;
+        
+        tx.commit()?;
+        Ok(result)
     }
 
     // ─── Schema Info ───────────────────────────────────────────────────────

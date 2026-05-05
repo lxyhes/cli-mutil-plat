@@ -5,6 +5,8 @@
 pub mod database;
 pub mod migrations;
 mod migrations_additional;
+pub mod pty;
+pub mod ansi_parser;
 pub mod session_manager;
 pub mod adapter_registry;
 pub mod agent_bridge;
