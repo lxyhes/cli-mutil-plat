@@ -4,9 +4,9 @@
 //! Each adapter handles communication with a specific AI provider.
 
 pub mod openai_compatible;
+pub mod claude_sidecar;
 
 // Future adapters to implement:
-// pub mod claude_sidecar;
 // pub mod codex_appserver;
 // pub mod gemini_headless;
 // pub mod qwen_acp;
