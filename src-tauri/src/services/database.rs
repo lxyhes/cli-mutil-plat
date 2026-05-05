@@ -7,7 +7,7 @@ use std::path::PathBuf;
 use std::sync::Mutex;
 use tracing::{error, info};
 
-mod migrations;
+use crate::services::migrations;
 
 pub struct DatabaseService {
     conn: Mutex<Connection>,
@@ -274,6 +274,7 @@ impl DatabaseService {
     }
 
     /// Update provider
+    /// TODO: Fix lifetime issues with dynamic SQL building
     pub fn update_provider(
         &self,
         id: &str,
@@ -285,52 +286,50 @@ impl DatabaseService {
         icon: Option<&str>,
         category: Option<&str>,
     ) -> SqlResult<()> {
-        // Build dynamic UPDATE query based on provided fields
-        let mut updates = Vec::new();
-        let mut params: Vec<&dyn rusqlite::ToSql> = Vec::new();
-
+        // Temporary implementation: use individual UPDATE statements
         if let Some(name) = name {
-            updates.push("name = ?");
-            params.push(name);
+            self.execute_params(
+                "UPDATE ai_providers SET name = ?1, updated_at = datetime('now') WHERE id = ?2",
+                &[&name, &id],
+            )?;
         }
         if let Some(command) = command {
-            updates.push("command = ?");
-            params.push(command);
+            self.execute_params(
+                "UPDATE ai_providers SET command = ?1, updated_at = datetime('now') WHERE id = ?2",
+                &[&command, &id],
+            )?;
         }
         if let Some(api_base_url) = api_base_url {
-            updates.push("api_base_url = ?");
-            params.push(api_base_url);
+            self.execute_params(
+                "UPDATE ai_providers SET api_base_url = ?1, updated_at = datetime('now') WHERE id = ?2",
+                &[&api_base_url, &id],
+            )?;
         }
         if let Some(api_key) = api_key {
-            updates.push("api_key = ?");
-            params.push(api_key);
+            self.execute_params(
+                "UPDATE ai_providers SET api_key = ?1, updated_at = datetime('now') WHERE id = ?2",
+                &[&api_key, &id],
+            )?;
         }
         if let Some(default_model) = default_model {
-            updates.push("default_model = ?");
-            params.push(default_model);
+            self.execute_params(
+                "UPDATE ai_providers SET default_model = ?1, updated_at = datetime('now') WHERE id = ?2",
+                &[&default_model, &id],
+            )?;
         }
         if let Some(icon) = icon {
-            updates.push("icon = ?");
-            params.push(icon);
+            self.execute_params(
+                "UPDATE ai_providers SET icon = ?1, updated_at = datetime('now') WHERE id = ?2",
+                &[&icon, &id],
+            )?;
         }
         if let Some(category) = category {
-            updates.push("category = ?");
-            params.push(category);
+            self.execute_params(
+                "UPDATE ai_providers SET category = ?1, updated_at = datetime('now') WHERE id = ?2",
+                &[&category, &id],
+            )?;
         }
 
-        if updates.is_empty() {
-            return Ok(()); // Nothing to update
-        }
-
-        updates.push("updated_at = datetime('now')");
-        params.push(id);
-
-        let sql = format!(
-            "UPDATE ai_providers SET {} WHERE id = ?",
-            updates.join(", ")
-        );
-
-        self.execute_params(&sql, &params)?;
         Ok(())
     }
 

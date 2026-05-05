@@ -6,6 +6,7 @@ use rusqlite::{Connection, Result as SqlResult};
 use tracing::{info, warn};
 
 /// A single database migration
+#[derive(Clone)]
 pub struct Migration {
     pub version: i64,
     pub description: &'static str,

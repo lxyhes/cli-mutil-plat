@@ -77,7 +77,7 @@ impl PtyManager {
         info!("Created PTY session {} with shell {} in {}", session_id, shell, cwd);
 
         // Create output channel
-        let (tx, mut rx) = mpsc::channel::<String>(100);
+        let (tx, _rx) = mpsc::channel::<String>(100);
 
         // Store session
         let session = PtySession {
@@ -129,7 +129,7 @@ impl PtyManager {
                         let data = String::from_utf8_lossy(&buf[..n]).to_string();
                         
                         // Process through ANSI parser
-                        let events = {
+                        let _events = {
                             let mut sessions_write = sessions.write().await;
                             if let Some(session) = sessions_write.get_mut(session_id) {
                                 let events = session.parser.parse_str(&data);

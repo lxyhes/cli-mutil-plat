@@ -4,7 +4,6 @@
 
 pub mod database;
 pub mod migrations;
-mod migrations_additional;
 pub mod pty;
 pub mod ansi_parser;
 pub mod agent_bridge;
@@ -46,5 +45,4 @@ pub mod summary;
 pub mod evaluation;
 pub mod reference_project;
 pub mod mcp;
-pub mod pty;
 pub mod reference;

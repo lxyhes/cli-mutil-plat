@@ -61,7 +61,7 @@ pub struct ClaudeSidecarAdapter {
     state: RwLock<SidecarState>,
     /// Active sessions
     sessions: RwLock<HashMap<String, ClaudeSession>>,
-    /// IPC connection (placeholder - needs Named Pipe / Unix Socket implementation)
+    // IPC connection (placeholder - needs Named Pipe / Unix Socket implementation)
     // ipc_connection: Option<IpcConnection>,
 }
 
