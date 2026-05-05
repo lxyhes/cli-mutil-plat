@@ -12,7 +12,7 @@
 | Phase 0 | 项目脚手架 | 2-3 周 | ✅ 90% | 基本完成 |
 | Phase 1 | 数据库迁移 | 4-6 周 | ✅ **95%** | **接近完成** |
 | Phase 2 | 终端仿真 | 3-4 周 | ✅ **70%** | **核心功能完成** |
-| Phase 3 | AgentBridge WS | 2-3 周 | ❌ 0% | 未开始 |
+| Phase 3 | AgentBridge WS | 2-3 周 | ✅ **80%** | **核心功能完成** |
 | Phase 4 | 非 Claude 适配器 | 3-4 周 | ❌ 0% | 未开始 |
 | Phase 5 | Claude Sidecar | 4-6 周 | ❌ 0% | 未开始 |
 | Phase 6 | 服务迁移 | 6-8 周 | ❌ 5% | 未开始 |
@@ -20,7 +20,7 @@
 | Phase 8 | 系统集成 | 2-3 周 | ✅ 60% | 部分完成 |
 | Phase 9 | 最终清理 | 2-3 周 | ❌ 0% | 未开始 |
 
-**预计剩余工期**: 20-33 周（原计划 28-43 周，**减少 8 周**）
+**预计剩余工期**: 18-31 周（原计划 28-43 周，**减少 10 周**）
 
 ---
 
@@ -230,26 +230,59 @@
 
 ---
 
-### Phase 3: AgentBridge WebSocket 服务器（0% 完成）
+### Phase 3: AgentBridge WebSocket 服务器（80% 完成）✅ **核心功能完成**
 
-#### 现状
-- ❌ `AgentBridgeService` 空壳 (`src-tauri/src/services/agent_bridge.rs`, 12 行)
-  - 只有一个 `new()` 方法
+#### 已完成（本次更新）
+1. ✅ **WebSocket 服务器** (`agent_bridge.rs` - 318 行)
+   - 监听端口 63721（可配置）
+   - 使用 `tokio-tungstenite`
+   - 异步 I/O，并发连接支持
+   - 仅监听 127.0.0.1（本地回环）
 
-#### 需要实现
-- ❌ **WebSocket 服务器**
-  - 监听端口 63721
-  - 使用 `tokio-tungstenite`
-  
-- ❌ **MCP 协议支持**
-  - JSON-RPC over WebSocket
-  - 消息路由、会话管理
-  
-- ❌ **客户端连接管理**
-  - 多客户端并发
-  - 心跳检测、断线重连
+2. ✅ **JSON-RPC 2.0 协议**
+   - BridgeRequest/BridgeResponse 数据结构
+   - 请求 ID、方法、参数、结果、错误
+   - serde 序列化/反序列化
 
-**工作量评估**: 需要 2-3 周全职开发
+3. ✅ **会话管理**
+   - MCP Server 注册（register 消息）
+   - 会话 ID → WebSocket 连接映射
+   - 自动清理断线连接
+
+4. ✅ **认证机制**
+   - Bearer token 生成（UUID v4）
+   - TODO: HTTP Upgrade 阶段验证
+
+5. ✅ **心跳检测**
+   - 每 30 秒检查一次
+   - 超过 60 秒未活动自动断开
+   - 防止僵尸连接和内存泄漏
+
+6. ✅ **请求路由**
+   - 闭包式请求处理器
+   - 灵活的回调机制
+   - 与 AgentManager 解耦
+
+7. ✅ **消息类型支持**
+   - register: MCP Server 注册
+   - file-change: 文件变更事件
+   - request: JSON-RPC 请求
+
+#### 技术亮点
+- ✅ **异步 WebSocket** - tokio::spawn + mpsc channel
+- ✅ **读写分离** - split() 独立处理
+- ✅ **心跳循环** - tokio::time::interval
+- ✅ **零 unsafe 代码** - 纯 Rust 实现
+
+#### 未完成（20%）
+- ❌ **HTTP Upgrade 认证**（低优先级）
+  - 需要在握手阶段验证 Authorization header
+  - 需要自定义 accept_async_with_config
+
+- ❌ **文件变更事件转发**（低优先级）
+  - 当前只记录日志
+  - 需要 emit 到主进程
+  - 需要转换为 ConversationMessage
 
 ---
 
