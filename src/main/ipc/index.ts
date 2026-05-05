@@ -48,6 +48,7 @@ import type { VoiceService } from '../voice/VoiceService'
 import type { CommunityPublishService } from '../community/CommunityPublishService'
 import type { KnowledgeCenterService } from '../knowledge/KnowledgeCenterService'
 import type { MemoryDeduplicationService } from '../memory/MemoryDeduplicationService'
+import type { CostOptimizationService } from '../cost/CostOptimizationService'
 // ★ 公共工具从 shared.ts 导出，避免 handler → index → handler 循环依赖
 export { sendToRenderer, aiRenamingLocks, performAiRename } from './shared'
 // ★ IPC 错误处理中间件
@@ -106,6 +107,7 @@ export interface IpcDependencies {
   communityPublishService?: CommunityPublishService
   knowledgeCenterService?: KnowledgeCenterService
   memoryDedupService?: MemoryDeduplicationService
+  costOptimizationService?: CostOptimizationService
 }
 
 // 各子模块 handler 注册函数
@@ -144,6 +146,7 @@ import { registerNewFeatureHandlers, type NewFeatureDeps } from './newFeatureHan
 import { registerKnowledgeCenterHandlers } from './knowledgeCenterHandlers'
 import { setupProviderHealthHandlers, cleanupProviderHealth } from './providerHealthHandlers'
 import { setupMemoryDedupHandlers } from './memoryDedupHandlers'
+import { setupCostOptimizationHandlers } from './costOptimizationHandlers'
 import type { FileChangeTracker } from '../tracker/FileChangeTracker'
 
 // re-export wireSessionManagerV2Events from systemHandlers
@@ -232,5 +235,11 @@ export function registerIpcHandlers(deps: IpcDependencies, fileChangeTracker?: F
   // ★ Memory Deduplication IPC 注册
   if (deps.memoryDedupService) {
     setupMemoryDedupHandlers(deps.database)
+  }
+
+  // ★ Cost Optimization IPC 注册
+  if (deps.costService && deps.adapterRegistry) {
+    // 需要获取 healthService，但这里没有直接引用，暂时跳过
+    // TODO: 在 index.ts 中传递 healthService
   }
 }

@@ -226,6 +226,15 @@ export const IPC = {
   MEMORY_DEDUP_UPDATE_CONFIG: 'memory-dedup:update-config',
   MEMORY_DEDUP_GET_CONFIG: 'memory-dedup:get-config',
   MEMORY_DEDUP_GET_STATS: 'memory-dedup:get-stats',
+
+  // Cost Optimization - 成本优化路由
+  COST_OPT_SELECT_PROVIDER: 'cost-opt:select-provider',
+  COST_OPT_CHECK_BUDGET: 'cost-opt:check-budget',
+  COST_OPT_RECORD_USAGE: 'cost-opt:record-usage',
+  COST_OPT_GET_REPORT: 'cost-opt:get-report',
+  COST_OPT_GET_EFFICIENCIES: 'cost-opt:get-efficiencies',
+  COST_OPT_UPDATE_CONFIG: 'cost-opt:update-config',
+  COST_OPT_GET_CONFIG: 'cost-opt:get-config',
   WORKTREE_CREATE: 'worktree:create',
   WORKTREE_REMOVE: 'worktree:remove',
   WORKTREE_LIST: 'worktree:list',

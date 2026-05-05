@@ -653,6 +653,129 @@ export interface SpectrAIAPI {
     }>
   },
 
+  // Cost Optimization - 成本优化路由
+  costOptimization: {
+    selectProvider: (taskProfile: {
+      taskType: 'code_generation' | 'code_review' | 'debugging' | 'architecture' | 'documentation' | 'refactoring' | 'testing' | 'general'
+      complexity: 'simple' | 'medium' | 'complex' | 'critical'
+      estimatedTokens?: number
+      budgetLimit?: number
+      urgency: 'low' | 'normal' | 'high' | 'critical'
+    }, preferredProviderId?: string) => Promise<{
+      success: boolean
+      decision?: {
+        selectedProvider: {
+          id: string
+          name: string
+          adapterType: string
+          defaultModel: string
+        }
+        reason: string
+        alternatives: Array<{
+          provider: {
+            id: string
+            name: string
+            adapterType: string
+            defaultModel: string
+          }
+          estimatedCost: number
+          pros: string[]
+          cons: string[]
+        }>
+        estimatedCost: number
+        estimatedTokens: number
+        costSavingVsDefault: number
+        confidence: number
+      }
+      error?: string
+    }>,
+    checkBudget: () => Promise<{
+      success: boolean
+      alert?: {
+        level: 'info' | 'warning' | 'danger' | 'critical'
+        message: string
+        currentCost: number
+        budgetLimit: number
+        usagePercent: number
+        suggestedAction?: string
+      }
+      error?: string
+    }>,
+    recordUsage: (cost: number) => Promise<{ success: boolean; error?: string }>,
+    getReport: (days?: number) => Promise<{
+      success: boolean
+      report?: {
+        providers: Array<{
+          providerId: string
+          providerName: string
+          modelId: string
+          modelName: string
+          inputPricePer1M: number
+          outputPricePer1M: number
+          averageTokensPerDollar: number
+          successRate: number
+          avgResponseTimeMs: number
+          costScore: number
+          isHealthy: boolean
+        }>
+        totalCost: number
+        totalTokens: number
+        averageCostPerToken: number
+        recommendations: string[]
+      }
+      error?: string
+    }>,
+    getEfficiencies: () => Promise<{
+      success: boolean
+      efficiencies?: Array<{
+        providerId: string
+        providerName: string
+        modelId: string
+        modelName: string
+        inputPricePer1M: number
+        outputPricePer1M: number
+        averageTokensPerDollar: number
+        successRate: number
+        avgResponseTimeMs: number
+        costScore: number
+        isHealthy: boolean
+      }>
+      error?: string
+    }>,
+    updateConfig: (updates: {
+      enabled?: boolean
+      autoRoutingEnabled?: boolean
+      budgetAlertThresholds?: {
+        warning?: number
+        danger?: number
+        critical?: number
+      }
+      minCostSavingThreshold?: number
+      qualityWeight?: number
+      costWeight?: number
+      speedWeight?: number
+      fallbackStrategy?: 'cheapest' | 'balanced' | 'fastest'
+    }) => Promise<{ success: boolean; error?: string }>,
+    getConfig: () => Promise<{
+      success: boolean
+      config?: {
+        enabled: boolean
+        autoRoutingEnabled: boolean
+        budgetAlertThresholds: {
+          warning: number
+          danger: number
+          critical: number
+        }
+        minCostSavingThreshold: number
+        qualityWeight: number
+        costWeight: number
+        speedWeight: number
+        fallbackStrategy: 'cheapest' | 'balanced' | 'fastest'
+      }
+      error?: string
+    }>
+  },
+
   // 会话模板
   sessionTemplate: {
     list: (category?: string) => Promise<any>

@@ -1239,6 +1239,43 @@ if (!ctxBr) {
       ipcRenderer.invoke(IPC.MEMORY_DEDUP_GET_STATS),
   },
 
+  // ==================== Cost Optimization API ====================
+  costOptimization: {
+    // 智能选择 Provider
+    selectProvider: (taskProfile: {
+      taskType: string
+      complexity: string
+      estimatedTokens?: number
+      budgetLimit?: number
+      urgency: string
+    }, preferredProviderId?: string) =>
+      ipcRenderer.invoke(IPC.COST_OPT_SELECT_PROVIDER, taskProfile, preferredProviderId),
+    
+    // 检查预算状态
+    checkBudget: () =>
+      ipcRenderer.invoke(IPC.COST_OPT_CHECK_BUDGET),
+    
+    // 记录成本使用
+    recordUsage: (cost: number) =>
+      ipcRenderer.invoke(IPC.COST_OPT_RECORD_USAGE, cost),
+    
+    // 获取成本效益报告
+    getReport: (days?: number) =>
+      ipcRenderer.invoke(IPC.COST_OPT_GET_REPORT, days),
+    
+    // 获取所有 Provider 效率
+    getEfficiencies: () =>
+      ipcRenderer.invoke(IPC.COST_OPT_GET_EFFICIENCIES),
+    
+    // 更新配置
+    updateConfig: (updates: any) =>
+      ipcRenderer.invoke(IPC.COST_OPT_UPDATE_CONFIG, updates),
+    
+    // 获取配置
+    getConfig: () =>
+      ipcRenderer.invoke(IPC.COST_OPT_GET_CONFIG),
+  },
+
   // ★ 渲染进程注册 API 就绪回调（避免轮询）
   __registerAPIAvailableCallback: (cb: () => void) => { _apiReadyCallbacks.push(cb) },
   }
