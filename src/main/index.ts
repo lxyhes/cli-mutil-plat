@@ -77,6 +77,8 @@ import { SkillArenaService } from './arena/SkillArenaService'
 import { CommunityPublishService } from './community/CommunityPublishService'
 import { VoiceService } from './voice/VoiceService'
 import { MemoryDeduplicationService } from './memory/MemoryDeduplicationService'
+import { CostOptimizationService } from './cost/CostOptimizationService'
+import { ProviderHealthService } from './provider/ProviderHealthService'
 
 
 let mainWindow: BrowserWindow | null = null
@@ -209,6 +211,8 @@ let skillArenaService: SkillArenaService | undefined = undefined
 let voiceService: VoiceService | undefined = undefined
 let communityPublishService: CommunityPublishService | undefined = undefined
 let memoryDedupService: MemoryDeduplicationService | undefined = undefined
+let providerHealthService: ProviderHealthService | undefined = undefined
+let costOptimizationService: CostOptimizationService | undefined = undefined
 
 /**
  * 创建主窗口
