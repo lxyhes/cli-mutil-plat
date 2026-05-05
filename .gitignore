@@ -40,3 +40,33 @@ config/
 # AI 生成的临时分析文件
 *_SUMMARY.txt
 *_ANALYSIS.txt
+
+# Rust/Cargo 构建产物
+target/
+**/target/
+Cargo.lock
+*.rs.bk
+
+# Electron/Vite 构建产物
+build/
+out/
+
+# Tauri 构建产物
+tauri.conf.json.backup
+
+# 临时文件和备份
+*.tmp
+*.temp
+*~
+*.swp
+*.swo
+.DS_Store
+
+# Playwright MCP 日志和页面文件
+.playwright-mcp/*.log
+.playwright-mcp/*.yml
+
+# IDE 和工具缓存
+.serena/
+.idea/workspace.xml
+.idea/claudCodeTabState.xml
