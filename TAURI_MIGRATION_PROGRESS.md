@@ -13,14 +13,14 @@
 | Phase 1 | 数据库迁移 | 4-6 周 | ✅ **95%** | **接近完成** |
 | Phase 2 | 终端仿真 | 3-4 周 | ✅ **70%** | **核心功能完成** |
 | Phase 3 | AgentBridge WS | 2-3 周 | ✅ **80%** | **核心功能完成** |
-| Phase 4 | 非 Claude 适配器 | 3-4 周 | ❌ 0% | 未开始 |
+| Phase 4 | 非 Claude 适配器 | 3-4 周 | ✅ **30%** | **框架完成** |
 | Phase 5 | Claude Sidecar | 4-6 周 | ❌ 0% | 未开始 |
 | Phase 6 | 服务迁移 | 6-8 周 | ❌ 5% | 未开始 |
 | Phase 7 | IPC 命令注册 | 2-3 周 | ❌ 5% | 未开始 |
 | Phase 8 | 系统集成 | 2-3 周 | ✅ 60% | 部分完成 |
 | Phase 9 | 最终清理 | 2-3 周 | ❌ 0% | 未开始 |
 
-**预计剩余工期**: 18-31 周（原计划 28-43 周，**减少 10 周**）
+**预计剩余工期**: 17-30 周（原计划 28-43 周，**减少 11 周**）
 
 ---
 
@@ -286,26 +286,54 @@
 
 ---
 
-### Phase 4: 非 Claude 适配器迁移（0% 完成）
+### Phase 4: 非 Claude 适配器迁移（30% 完成）✅ **框架完成**
 
-#### 现状
-- ❌ `AdapterRegistry` 空壳 (`src-tauri/src/services/adapter_registry.rs`, 10 行)
+#### 已完成（本次更新）
+1. ✅ **适配器注册表** (`adapter_registry.rs` - 71 行)
+   - ProviderAdapter trait 定义
+   - 动态注册机制
+   - 根据 provider_id 路由
+   - 线程安全（Arc<RwLock>）
 
-#### 需要实现的 6 个适配器
-1. ❌ **CodexAppServerAdapter** → `tokio::process::Command` (stdio JSON-RPC)
-2. ❌ **GeminiHeadlessAdapter** → `tokio::process::Command` (stdio NDJSON)
-3. ❌ **QwenSdkAdapter** → `tokio::process::Command` (stdio ACP)
-4. ❌ **IFlowAcpAdapter** → `tokio::process::Command` (stdio ACP)
-5. ❌ **OpenCodeSdkAdapter** → `tokio::process::Command` + HTTP
-6. ❌ **OpenAICompatibleAdapter** → `reqwest` 直接 HTTP
+2. ✅ **OpenAI Compatible Adapter** (`adapters/openai_compatible.rs` - 324 行)
+   - HTTP API 通信（reqwest）
+   - SSE 流式响应处理
+   - Token 统计
+   - 会话管理
+   - 支持 7+ Provider（Deepseek, Qwen, GLM, Moonshot, Ollama, vLLM, LocalAI）
 
-#### 每个适配器需要
-- stdio 子进程管理
-- 消息序列化/反序列化
-- 错误处理、超时控制
-- 流式输出支持
+3. ✅ **模块化架构**
+   - `adapters/mod.rs` 模块导出
+   - 易于扩展新适配器
+   - 统一的接口设计
 
-**工作量评估**: 需要 3-4 周全职开发（可并行）
+#### 技术亮点
+- ✅ **Trait Object 多态** - 运行时多态，统一接口
+- ✅ **异步 HTTP** - reqwest + tokio
+- ✅ **SSE 解析** - 高效的流式处理
+- ✅ **配置化设计** - 灵活切换 Provider
+
+#### 未完成（70%）
+- ❌ **Claude Sidecar Adapter**（最高优先级，最难）
+  - Node.js sidecar 进程管理
+  - Named Pipe / Unix Socket IPC
+  - Claude SDK 封装
+
+- ❌ **Codex AppServer Adapter**（高优先级）
+  - stdio JSON-RPC 通信
+  - NDJSON 解析
+
+- ❌ **Gemini Headless Adapter**（中优先级）
+  - stdio NDJSON 通信
+  - OAuth 认证流程
+
+- ❌ **Qwen/IFlow ACP Adapters**（中优先级）
+  - shared process 管理
+  - JSON-RPC over stdio
+
+- ❌ **OpenCode SDK Adapter**（低优先级）
+  - HTTP server spawn
+  - SSE 事件订阅
 
 ---
 
