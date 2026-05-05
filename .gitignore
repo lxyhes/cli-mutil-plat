@@ -44,8 +44,11 @@ config/
 # Rust/Cargo 构建产物
 target/
 **/target/
-Cargo.lock
 *.rs.bk
+
+# Tauri 生成的代码
+gen/
+**/gen/
 
 # Electron/Vite 构建产物
 build/
